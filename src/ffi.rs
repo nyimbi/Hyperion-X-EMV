@@ -28,6 +28,7 @@ use crate::selection::{
 };
 use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
+use crate::trm::{evaluate as evaluate_trm, TrmInput};
 use core::mem;
 use core::ptr;
 use std::ffi::c_void;
@@ -1076,6 +1077,43 @@ fn transaction_currency_matches_application(
     Ok(application_currency == terminal_currency)
 }
 
+fn run_terminal_risk_management(
+    ctx: &mut KrnContext,
+    profiles: &ProfileSet,
+    params: &StoredTxnParams,
+) -> Result<(), KernelError> {
+    let selected = ctx
+        .selected_application
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let aid = profiles
+        .schemes
+        .get(selected.scheme_index)
+        .and_then(|scheme| scheme.aids.get(selected.aid_index))
+        .ok_or(KernelError::InvalidProfile)?;
+    let profile = aid.trm_profile().ok_or(KernelError::InvalidProfile)?;
+
+    let result = evaluate_trm(
+        TrmInput {
+            amount_authorized: params.amount_authorised_minor,
+            exception_file_match: false,
+            merchant_forced_online: false,
+            consecutive_offline_count: None,
+            random_sample_basis_points: None,
+            profile,
+        },
+        ctx.tvr,
+        ctx.tsi,
+    );
+    ctx.tvr = result.tvr;
+    ctx.tsi = result.tsi;
+    ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
+    ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
+    apply_transition(ctx, FsmEvent::TrmEvaluated)?;
+    ctx.state = KernelState::TerminalActionAnalysis;
+    Ok(())
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let Some(params) = ctx.txn_params.as_ref() else {
         ctx.last_error = KernelError::InvalidArgument;
@@ -1401,6 +1439,14 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     }
+    if ctx.fsm_state == FsmState::S8 {
+        if let Err(err) = run_terminal_risk_management(ctx, &profiles, &params) {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
 
     ctx.last_error = KernelError::InvalidArgument;
     KrnOutcome::Error
@@ -1679,7 +1725,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_init_validates_runtime_callbacks_and_reaches_trm_after_cvm() {
+    fn ffi_init_validates_runtime_callbacks_and_reaches_taa_after_trm() {
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -1741,7 +1787,7 @@ mod tests {
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S8.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S9.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(
@@ -1755,13 +1801,26 @@ mod tests {
             assert!(!ctx_ref
                 .tvr
                 .is_set(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL));
+            assert!(ctx_ref.tvr.is_set(Tvr::B4_FLOOR_LIMIT_EXCEEDED));
+            assert!(!ctx_ref
+                .tvr
+                .is_set(Tvr::B4_RANDOM_TRANSACTION_SELECTION_PERFORMED));
             assert!(ctx_ref
                 .tsi
                 .is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
             assert!(ctx_ref.tsi.is_set(Tsi::CARDHOLDER_VERIFICATION_PERFORMED));
+            assert!(ctx_ref.tsi.is_set(Tsi::TERMINAL_RISK_MANAGEMENT_PERFORMED));
             assert_eq!(
                 ctx_ref.card_data.get(&[0x9f, 0x34]),
                 Some(&[0x1f, 0x00, 0x02][..])
+            );
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x95]),
+                Some(&ctx_ref.tvr.bytes()[..])
+            );
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9b]),
+                Some(&ctx_ref.tsi.bytes()[..])
             );
             krn_context_free(ctx);
         }

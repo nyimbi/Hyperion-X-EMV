@@ -691,7 +691,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 4);
         assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
         assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
-        assert_eq!(krn_get_fsm_state(ctx), FsmState::S8.code());
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S9.code());
         assert_eq!(
             krn_get_last_error(ctx),
             hyperion_emv::KernelError::InvalidArgument.code()
