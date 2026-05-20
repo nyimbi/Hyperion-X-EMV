@@ -14,6 +14,13 @@ use hyperion_emv::cvm::{
     Interface as CvmInterface, PedPinHandle,
 };
 use hyperion_emv::dol::DataStore;
+use hyperion_emv::ffi::{
+    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error, krn_reset,
+    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnTxnParams,
+};
+use hyperion_emv::fsm::{
+    transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
+};
 use hyperion_emv::gac::{build_online_authorization_package, parse_generate_ac_response};
 use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
@@ -44,6 +51,7 @@ const SCHEME_PROFILES: &str = include_str!("../docs/scheme_profiles.cert.json");
 const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
 const ODA_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
+const STATE_MACHINE_CSV: &str = include_str!("../docs/state_machine.csv");
 
 #[test]
 fn rtm_contains_foundation_requirements_under_test() {
@@ -86,11 +94,32 @@ fn rtm_contains_foundation_requirements_under_test() {
 #[test]
 fn corrected_spec_contains_logging_and_replay_requirements() {
     for krn_id in [
+        "KRN-FSM-001",
+        "KRN-FSM-002",
         "KRN-FSM-003",
+        "KRN-FSM-004",
         "KRN-LOG-001",
         "KRN-LOG-002",
         "KRN-LOG-003",
         "KRN-LOG-004",
+    ] {
+        assert!(
+            CORRECTED_SPEC.contains(krn_id),
+            "corrected spec missing {krn_id}"
+        );
+    }
+}
+
+#[test]
+fn corrected_spec_contains_api_transaction_runner_requirements() {
+    for krn_id in [
+        "KRN-API-001",
+        "KRN-API-002",
+        "KRN-API-003",
+        "KRN-API-004",
+        "KRN-API-005",
+        "KRN-API-006",
+        "KRN-API-007",
     ] {
         assert!(
             CORRECTED_SPEC.contains(krn_id),
@@ -387,6 +416,88 @@ fn krn_cid_001_decodes_with_high_bit_mask_only() {
     assert_eq!(Cid::new(0x8f).cryptogram_type(), CryptogramType::Arqc);
     assert_eq!(Cid::new(0x47).cryptogram_type(), CryptogramType::Tc);
     assert_eq!(Cid::new(0x0f).cryptogram_type(), CryptogramType::Aac);
+}
+
+#[test]
+fn krn_fsm_001_002_004_validates_annex_and_error_transitions() {
+    assert!(validate_state_machine_annex(STATE_MACHINE_CSV).unwrap() >= 45);
+
+    let mut fsm = TransactionFsm::new();
+    for event in [
+        FsmEvent::SetTransactionParams,
+        FsmEvent::CardDetected,
+        FsmEvent::PseSelected,
+        FsmEvent::CandidateAidAvailable,
+        FsmEvent::AidSelected,
+        FsmEvent::GpoTemplate77,
+    ] {
+        fsm.apply(event).unwrap();
+    }
+    assert_eq!(fsm.state(), FsmState::S4);
+
+    assert_eq!(
+        transition(FsmState::S4, FsmEvent::RecordReadFailed)
+            .unwrap()
+            .to,
+        FsmState::S5
+    );
+    let fatal = transition(FsmState::S3, FsmEvent::GpoFailed).unwrap();
+    assert_eq!(fatal.to, FsmState::Se);
+    assert_eq!(fatal.error, hyperion_emv::KernelError::MissingMandatoryTag);
+    assert_eq!(
+        transition(FsmState::S11, FsmEvent::HostTimeout)
+            .unwrap()
+            .error,
+        hyperion_emv::KernelError::HostTimeout
+    );
+    assert_eq!(
+        transition(FsmState::S10, FsmEvent::CardRemoved)
+            .unwrap()
+            .error,
+        hyperion_emv::KernelError::CardRemoved
+    );
+}
+
+#[test]
+fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks() {
+    unsafe {
+        let ctx = krn_context_new();
+        assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::Se.code());
+
+        assert_eq!(krn_reset(ctx), hyperion_emv::KernelError::Ok.code());
+        let merchant = b"HYPERION TEST MERCHANT";
+        let params = KrnTxnParams {
+            struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_500,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 2,
+            merchant_name_location: merchant.as_ptr(),
+            merchant_name_location_len: merchant.len(),
+        };
+        assert_eq!(
+            krn_set_transaction_params(ctx, &params),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S1.code());
+
+        assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::Se.code());
+        krn_context_free(ctx);
+    }
 }
 
 #[test]

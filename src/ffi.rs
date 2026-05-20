@@ -4,7 +4,9 @@ use crate::c8::{
     StartSignal, UiRequest, UiStatus,
 };
 use crate::error::KernelError;
+use crate::fsm::{self, FsmEvent, FsmState};
 use crate::state::{KernelState, Tsi, Tvr};
+use core::mem;
 use core::ptr;
 use std::ffi::c_void;
 use std::slice;
@@ -12,13 +14,65 @@ use std::slice;
 pub type KrnContactlessOutcomeCallback =
     unsafe extern "C" fn(outcome: *const KrnContactlessOutcome, user_data: *mut c_void);
 
+pub const MAX_MERCHANT_NAME_LOCATION_LEN: usize = 128;
+
+#[repr(i32)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KrnOutcome {
+    ApprovedOffline = 0,
+    DeclinedOffline = 1,
+    ApprovedOnline = 2,
+    DeclinedOnline = 3,
+    TryAgain = 4,
+    AlternateInterface = 5,
+    SelectNext = 6,
+    Terminated = 7,
+    Error = 8,
+}
+
+impl KrnOutcome {
+    fn code(self) -> i32 {
+        self as i32
+    }
+}
+
+#[repr(C)]
+pub struct KrnTxnParams {
+    pub struct_size: u32,
+    pub amount_authorised_minor: u64,
+    pub amount_other_minor: u64,
+    pub currency_code: u16,
+    pub terminal_country_code: u16,
+    pub transaction_type: u8,
+    pub terminal_type: u8,
+    pub merchant_category_code: [u8; 2],
+    pub interface_preference: u8,
+    pub merchant_name_location: *const u8,
+    pub merchant_name_location_len: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StoredTxnParams {
+    pub amount_authorised_minor: u64,
+    pub amount_other_minor: u64,
+    pub currency_code: u16,
+    pub terminal_country_code: u16,
+    pub transaction_type: u8,
+    pub terminal_type: u8,
+    pub merchant_category_code: [u8; 2],
+    pub interface_preference: u8,
+    pub merchant_name_location: Vec<u8>,
+}
+
 #[repr(C)]
 pub struct KrnContext {
     state: KernelState,
+    fsm_state: FsmState,
     tvr: Tvr,
     tsi: Tsi,
     last_error: KernelError,
     busy: bool,
+    txn_params: Option<StoredTxnParams>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
     contactless_outcome_user_data: *mut c_void,
 }
@@ -27,10 +81,12 @@ impl KrnContext {
     fn new() -> Self {
         Self {
             state: KernelState::Idle,
+            fsm_state: FsmState::S0,
             tvr: Tvr::cleared(),
             tsi: Tsi::cleared(),
             last_error: KernelError::Ok,
             busy: false,
+            txn_params: None,
             contactless_outcome_callback: None,
             contactless_outcome_user_data: ptr::null_mut(),
         }
@@ -38,10 +94,12 @@ impl KrnContext {
 
     fn reset(&mut self) {
         self.state = KernelState::Idle;
+        self.fsm_state = FsmState::S0;
         self.tvr = Tvr::cleared();
         self.tsi = Tsi::cleared();
         self.last_error = KernelError::Ok;
         self.busy = false;
+        self.txn_params = None;
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -105,6 +163,74 @@ pub unsafe extern "C" fn krn_get_last_error(ctx: *const KrnContext) -> i32 {
         return KernelError::InvalidArgument.code();
     };
     ctx.last_error.code()
+}
+
+/// Returns the current transaction FSM state code for diagnostics.
+///
+/// # Safety
+///
+/// `ctx` must be null or a valid pointer returned by `krn_context_new`. The
+/// function does not take ownership of the pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_fsm_state(ctx: *const KrnContext) -> u8 {
+    let Some(ctx) = ctx.as_ref() else {
+        return FsmState::Se.code();
+    };
+    ctx.fsm_state.code()
+}
+
+/// Stores transaction parameters and moves the transaction FSM to S1.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `params` must
+/// point to a readable [`KrnTxnParams`] whose `struct_size` exactly matches this
+/// ABI version. `merchant_name_location` may be null only when its length is
+/// zero, and its contents are copied before the function returns.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_transaction_params(
+    ctx: *mut KrnContext,
+    params: *const KrnTxnParams,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    let result = read_transaction_params(params).and_then(|stored| {
+        let transition = fsm::transition(FsmState::S0, FsmEvent::SetTransactionParams)?;
+        ctx.txn_params = Some(stored);
+        ctx.tvr = Tvr::cleared();
+        ctx.tsi = Tsi::cleared();
+        ctx.state = KernelState::ParamsSet;
+        ctx.fsm_state = transition.to;
+        Ok(0usize)
+    });
+    ctx.set_result(result)
+}
+
+/// Runs a transaction through the stable ABI entrypoint.
+///
+/// The full callback-driven runner is not complete yet. Until mandatory
+/// transport/runtime callbacks are registered by a future initialization API,
+/// this function fails explicitly and leaves the context in the error state
+/// rather than returning a synthetic payment outcome.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. Calls for the same
+/// context must be serialized by the integration layer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_run_transaction(ctx: *mut KrnContext) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KrnOutcome::Error.code();
+    };
+    if ctx.busy {
+        ctx.last_error = KernelError::Busy;
+        return KrnOutcome::Error.code();
+    }
+    ctx.busy = true;
+    let outcome = run_transaction(ctx);
+    ctx.busy = false;
+    outcome.code()
 }
 
 /// Builds the contact PSE or contactless PPSE SELECT APDU into a caller buffer.
@@ -281,6 +407,57 @@ unsafe fn write_output(
     }
     ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
     Ok(bytes.len())
+}
+
+unsafe fn read_transaction_params(
+    params: *const KrnTxnParams,
+) -> Result<StoredTxnParams, KernelError> {
+    if params.is_null() {
+        return Err(KernelError::InvalidArgument);
+    }
+    let struct_size = ptr::addr_of!((*params).struct_size).read_unaligned() as usize;
+    if struct_size != mem::size_of::<KrnTxnParams>() {
+        return Err(KernelError::InvalidArgument);
+    }
+    let params = params.as_ref().ok_or(KernelError::InvalidArgument)?;
+    if params.interface_preference > 2 {
+        return Err(KernelError::InvalidArgument);
+    }
+    if params.merchant_name_location_len > MAX_MERCHANT_NAME_LOCATION_LEN {
+        return Err(KernelError::LengthOverflow);
+    }
+    let merchant_name_location = readable_slice(
+        params.merchant_name_location,
+        params.merchant_name_location_len,
+    )?
+    .to_vec();
+
+    Ok(StoredTxnParams {
+        amount_authorised_minor: params.amount_authorised_minor,
+        amount_other_minor: params.amount_other_minor,
+        currency_code: params.currency_code,
+        terminal_country_code: params.terminal_country_code,
+        transaction_type: params.transaction_type,
+        terminal_type: params.terminal_type,
+        merchant_category_code: params.merchant_category_code,
+        interface_preference: params.interface_preference,
+        merchant_name_location,
+    })
+}
+
+fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
+    let Some(params) = ctx.txn_params.as_ref() else {
+        ctx.last_error = KernelError::InvalidArgument;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    };
+    let _selected_interface = params.interface_preference;
+
+    ctx.last_error = KernelError::InvalidArgument;
+    ctx.state = KernelState::Error;
+    ctx.fsm_state = FsmState::Se;
+    KrnOutcome::Error
 }
 
 struct RawContactlessOutcomeArgs {
