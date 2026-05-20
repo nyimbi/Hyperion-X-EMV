@@ -18,6 +18,7 @@ use crate::gac::{
     OnlineAuthorizationPackage,
 };
 use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
+use crate::issuer::{parse_host_response, HostResponse};
 use crate::oda::{
     apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip, CapkIntegrity,
     OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
@@ -57,6 +58,7 @@ pub const KRN_ABI_VERSION: u32 = 1;
 pub const MAX_MERCHANT_NAME_LOCATION_LEN: usize = 128;
 pub const MAX_APDU_RESPONSE_LEN: usize = 258;
 pub const MAX_ONLINE_AUTH_DATA_LEN: usize = 1024;
+pub const MAX_HOST_RESPONSE_LEN: usize = 1024;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
 
 #[repr(C)]
@@ -157,6 +159,7 @@ pub struct KrnContext {
     requested_cryptogram: Option<CryptogramRequest>,
     first_gac_response: Option<GenerateAcResponse>,
     online_authorization_data: Option<Vec<u8>>,
+    host_response: Option<HostResponse>,
     card_data: DataStore,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -179,6 +182,7 @@ impl KrnContext {
             requested_cryptogram: None,
             first_gac_response: None,
             online_authorization_data: None,
+            host_response: None,
             card_data: DataStore::new(),
             runtime: None,
             contactless_outcome_callback: None,
@@ -198,6 +202,7 @@ impl KrnContext {
         self.requested_cryptogram = None;
         self.first_gac_response = None;
         self.online_authorization_data = None;
+        self.host_response = None;
         self.card_data = DataStore::new();
     }
 
@@ -336,6 +341,7 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.requested_cryptogram = None;
         ctx.first_gac_response = None;
         ctx.online_authorization_data = None;
+        ctx.host_response = None;
         ctx.card_data = DataStore::new();
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
@@ -525,6 +531,38 @@ pub unsafe extern "C" fn krn_get_online_authorization_data(
         .as_deref()
         .ok_or(KernelError::InvalidArgument)
         .and_then(|bytes| write_output(bytes, out, out_len));
+    ctx.set_result(result)
+}
+
+/// Applies a Level 3 host response while the transaction is waiting at S11.
+///
+/// The input is BER-TLV data containing at least tag `8A` Authorization
+/// Response Code. Optional tag `91` issuer authentication data and issuer
+/// script templates `71`/`72` are parsed and retained for later kernel phases.
+/// This function does not validate ARQC, generate ARPC, or perform host
+/// messaging.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `host_response`
+/// must point to `host_response_len` readable bytes unless the length is zero,
+/// which is rejected.
+#[no_mangle]
+pub unsafe extern "C" fn krn_apply_host_response(
+    ctx: *mut KrnContext,
+    host_response: *const u8,
+    host_response_len: usize,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    let result = readable_slice(host_response, host_response_len).and_then(|bytes| {
+        if bytes.is_empty() || bytes.len() > MAX_HOST_RESPONSE_LEN {
+            return Err(KernelError::LengthOverflow);
+        }
+        apply_host_response(ctx, bytes)?;
+        Ok(0usize)
+    });
     ctx.set_result(result)
 }
 
@@ -1356,6 +1394,33 @@ fn run_first_generate_ac(
     Ok(())
 }
 
+fn apply_host_response(ctx: &mut KrnContext, bytes: &[u8]) -> Result<(), KernelError> {
+    if ctx.fsm_state != FsmState::S11 {
+        return Err(KernelError::InvalidArgument);
+    }
+    let response = parse_host_response(bytes)?;
+    let authorization_response_code = response
+        .authorization_response_code
+        .ok_or(KernelError::MissingMandatoryTag)?;
+    ctx.card_data.put(&[0x8a], &authorization_response_code)?;
+    if let Some(issuer_authentication_data) = response.issuer_authentication_data.as_ref() {
+        ctx.card_data.put(&[0x91], issuer_authentication_data)?;
+    }
+    let event = if response.issuer_authentication_data.is_some() {
+        FsmEvent::HostArpc
+    } else {
+        FsmEvent::HostApprovalNoArpc
+    };
+    ctx.host_response = Some(response);
+    apply_transition(ctx, event)?;
+    ctx.state = match ctx.fsm_state {
+        FsmState::S12 => KernelState::IssuerAuthentication,
+        FsmState::S13 => KernelState::IssuerScripts,
+        _ => KernelState::Error,
+    };
+    Ok(())
+}
+
 fn issuer_action_codes(data: &DataStore) -> Result<ActionCodes, KernelError> {
     Ok(ActionCodes {
         denial: optional_fixed::<5>(data, &[0x9f, 0x0e])?.unwrap_or([0; 5]),
@@ -2157,6 +2222,22 @@ mod tests {
             );
             assert!(crate::tlv::find_first(&auth_tlvs, &[0x95]).is_some());
             assert!(crate::tlv::find_first(&auth_tlvs, &[0x9f, 0x37]).is_some());
+            let host = [
+                0x8a, 0x02, b'0', b'0', 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+            ];
+            assert_eq!(
+                krn_apply_host_response(ctx, host.as_ptr(), host.len()),
+                KernelError::Ok.code()
+            );
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S12.code());
+            let ctx_ref = ctx.as_ref().unwrap();
+            assert_eq!(ctx_ref.card_data.get(&[0x8a]), Some(&[b'0', b'0'][..]));
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x91]),
+                Some(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88][..])
+            );
+            assert_eq!(ctx_ref.host_response.as_ref().unwrap().scripts.len(), 1);
             krn_context_free(ctx);
         }
     }

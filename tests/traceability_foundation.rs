@@ -15,10 +15,10 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
-    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error,
-    krn_get_online_authorization_data, krn_init, krn_load_profiles_verified, krn_reset,
-    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION,
+    krn_apply_host_response, krn_context_free, krn_context_new, krn_get_fsm_state,
+    krn_get_last_error, krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
+    krn_reset, krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime,
+    KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -723,6 +723,12 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             tlv::find_first(&auth_tlvs, &[0x82]),
             Some(&[0x80, 0x00][..])
         );
+        let host = hex("8A023030910811223344556677887108860600DA000001AA");
+        assert_eq!(
+            krn_apply_host_response(ctx, host.as_ptr(), host.len()),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S12.code());
         krn_context_free(ctx);
     }
 }
