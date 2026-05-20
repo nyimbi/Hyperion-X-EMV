@@ -58,6 +58,26 @@ pub enum CapkIntegrity {
     Verified,
 }
 
+pub fn selection_input_from_aip(
+    aip: [u8; 2],
+    profile_cda_allowed: bool,
+    terminal_supports_dynamic_authentication: bool,
+) -> OdaSelectionInput {
+    let aip_sda_supported = aip[0] & 0x80 != 0;
+    let aip_dda_supported = aip[0] & 0x40 != 0;
+    let aip_cda_supported = aip[1] & 0x80 != 0;
+    OdaSelectionInput {
+        aip_sda_supported,
+        aip_dda_supported,
+        aip_cda_supported,
+        profile_sda_allowed: true,
+        profile_dda_allowed: true,
+        profile_cda_allowed,
+        terminal_supports_dynamic_authentication,
+        oda_required: aip_sda_supported || aip_dda_supported || aip_cda_supported,
+    }
+}
+
 pub fn select_oda_method(input: OdaSelectionInput) -> OdaSelection {
     if input.aip_cda_supported
         && input.profile_cda_allowed
@@ -204,6 +224,11 @@ mod tests {
 
     #[test]
     fn selects_strongest_allowed_oda_method_without_fallback_after_cda_failure() {
+        assert_eq!(
+            select_oda_method(selection_input_from_aip([0xc0, 0x80], true, true)),
+            OdaSelection::Perform(OdaMethod::Cda)
+        );
+
         let selection = select_oda_method(OdaSelectionInput {
             aip_sda_supported: true,
             aip_dda_supported: true,

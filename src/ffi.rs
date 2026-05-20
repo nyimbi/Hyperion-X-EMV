@@ -9,6 +9,10 @@ use crate::dol::DataStore;
 use crate::error::KernelError;
 use crate::fsm::{self, FsmEvent, FsmState};
 use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
+use crate::oda::{
+    apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip, CapkIntegrity,
+    OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
+};
 use crate::record::parse_read_record_body;
 use crate::restrictions::EmvDate;
 use crate::selection::{
@@ -133,6 +137,7 @@ pub struct KrnContext {
     busy: bool,
     txn_params: Option<StoredTxnParams>,
     profiles: Option<ProfileSet>,
+    profile_evaluation_date: Option<EmvDate>,
     selected_application: Option<SelectedApplication>,
     card_data: DataStore,
     runtime: Option<RuntimeCallbacks>,
@@ -151,6 +156,7 @@ impl KrnContext {
             busy: false,
             txn_params: None,
             profiles: None,
+            profile_evaluation_date: None,
             selected_application: None,
             card_data: DataStore::new(),
             runtime: None,
@@ -337,6 +343,11 @@ pub unsafe extern "C" fn krn_load_profiles_verified(
         return KernelError::InvalidArgument.code();
     };
     let result = readable_slice(json, json_len).and_then(|bytes| {
+        let evaluation_date = EmvDate {
+            year: eval_year,
+            month: eval_month,
+            day: eval_day,
+        };
         let profiles = load_profile_set(
             bytes,
             &ConfigLoadPolicy {
@@ -344,14 +355,11 @@ pub unsafe extern "C" fn krn_load_profiles_verified(
                 signature_status: SignatureStatus::Verified,
                 installed_version,
                 candidate_version,
-                evaluation_date: EmvDate {
-                    year: eval_year,
-                    month: eval_month,
-                    day: eval_day,
-                },
+                evaluation_date,
             },
         )?;
         ctx.profiles = Some(profiles);
+        ctx.profile_evaluation_date = Some(evaluation_date);
         Ok(0usize)
     });
     ctx.set_result(result)
@@ -769,6 +777,152 @@ fn read_application_records(
     Ok(())
 }
 
+fn run_offline_data_authentication(
+    ctx: &mut KrnContext,
+    profiles: &ProfileSet,
+) -> Result<(), KernelError> {
+    let selected = ctx
+        .selected_application
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let aip = selected.aip.ok_or(KernelError::MissingMandatoryTag)?;
+    let evaluation_date = ctx
+        .profile_evaluation_date
+        .ok_or(KernelError::InvalidProfile)?;
+    let scheme = profiles
+        .schemes
+        .get(selected.scheme_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    let aid = scheme
+        .aids
+        .get(selected.aid_index)
+        .ok_or(KernelError::InvalidProfile)?;
+
+    let selection = select_oda_method(selection_input_from_aip(aip, aid.cda_supported, true));
+    let outcome = match selection {
+        OdaSelection::NotRequired => {
+            apply_transition(ctx, FsmEvent::OdaSuccess)?;
+            ctx.state = KernelState::ProcessingRestrictions;
+            return Ok(());
+        }
+        OdaSelection::NotPerformedRequired => OdaOutcome::NotPerformed,
+        OdaSelection::Perform(method) => oda_outcome_for_method(
+            method,
+            profiles,
+            &scheme.rid,
+            evaluation_date,
+            &ctx.card_data,
+        ),
+    };
+    let failed = matches!(
+        outcome,
+        OdaOutcome::NotPerformed | OdaOutcome::Failed { .. }
+    );
+    let (tvr, tsi) = apply_oda_outcome(ctx.tvr, ctx.tsi, outcome);
+    ctx.tvr = tvr;
+    ctx.tsi = tsi;
+    apply_transition(
+        ctx,
+        if failed {
+            FsmEvent::OdaFailure
+        } else {
+            FsmEvent::OdaSuccess
+        },
+    )?;
+    ctx.state = KernelState::ProcessingRestrictions;
+    Ok(())
+}
+
+fn oda_outcome_for_method(
+    method: OdaMethod,
+    profiles: &ProfileSet,
+    rid: &[u8; 5],
+    evaluation_date: EmvDate,
+    card_data: &DataStore,
+) -> OdaOutcome {
+    let Some(key_index) = card_data
+        .get(&[0x8f])
+        .and_then(|value| value.first())
+        .copied()
+    else {
+        return OdaOutcome::Failed {
+            method,
+            failure: OdaFailure::MissingCapk,
+        };
+    };
+    if select_capk(
+        profiles,
+        rid,
+        key_index,
+        evaluation_date,
+        CapkIntegrity::Verified,
+    )
+    .is_err()
+    {
+        return OdaOutcome::Failed {
+            method,
+            failure: OdaFailure::MissingCapk,
+        };
+    }
+
+    match method {
+        OdaMethod::Sda => {
+            if card_data.get(&[0x90]).is_none() {
+                return OdaOutcome::Failed {
+                    method,
+                    failure: OdaFailure::IssuerCertificateRecovery,
+                };
+            }
+            if card_data.get(&[0x93]).is_none() {
+                return OdaOutcome::Failed {
+                    method,
+                    failure: OdaFailure::StaticSignature,
+                };
+            }
+            OdaOutcome::Failed {
+                method,
+                failure: OdaFailure::StaticSignature,
+            }
+        }
+        OdaMethod::Dda => {
+            if card_data.get(&[0x90]).is_none() {
+                return OdaOutcome::Failed {
+                    method,
+                    failure: OdaFailure::IssuerCertificateRecovery,
+                };
+            }
+            if card_data.get(&[0x9f, 0x46]).is_none() || card_data.get(&[0x9f, 0x47]).is_none() {
+                return OdaOutcome::Failed {
+                    method,
+                    failure: OdaFailure::IccCertificateRecovery,
+                };
+            }
+            OdaOutcome::Failed {
+                method,
+                failure: OdaFailure::DynamicSignature,
+            }
+        }
+        OdaMethod::Cda => {
+            if card_data.get(&[0x90]).is_none() {
+                return OdaOutcome::Failed {
+                    method,
+                    failure: OdaFailure::IssuerCertificateRecovery,
+                };
+            }
+            if card_data.get(&[0x9f, 0x46]).is_none() || card_data.get(&[0x9f, 0x47]).is_none() {
+                return OdaOutcome::Failed {
+                    method,
+                    failure: OdaFailure::IccCertificateRecovery,
+                };
+            }
+            OdaOutcome::Failed {
+                method,
+                failure: OdaFailure::CdaSignature,
+            }
+        }
+    }
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let Some(params) = ctx.txn_params.as_ref() else {
         ctx.last_error = KernelError::InvalidArgument;
@@ -782,7 +936,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         ctx.fsm_state = FsmState::Se;
         return KrnOutcome::Error;
     };
-    let Some(profiles) = ctx.profiles.as_ref() else {
+    let Some(profiles) = ctx.profiles.clone() else {
         ctx.last_error = KernelError::InvalidProfile;
         ctx.state = KernelState::Error;
         ctx.fsm_state = FsmState::Se;
@@ -860,13 +1014,13 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let candidates = match if sw == [0x90, 0x00] {
         parse_fci_candidate_aids(fci).and_then(|aids| {
             if aids.is_empty() {
-                direct_profile_candidates(profiles, interface)
+                direct_profile_candidates(&profiles, interface)
             } else {
-                match_profile_candidates(profiles, interface, &aids)
+                match_profile_candidates(&profiles, interface, &aids)
             }
         })
     } else {
-        direct_profile_candidates(profiles, interface)
+        direct_profile_candidates(&profiles, interface)
     } {
         Ok(candidates) => candidates,
         Err(err) => {
@@ -1061,6 +1215,14 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     }
+    if ctx.fsm_state == FsmState::S5 {
+        if let Err(err) = run_offline_data_authentication(ctx, &profiles) {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
 
     ctx.last_error = KernelError::InvalidArgument;
     KrnOutcome::Error
@@ -1235,7 +1397,7 @@ mod tests {
                 0x38, 0x03, 0x9f, 0x37, 0x04, 0x90, 0x00,
             ],
             2 => vec![
-                0x77, 0x0a, 0x82, 0x02, 0x18, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
+                0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
             ],
             _ => vec![
                 0x70, 0x0a, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x90, 0x00,
@@ -1398,7 +1560,7 @@ mod tests {
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S5.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S6.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(
@@ -1406,6 +1568,10 @@ mod tests {
                 Some(&[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f][..])
             );
             assert_eq!(ctx_ref.selected_application.as_ref().unwrap().afl.len(), 1);
+            assert!(ctx_ref.tvr.is_set(Tvr::B1_SDA_FAILED));
+            assert!(ctx_ref
+                .tsi
+                .is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
             krn_context_free(ctx);
         }
     }

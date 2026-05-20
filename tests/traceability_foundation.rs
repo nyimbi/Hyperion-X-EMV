@@ -28,8 +28,9 @@ use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
 };
 use hyperion_emv::oda::{
-    apply_oda_outcome, select_capk, select_oda_method, validate_oda_vector_annex, CapkIntegrity,
-    OdaFailure, OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput,
+    apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip,
+    validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
+    OdaSelectionInput,
 };
 use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
@@ -81,7 +82,7 @@ unsafe extern "C" fn it_transmit_apdu(
     let response = match count {
         0 => hex("6F13A511BF0C0E610C4F07A00000000310108701019000"),
         1 => hex("6F118407A0000000031010A5069F38039F37049000"),
-        2 => hex("770A820218009404100101009000"),
+        2 => hex("770A820280009404100101009000"),
         _ => hex("700A5A08123456789012345F9000"),
     };
     let capacity = *resp_len;
@@ -688,7 +689,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 4);
         assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
         assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
-        assert_eq!(krn_get_fsm_state(ctx), FsmState::S5.code());
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S6.code());
         assert_eq!(
             krn_get_last_error(ctx),
             hyperion_emv::KernelError::InvalidArgument.code()
@@ -858,6 +859,19 @@ fn krn_cless_003_limits_are_signed_profile_inputs() {
 
 #[test]
 fn krn_oda_001_005_006_007_selects_method_and_sets_tvr_tsi_without_cda_fallback() {
+    assert_eq!(
+        select_oda_method(selection_input_from_aip([0x80, 0x00], true, true)),
+        OdaSelection::Perform(OdaMethod::Sda)
+    );
+    assert_eq!(
+        select_oda_method(selection_input_from_aip([0xc0, 0x00], true, true)),
+        OdaSelection::Perform(OdaMethod::Dda)
+    );
+    assert_eq!(
+        select_oda_method(selection_input_from_aip([0xc0, 0x80], true, true)),
+        OdaSelection::Perform(OdaMethod::Cda)
+    );
+
     let selection = select_oda_method(OdaSelectionInput {
         aip_sda_supported: true,
         aip_dda_supported: true,
