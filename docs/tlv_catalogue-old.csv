@@ -1,0 +1,43 @@
+Tag,Name,Format,Presence,Source,Scheme
+4F,AID,Primitive variable,Mandatory,EMV Book 3,All
+50,Application Label,Primitive variable,Recommended,EMV Book 3,All
+57,Track 2 Equivalent Data,Primitive variable,Mandatory,EMV Book 3,All
+5A,PAN,Primitive variable,Mandatory,EMV Book 3,All
+5F20,Cardholder Name,Primitive variable,Optional,EMV Book 3,All
+5F24,Application Expiration Date,Primitive 3 bytes,Mandatory,EMV Book 3,All
+5F25,Application Effective Date,Primitive 3 bytes,Optional,EMV Book 3,All
+5F28,Issuer Country Code,Primitive 2 bytes,Mandatory,EMV Book 3,All
+5F2A,Transaction Currency Code,Primitive 2 bytes,Mandatory (terminal),EMV Book 3,All
+5F34,Application PAN Sequence Number,Primitive 1 byte,Optional,EMV Book 3,All
+82,Application Interchange Profile (AIP),Primitive 2 bytes,Mandatory after GPO,EMV Book 3,All
+84,DF Name (PPSE),Primitive variable,Contactless,EMV Contactless,All
+8C,CDOL1,Constructed (DOL),If present,EMV Book 3,All
+8D,CDOL2,Constructed (DOL),If present,EMV Book 3,All
+8E,Cardholder Verification Method (CVM) List,Constructed,Mandatory,EMV Book 3,All
+91,Issuer Authentication Data,Primitive variable,For ARPC,EMV Book 3,All
+94,Application File Locator (AFL),Primitive variable,Mandatory after GPO,EMV Book 3,All
+95,Terminal Verification Results (TVR),Primitive 5 bytes,Kernel sets,EMV Book 3,All
+9A,Transaction Date,Primitive 3 bytes,Terminal sets,EMV Book 3,All
+9B,Transaction Status Indicator (TSI),Primitive 2 bytes,Kernel sets,EMV Book 3,All
+9C,Transaction Type,Primitive 1 byte,Terminal sets,EMV Book 3,All
+9F02,Amount Authorised (Numeric),Primitive 6 bytes,Terminal sets,EMV Book 3,All
+9F03,Amount Other (Numeric),Primitive 6 bytes,Optional,EMV Book 3,All
+9F07,Application Usage Control,Primitive 2 bytes,Mandatory,EMV Book 3,All
+9F09,Application Version Number,Primitive 2 bytes,Mandatory,EMV Book 3,All
+9F10,Issuer Application Data,Primitive variable,Mandatory for host,EMV Book 3,All
+9F1A,Terminal Country Code,Primitive 2 bytes,Terminal sets,EMV Book 3,All
+9F1E,Interface Device Serial Number,Primitive variable,Optional,EMV Book 3,All
+9F26,Application Cryptogram,Primitive 8 bytes,From card,EMV Book 3,All
+9F27,Cryptogram Information Data (CID),Primitive 1 byte,From card,EMV Book 3,All
+9F33,Terminal Capabilities,Primitive 3 bytes,Terminal sets,EMV Book 3,All
+9F34,Cardholder Verification Results (CVR),Primitive 3 bytes,Kernel sets,EMV Book 3,All
+9F35,Terminal Type,Primitive 1 byte,Terminal sets,EMV Book 3,All
+9F36,Application Transaction Counter (ATC),Primitive 2 bytes,From card,EMV Book 3,All
+9F37,Unpredictable Number,Primitive 4 bytes,Terminal generates,EMV Book 3,All
+9F4C,ICC Dynamic Number,Primitive variable,For CDA,EMV Book 3,All
+9F4E,Merchant Category Code,Primitive 2 bytes,Terminal sets,EMV Book 3,All
+9F5F,AIP (for C‑8),Primitive 2 bytes,Contactless C‑8,EMV C‑8,All
+9F6C,Card Transaction Qualifiers (CTQ),Primitive 1 byte,Contactless,EMV Contactless,All
+9F6E,Form Factor Indicator (FFI),Primitive 1 byte,Contactless / mobile,EMV Contactless,All
+9F66,Terminal Transaction Qualifiers (TTQ),Primitive 4 bytes,Contactless,EMV Contactless,All
+9F7C,Customer Exclusive Data,Primitive variable,Optional,EMV Book 3,All

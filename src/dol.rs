@@ -1,0 +1,140 @@
+use crate::error::{KernelError, KernelResult};
+
+pub const MAX_DOL_ENTRIES: usize = 128;
+pub const MAX_DOL_OUTPUT: usize = 252;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DolEntry {
+    pub tag: Vec<u8>,
+    pub length: usize,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct DataStore {
+    entries: Vec<(Vec<u8>, Vec<u8>)>,
+}
+
+impl DataStore {
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub fn put(&mut self, tag: &[u8], value: &[u8]) -> KernelResult<()> {
+        if tag.is_empty() || tag.len() > 4 {
+            return Err(KernelError::InvalidArgument);
+        }
+        if let Some((_, existing)) = self.entries.iter_mut().find(|(stored, _)| stored == tag) {
+            existing.clear();
+            existing.extend_from_slice(value);
+        } else {
+            self.entries.push((tag.to_vec(), value.to_vec()));
+        }
+        Ok(())
+    }
+
+    pub fn get(&self, tag: &[u8]) -> Option<&[u8]> {
+        self.entries
+            .iter()
+            .find(|(stored, _)| stored == tag)
+            .map(|(_, value)| value.as_slice())
+    }
+}
+
+pub fn parse_dol(input: &[u8]) -> KernelResult<Vec<DolEntry>> {
+    let mut offset = 0usize;
+    let mut out = Vec::new();
+
+    while offset < input.len() {
+        if out.len() >= MAX_DOL_ENTRIES {
+            return Err(KernelError::LengthOverflow);
+        }
+        let tag_start = offset;
+        read_dol_tag(input, &mut offset)?;
+        let tag = input[tag_start..offset].to_vec();
+        let length = *input.get(offset).ok_or(KernelError::ParseError)? as usize;
+        offset += 1;
+        out.push(DolEntry { tag, length });
+    }
+
+    Ok(out)
+}
+
+pub fn build_dol(entries: &[DolEntry], data: &DataStore) -> KernelResult<Vec<u8>> {
+    let total = entries.iter().try_fold(0usize, |acc, entry| {
+        acc.checked_add(entry.length)
+            .ok_or(KernelError::LengthOverflow)
+    })?;
+    if total > MAX_DOL_OUTPUT {
+        return Err(KernelError::LengthOverflow);
+    }
+
+    let mut out = Vec::with_capacity(total);
+    for entry in entries {
+        match data.get(&entry.tag) {
+            Some(value) if value.len() >= entry.length => {
+                out.extend_from_slice(&value[..entry.length]);
+            }
+            Some(value) => {
+                out.extend_from_slice(value);
+                out.resize(out.len() + entry.length - value.len(), 0);
+            }
+            None => out.resize(out.len() + entry.length, 0),
+        }
+    }
+    Ok(out)
+}
+
+fn read_dol_tag(input: &[u8], offset: &mut usize) -> KernelResult<()> {
+    let first = *input.get(*offset).ok_or(KernelError::ParseError)?;
+    *offset += 1;
+
+    if first & 0x1f == 0x1f {
+        let mut continuation_count = 0usize;
+        loop {
+            let byte = *input.get(*offset).ok_or(KernelError::ParseError)?;
+            *offset += 1;
+            continuation_count += 1;
+            if continuation_count > 3 {
+                return Err(KernelError::ParseError);
+            }
+            if byte & 0x80 == 0 {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_and_builds_pdol_deterministically() {
+        let entries = parse_dol(&[0x9f, 0x66, 0x04, 0x9f, 0x02, 0x06, 0x9a, 0x03]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x66], &[0x36, 0x00, 0x40, 0x00]).unwrap();
+        data.put(&[0x9f, 0x02], &[0x00, 0x00, 0x00, 0x00, 0x10, 0x00])
+            .unwrap();
+
+        let built = build_dol(&entries, &data).unwrap();
+        assert_eq!(
+            built,
+            vec![0x36, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn pads_short_or_missing_data_with_zeroes() {
+        let entries = parse_dol(&[0x9f, 0x37, 0x04, 0x5f, 0x2a, 0x02]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x37], &[0xaa, 0xbb]).unwrap();
+
+        assert_eq!(
+            build_dol(&entries, &data).unwrap(),
+            vec![0xaa, 0xbb, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+}

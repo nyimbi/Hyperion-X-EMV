@@ -1,0 +1,70 @@
+{
+  "test_vectors": [
+    {
+      "id": "SDA_PASS",
+      "description": "SDA success – valid issuer certificate and static signature",
+      "capk": {
+        "rid": "A000000003",
+        "key_index": 1,
+        "modulus_hex": "D2E5F5B3A1...",
+        "exponent_hex": "010001",
+        "expiry": "2028-12-31"
+      },
+      "issuer_certificate": {
+        "format": "EMV Issuer Public Key Certificate",
+        "data_hex": "6F2A...",
+        "signature_hex": "3A4F..."
+      },
+      "icc_certificate": null,
+      "static_signature_hex": "ABCD1234...",
+      "expected_tvr_bits": [],
+      "expected_oda_result": "PASS"
+    },
+    {
+      "id": "SDA_FAIL_CERT_EXPIRED",
+      "description": "SDA failure – issuer certificate expired",
+      "capk": { "expiry": "2020-01-01" },
+      "issuer_certificate": { "expiry": "2020-01-01" },
+      "expected_tvr_bits": ["TVR_B0_SDA_FAILED"],
+      "expected_oda_result": "FAIL"
+    },
+    {
+      "id": "DDA_PASS",
+      "description": "DDA success – valid DDA certificate chain and dynamic signature",
+      "capk": { "rid": "A000000003", "key_index": 1, "modulus_hex": "...", "exponent_hex": "010001" },
+      "issuer_certificate": { "data_hex": "6F2A..." },
+      "icc_certificate": { "data_hex": "7F49..." },
+      "dynamic_signature_hex": "9F4C...",
+      "expected_tvr_bits": [],
+      "expected_oda_result": "PASS"
+    },
+    {
+      "id": "DDA_FAIL_CAPK_MISSING",
+      "description": "DDA failure – CAPK with required RID/key index not found",
+      "capk": null,
+      "expected_tvr_bits": ["TVR_B0_OFFLINE_DATA_AUTH_NOT_PERFORMED"],
+      "expected_oda_result": "FAIL"
+    },
+    {
+      "id": "CDA_PASS",
+      "description": "CDA success – combined DDA + cryptogram signing",
+      "capk": { "rid": "A000000003", "key_index": 1 },
+      "issuer_certificate": { "data_hex": "6F2A..." },
+      "icc_certificate": { "data_hex": "7F49..." },
+      "cryptogram_used": "ARQC",
+      "expected_tvr_bits": [],
+      "expected_oda_result": "PASS"
+    },
+    {
+      "id": "CDA_FAIL",
+      "description": "CDA failure – dynamic signature does not match cryptogram",
+      "capk": { "rid": "A000000003", "key_index": 1 },
+      "issuer_certificate": { "data_hex": "6F2A..." },
+      "icc_certificate": { "data_hex": "7F49..." },
+      "cryptogram_used": "ARQC",
+      "corrupt_signature": true,
+      "expected_tvr_bits": ["TVR_B0_CDA_FAILED"],
+      "expected_oda_result": "FAIL"
+    }
+  ]
+}
