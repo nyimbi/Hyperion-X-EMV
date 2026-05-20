@@ -14,7 +14,10 @@ use crate::oda::{
     OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
 };
 use crate::record::parse_read_record_body;
-use crate::restrictions::EmvDate;
+use crate::restrictions::{
+    evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
+    ServiceType, TransactionRegion,
+};
 use crate::selection::{
     direct_profile_candidates, match_profile_candidates, parse_fci_candidate_aids,
     SelectionCandidate,
@@ -923,6 +926,87 @@ fn oda_outcome_for_method(
     }
 }
 
+fn run_processing_restrictions(
+    ctx: &mut KrnContext,
+    params: &StoredTxnParams,
+) -> Result<(), KernelError> {
+    let transaction_date = ctx
+        .profile_evaluation_date
+        .ok_or(KernelError::InvalidProfile)?;
+    let application_expiration_date =
+        EmvDate::from_bcd(required_fixed::<3>(&ctx.card_data, &[0x5f, 0x24])?)?;
+    let application_effective_date = optional_fixed::<3>(&ctx.card_data, &[0x5f, 0x25])?
+        .map(EmvDate::from_bcd)
+        .transpose()?;
+    let issuer_country = required_fixed::<2>(&ctx.card_data, &[0x5f, 0x28])?;
+    let terminal_country = fixed_numeric_bcd::<2>(params.terminal_country_code as u64)?;
+    let auc = ApplicationUsageControl::new(required_fixed::<2>(&ctx.card_data, &[0x9f, 0x07])?);
+
+    let input = RestrictionInput {
+        transaction_date,
+        application_expiration_date,
+        application_effective_date,
+        card_application_version: card_application_version(&ctx.card_data)?,
+        terminal_application_version: None,
+        auc,
+        region: if issuer_country == terminal_country {
+            TransactionRegion::Domestic
+        } else {
+            TransactionRegion::International
+        },
+        service: service_type(params),
+        new_card: false,
+    };
+
+    let result = evaluate_restrictions(input, ctx.tvr);
+    ctx.tvr = result.tvr;
+    apply_transition(ctx, FsmEvent::RestrictionsEvaluated)?;
+    ctx.state = KernelState::Cvm;
+    Ok(())
+}
+
+fn required_fixed<const N: usize>(data: &DataStore, tag: &[u8]) -> Result<[u8; N], KernelError> {
+    let value = data.get(tag).ok_or(KernelError::MissingMandatoryTag)?;
+    fixed_slice(value)
+}
+
+fn optional_fixed<const N: usize>(
+    data: &DataStore,
+    tag: &[u8],
+) -> Result<Option<[u8; N]>, KernelError> {
+    data.get(tag).map(fixed_slice).transpose()
+}
+
+fn card_application_version(data: &DataStore) -> Result<Option<[u8; 2]>, KernelError> {
+    match optional_fixed::<2>(data, &[0x9f, 0x09])? {
+        Some(version) => Ok(Some(version)),
+        None => optional_fixed::<2>(data, &[0x9f, 0x08]),
+    }
+}
+
+fn fixed_slice<const N: usize>(value: &[u8]) -> Result<[u8; N], KernelError> {
+    if value.len() != N {
+        return Err(KernelError::ParseError);
+    }
+    let mut out = [0u8; N];
+    out.copy_from_slice(value);
+    Ok(out)
+}
+
+fn fixed_numeric_bcd<const N: usize>(value: u64) -> Result<[u8; N], KernelError> {
+    let encoded = numeric_bcd_fixed(value, N)?;
+    fixed_slice(&encoded)
+}
+
+fn service_type(params: &StoredTxnParams) -> ServiceType {
+    match params.transaction_type {
+        0x01 => ServiceType::Cash,
+        0x09 | 0x17 => ServiceType::Cashback,
+        _ if matches!(params.terminal_type, 0x14 | 0x24) => ServiceType::Atm,
+        _ => ServiceType::Goods,
+    }
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let Some(params) = ctx.txn_params.as_ref() else {
         ctx.last_error = KernelError::InvalidArgument;
@@ -1223,6 +1307,23 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     }
+    let params = match ctx.txn_params.clone() {
+        Some(params) => params,
+        None => {
+            ctx.last_error = KernelError::InvalidArgument;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    if ctx.fsm_state == FsmState::S6 {
+        if let Err(err) = run_processing_restrictions(ctx, &params) {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
 
     ctx.last_error = KernelError::InvalidArgument;
     KrnOutcome::Error
@@ -1400,7 +1501,9 @@ mod tests {
                 0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
             ],
             _ => vec![
-                0x70, 0x0a, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x90, 0x00,
+                0x70, 0x25, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
+                0x03, 0x30, 0x12, 0x31, 0x5f, 0x25, 0x03, 0x25, 0x01, 0x01, 0x5f, 0x28, 0x02, 0x08,
+                0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x90, 0x00,
             ],
         };
         let capacity = *resp_len;
@@ -1498,7 +1601,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_init_validates_runtime_callbacks_and_reaches_oda_after_read_records() {
+    fn ffi_init_validates_runtime_callbacks_and_reaches_cvm_after_restrictions() {
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -1560,7 +1663,7 @@ mod tests {
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S6.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S7.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(
@@ -1569,6 +1672,8 @@ mod tests {
             );
             assert_eq!(ctx_ref.selected_application.as_ref().unwrap().afl.len(), 1);
             assert!(ctx_ref.tvr.is_set(Tvr::B1_SDA_FAILED));
+            assert!(!ctx_ref.tvr.is_set(Tvr::B2_EXPIRED_APPLICATION));
+            assert!(!ctx_ref.tvr.is_set(Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED));
             assert!(ctx_ref
                 .tsi
                 .is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
