@@ -3,6 +3,10 @@ use hyperion_emv::apdu::{
     generate_ac, select_environment, CdaRequestControl, CryptogramRequest, Interface,
 };
 use hyperion_emv::cid::{Cid, CryptogramType};
+use hyperion_emv::cvm::{
+    evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
+    Interface as CvmInterface, PedPinHandle,
+};
 use hyperion_emv::state::Tvr;
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
@@ -22,6 +26,9 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-TVR-001",
         "KRN-TVR-002",
         "KRN-CID-001",
+        "KRN-CVM-001",
+        "KRN-CVM-002",
+        "KRN-CVM-003",
         "KRN-GAC-008",
         "KRN-GAC-009",
         "KRN-TAA-004",
@@ -30,12 +37,27 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-TAA-007",
         "KRN-APDU-009",
         "KRN-APDU-010",
+        "KRN-SEC-004",
         "KRN-API-006",
     ] {
         assert!(
             RTM.contains(krn_id),
             "missing traceability row for {krn_id}"
         );
+    }
+}
+
+#[test]
+fn spec_contains_certified_cvm_code_table_and_ped_boundary() {
+    let spec = include_str!("../docs/spec.md");
+    for fragment in [
+        "`0x01` | Offline plaintext PIN",
+        "`0x02` | Online PIN",
+        "`0x1E` | Fail CVM processing",
+        "`0x1F` | No CVM required",
+        "CDCVM handling **SHALL** be contactless",
+    ] {
+        assert!(spec.contains(fragment), "spec missing {fragment}");
     }
 }
 
@@ -197,6 +219,61 @@ fn krn_apdu_009_010_status_handling_is_context_specific() {
         classify(ApduContext::GenerateAc, StatusWord::new(0x69, 0x85)),
         StatusAction::Fail {
             error: hyperion_emv::KernelError::CardRemoved
+        }
+    );
+}
+
+#[test]
+fn krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin() {
+    let cvm_list = parse_cvm_list(&[
+        0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x01, 0x00, 0x02, 0x07, 0x1f, 0x00,
+    ])
+    .unwrap();
+    let context = CvmContext {
+        amount_authorized: 1_000,
+        transaction_currency_matches_application: true,
+        interface: CvmInterface::Contact,
+        offline_pin_supported: true,
+        online_pin_supported: true,
+        signature_supported: true,
+        cdcvm_performed: false,
+    };
+    assert_eq!(
+        evaluate_cvm(&cvm_list, context, None),
+        CvmOutcome::Failed {
+            cvm_results: [0x01, 0x00, 0x01],
+            tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
+        }
+    );
+
+    let handle = PedPinHandle::new(42).unwrap();
+    assert_eq!(
+        evaluate_cvm(&cvm_list, context, Some(handle)),
+        CvmOutcome::Selected {
+            action: CvmAction::OfflinePlaintextPin { ped_handle: handle },
+            cvm_results: [0x01, 0x00, 0x02]
+        }
+    );
+}
+
+#[test]
+fn contactless_cdcvm_is_not_hardcoded_to_cvm_code_0x05() {
+    let cvm_list = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x20, 0x00]).unwrap();
+    let context = CvmContext {
+        amount_authorized: 1_000,
+        transaction_currency_matches_application: true,
+        interface: CvmInterface::Contactless,
+        offline_pin_supported: false,
+        online_pin_supported: true,
+        signature_supported: false,
+        cdcvm_performed: true,
+    };
+
+    assert_eq!(
+        evaluate_cvm(&cvm_list, context, None),
+        CvmOutcome::Selected {
+            action: CvmAction::Cdcvm,
+            cvm_results: [0x20, 0x00, 0x02]
         }
     );
 }
