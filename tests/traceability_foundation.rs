@@ -84,7 +84,7 @@ unsafe extern "C" fn it_transmit_apdu(
         1 => hex("6F118407A0000000031010A5069F38039F37049000"),
         2 => hex("770A820280009404100101009000"),
         _ => hex(
-            "70255A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200019000",
+            "70315A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200018E0A00000000000000001F009000",
         ),
     };
     let capacity = *resp_len;
@@ -691,7 +691,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 4);
         assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
         assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
-        assert_eq!(krn_get_fsm_state(ctx), FsmState::S7.code());
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S8.code());
         assert_eq!(
             krn_get_last_error(ctx),
             hyperion_emv::KernelError::InvalidArgument.code()

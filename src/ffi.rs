@@ -5,6 +5,10 @@ use crate::c8::{
     StartSignal, UiRequest, UiStatus,
 };
 use crate::config::{load_profile_set, BuildMode, ConfigLoadPolicy, ProfileSet, SignatureStatus};
+use crate::cvm::{
+    evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
+    Interface as CvmInterface,
+};
 use crate::dol::DataStore;
 use crate::error::KernelError;
 use crate::fsm::{self, FsmEvent, FsmState};
@@ -1007,6 +1011,71 @@ fn service_type(params: &StoredTxnParams) -> ServiceType {
     }
 }
 
+fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<(), KernelError> {
+    let cvm_list = parse_cvm_list(
+        ctx.card_data
+            .get(&[0x8e])
+            .ok_or(KernelError::MissingMandatoryTag)?,
+    )?;
+    let outcome = evaluate_cvm(
+        &cvm_list,
+        CvmContext {
+            amount_authorized: params.amount_authorised_minor,
+            transaction_currency_matches_application: transaction_currency_matches_application(
+                &ctx.card_data,
+                params,
+            )?,
+            interface: if params.interface_preference == 2 {
+                CvmInterface::Contactless
+            } else {
+                CvmInterface::Contact
+            },
+            offline_pin_supported: false,
+            online_pin_supported: false,
+            signature_supported: false,
+            cdcvm_performed: false,
+        },
+        None,
+    );
+
+    let (cvm_results, event) = match outcome {
+        CvmOutcome::Selected {
+            action,
+            cvm_results,
+        } => {
+            if action == CvmAction::OnlinePin {
+                ctx.tvr.set(Tvr::B3_ONLINE_PIN_ENTERED);
+            }
+            (cvm_results, FsmEvent::CvmSuccess)
+        }
+        CvmOutcome::Failed {
+            cvm_results,
+            tvr_bit,
+        } => {
+            ctx.tvr.set(tvr_bit);
+            (cvm_results, FsmEvent::CvmFailureNoRetry)
+        }
+    };
+    ctx.tsi.set(Tsi::CARDHOLDER_VERIFICATION_PERFORMED);
+    ctx.card_data.put(&[0x9f, 0x34], &cvm_results)?;
+    ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
+    ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
+    apply_transition(ctx, event)?;
+    ctx.state = KernelState::TerminalRiskManagement;
+    Ok(())
+}
+
+fn transaction_currency_matches_application(
+    data: &DataStore,
+    params: &StoredTxnParams,
+) -> Result<bool, KernelError> {
+    let Some(application_currency) = optional_fixed::<2>(data, &[0x9f, 0x42])? else {
+        return Ok(true);
+    };
+    let terminal_currency = fixed_numeric_bcd::<2>(params.currency_code as u64)?;
+    Ok(application_currency == terminal_currency)
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let Some(params) = ctx.txn_params.as_ref() else {
         ctx.last_error = KernelError::InvalidArgument;
@@ -1324,6 +1393,14 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     }
+    if ctx.fsm_state == FsmState::S7 {
+        if let Err(err) = run_cvm_processing(ctx, &params) {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
 
     ctx.last_error = KernelError::InvalidArgument;
     KrnOutcome::Error
@@ -1501,9 +1578,10 @@ mod tests {
                 0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
             ],
             _ => vec![
-                0x70, 0x25, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
+                0x70, 0x31, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
                 0x03, 0x30, 0x12, 0x31, 0x5f, 0x25, 0x03, 0x25, 0x01, 0x01, 0x5f, 0x28, 0x02, 0x08,
-                0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x90, 0x00,
+                0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x8e, 0x0a, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x90, 0x00,
             ],
         };
         let capacity = *resp_len;
@@ -1601,7 +1679,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_init_validates_runtime_callbacks_and_reaches_cvm_after_restrictions() {
+    fn ffi_init_validates_runtime_callbacks_and_reaches_trm_after_cvm() {
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -1663,7 +1741,7 @@ mod tests {
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S7.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S8.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(
@@ -1674,9 +1752,17 @@ mod tests {
             assert!(ctx_ref.tvr.is_set(Tvr::B1_SDA_FAILED));
             assert!(!ctx_ref.tvr.is_set(Tvr::B2_EXPIRED_APPLICATION));
             assert!(!ctx_ref.tvr.is_set(Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED));
+            assert!(!ctx_ref
+                .tvr
+                .is_set(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL));
             assert!(ctx_ref
                 .tsi
                 .is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+            assert!(ctx_ref.tsi.is_set(Tsi::CARDHOLDER_VERIFICATION_PERFORMED));
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9f, 0x34]),
+                Some(&[0x1f, 0x00, 0x02][..])
+            );
             krn_context_free(ctx);
         }
     }
