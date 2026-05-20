@@ -18,6 +18,7 @@ pub mod gac;
 pub mod issuer;
 pub mod oda;
 pub mod restrictions;
+pub mod selection;
 pub mod state;
 pub mod sw;
 pub mod taa;

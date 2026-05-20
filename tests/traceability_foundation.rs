@@ -15,9 +15,9 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
-    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error, krn_init, krn_reset,
-    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION,
+    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error, krn_init,
+    krn_load_profiles_verified, krn_reset, krn_run_transaction, krn_set_transaction_params,
+    KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -34,6 +34,7 @@ use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
     ServiceType, TransactionRegion,
 };
+use hyperion_emv::selection::{match_profile_candidates, parse_fci_candidate_aids};
 use hyperion_emv::state::Tvr;
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
@@ -59,6 +60,7 @@ const STATE_MACHINE_CSV: &str = include_str!("../docs/state_machine.csv");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
+static IT_TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
 static IT_TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
 
 unsafe extern "C" fn it_transmit_apdu(
@@ -70,10 +72,15 @@ unsafe extern "C" fn it_transmit_apdu(
     _user_data: *mut c_void,
 ) -> i32 {
     let command = std::slice::from_raw_parts(cmd, cmd_len);
+    let count = IT_TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
     IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
     IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
     IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
-    let response = hex("6F098407A00000000310109000");
+    let response = if count == 0 {
+        hex("6F13A511BF0C0E610C4F07A00000000310108701019000")
+    } else {
+        hex("6F098407A00000000310109000")
+    };
     let capacity = *resp_len;
     *resp_len = response.len();
     if capacity < response.len() {
@@ -358,6 +365,19 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
     );
     assert_eq!(profiles.schemes[0].capks[0].key_index, 1);
     assert!(profiles.schemes[0].capks[0].modulus.len() >= 64);
+    assert!(profiles
+        .schemes
+        .iter()
+        .flat_map(|scheme| scheme.capks.iter())
+        .all(|capk| capk.checksum.len() == 20));
+    let c8_profile = profiles
+        .schemes
+        .iter()
+        .find(|scheme| scheme.kernel_type == "c8")
+        .unwrap();
+    assert_eq!(c8_profile.rid, hex("A000000999").as_slice());
+    assert_eq!(c8_profile.aids[0].aid, hex("A000000999C8"));
+    assert_eq!(c8_profile.aids[0].interfaces, ["contactless"]);
 }
 
 #[test]
@@ -500,6 +520,33 @@ fn krn_fsm_001_002_004_validates_annex_and_error_transitions() {
 }
 
 #[test]
+fn krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles() {
+    let fci = hex("6F13A511BF0C0E610C4F07A0000000031010870101");
+    let card_candidates = parse_fci_candidate_aids(&fci).unwrap();
+    assert_eq!(card_candidates, vec![hex("A0000000031010")]);
+
+    let profiles = load_profile_set(
+        SCHEME_PROFILES.as_bytes(),
+        &ConfigLoadPolicy {
+            mode: BuildMode::Certification,
+            signature_status: SignatureStatus::Verified,
+            installed_version: 1,
+            candidate_version: 2,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 21,
+            },
+        },
+    )
+    .unwrap();
+    let selected = match_profile_candidates(&profiles, Interface::Contact, &card_candidates)
+        .unwrap()
+        .remove(0);
+    assert_eq!(selected.aid, hex("A0000000031010"));
+}
+
+#[test]
 fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks() {
     unsafe {
         let ctx = krn_context_new();
@@ -572,6 +619,19 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert!(!ctx.is_null());
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
 
         let params = KrnTxnParams {
             struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
@@ -590,11 +650,13 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        IT_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
         assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
         assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xa4);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 20);
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 2);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
         assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
-        assert_eq!(krn_get_fsm_state(ctx), FsmState::S2AidList.code());
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S3.code());
         assert_eq!(
             krn_get_last_error(ctx),
             hyperion_emv::KernelError::InvalidArgument.code()

@@ -3,8 +3,13 @@ use crate::c8::{
     AlternateInterface, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
     StartSignal, UiRequest, UiStatus,
 };
+use crate::config::{load_profile_set, BuildMode, ConfigLoadPolicy, ProfileSet, SignatureStatus};
 use crate::error::KernelError;
 use crate::fsm::{self, FsmEvent, FsmState};
+use crate::restrictions::EmvDate;
+use crate::selection::{
+    direct_profile_candidates, match_profile_candidates, parse_fci_candidate_aids,
+};
 use crate::state::{KernelState, Tsi, Tvr};
 use core::mem;
 use core::ptr;
@@ -112,6 +117,7 @@ pub struct KrnContext {
     last_error: KernelError,
     busy: bool,
     txn_params: Option<StoredTxnParams>,
+    profiles: Option<ProfileSet>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
     contactless_outcome_user_data: *mut c_void,
@@ -127,6 +133,7 @@ impl KrnContext {
             last_error: KernelError::Ok,
             busy: false,
             txn_params: None,
+            profiles: None,
             runtime: None,
             contactless_outcome_callback: None,
             contactless_outcome_user_data: ptr::null_mut(),
@@ -276,6 +283,54 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.tsi = Tsi::cleared();
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
+        Ok(0usize)
+    });
+    ctx.set_result(result)
+}
+
+/// Loads an externally verified scheme profile set into an existing context.
+///
+/// This function does not perform cryptographic signature verification itself;
+/// the caller may only use it after the platform trust layer has verified the
+/// profile signature and rollback counter. Certification/production loading is
+/// still strict and rejects placeholders, expired CAPKs, rollback versions, and
+/// malformed hex material.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `json` must point
+/// to `json_len` readable bytes. The profile bytes are parsed and copied before
+/// the function returns.
+#[no_mangle]
+pub unsafe extern "C" fn krn_load_profiles_verified(
+    ctx: *mut KrnContext,
+    json: *const u8,
+    json_len: usize,
+    installed_version: u64,
+    candidate_version: u64,
+    eval_year: u8,
+    eval_month: u8,
+    eval_day: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    let result = readable_slice(json, json_len).and_then(|bytes| {
+        let profiles = load_profile_set(
+            bytes,
+            &ConfigLoadPolicy {
+                mode: BuildMode::Certification,
+                signature_status: SignatureStatus::Verified,
+                installed_version,
+                candidate_version,
+                evaluation_date: EmvDate {
+                    year: eval_year,
+                    month: eval_month,
+                    day: eval_day,
+                },
+            },
+        )?;
+        ctx.profiles = Some(profiles);
         Ok(0usize)
     });
     ctx.set_result(result)
@@ -572,6 +627,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         ctx.fsm_state = FsmState::Se;
         return KrnOutcome::Error;
     };
+    let Some(profiles) = ctx.profiles.as_ref() else {
+        ctx.last_error = KernelError::InvalidProfile;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    };
     let _rng_callback = runtime.get_unpredictable_number;
     let interface = match params.interface_preference {
         0 | 1 => Interface::Contact,
@@ -617,6 +678,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         return KrnOutcome::Error;
     }
     let sw = [response[response.len() - 2], response[response.len() - 1]];
+    let fci = &response[..response.len() - 2];
     let event = match sw {
         [0x90, 0x00] => FsmEvent::PseSelected,
         [0x6a, 0x82] => FsmEvent::PseNotFound,
@@ -639,6 +701,111 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
         }
+    }
+
+    let candidates = match if sw == [0x90, 0x00] {
+        parse_fci_candidate_aids(fci).and_then(|aids| {
+            if aids.is_empty() {
+                direct_profile_candidates(profiles, interface)
+            } else {
+                match_profile_candidates(profiles, interface, &aids)
+            }
+        })
+    } else {
+        direct_profile_candidates(profiles, interface)
+    } {
+        Ok(candidates) => candidates,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+
+    let mut selected = false;
+    for candidate in candidates {
+        let transition = match fsm::transition(ctx.fsm_state, FsmEvent::CandidateAidAvailable) {
+            Ok(transition) => transition,
+            Err(err) => {
+                ctx.last_error = err;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
+        };
+        ctx.fsm_state = transition.to;
+        let select_aid = match apdu::select_aid(&candidate.aid, 0x00).and_then(|cmd| cmd.encode()) {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                ctx.last_error = err;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
+        };
+        let select_response = match transmit_apdu(runtime, &select_aid, APDU_TRANSMIT_TIMEOUT_MS) {
+            Ok(response) => response,
+            Err(err) => {
+                ctx.last_error = err;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
+        };
+        if select_response.len() < 2 {
+            ctx.last_error = KernelError::ParseError;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+        let select_sw = [
+            select_response[select_response.len() - 2],
+            select_response[select_response.len() - 1],
+        ];
+        match select_sw {
+            [0x90, 0x00] => {
+                let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidSelected) {
+                    Ok(transition) => transition,
+                    Err(err) => {
+                        ctx.last_error = err;
+                        ctx.state = KernelState::Error;
+                        ctx.fsm_state = FsmState::Se;
+                        return KrnOutcome::Error;
+                    }
+                };
+                ctx.fsm_state = transition.to;
+                ctx.state = KernelState::Gpo;
+                selected = true;
+                break;
+            }
+            [0x6a, 0x82] => {
+                let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidNotSupported) {
+                    Ok(transition) => transition,
+                    Err(err) => {
+                        ctx.last_error = err;
+                        ctx.state = KernelState::Error;
+                        ctx.fsm_state = FsmState::Se;
+                        return KrnOutcome::Error;
+                    }
+                };
+                ctx.fsm_state = transition.to;
+            }
+            _ => {
+                ctx.last_error = KernelError::NoCommonAid;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
+        }
+    }
+
+    if !selected {
+        let _ = fsm::transition(ctx.fsm_state, FsmEvent::NoCandidateLeft);
+        ctx.last_error = KernelError::NoCommonAid;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
     }
 
     ctx.last_error = KernelError::InvalidArgument;
@@ -777,6 +944,7 @@ mod tests {
 
     static CALLBACK_OUTCOME_CODE: AtomicU8 = AtomicU8::new(0);
     static CALLBACK_DATA_RECORD_LEN: AtomicUsize = AtomicUsize::new(0);
+    static TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
     static TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
     static TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
     static TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
@@ -799,12 +967,20 @@ mod tests {
         _user_data: *mut c_void,
     ) -> i32 {
         let command = slice::from_raw_parts(cmd, cmd_len);
+        let count = TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
         TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
         TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
-        let response = [
-            0x6f, 0x09, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0x90, 0x00,
-        ];
+        let response = if count == 0 {
+            vec![
+                0x6f, 0x13, 0xa5, 0x11, 0xbf, 0x0c, 0x0e, 0x61, 0x0c, 0x4f, 0x07, 0xa0, 0x00, 0x00,
+                0x00, 0x03, 0x10, 0x10, 0x87, 0x01, 0x01, 0x90, 0x00,
+            ]
+        } else {
+            vec![
+                0x6f, 0x09, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0x90, 0x00,
+            ]
+        };
         let capacity = *resp_len;
         *resp_len = response.len();
         if capacity < response.len() {
@@ -930,6 +1106,11 @@ mod tests {
                 KernelError::Ok.code()
             );
             assert!(!ctx.is_null());
+            let profiles = include_bytes!("../docs/scheme_profiles.cert.json");
+            assert_eq!(
+                krn_load_profiles_verified(ctx, profiles.as_ptr(), profiles.len(), 1, 2, 26, 5, 21),
+                KernelError::Ok.code()
+            );
 
             let params = KrnTxnParams {
                 struct_size: mem::size_of::<KrnTxnParams>() as u32,
@@ -948,14 +1129,16 @@ mod tests {
                 krn_set_transaction_params(ctx, &params),
                 KernelError::Ok.code()
             );
+            TRANSMIT_COUNT.store(0, Ordering::SeqCst);
             assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
             assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xa4);
-            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 20);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 2);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
             assert_eq!(
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S2AidList.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S3.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             krn_context_free(ctx);
         }
