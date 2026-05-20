@@ -4,14 +4,16 @@ use crate::c8::{
     AlternateInterface, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
     StartSignal, UiRequest, UiStatus,
 };
+use crate::cid::CryptogramType;
 use crate::config::{load_profile_set, BuildMode, ConfigLoadPolicy, ProfileSet, SignatureStatus};
 use crate::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface,
 };
-use crate::dol::DataStore;
+use crate::dol::{build_dol, parse_dol, DataStore};
 use crate::error::KernelError;
 use crate::fsm::{self, FsmEvent, FsmState};
+use crate::gac::{parse_generate_ac_response, GenerateAcResponse};
 use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
 use crate::oda::{
     apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip, CapkIntegrity,
@@ -149,6 +151,7 @@ pub struct KrnContext {
     profile_evaluation_date: Option<EmvDate>,
     selected_application: Option<SelectedApplication>,
     requested_cryptogram: Option<CryptogramRequest>,
+    first_gac_response: Option<GenerateAcResponse>,
     card_data: DataStore,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -169,6 +172,7 @@ impl KrnContext {
             profile_evaluation_date: None,
             selected_application: None,
             requested_cryptogram: None,
+            first_gac_response: None,
             card_data: DataStore::new(),
             runtime: None,
             contactless_outcome_callback: None,
@@ -186,6 +190,7 @@ impl KrnContext {
         self.txn_params = None;
         self.selected_application = None;
         self.requested_cryptogram = None;
+        self.first_gac_response = None;
         self.card_data = DataStore::new();
     }
 
@@ -322,6 +327,7 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.tsi = Tsi::cleared();
         ctx.selected_application = None;
         ctx.requested_cryptogram = None;
+        ctx.first_gac_response = None;
         ctx.card_data = DataStore::new();
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
@@ -661,6 +667,7 @@ unsafe fn read_transaction_params(
 fn transaction_data_store(
     params: &StoredTxnParams,
     runtime: RuntimeCallbacks,
+    transaction_date: EmvDate,
     tvr: Tvr,
     tsi: Tsi,
 ) -> Result<DataStore, KernelError> {
@@ -682,6 +689,7 @@ fn transaction_data_store(
         &numeric_bcd_fixed(params.terminal_country_code as u64, 2)?,
     )?;
     data.put(&[0x9c], &[params.transaction_type])?;
+    data.put(&[0x9a], &emv_date_bcd(transaction_date))?;
     data.put(&[0x9f, 0x35], &[params.terminal_type])?;
     data.put(&[0x9f, 0x15], &params.merchant_category_code)?;
     data.put(&[0x95], &tvr.bytes())?;
@@ -700,6 +708,18 @@ fn transaction_data_store(
     }
     data.put(&[0x9f, 0x37], &unpredictable_number)?;
     Ok(data)
+}
+
+fn emv_date_bcd(date: EmvDate) -> [u8; 3] {
+    [
+        decimal_bcd(date.year),
+        decimal_bcd(date.month),
+        decimal_bcd(date.day),
+    ]
+}
+
+fn decimal_bcd(value: u8) -> u8 {
+    ((value / 10) << 4) | (value % 10)
 }
 
 fn numeric_bcd_fixed(value: u64, bytes: usize) -> Result<Vec<u8>, KernelError> {
@@ -1167,6 +1187,75 @@ fn run_terminal_action_analysis(
     Ok(())
 }
 
+fn run_first_generate_ac(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+) -> Result<(), KernelError> {
+    let request = ctx
+        .requested_cryptogram
+        .ok_or(KernelError::InvalidArgument)?;
+    let cdol = parse_dol(
+        ctx.card_data
+            .get(&[0x8c])
+            .ok_or(KernelError::MissingMandatoryTag)?,
+    )?;
+    ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
+    ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
+    let cdol_values = build_dol(&cdol, &ctx.card_data)?;
+    let command =
+        apdu::generate_ac(request, &cdol_values, CdaRequestControl::NotRequested)?.encode()?;
+    let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
+    if response.len() < 2 {
+        return Err(KernelError::ParseError);
+    }
+    let body = &response[..response.len() - 2];
+    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+    match classify(ApduContext::GenerateAc, sw) {
+        StatusAction::Success => {}
+        StatusAction::Fail { error } => {
+            let _ = apply_transition(ctx, FsmEvent::GacFailed);
+            return Err(error);
+        }
+        StatusAction::GetResponse { .. } | StatusAction::RetryWithLe { .. } => {
+            return Err(KernelError::InternalError);
+        }
+        StatusAction::FallbackToDirectAid
+        | StatusAction::TryNextAid
+        | StatusAction::EndOfRecords
+        | StatusAction::ContinueWithTvr { .. }
+        | StatusAction::PinFailed { .. }
+        | StatusAction::ContinueAfterNonCriticalScriptFailure => {
+            return Err(KernelError::InternalError);
+        }
+    }
+
+    let parsed = parse_generate_ac_response(body)?;
+    ctx.card_data.put(&[0x9f, 0x27], &[parsed.cid.raw()])?;
+    ctx.card_data
+        .put(&[0x9f, 0x26], &parsed.application_cryptogram)?;
+    ctx.card_data.put(&[0x9f, 0x36], &parsed.atc)?;
+    if !parsed.issuer_application_data.is_empty() {
+        ctx.card_data
+            .put(&[0x9f, 0x10], &parsed.issuer_application_data)?;
+    }
+    if let Some(dynamic_number) = parsed.icc_dynamic_number.as_ref() {
+        ctx.card_data.put(&[0x9f, 0x4c], dynamic_number)?;
+    }
+
+    let (event, state) = match parsed.cid.cryptogram_type() {
+        CryptogramType::Arqc => (FsmEvent::GacArqc, KernelState::OnlineAuthorization),
+        CryptogramType::Tc => (FsmEvent::GacTc, KernelState::FinalOutcome),
+        CryptogramType::Aac => (FsmEvent::GacAac, KernelState::FinalOutcome),
+        CryptogramType::ApplicationAuthenticationReferral => {
+            return Err(KernelError::InvalidArgument);
+        }
+    };
+    ctx.first_gac_response = Some(parsed);
+    apply_transition(ctx, event)?;
+    ctx.state = state;
+    Ok(())
+}
+
 fn issuer_action_codes(data: &DataStore) -> Result<ActionCodes, KernelError> {
     Ok(ActionCodes {
         denial: optional_fixed::<5>(data, &[0x9f, 0x0e])?.unwrap_or([0; 5]),
@@ -1378,7 +1467,16 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     };
-    let data = match transaction_data_store(params, runtime, ctx.tvr, ctx.tsi) {
+    let transaction_date = match ctx.profile_evaluation_date {
+        Some(date) => date,
+        None => {
+            ctx.last_error = KernelError::InvalidProfile;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    let data = match transaction_data_store(params, runtime, transaction_date, ctx.tvr, ctx.tsi) {
         Ok(data) => data,
         Err(err) => {
             ctx.last_error = err;
@@ -1387,7 +1485,9 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     };
-    let gpo = match apdu::get_processing_options(&pdol, &data).and_then(|cmd| cmd.encode()) {
+    ctx.card_data = data;
+    let gpo = match apdu::get_processing_options(&pdol, &ctx.card_data).and_then(|cmd| cmd.encode())
+    {
         Ok(bytes) => bytes,
         Err(err) => {
             ctx.last_error = err;
@@ -1510,6 +1610,14 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     }
     if ctx.fsm_state == FsmState::S9 {
         if let Err(err) = run_terminal_action_analysis(ctx, &profiles) {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
+    if ctx.fsm_state == FsmState::S10 {
+        if let Err(err) = run_first_generate_ac(ctx, runtime) {
             ctx.last_error = err;
             ctx.state = KernelState::Error;
             ctx.fsm_state = FsmState::Se;
@@ -1692,13 +1800,19 @@ mod tests {
             2 => vec![
                 0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
             ],
-            _ => vec![
-                0x70, 0x49, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
+            3 => vec![
+                0x70, 0x5d, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
                 0x03, 0x30, 0x12, 0x31, 0x5f, 0x25, 0x03, 0x25, 0x01, 0x01, 0x5f, 0x28, 0x02, 0x08,
                 0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x8e, 0x0a, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x9f, 0x0d, 0x05, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x9f, 0x0e, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9f, 0x0f, 0x05,
-                0x00, 0x00, 0x00, 0x80, 0x00, 0x90, 0x00,
+                0x00, 0x00, 0x00, 0x80, 0x00, 0x8c, 0x12, 0x9f, 0x02, 0x06, 0x9f, 0x37, 0x04, 0x95,
+                0x05, 0x9a, 0x03, 0x9c, 0x01, 0x9f, 0x1a, 0x02, 0x9f, 0x34, 0x03, 0x90, 0x00,
+            ],
+            _ => vec![
+                0x77, 0x1a, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+                0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x9f, 0x10, 0x03, 0xaa, 0xbb, 0xcc,
+                0x90, 0x00,
             ],
         };
         let capacity = *resp_len;
@@ -1796,7 +1910,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_init_validates_runtime_callbacks_and_reaches_generate_ac_after_taa() {
+    fn ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac() {
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -1851,14 +1965,14 @@ mod tests {
             );
             TRANSMIT_COUNT.store(0, Ordering::SeqCst);
             assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
-            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xb2);
-            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 4);
-            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 5);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 30);
             assert_eq!(
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S10.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S11.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(
@@ -1890,6 +2004,16 @@ mod tests {
                 ctx_ref.card_data.get(&[0x9f, 0x0f]),
                 Some(&[0x00, 0x00, 0x00, 0x80, 0x00][..])
             );
+            assert_eq!(ctx_ref.card_data.get(&[0x9f, 0x27]), Some(&[0x80][..]));
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9f, 0x26]),
+                Some(&[0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18][..])
+            );
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9f, 0x36]),
+                Some(&[0x00, 0x09][..])
+            );
+            assert!(ctx_ref.first_gac_response.is_some());
             assert_eq!(
                 ctx_ref.card_data.get(&[0x95]),
                 Some(&ctx_ref.tvr.bytes()[..])
