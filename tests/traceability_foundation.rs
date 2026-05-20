@@ -7,10 +7,15 @@ use hyperion_emv::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface, PedPinHandle,
 };
+use hyperion_emv::restrictions::{
+    evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
+    ServiceType, TransactionRegion,
+};
 use hyperion_emv::state::Tvr;
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
 use hyperion_emv::tlv;
+use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
 
 const RTM: &str = concat!(
     include_str!("../docs/requirements-traceability-matrix.csv"),
@@ -18,6 +23,7 @@ const RTM: &str = concat!(
 );
 const SCHEME_PROFILES: &str = include_str!("../docs/scheme_profiles.cert.json");
 const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
+const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
 
 #[test]
 fn rtm_contains_foundation_requirements_under_test() {
@@ -62,12 +68,45 @@ fn spec_contains_certified_cvm_code_table_and_ped_boundary() {
 }
 
 #[test]
+fn corrected_spec_contains_processing_restriction_and_trm_requirements() {
+    for krn_id in [
+        "KRN-REST-001",
+        "KRN-REST-002",
+        "KRN-TRM-001",
+        "KRN-TRM-002",
+        "KRN-TRM-003",
+        "KRN-TRM-004",
+    ] {
+        assert!(
+            CORRECTED_SPEC.contains(krn_id),
+            "corrected spec missing {krn_id}"
+        );
+    }
+}
+
+#[test]
 fn state_machine_annex_contains_afl_read_record_rows() {
     let state_machine = include_str!("../docs/state_machine.csv");
     for fragment in [
         "Parse AIP/AFL, start reading",
         "Store record, continue AFL loop",
         "Set TVR_ICC_DATA_MISSING, continue",
+    ] {
+        assert!(
+            state_machine.contains(fragment),
+            "state machine missing {fragment}"
+        );
+    }
+}
+
+#[test]
+fn state_machine_annex_contains_restrictions_and_trm_rows() {
+    let state_machine = include_str!("../docs/state_machine.csv");
+    for fragment in [
+        "Processing restrictions ok",
+        "Processing restrictions failed",
+        "TRM ok",
+        "TRM force online",
     ] {
         assert!(
             state_machine.contains(fragment),
@@ -276,6 +315,47 @@ fn contactless_cdcvm_is_not_hardcoded_to_cvm_code_0x05() {
             cvm_results: [0x20, 0x00, 0x02]
         }
     );
+}
+
+#[test]
+fn processing_restrictions_mutate_only_defined_tvr_bits() {
+    let result = evaluate_restrictions(
+        RestrictionInput {
+            transaction_date: EmvDate::from_bcd([0x31, 0x01, 0x01]).unwrap(),
+            application_expiration_date: EmvDate::from_bcd([0x30, 0x12, 0x31]).unwrap(),
+            application_effective_date: Some(EmvDate::from_bcd([0x32, 0x01, 0x01]).unwrap()),
+            card_application_version: Some([0x00, 0x02]),
+            terminal_application_version: Some([0x00, 0x01]),
+            auc: ApplicationUsageControl::new([0x00, 0x00]),
+            region: TransactionRegion::Domestic,
+            service: ServiceType::Goods,
+            new_card: true,
+        },
+        Tvr::cleared(),
+    );
+
+    assert!(result.failed);
+    assert_eq!(result.tvr.bytes(), [0x00, 0xf8, 0x00, 0x00, 0x00]);
+}
+
+#[test]
+fn trm_sets_floor_random_velocity_exception_and_tsi_bits() {
+    let result = evaluate_trm(
+        TrmInput {
+            amount_authorized: 6_000,
+            exception_file_match: true,
+            merchant_forced_online: true,
+            consecutive_offline_count: Some(5),
+            random_sample_basis_points: Some(499),
+            profile: TrmProfile::new(5_000, 5, Some(2), Some(4)).unwrap(),
+        },
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+    );
+
+    assert!(result.force_online);
+    assert_eq!(result.tvr.bytes(), [0x10, 0x00, 0x00, 0xf8, 0x00]);
+    assert_eq!(result.tsi.bytes(), [0x08, 0x00]);
 }
 
 #[test]

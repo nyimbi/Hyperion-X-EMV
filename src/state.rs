@@ -30,9 +30,25 @@ impl Tvr {
     pub const B1_CARD_ON_EXCEPTION_FILE: (usize, u8) = (0, 0x10);
     pub const B1_DDA_FAILED: (usize, u8) = (0, 0x08);
     pub const B1_CDA_FAILED: (usize, u8) = (0, 0x04);
+    pub const B2_DIFFERENT_APPLICATION_VERSIONS: (usize, u8) = (1, 0x80);
+    pub const B2_EXPIRED_APPLICATION: (usize, u8) = (1, 0x40);
+    pub const B2_APPLICATION_NOT_YET_EFFECTIVE: (usize, u8) = (1, 0x20);
+    pub const B2_REQUESTED_SERVICE_NOT_ALLOWED: (usize, u8) = (1, 0x10);
+    pub const B2_NEW_CARD: (usize, u8) = (1, 0x08);
     pub const B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL: (usize, u8) = (2, 0x80);
+    pub const B3_UNRECOGNIZED_CVM: (usize, u8) = (2, 0x40);
+    pub const B3_PIN_TRY_LIMIT_EXCEEDED: (usize, u8) = (2, 0x20);
+    pub const B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING: (usize, u8) = (2, 0x10);
+    pub const B3_PIN_NOT_ENTERED: (usize, u8) = (2, 0x08);
+    pub const B3_ONLINE_PIN_ENTERED: (usize, u8) = (2, 0x04);
     pub const B4_FLOOR_LIMIT_EXCEEDED: (usize, u8) = (3, 0x80);
+    pub const B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED: (usize, u8) = (3, 0x40);
+    pub const B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED: (usize, u8) = (3, 0x20);
     pub const B4_RANDOM_TRANSACTION_SELECTION_PERFORMED: (usize, u8) = (3, 0x10);
+    pub const B4_MERCHANT_FORCED_TRANSACTION_ONLINE: (usize, u8) = (3, 0x08);
+    pub const B5_ISSUER_AUTHENTICATION_FAILED: (usize, u8) = (4, 0x40);
+    pub const B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC: (usize, u8) = (4, 0x20);
+    pub const B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC: (usize, u8) = (4, 0x10);
 
     pub fn cleared() -> Self {
         Self([0; 5])

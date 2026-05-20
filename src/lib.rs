@@ -11,9 +11,11 @@ pub mod cvm;
 pub mod dol;
 pub mod error;
 pub mod ffi;
+pub mod restrictions;
 pub mod state;
 pub mod sw;
 pub mod taa;
 pub mod tlv;
+pub mod trm;
 
 pub use error::{KernelError, KernelResult};
