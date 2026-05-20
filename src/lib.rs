@@ -6,6 +6,7 @@
 
 pub mod afl;
 pub mod apdu;
+pub mod c8;
 pub mod cid;
 pub mod config;
 pub mod cvm;

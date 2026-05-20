@@ -1,9 +1,16 @@
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest, Interface};
+use crate::c8::{
+    AlternateInterface, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
+    StartSignal, UiRequest, UiStatus,
+};
 use crate::error::KernelError;
 use crate::state::{KernelState, Tsi, Tvr};
 use core::ptr;
 use std::ffi::c_void;
 use std::slice;
+
+pub type KrnContactlessOutcomeCallback =
+    unsafe extern "C" fn(outcome: *const KrnContactlessOutcome, user_data: *mut c_void);
 
 #[repr(C)]
 pub struct KrnContext {
@@ -12,6 +19,8 @@ pub struct KrnContext {
     tsi: Tsi,
     last_error: KernelError,
     busy: bool,
+    contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
+    contactless_outcome_user_data: *mut c_void,
 }
 
 impl KrnContext {
@@ -22,6 +31,8 @@ impl KrnContext {
             tsi: Tsi::cleared(),
             last_error: KernelError::Ok,
             busy: false,
+            contactless_outcome_callback: None,
+            contactless_outcome_user_data: ptr::null_mut(),
         }
     }
 
@@ -175,6 +186,73 @@ pub unsafe extern "C" fn krn_build_generate_ac(
     ctx.set_result(result)
 }
 
+/// Registers the contactless outcome callback used by C-8/contactless flows.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `callback`, when
+/// non-null, must remain callable until it is replaced or the context is freed.
+/// `user_data` is never dereferenced by the kernel and is passed back unchanged.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_contactless_outcome_callback(
+    ctx: *mut KrnContext,
+    callback: Option<KrnContactlessOutcomeCallback>,
+    user_data: *mut c_void,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    ctx.contactless_outcome_callback = callback;
+    ctx.contactless_outcome_user_data = user_data;
+    ctx.last_error = KernelError::Ok;
+    KernelError::Ok.code()
+}
+
+/// Emits a structured contactless outcome through the registered callback.
+///
+/// This is the ABI boundary shape used by the transaction runner; the pointer
+/// fields in the callback view are valid only for the duration of the callback.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `data_record` and
+/// `discretionary_data` may be null only when their corresponding length is
+/// zero; otherwise they must point to readable buffers of that length.
+#[no_mangle]
+pub unsafe extern "C" fn krn_emit_contactless_outcome(
+    ctx: *mut KrnContext,
+    outcome_code: u8,
+    start_signal: u8,
+    ui_message_id: u16,
+    ui_status: u8,
+    hold_time_ms: u16,
+    restart_required: u8,
+    data_record: *const u8,
+    data_record_len: usize,
+    discretionary_data: *const u8,
+    discretionary_data_len: usize,
+    alternate_interface: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    let args = RawContactlessOutcomeArgs {
+        outcome_code,
+        start_signal,
+        ui_message_id,
+        ui_status,
+        hold_time_ms,
+        restart_required,
+        data_record,
+        data_record_len,
+        discretionary_data,
+        discretionary_data_len,
+        alternate_interface,
+    };
+    let result = emit_contactless_outcome(ctx, args);
+    ctx.set_result(result.map(|_| 0usize))
+}
+
 #[no_mangle]
 pub extern "C" fn krn_abi_version() -> u32 {
     1
@@ -205,9 +283,121 @@ unsafe fn write_output(
     Ok(bytes.len())
 }
 
+struct RawContactlessOutcomeArgs {
+    outcome_code: u8,
+    start_signal: u8,
+    ui_message_id: u16,
+    ui_status: u8,
+    hold_time_ms: u16,
+    restart_required: u8,
+    data_record: *const u8,
+    data_record_len: usize,
+    discretionary_data: *const u8,
+    discretionary_data_len: usize,
+    alternate_interface: u8,
+}
+
+unsafe fn emit_contactless_outcome(
+    ctx: &mut KrnContext,
+    args: RawContactlessOutcomeArgs,
+) -> Result<(), KernelError> {
+    let callback = ctx
+        .contactless_outcome_callback
+        .ok_or(KernelError::InvalidArgument)?;
+    let data_record = readable_slice(args.data_record, args.data_record_len)?;
+    let discretionary_data = readable_slice(args.discretionary_data, args.discretionary_data_len)?;
+    let outcome = ContactlessOutcome::new(
+        outcome_code_from_u8(args.outcome_code)?,
+        start_signal_from_u8(args.start_signal)?,
+        UiRequest {
+            message_id: args.ui_message_id,
+            status: ui_status_from_u8(args.ui_status)?,
+            hold_time_ms: args.hold_time_ms,
+        },
+        args.restart_required != 0,
+        data_record,
+        discretionary_data,
+        alternate_interface_from_u8(args.alternate_interface)?,
+    )?;
+    let view = outcome.as_ffi();
+    callback(&view, ctx.contactless_outcome_user_data);
+    Ok(())
+}
+
+unsafe fn readable_slice<'a>(ptr: *const u8, len: usize) -> Result<&'a [u8], KernelError> {
+    if len == 0 {
+        return Ok(&[]);
+    }
+    if ptr.is_null() {
+        return Err(KernelError::InvalidArgument);
+    }
+    Ok(slice::from_raw_parts(ptr, len))
+}
+
+fn outcome_code_from_u8(value: u8) -> Result<ContactlessOutcomeCode, KernelError> {
+    match value {
+        1 => Ok(ContactlessOutcomeCode::Approved),
+        2 => Ok(ContactlessOutcomeCode::Declined),
+        3 => Ok(ContactlessOutcomeCode::OnlineRequired),
+        4 => Ok(ContactlessOutcomeCode::TryAgain),
+        5 => Ok(ContactlessOutcomeCode::SelectNext),
+        6 => Ok(ContactlessOutcomeCode::AlternateInterface),
+        7 => Ok(ContactlessOutcomeCode::Terminate),
+        8 => Ok(ContactlessOutcomeCode::CvmRequired),
+        255 => Ok(ContactlessOutcomeCode::ProfileDefined),
+        _ => Err(KernelError::InvalidArgument),
+    }
+}
+
+fn start_signal_from_u8(value: u8) -> Result<StartSignal, KernelError> {
+    match value {
+        0 => Ok(StartSignal::None),
+        1 => Ok(StartSignal::Start),
+        2 => Ok(StartSignal::Restart),
+        3 => Ok(StartSignal::Prompt),
+        _ => Err(KernelError::InvalidArgument),
+    }
+}
+
+fn ui_status_from_u8(value: u8) -> Result<UiStatus, KernelError> {
+    match value {
+        0 => Ok(UiStatus::None),
+        1 => Ok(UiStatus::ReadyToRead),
+        2 => Ok(UiStatus::Processing),
+        3 => Ok(UiStatus::Approved),
+        4 => Ok(UiStatus::Declined),
+        5 => Ok(UiStatus::Error),
+        6 => Ok(UiStatus::TryAgain),
+        _ => Err(KernelError::InvalidArgument),
+    }
+}
+
+fn alternate_interface_from_u8(value: u8) -> Result<AlternateInterface, KernelError> {
+    match value {
+        0 => Ok(AlternateInterface::None),
+        1 => Ok(AlternateInterface::Contact),
+        2 => Ok(AlternateInterface::Magstripe),
+        3 => Ok(AlternateInterface::OtherCard),
+        _ => Err(KernelError::InvalidArgument),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+
+    static CALLBACK_OUTCOME_CODE: AtomicU8 = AtomicU8::new(0);
+    static CALLBACK_DATA_RECORD_LEN: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe extern "C" fn capture_contactless_outcome(
+        outcome: *const KrnContactlessOutcome,
+        _user_data: *mut c_void,
+    ) {
+        let outcome = outcome.as_ref().expect("outcome pointer");
+        CALLBACK_OUTCOME_CODE.store(outcome.outcome_code, Ordering::SeqCst);
+        CALLBACK_DATA_RECORD_LEN.store(outcome.data_record_len, Ordering::SeqCst);
+    }
 
     #[test]
     fn ffi_builds_select_into_caller_buffer() {
@@ -238,6 +428,47 @@ mod tests {
             );
             assert_eq!(len, 20);
             assert_eq!(krn_get_last_error(ctx), KernelError::BufferTooSmall.code());
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_emits_structured_contactless_outcome_callback() {
+        unsafe {
+            CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+            CALLBACK_DATA_RECORD_LEN.store(0, Ordering::SeqCst);
+            let ctx = krn_context_new();
+            assert_eq!(
+                krn_set_contactless_outcome_callback(
+                    ctx,
+                    Some(capture_contactless_outcome),
+                    ptr::null_mut()
+                ),
+                KernelError::Ok.code()
+            );
+            let data_record = [0x9f, 0x27, 0x01, 0x80];
+            assert_eq!(
+                krn_emit_contactless_outcome(
+                    ctx,
+                    ContactlessOutcomeCode::OnlineRequired as u8,
+                    StartSignal::Start as u8,
+                    0x1234,
+                    UiStatus::Processing as u8,
+                    500,
+                    0,
+                    data_record.as_ptr(),
+                    data_record.len(),
+                    ptr::null(),
+                    0,
+                    AlternateInterface::None as u8,
+                ),
+                KernelError::Ok.code()
+            );
+            assert_eq!(
+                CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst),
+                ContactlessOutcomeCode::OnlineRequired as u8
+            );
+            assert_eq!(CALLBACK_DATA_RECORD_LEN.load(Ordering::SeqCst), 4);
             krn_context_free(ctx);
         }
     }

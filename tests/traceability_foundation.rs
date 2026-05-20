@@ -2,6 +2,11 @@ use hyperion_emv::afl::{parse_afl, read_record_commands, record_plan};
 use hyperion_emv::apdu::{
     generate_ac, select_environment, CdaRequestControl, CryptogramRequest, Interface,
 };
+use hyperion_emv::c8::{
+    evaluate_contactless_limits, outcome_from_limit_decision, AlternateInterface,
+    ContactlessLimitDecision, ContactlessLimitInput, ContactlessOutcome, ContactlessOutcomeCode,
+    StartSignal, UiRequest, UiStatus,
+};
 use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::{load_profile_set, BuildMode, ConfigLoadPolicy, SignatureStatus};
 use hyperion_emv::cvm::{
@@ -57,6 +62,9 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SEC-004",
         "KRN-API-006",
         "KRN-LOG-001",
+        "KRN-C8-001",
+        "KRN-C8-002",
+        "KRN-C8-003",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -73,6 +81,23 @@ fn corrected_spec_contains_logging_and_replay_requirements() {
         "KRN-LOG-002",
         "KRN-LOG-003",
         "KRN-LOG-004",
+    ] {
+        assert!(
+            CORRECTED_SPEC.contains(krn_id),
+            "corrected spec missing {krn_id}"
+        );
+    }
+}
+
+#[test]
+fn corrected_spec_contains_contactless_c8_outcome_requirements() {
+    for krn_id in [
+        "KRN-INT-002",
+        "KRN-CLESS-001",
+        "KRN-CLESS-002",
+        "KRN-CLESS-003",
+        "KRN-C8-001",
+        "KRN-C8-002",
     ] {
         assert!(
             CORRECTED_SPEC.contains(krn_id),
@@ -399,6 +424,97 @@ fn deterministic_replay_matches_script_order_and_emits_masked_jsonl() {
         ApduTraceContext::Generic,
     )
     .is_err());
+}
+
+#[test]
+fn krn_c8_001_002_003_uses_structured_contactless_only_outcomes() {
+    let outcome = ContactlessOutcome::new(
+        ContactlessOutcomeCode::OnlineRequired,
+        StartSignal::Start,
+        UiRequest {
+            message_id: 0x1234,
+            status: UiStatus::Processing,
+            hold_time_ms: 500,
+        },
+        false,
+        &hex("9F270180"),
+        &hex("DF010102"),
+        AlternateInterface::None,
+    )
+    .unwrap();
+    let ffi = outcome.as_ffi();
+    assert_eq!(
+        ffi.outcome_code,
+        ContactlessOutcomeCode::OnlineRequired as u8
+    );
+    assert_eq!(ffi.data_record_len, 4);
+    assert_eq!(ffi.discretionary_data_len, 4);
+    assert!(!ffi.data_record.is_null());
+    assert!(!ffi.discretionary_data.is_null());
+
+    let invalid = ContactlessOutcome::new(
+        ContactlessOutcomeCode::Approved,
+        StartSignal::None,
+        UiRequest::none(),
+        false,
+        &[],
+        &[],
+        AlternateInterface::Contact,
+    );
+    assert!(invalid.is_err());
+
+    assert_eq!(
+        select_environment(Interface::Contact).encode().unwrap(),
+        hex("00A404000E315041592E5359532E444446303100")
+    );
+    assert_eq!(
+        select_environment(Interface::Contactless).encode().unwrap(),
+        hex("00A404000E325041592E5359532E444446303100")
+    );
+}
+
+#[test]
+fn krn_cless_003_limits_are_signed_profile_inputs() {
+    let input = ContactlessLimitInput {
+        amount_authorised_minor: 4_000,
+        contactless_transaction_limit: 5_000,
+        contactless_cvm_limit: 3_000,
+        floor_limit: 4_500,
+        cvm_satisfied: false,
+    };
+    assert_eq!(
+        evaluate_contactless_limits(input),
+        ContactlessLimitDecision::CvmRequired
+    );
+    assert_eq!(
+        outcome_from_limit_decision(ContactlessLimitDecision::CvmRequired)
+            .unwrap()
+            .outcome_code,
+        ContactlessOutcomeCode::CvmRequired
+    );
+    assert_eq!(
+        evaluate_contactless_limits(ContactlessLimitInput {
+            cvm_satisfied: true,
+            ..input
+        }),
+        ContactlessLimitDecision::Allowed
+    );
+    assert_eq!(
+        evaluate_contactless_limits(ContactlessLimitInput {
+            amount_authorised_minor: 4_600,
+            cvm_satisfied: true,
+            ..input
+        }),
+        ContactlessLimitDecision::OnlineRequired
+    );
+    assert_eq!(
+        evaluate_contactless_limits(ContactlessLimitInput {
+            amount_authorised_minor: 5_001,
+            cvm_satisfied: true,
+            ..input
+        }),
+        ContactlessLimitDecision::AlternateInterface
+    );
 }
 
 #[test]
