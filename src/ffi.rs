@@ -1,4 +1,4 @@
-use crate::afl::AflEntry;
+use crate::afl::{record_plan, AflEntry};
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest, Interface};
 use crate::c8::{
     AlternateInterface, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
@@ -9,12 +9,14 @@ use crate::dol::DataStore;
 use crate::error::KernelError;
 use crate::fsm::{self, FsmEvent, FsmState};
 use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
+use crate::record::parse_read_record_body;
 use crate::restrictions::EmvDate;
 use crate::selection::{
     direct_profile_candidates, match_profile_candidates, parse_fci_candidate_aids,
     SelectionCandidate,
 };
 use crate::state::{KernelState, Tsi, Tvr};
+use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use core::mem;
 use core::ptr;
 use std::ffi::c_void;
@@ -132,6 +134,7 @@ pub struct KrnContext {
     txn_params: Option<StoredTxnParams>,
     profiles: Option<ProfileSet>,
     selected_application: Option<SelectedApplication>,
+    card_data: DataStore,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
     contactless_outcome_user_data: *mut c_void,
@@ -149,6 +152,7 @@ impl KrnContext {
             txn_params: None,
             profiles: None,
             selected_application: None,
+            card_data: DataStore::new(),
             runtime: None,
             contactless_outcome_callback: None,
             contactless_outcome_user_data: ptr::null_mut(),
@@ -164,6 +168,7 @@ impl KrnContext {
         self.busy = false;
         self.txn_params = None;
         self.selected_application = None;
+        self.card_data = DataStore::new();
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -698,6 +703,72 @@ fn numeric_bcd_fixed(value: u64, bytes: usize) -> Result<Vec<u8>, KernelError> {
     Ok(out)
 }
 
+fn apply_transition(ctx: &mut KrnContext, event: FsmEvent) -> Result<(), KernelError> {
+    let transition = fsm::transition(ctx.fsm_state, event)?;
+    ctx.fsm_state = transition.to;
+    Ok(())
+}
+
+fn read_application_records(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+    afl: &[AflEntry],
+) -> Result<(), KernelError> {
+    let plan = record_plan(afl)?;
+    if plan.is_empty() {
+        apply_transition(ctx, FsmEvent::EndOfRecords)?;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        return Ok(());
+    }
+    for (index, locator) in plan.iter().enumerate() {
+        ctx.state = KernelState::ReadRecords;
+        let command = apdu::read_record(locator.record, locator.sfi)?.encode()?;
+        let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
+        if response.len() < 2 {
+            return Err(KernelError::ParseError);
+        }
+        let body = &response[..response.len() - 2];
+        let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+        match classify(ApduContext::ReadRecord, sw) {
+            StatusAction::Success => {
+                parse_read_record_body(body, &mut ctx.card_data)?;
+                apply_transition(ctx, FsmEvent::RecordRead)?;
+                if index + 1 == plan.len() {
+                    apply_transition(ctx, FsmEvent::AflComplete)?;
+                    ctx.state = KernelState::OfflineDataAuthentication;
+                    return Ok(());
+                }
+                apply_transition(ctx, FsmEvent::MoreAflEntries)?;
+            }
+            StatusAction::EndOfRecords => {
+                if locator.contributes_to_offline_auth {
+                    ctx.tvr.set(Tvr::B1_ICC_DATA_MISSING);
+                }
+                apply_transition(ctx, FsmEvent::EndOfRecords)?;
+                ctx.state = KernelState::OfflineDataAuthentication;
+                return Ok(());
+            }
+            StatusAction::ContinueWithTvr { bit } => {
+                ctx.tvr.set(bit);
+                apply_transition(ctx, FsmEvent::RecordReadFailed)?;
+                ctx.state = KernelState::OfflineDataAuthentication;
+                return Ok(());
+            }
+            StatusAction::Fail { error } => return Err(error),
+            StatusAction::GetResponse { .. } | StatusAction::RetryWithLe { .. } => {
+                return Err(KernelError::InternalError);
+            }
+            StatusAction::FallbackToDirectAid
+            | StatusAction::TryNextAid
+            | StatusAction::PinFailed { .. }
+            | StatusAction::ContinueAfterNonCriticalScriptFailure => {
+                return Err(KernelError::InternalError);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let Some(params) = ctx.txn_params.as_ref() else {
         ctx.last_error = KernelError::InvalidArgument;
@@ -974,6 +1045,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         FsmState::S5 => KernelState::OfflineDataAuthentication,
         _ => KernelState::Error,
     };
+    let selected_afl = parsed_gpo.afl.clone();
     ctx.selected_application = Some(SelectedApplication {
         aid: selected_candidate.aid,
         scheme_index: selected_candidate.scheme_index,
@@ -981,6 +1053,14 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         aip: Some(parsed_gpo.aip),
         afl: parsed_gpo.afl,
     });
+    if ctx.fsm_state == FsmState::S4 {
+        if let Err(err) = read_application_records(ctx, runtime, &selected_afl) {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
 
     ctx.last_error = KernelError::InvalidArgument;
     KrnOutcome::Error
@@ -1154,8 +1234,11 @@ mod tests {
                 0x6f, 0x11, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x06, 0x9f,
                 0x38, 0x03, 0x9f, 0x37, 0x04, 0x90, 0x00,
             ],
-            _ => vec![
+            2 => vec![
                 0x77, 0x0a, 0x82, 0x02, 0x18, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
+            ],
+            _ => vec![
+                0x70, 0x0a, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x90, 0x00,
             ],
         };
         let capacity = *resp_len;
@@ -1253,7 +1336,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_init_validates_runtime_callbacks_and_reaches_read_records() {
+    fn ffi_init_validates_runtime_callbacks_and_reaches_oda_after_read_records() {
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -1308,15 +1391,21 @@ mod tests {
             );
             TRANSMIT_COUNT.store(0, Ordering::SeqCst);
             assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
-            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xa8);
-            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 3);
-            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 12);
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xb2);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 4);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
             assert_eq!(
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S4.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S5.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
+            let ctx_ref = ctx.as_ref().unwrap();
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x5a]),
+                Some(&[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f][..])
+            );
+            assert_eq!(ctx_ref.selected_application.as_ref().unwrap().afl.len(), 1);
             krn_context_free(ctx);
         }
     }

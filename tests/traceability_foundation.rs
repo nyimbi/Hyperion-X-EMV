@@ -31,6 +31,7 @@ use hyperion_emv::oda::{
     apply_oda_outcome, select_capk, select_oda_method, validate_oda_vector_annex, CapkIntegrity,
     OdaFailure, OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput,
 };
+use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
     ServiceType, TransactionRegion,
@@ -80,7 +81,8 @@ unsafe extern "C" fn it_transmit_apdu(
     let response = match count {
         0 => hex("6F13A511BF0C0E610C4F07A00000000310108701019000"),
         1 => hex("6F118407A0000000031010A5069F38039F37049000"),
-        _ => hex("770A820218009404100101009000"),
+        2 => hex("770A820218009404100101009000"),
+        _ => hex("700A5A08123456789012345F9000"),
     };
     let capacity = *resp_len;
     *resp_len = response.len();
@@ -123,6 +125,9 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-APDU-010",
         "KRN-GPO-001",
         "KRN-GPO-002",
+        "KRN-RR-001",
+        "KRN-RR-002",
+        "KRN-RR-003",
         "KRN-SEC-004",
         "KRN-API-006",
         "KRN-LOG-001",
@@ -679,11 +684,11 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         );
         IT_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
         assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
-        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xa8);
-        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 3);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 12);
+        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xb2);
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 4);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
         assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
-        assert_eq!(krn_get_fsm_state(ctx), FsmState::S4.code());
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S5.code());
         assert_eq!(
             krn_get_last_error(ctx),
             hyperion_emv::KernelError::InvalidArgument.code()
@@ -1001,6 +1006,23 @@ fn lifecycle_afl_plan_produces_read_record_sequence_and_oda_flags() {
     assert_eq!(
         commands,
         vec![hex("00B2011400"), hex("00B2021400"), hex("00B2031400")]
+    );
+}
+
+#[test]
+fn krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data() {
+    let entries = parse_afl(&hex("10010101")).unwrap();
+    let command = read_record_commands(&entries).unwrap().remove(0);
+    assert_eq!(command.encode().unwrap(), hex("00B2011400"));
+
+    let mut data = DataStore::new();
+    assert_eq!(
+        parse_read_record_body(&hex("700A5A08123456789012345F"), &mut data).unwrap(),
+        1
+    );
+    assert_eq!(
+        data.get(&hex("5A")),
+        Some(hex("123456789012345F").as_slice())
     );
 }
 
