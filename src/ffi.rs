@@ -1,14 +1,18 @@
+use crate::afl::AflEntry;
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest, Interface};
 use crate::c8::{
     AlternateInterface, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
     StartSignal, UiRequest, UiStatus,
 };
 use crate::config::{load_profile_set, BuildMode, ConfigLoadPolicy, ProfileSet, SignatureStatus};
+use crate::dol::DataStore;
 use crate::error::KernelError;
 use crate::fsm::{self, FsmEvent, FsmState};
+use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
 use crate::restrictions::EmvDate;
 use crate::selection::{
     direct_profile_candidates, match_profile_candidates, parse_fci_candidate_aids,
+    SelectionCandidate,
 };
 use crate::state::{KernelState, Tsi, Tvr};
 use core::mem;
@@ -108,6 +112,15 @@ pub struct StoredTxnParams {
     pub merchant_name_location: Vec<u8>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SelectedApplication {
+    aid: Vec<u8>,
+    scheme_index: usize,
+    aid_index: usize,
+    aip: Option<[u8; 2]>,
+    afl: Vec<AflEntry>,
+}
+
 #[repr(C)]
 pub struct KrnContext {
     state: KernelState,
@@ -118,6 +131,7 @@ pub struct KrnContext {
     busy: bool,
     txn_params: Option<StoredTxnParams>,
     profiles: Option<ProfileSet>,
+    selected_application: Option<SelectedApplication>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
     contactless_outcome_user_data: *mut c_void,
@@ -134,6 +148,7 @@ impl KrnContext {
             busy: false,
             txn_params: None,
             profiles: None,
+            selected_application: None,
             runtime: None,
             contactless_outcome_callback: None,
             contactless_outcome_user_data: ptr::null_mut(),
@@ -148,6 +163,7 @@ impl KrnContext {
         self.last_error = KernelError::Ok;
         self.busy = false;
         self.txn_params = None;
+        self.selected_application = None;
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -614,6 +630,74 @@ unsafe fn read_transaction_params(
     })
 }
 
+fn transaction_data_store(
+    params: &StoredTxnParams,
+    runtime: RuntimeCallbacks,
+    tvr: Tvr,
+    tsi: Tsi,
+) -> Result<DataStore, KernelError> {
+    let mut data = DataStore::new();
+    data.put(
+        &[0x9f, 0x02],
+        &numeric_bcd_fixed(params.amount_authorised_minor, 6)?,
+    )?;
+    data.put(
+        &[0x9f, 0x03],
+        &numeric_bcd_fixed(params.amount_other_minor, 6)?,
+    )?;
+    data.put(
+        &[0x5f, 0x2a],
+        &numeric_bcd_fixed(params.currency_code as u64, 2)?,
+    )?;
+    data.put(
+        &[0x9f, 0x1a],
+        &numeric_bcd_fixed(params.terminal_country_code as u64, 2)?,
+    )?;
+    data.put(&[0x9c], &[params.transaction_type])?;
+    data.put(&[0x9f, 0x35], &[params.terminal_type])?;
+    data.put(&[0x9f, 0x15], &params.merchant_category_code)?;
+    data.put(&[0x95], &tvr.bytes())?;
+    data.put(&[0x9b], &tsi.bytes())?;
+
+    let mut unpredictable_number = [0u8; 4];
+    let status = unsafe {
+        (runtime.get_unpredictable_number)(
+            unpredictable_number.as_mut_ptr(),
+            unpredictable_number.len(),
+            runtime.user_data,
+        )
+    };
+    if status != KernelError::Ok.code() {
+        return Err(KernelError::InternalError);
+    }
+    data.put(&[0x9f, 0x37], &unpredictable_number)?;
+    Ok(data)
+}
+
+fn numeric_bcd_fixed(value: u64, bytes: usize) -> Result<Vec<u8>, KernelError> {
+    let digits = bytes.checked_mul(2).ok_or(KernelError::LengthOverflow)?;
+    let max = 10u64
+        .checked_pow(digits as u32)
+        .ok_or(KernelError::LengthOverflow)?;
+    if value >= max {
+        return Err(KernelError::InvalidArgument);
+    }
+
+    let mut out = vec![0u8; bytes];
+    let mut remaining = value;
+    for index in (0..digits).rev() {
+        let digit = (remaining % 10) as u8;
+        remaining /= 10;
+        let byte = index / 2;
+        if index % 2 == 0 {
+            out[byte] |= digit << 4;
+        } else {
+            out[byte] |= digit;
+        }
+    }
+    Ok(out)
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let Some(params) = ctx.txn_params.as_ref() else {
         ctx.last_error = KernelError::InvalidArgument;
@@ -633,7 +717,6 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         ctx.fsm_state = FsmState::Se;
         return KrnOutcome::Error;
     };
-    let _rng_callback = runtime.get_unpredictable_number;
     let interface = match params.interface_preference {
         0 | 1 => Interface::Contact,
         2 => Interface::Contactless,
@@ -723,7 +806,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         }
     };
 
-    let mut selected = false;
+    let mut selected: Option<(SelectionCandidate, Vec<u8>)> = None;
     for candidate in candidates {
         let transition = match fsm::transition(ctx.fsm_state, FsmEvent::CandidateAidAvailable) {
             Ok(transition) => transition,
@@ -765,6 +848,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         ];
         match select_sw {
             [0x90, 0x00] => {
+                let select_fci = select_response[..select_response.len() - 2].to_vec();
                 let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidSelected) {
                     Ok(transition) => transition,
                     Err(err) => {
@@ -776,7 +860,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
                 };
                 ctx.fsm_state = transition.to;
                 ctx.state = KernelState::Gpo;
-                selected = true;
+                selected = Some((candidate, select_fci));
                 break;
             }
             [0x6a, 0x82] => {
@@ -800,13 +884,103 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         }
     }
 
-    if !selected {
+    let Some((selected_candidate, selected_fci)) = selected else {
         let _ = fsm::transition(ctx.fsm_state, FsmEvent::NoCandidateLeft);
         ctx.last_error = KernelError::NoCommonAid;
         ctx.state = KernelState::Error;
         ctx.fsm_state = FsmState::Se;
         return KrnOutcome::Error;
+    };
+
+    let pdol = match parse_pdol_from_fci(&selected_fci) {
+        Ok(pdol) => pdol,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    let data = match transaction_data_store(params, runtime, ctx.tvr, ctx.tsi) {
+        Ok(data) => data,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    let gpo = match apdu::get_processing_options(&pdol, &data).and_then(|cmd| cmd.encode()) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    let gpo_response = match transmit_apdu(runtime, &gpo, APDU_TRANSMIT_TIMEOUT_MS) {
+        Ok(response) => response,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    if gpo_response.len() < 2 {
+        ctx.last_error = KernelError::ParseError;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
     }
+    let gpo_sw = [
+        gpo_response[gpo_response.len() - 2],
+        gpo_response[gpo_response.len() - 1],
+    ];
+    if gpo_sw != [0x90, 0x00] {
+        let _ = fsm::transition(ctx.fsm_state, FsmEvent::GpoFailed);
+        ctx.last_error = KernelError::MissingMandatoryTag;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    }
+    let parsed_gpo = match parse_gpo_response(&gpo_response[..gpo_response.len() - 2]) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            let _ = fsm::transition(ctx.fsm_state, FsmEvent::GpoFailed);
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    let event = match parsed_gpo.format {
+        GpoResponseFormat::Template77 => FsmEvent::GpoTemplate77,
+        GpoResponseFormat::Template80 => FsmEvent::GpoTemplate80,
+    };
+    let transition = match fsm::transition(ctx.fsm_state, event) {
+        Ok(transition) => transition,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    ctx.fsm_state = transition.to;
+    ctx.state = match transition.to {
+        FsmState::S4 => KernelState::ReadRecords,
+        FsmState::S5 => KernelState::OfflineDataAuthentication,
+        _ => KernelState::Error,
+    };
+    ctx.selected_application = Some(SelectedApplication {
+        aid: selected_candidate.aid,
+        scheme_index: selected_candidate.scheme_index,
+        aid_index: selected_candidate.aid_index,
+        aip: Some(parsed_gpo.aip),
+        afl: parsed_gpo.afl,
+    });
 
     ctx.last_error = KernelError::InvalidArgument;
     KrnOutcome::Error
@@ -971,15 +1145,18 @@ mod tests {
         TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
         TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
-        let response = if count == 0 {
-            vec![
+        let response = match count {
+            0 => vec![
                 0x6f, 0x13, 0xa5, 0x11, 0xbf, 0x0c, 0x0e, 0x61, 0x0c, 0x4f, 0x07, 0xa0, 0x00, 0x00,
                 0x00, 0x03, 0x10, 0x10, 0x87, 0x01, 0x01, 0x90, 0x00,
-            ]
-        } else {
-            vec![
-                0x6f, 0x09, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0x90, 0x00,
-            ]
+            ],
+            1 => vec![
+                0x6f, 0x11, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x06, 0x9f,
+                0x38, 0x03, 0x9f, 0x37, 0x04, 0x90, 0x00,
+            ],
+            _ => vec![
+                0x77, 0x0a, 0x82, 0x02, 0x18, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
+            ],
         };
         let capacity = *resp_len;
         *resp_len = response.len();
@@ -1076,7 +1253,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_init_validates_runtime_callbacks_and_runs_first_select_apdu() {
+    fn ffi_init_validates_runtime_callbacks_and_reaches_read_records() {
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -1131,14 +1308,14 @@ mod tests {
             );
             TRANSMIT_COUNT.store(0, Ordering::SeqCst);
             assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
-            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xa4);
-            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 2);
-            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xa8);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 3);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 12);
             assert_eq!(
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S3.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S4.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             krn_context_free(ctx);
         }

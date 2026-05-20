@@ -5,6 +5,8 @@ KRN-SEC-002,Kernel does not generate ARQC/TC/AAC,UT-SEC-002,IT-SEC-002,EMV-L2-CO
 KRN-SEC-003,CAPKs public key integrity only,UT-SEC-003,IT-SEC-003,EMV-L2-CONTACT-MC-008,Config signature
 KRN-SEC-004,PED-owned VERIFY model,UT-SEC-004,IT-SEC-004,PCI-PTS-PIN-002,PED statement
 KRN-SEL-001,Correct PSE/PPSE selection,UT-SEL-001,IT-SEL-001,EMV-L2-CONTACT-VID-001,APDU traces
+KRN-GPO-001,Parse valid GPO response formats 77 and 80,UT-GPO-001,IT-GPO-001,EMV-L2-CONTACT-VID-002,GPO response parser evidence
+KRN-GPO-002,Extract AIP and AFL or fail with explicit missing mandatory tag,UT-GPO-002,IT-GPO-002,EMV-L2-CONTACT-MC-002,GPO state transition evidence
 KRN-TVR-001,Symbolic constants for TVR,UT-TVR-001,IT-TVR-001,EMV-L2-CONTACT-VID-020,Code review
 KRN-TVR-002,TVR cleared before each transaction,UT-TVR-002,IT-TVR-002,EMV-L2-CONTACT-MC-012,Unit test log
 KRN-TVR-003,RFU bits not set,UT-TVR-003,IT-TVR-003,EMV-L2-CONTACT-VID-021,TVR trace

@@ -23,6 +23,7 @@ use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
 };
 use hyperion_emv::gac::{build_online_authorization_package, parse_generate_ac_response};
+use hyperion_emv::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
 use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
 };
@@ -76,10 +77,10 @@ unsafe extern "C" fn it_transmit_apdu(
     IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
     IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
     IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
-    let response = if count == 0 {
-        hex("6F13A511BF0C0E610C4F07A00000000310108701019000")
-    } else {
-        hex("6F098407A00000000310109000")
+    let response = match count {
+        0 => hex("6F13A511BF0C0E610C4F07A00000000310108701019000"),
+        1 => hex("6F118407A0000000031010A5069F38039F37049000"),
+        _ => hex("770A820218009404100101009000"),
     };
     let capacity = *resp_len;
     *resp_len = response.len();
@@ -120,6 +121,8 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-TAA-007",
         "KRN-APDU-009",
         "KRN-APDU-010",
+        "KRN-GPO-001",
+        "KRN-GPO-002",
         "KRN-SEC-004",
         "KRN-API-006",
         "KRN-LOG-001",
@@ -547,6 +550,30 @@ fn krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles() {
 }
 
 #[test]
+fn krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates() {
+    let selected_fci = hex("6F118407A0000000031010A5069F38039F3704");
+    let pdol = parse_pdol_from_fci(&selected_fci).unwrap();
+    assert_eq!(pdol.len(), 1);
+    assert_eq!(pdol[0].tag, hex("9F37"));
+    assert_eq!(pdol[0].length, 4);
+
+    let template77 = parse_gpo_response(&hex("770A82021800940410010100")).unwrap();
+    assert_eq!(template77.format, GpoResponseFormat::Template77);
+    assert_eq!(template77.aip, [0x18, 0x00]);
+    assert_eq!(template77.afl, parse_afl(&hex("10010100")).unwrap());
+
+    let template80 = parse_gpo_response(&hex("80021800")).unwrap();
+    assert_eq!(template80.format, GpoResponseFormat::Template80);
+    assert_eq!(template80.aip, [0x18, 0x00]);
+    assert!(template80.afl.is_empty());
+
+    assert_eq!(
+        parse_gpo_response(&hex("770482021800")).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+}
+
+#[test]
 fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks() {
     unsafe {
         let ctx = krn_context_new();
@@ -652,11 +679,11 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         );
         IT_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
         assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
-        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xa4);
-        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 2);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
+        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xa8);
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 3);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 12);
         assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
-        assert_eq!(krn_get_fsm_state(ctx), FsmState::S3.code());
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S4.code());
         assert_eq!(
             krn_get_last_error(ctx),
             hyperion_emv::KernelError::InvalidArgument.code()

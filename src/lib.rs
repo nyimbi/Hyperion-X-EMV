@@ -15,6 +15,7 @@ pub mod error;
 pub mod ffi;
 pub mod fsm;
 pub mod gac;
+pub mod gpo;
 pub mod issuer;
 pub mod oda;
 pub mod restrictions;
