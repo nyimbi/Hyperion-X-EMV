@@ -3,6 +3,7 @@ use hyperion_emv::apdu::{
     generate_ac, select_environment, CdaRequestControl, CryptogramRequest, Interface,
 };
 use hyperion_emv::cid::{Cid, CryptogramType};
+use hyperion_emv::config::{load_profile_set, BuildMode, ConfigLoadPolicy, SignatureStatus};
 use hyperion_emv::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface, PedPinHandle,
@@ -109,6 +110,25 @@ fn corrected_spec_contains_processing_restriction_and_trm_requirements() {
 }
 
 #[test]
+fn corrected_spec_contains_config_profile_and_capk_requirements() {
+    for krn_id in [
+        "KRN-CFG-001",
+        "KRN-CFG-002",
+        "KRN-CFG-003",
+        "KRN-CFG-004",
+        "KRN-PROFILE-001",
+        "KRN-PROFILE-002",
+        "KRN-CAPK-001",
+        "KRN-CAPK-002",
+    ] {
+        assert!(
+            CORRECTED_SPEC.contains(krn_id),
+            "corrected spec missing {krn_id}"
+        );
+    }
+}
+
+#[test]
 fn state_machine_annex_contains_afl_read_record_rows() {
     let state_machine = include_str!("../docs/state_machine.csv");
     for fragment in [
@@ -151,6 +171,96 @@ fn scheme_profile_annex_contains_deterministic_taa_keys() {
             "scheme profile annex missing {key}"
         );
     }
+}
+
+#[test]
+fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
+    let unsigned_policy = ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::NotPresent,
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    };
+    assert_eq!(
+        load_profile_set(SCHEME_PROFILES.as_bytes(), &unsigned_policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let verified_policy = ConfigLoadPolicy {
+        signature_status: SignatureStatus::Verified,
+        ..unsigned_policy
+    };
+    let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &verified_policy).unwrap();
+    assert_eq!(profiles.schemes.len(), 3);
+    assert_eq!(profiles.schemes[0].rid, hex("A000000003").as_slice());
+    assert_eq!(
+        profiles.schemes[0].aids[0].action_codes.online,
+        [0xe0, 0xf8, 0xc8, 0x00, 0x00]
+    );
+    assert_eq!(
+        profiles.schemes[0].aids[0]
+            .trm_profile()
+            .unwrap()
+            .random_selection_percent,
+        5
+    );
+    assert_eq!(profiles.schemes[0].capks[0].key_index, 1);
+    assert!(profiles.schemes[0].capks[0].modulus.len() >= 64);
+}
+
+#[test]
+fn profile_loader_rejects_rollback_placeholders_and_expired_capks() {
+    let base_policy = ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::Verified,
+        installed_version: 2,
+        candidate_version: 1,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    };
+    assert_eq!(
+        load_profile_set(SCHEME_PROFILES.as_bytes(), &base_policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let expired_policy = ConfigLoadPolicy {
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 31,
+            month: 1,
+            day: 2,
+        },
+        ..base_policy
+    };
+    assert_eq!(
+        load_profile_set(SCHEME_PROFILES.as_bytes(), &expired_policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let placeholder = br#"{"scheme_profiles":[{"scheme_name":"Visa","rid":"A000000003","kernel_type":"x","taa_fallback_when_offline_unable_online":"AAC","taa_no_match_default_when_online_capable":"ARQC","taa_no_match_default_when_offline_only":"AAC","aids":[{"aid":"A0000000031010","priority":1,"partial_selection":true,"interfaces":["contact"],"tac_online":"0000000000","tac_denial":"0000000000","tac_default":"0000000000","iac_online":"0000000000","iac_denial":"0000000000","iac_default":"0000000000","floor_limit":0,"cvm_limit_contact":0,"random_selection_percent":0,"contactless_transaction_limit":0,"contactless_cvm_limit":0,"cdcvm_supported":false,"cda_supported":false}],"capks":[{"key_index":1,"modulus_hex":"D2E5F5B3A1...","exponent_hex":"010001","expiry":"2030-01-01","checksum_hex":"00112233445566778899AABBCCDDEEFF"}]}]}"#;
+    let valid_policy = ConfigLoadPolicy {
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+        ..base_policy
+    };
+    assert_eq!(
+        load_profile_set(placeholder, &valid_policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
 }
 
 #[test]

@@ -7,6 +7,7 @@
 pub mod afl;
 pub mod apdu;
 pub mod cid;
+pub mod config;
 pub mod cvm;
 pub mod dol;
 pub mod error;
