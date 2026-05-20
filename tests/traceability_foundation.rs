@@ -7,6 +7,11 @@ use hyperion_emv::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface, PedPinHandle,
 };
+use hyperion_emv::dol::DataStore;
+use hyperion_emv::gac::{build_online_authorization_package, parse_generate_ac_response};
+use hyperion_emv::issuer::{
+    apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
+};
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
     ServiceType, TransactionRegion,
@@ -35,6 +40,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-CVM-001",
         "KRN-CVM-002",
         "KRN-CVM-003",
+        "KRN-SEC-002",
         "KRN-GAC-008",
         "KRN-GAC-009",
         "KRN-TAA-004",
@@ -49,6 +55,24 @@ fn rtm_contains_foundation_requirements_under_test() {
         assert!(
             RTM.contains(krn_id),
             "missing traceability row for {krn_id}"
+        );
+    }
+}
+
+#[test]
+fn corrected_spec_contains_gac_online_and_script_requirements() {
+    for krn_id in [
+        "KRN-GAC1-004",
+        "KRN-ONL-001",
+        "KRN-ONL-002",
+        "KRN-GAC2-001",
+        "KRN-SCR-001",
+        "KRN-SCR-004",
+        "KRN-SCR-005",
+    ] {
+        assert!(
+            CORRECTED_SPEC.contains(krn_id),
+            "corrected spec missing {krn_id}"
         );
     }
 }
@@ -356,6 +380,57 @@ fn trm_sets_floor_random_velocity_exception_and_tsi_bits() {
     assert!(result.force_online);
     assert_eq!(result.tvr.bytes(), [0x10, 0x00, 0x00, 0xf8, 0x00]);
     assert_eq!(result.tsi.bytes(), [0x08, 0x00]);
+}
+
+#[test]
+fn gac_parsing_uses_card_returned_cryptogram_for_online_handoff() {
+    let response = parse_generate_ac_response(&hex(
+        "771A9F2701809F360200099F260811121314151617189F1003AABBCC",
+    ))
+    .unwrap();
+    let mut data = DataStore::new();
+    data.put(&[0x9f, 0x37], &hex("01020304")).unwrap();
+    data.put(&[0x95], &hex("0000000000")).unwrap();
+    data.put(&[0x9a], &hex("260521")).unwrap();
+    data.put(&[0x9f, 0x02], &hex("000000001000")).unwrap();
+
+    let package = build_online_authorization_package(&response, &data);
+    assert!(package
+        .objects
+        .iter()
+        .any(|object| object.tag == [0x9f, 0x26] && object.value == hex("1112131415161718")));
+    assert!(package
+        .objects
+        .iter()
+        .any(|object| object.tag == [0x9f, 0x37]));
+    assert!(package.objects.iter().any(|object| object.tag == [0x95]));
+}
+
+#[test]
+fn host_response_extracts_arpc_and_phase_specific_script_results() {
+    let host = parse_host_response(&hex(
+        "8A02303091081122334455667788710F9F1804DEADBEEF860600DA000001AA7208860680E2000001BB",
+    ))
+    .unwrap();
+    assert_eq!(
+        host.issuer_authentication_data,
+        Some(hex("1122334455667788"))
+    );
+    assert_eq!(host.scripts.len(), 2);
+    assert_eq!(host.scripts[0].phase, ScriptPhase::BeforeFinalGenerateAc);
+    assert_eq!(host.scripts[1].phase, ScriptPhase::AfterFinalGenerateAc);
+
+    let before = apply_script_results(
+        ScriptPhase::BeforeFinalGenerateAc,
+        &[ScriptCommandResult {
+            sw1: 0x6a,
+            sw2: 0x80,
+        }],
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+    );
+    assert_eq!(before.tvr.bytes(), [0x00, 0x00, 0x00, 0x00, 0x20]);
+    assert_eq!(before.tsi.bytes(), [0x04, 0x00]);
 }
 
 #[test]

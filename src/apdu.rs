@@ -127,6 +127,21 @@ pub fn internal_authenticate(ddol_values: &[u8]) -> KernelResult<CommandApdu> {
     })
 }
 
+pub fn external_authenticate(issuer_authentication_data: &[u8]) -> KernelResult<CommandApdu> {
+    if issuer_authentication_data.is_empty() || issuer_authentication_data.len() > u8::MAX as usize
+    {
+        return Err(KernelError::InvalidArgument);
+    }
+    Ok(CommandApdu {
+        cla: 0x00,
+        ins: 0x82,
+        p1: 0x00,
+        p2: 0x00,
+        data: issuer_authentication_data.to_vec(),
+        le: None,
+    })
+}
+
 pub fn generate_ac(
     request: CryptogramRequest,
     cdol_values: &[u8],
@@ -263,6 +278,21 @@ mod tests {
         );
         assert_eq!(
             read_record(1, 31).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn builds_external_authenticate_for_issuer_authentication_data() {
+        assert_eq!(
+            external_authenticate(&[0x12, 0x34, 0x56, 0x78])
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [0x00, 0x82, 0x00, 0x00, 0x04, 0x12, 0x34, 0x56, 0x78]
+        );
+        assert_eq!(
+            external_authenticate(&[]).unwrap_err(),
             KernelError::InvalidArgument
         );
     }
