@@ -21,6 +21,10 @@ use hyperion_emv::state::Tvr;
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
 use hyperion_emv::tlv;
+use hyperion_emv::trace::{
+    mask_apdu_response, mask_tlv_value, ApduTraceContext, LogPolicy, MaskedValue, ReplayExchange,
+    ReplayScript,
+};
 use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
 
 const RTM: &str = concat!(
@@ -52,10 +56,27 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-APDU-010",
         "KRN-SEC-004",
         "KRN-API-006",
+        "KRN-LOG-001",
     ] {
         assert!(
             RTM.contains(krn_id),
             "missing traceability row for {krn_id}"
+        );
+    }
+}
+
+#[test]
+fn corrected_spec_contains_logging_and_replay_requirements() {
+    for krn_id in [
+        "KRN-FSM-003",
+        "KRN-LOG-001",
+        "KRN-LOG-002",
+        "KRN-LOG-003",
+        "KRN-LOG-004",
+    ] {
+        assert!(
+            CORRECTED_SPEC.contains(krn_id),
+            "corrected spec missing {krn_id}"
         );
     }
 }
@@ -310,6 +331,74 @@ fn krn_cid_001_decodes_with_high_bit_mask_only() {
     assert_eq!(Cid::new(0x8f).cryptogram_type(), CryptogramType::Arqc);
     assert_eq!(Cid::new(0x47).cryptogram_type(), CryptogramType::Tc);
     assert_eq!(Cid::new(0x0f).cryptogram_type(), CryptogramType::Aac);
+}
+
+#[test]
+fn krn_log_001_masks_sensitive_tlv_and_gac_trace_values() {
+    let pan = mask_tlv_value(&[0x5a], &hex("123456789012345F"), LogPolicy::production());
+    assert_eq!(pan.value, MaskedValue::Pan("***********2345".to_string()));
+
+    let track = mask_tlv_value(
+        &[0x57],
+        &hex("123456789012D25122012345678F"),
+        LogPolicy::production(),
+    );
+    assert_eq!(track.value, MaskedValue::Suppressed("track2"));
+
+    let response = hex("800B800001DEADBEEF00000001");
+    let event = mask_apdu_response(
+        1,
+        ApduTraceContext::GenerateAcResponse,
+        &response,
+        [0x90, 0x00],
+        LogPolicy::production(),
+    )
+    .unwrap();
+    let json = event.to_json();
+    assert!(json.contains("\"tag\":\"9f26\""));
+    assert!(json.contains("transaction-cryptogram"));
+    assert!(!json.contains("deadbeef00000001"));
+}
+
+#[test]
+fn deterministic_replay_matches_script_order_and_emits_masked_jsonl() {
+    let select = ReplayExchange::new(
+        &hex("00A4040007A000000003101000"),
+        &hex("6F098407A0000000031010"),
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let record = ReplayExchange::new(
+        &hex("00B2011400"),
+        &hex("700A5A08123456789012345F"),
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let mut script = ReplayScript::new(vec![select, record]).unwrap();
+
+    assert!(script.exchange(&hex("00B2011400")).is_err());
+    assert_eq!(
+        script.exchange(&hex("00A4040007A000000003101000")).unwrap(),
+        hex("6F098407A00000000310109000")
+    );
+    assert_eq!(
+        script.exchange(&hex("00B2011400")).unwrap(),
+        hex("700A5A08123456789012345F9000")
+    );
+
+    let jsonl = script.masked_jsonl(LogPolicy::production()).unwrap();
+    assert!(jsonl.contains("***********2345"));
+    assert!(!jsonl.contains("123456789012345"));
+
+    assert!(ReplayExchange::new(
+        &hex("0020008008241234FFFFFFFFFF"),
+        &[],
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .is_err());
 }
 
 #[test]

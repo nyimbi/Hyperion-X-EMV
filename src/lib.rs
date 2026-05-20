@@ -19,6 +19,7 @@ pub mod state;
 pub mod sw;
 pub mod taa;
 pub mod tlv;
+pub mod trace;
 pub mod trm;
 
 pub use error::{KernelError, KernelResult};
