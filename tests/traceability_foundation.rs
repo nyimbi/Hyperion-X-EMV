@@ -15,8 +15,9 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
-    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error, krn_reset,
-    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnTxnParams,
+    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error, krn_init, krn_reset,
+    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
+    KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -42,6 +43,9 @@ use hyperion_emv::trace::{
     ReplayScript,
 };
 use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
+use std::ffi::c_void;
+use std::ptr;
+use std::sync::atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering};
 
 const RTM: &str = concat!(
     include_str!("../docs/requirements-traceability-matrix.csv"),
@@ -52,6 +56,43 @@ const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
 const ODA_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
 const STATE_MACHINE_CSV: &str = include_str!("../docs/state_machine.csv");
+
+static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
+static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
+static IT_TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
+
+unsafe extern "C" fn it_transmit_apdu(
+    cmd: *const u8,
+    cmd_len: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+    timeout_ms: i32,
+    _user_data: *mut c_void,
+) -> i32 {
+    let command = std::slice::from_raw_parts(cmd, cmd_len);
+    IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+    IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+    IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    let response = hex("6F098407A00000000310109000");
+    let capacity = *resp_len;
+    *resp_len = response.len();
+    if capacity < response.len() {
+        return hyperion_emv::KernelError::BufferTooSmall.code();
+    }
+    ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+    hyperion_emv::KernelError::Ok.code()
+}
+
+unsafe extern "C" fn it_unpredictable_number(
+    out: *mut u8,
+    out_len: usize,
+    _user_data: *mut c_void,
+) -> i32 {
+    for idx in 0..out_len {
+        *out.add(idx) = (idx as u8).wrapping_add(1);
+    }
+    hyperion_emv::KernelError::Ok.code()
+}
 
 #[test]
 fn rtm_contains_foundation_requirements_under_test() {
@@ -496,6 +537,68 @@ fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks()
             hyperion_emv::KernelError::InvalidArgument.code()
         );
         assert_eq!(krn_get_fsm_state(ctx), FsmState::Se.code());
+        krn_context_free(ctx);
+    }
+}
+
+#[test]
+fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
+    unsafe {
+        let mut ctx = ptr::null_mut();
+        let missing = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: None,
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &missing, &mut ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert!(ctx.is_null());
+
+        let runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_transmit_apdu),
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &runtime, &mut ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert!(!ctx.is_null());
+
+        let params = KrnTxnParams {
+            struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_500,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 0,
+        };
+        assert_eq!(
+            krn_set_transaction_params(ctx, &params),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
+        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xa4);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 20);
+        assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S2AidList.code());
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
         krn_context_free(ctx);
     }
 }

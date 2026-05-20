@@ -13,8 +13,47 @@ use std::slice;
 
 pub type KrnContactlessOutcomeCallback =
     unsafe extern "C" fn(outcome: *const KrnContactlessOutcome, user_data: *mut c_void);
+pub type KrnTransmitApduCallback = unsafe extern "C" fn(
+    cmd: *const u8,
+    cmd_len: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+    timeout_ms: i32,
+    user_data: *mut c_void,
+) -> i32;
+pub type KrnGetUnpredictableNumberCallback =
+    unsafe extern "C" fn(out: *mut u8, out_len: usize, user_data: *mut c_void) -> i32;
 
+pub const KRN_ABI_VERSION: u32 = 1;
 pub const MAX_MERCHANT_NAME_LOCATION_LEN: usize = 128;
+pub const MAX_APDU_RESPONSE_LEN: usize = 258;
+pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
+
+#[repr(C)]
+pub struct KrnConfigBlob {
+    pub abi_version: u32,
+    pub struct_size: u32,
+    pub bytes: *const u8,
+    pub len: usize,
+}
+
+#[repr(C)]
+pub struct KrnRuntime {
+    pub abi_version: u32,
+    pub struct_size: u32,
+    pub transmit_apdu: Option<KrnTransmitApduCallback>,
+    pub get_unpredictable_number: Option<KrnGetUnpredictableNumberCallback>,
+    pub contactless_outcome: Option<KrnContactlessOutcomeCallback>,
+    pub user_data: *mut c_void,
+}
+
+#[derive(Clone, Copy)]
+struct RuntimeCallbacks {
+    transmit_apdu: KrnTransmitApduCallback,
+    get_unpredictable_number: KrnGetUnpredictableNumberCallback,
+    contactless_outcome: Option<KrnContactlessOutcomeCallback>,
+    user_data: *mut c_void,
+}
 
 #[repr(i32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,6 +112,7 @@ pub struct KrnContext {
     last_error: KernelError,
     busy: bool,
     txn_params: Option<StoredTxnParams>,
+    runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
     contactless_outcome_user_data: *mut c_void,
 }
@@ -87,6 +127,7 @@ impl KrnContext {
             last_error: KernelError::Ok,
             busy: false,
             txn_params: None,
+            runtime: None,
             contactless_outcome_callback: None,
             contactless_outcome_user_data: ptr::null_mut(),
         }
@@ -119,6 +160,39 @@ impl KrnContext {
 #[no_mangle]
 pub extern "C" fn krn_context_new() -> *mut KrnContext {
     Box::into_raw(Box::new(KrnContext::new()))
+}
+
+/// Initializes a kernel context from ABI-versioned runtime callbacks.
+///
+/// # Safety
+///
+/// `runtime` and `out_kernel` must be valid pointers. `cfg` may be null in the
+/// current construction-only profile; when present, its ABI fields are checked
+/// and its byte pointer must be non-null for non-zero lengths. The returned
+/// context must be freed with [`krn_context_free`].
+#[no_mangle]
+pub unsafe extern "C" fn krn_init(
+    cfg: *const KrnConfigBlob,
+    runtime: *const KrnRuntime,
+    out_kernel: *mut *mut KrnContext,
+) -> i32 {
+    if out_kernel.is_null() {
+        return KernelError::InvalidArgument.code();
+    }
+    *out_kernel = ptr::null_mut();
+    if let Err(err) = validate_config_blob(cfg) {
+        return err.code();
+    }
+    let callbacks = match read_runtime(runtime) {
+        Ok(callbacks) => callbacks,
+        Err(err) => return err.code(),
+    };
+    let mut ctx = KrnContext::new();
+    ctx.contactless_outcome_callback = callbacks.contactless_outcome;
+    ctx.contactless_outcome_user_data = callbacks.user_data;
+    ctx.runtime = Some(callbacks);
+    *out_kernel = Box::into_raw(Box::new(ctx));
+    KernelError::Ok.code()
 }
 
 /// Frees a kernel context allocated by [`krn_context_new`].
@@ -330,6 +404,10 @@ pub unsafe extern "C" fn krn_set_contactless_outcome_callback(
     };
     ctx.contactless_outcome_callback = callback;
     ctx.contactless_outcome_user_data = user_data;
+    if let Some(runtime) = ctx.runtime.as_mut() {
+        runtime.contactless_outcome = callback;
+        runtime.user_data = user_data;
+    }
     ctx.last_error = KernelError::Ok;
     KernelError::Ok.code()
 }
@@ -381,7 +459,7 @@ pub unsafe extern "C" fn krn_emit_contactless_outcome(
 
 #[no_mangle]
 pub extern "C" fn krn_abi_version() -> u32 {
-    1
+    KRN_ABI_VERSION
 }
 
 #[no_mangle]
@@ -407,6 +485,42 @@ unsafe fn write_output(
     }
     ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
     Ok(bytes.len())
+}
+
+unsafe fn validate_config_blob(cfg: *const KrnConfigBlob) -> Result<(), KernelError> {
+    if cfg.is_null() {
+        return Ok(());
+    }
+    let abi_version = ptr::addr_of!((*cfg).abi_version).read_unaligned();
+    let struct_size = ptr::addr_of!((*cfg).struct_size).read_unaligned() as usize;
+    if abi_version != KRN_ABI_VERSION || struct_size != mem::size_of::<KrnConfigBlob>() {
+        return Err(KernelError::InvalidArgument);
+    }
+    let cfg = cfg.as_ref().ok_or(KernelError::InvalidArgument)?;
+    if cfg.len != 0 && cfg.bytes.is_null() {
+        return Err(KernelError::InvalidArgument);
+    }
+    Ok(())
+}
+
+unsafe fn read_runtime(runtime: *const KrnRuntime) -> Result<RuntimeCallbacks, KernelError> {
+    if runtime.is_null() {
+        return Err(KernelError::InvalidArgument);
+    }
+    let abi_version = ptr::addr_of!((*runtime).abi_version).read_unaligned();
+    let struct_size = ptr::addr_of!((*runtime).struct_size).read_unaligned() as usize;
+    if abi_version != KRN_ABI_VERSION || struct_size != mem::size_of::<KrnRuntime>() {
+        return Err(KernelError::InvalidArgument);
+    }
+    let runtime = runtime.as_ref().ok_or(KernelError::InvalidArgument)?;
+    Ok(RuntimeCallbacks {
+        transmit_apdu: runtime.transmit_apdu.ok_or(KernelError::InvalidArgument)?,
+        get_unpredictable_number: runtime
+            .get_unpredictable_number
+            .ok_or(KernelError::InvalidArgument)?,
+        contactless_outcome: runtime.contactless_outcome,
+        user_data: runtime.user_data,
+    })
 }
 
 unsafe fn read_transaction_params(
@@ -452,12 +566,109 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         ctx.fsm_state = FsmState::Se;
         return KrnOutcome::Error;
     };
-    let _selected_interface = params.interface_preference;
+    let Some(runtime) = ctx.runtime else {
+        ctx.last_error = KernelError::InvalidArgument;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    };
+    let _rng_callback = runtime.get_unpredictable_number;
+    let interface = match params.interface_preference {
+        0 | 1 => Interface::Contact,
+        2 => Interface::Contactless,
+        _ => {
+            ctx.last_error = KernelError::InvalidArgument;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    if let Err(err) = fsm::transition(ctx.fsm_state, FsmEvent::CardDetected) {
+        ctx.last_error = err;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    }
+    ctx.fsm_state = FsmState::S2;
+    ctx.state = KernelState::SelectEnvironment;
+
+    let select = match apdu::select_environment(interface).encode() {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    let response = match transmit_apdu(runtime, &select, APDU_TRANSMIT_TIMEOUT_MS) {
+        Ok(response) => response,
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    if response.len() < 2 {
+        ctx.last_error = KernelError::ParseError;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    }
+    let sw = [response[response.len() - 2], response[response.len() - 1]];
+    let event = match sw {
+        [0x90, 0x00] => FsmEvent::PseSelected,
+        [0x6a, 0x82] => FsmEvent::PseNotFound,
+        _ => {
+            ctx.last_error = KernelError::MissingMandatoryTag;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    };
+    match fsm::transition(ctx.fsm_state, event) {
+        Ok(transition) => {
+            ctx.fsm_state = transition.to;
+            ctx.state = KernelState::BuildCandidateList;
+            ctx.last_error = KernelError::Ok;
+        }
+        Err(err) => {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
 
     ctx.last_error = KernelError::InvalidArgument;
-    ctx.state = KernelState::Error;
-    ctx.fsm_state = FsmState::Se;
     KrnOutcome::Error
+}
+
+fn transmit_apdu(
+    runtime: RuntimeCallbacks,
+    command: &[u8],
+    timeout_ms: i32,
+) -> Result<Vec<u8>, KernelError> {
+    let mut response = [0u8; MAX_APDU_RESPONSE_LEN];
+    let mut response_len = response.len();
+    let status = unsafe {
+        (runtime.transmit_apdu)(
+            command.as_ptr(),
+            command.len(),
+            response.as_mut_ptr(),
+            &mut response_len,
+            timeout_ms,
+            runtime.user_data,
+        )
+    };
+    if status != KernelError::Ok.code() {
+        return Err(KernelError::CardRemoved);
+    }
+    if response_len > response.len() {
+        return Err(KernelError::LengthOverflow);
+    }
+    Ok(response[..response_len].to_vec())
 }
 
 struct RawContactlessOutcomeArgs {
@@ -562,10 +773,13 @@ fn alternate_interface_from_u8(value: u8) -> Result<AlternateInterface, KernelEr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering};
 
     static CALLBACK_OUTCOME_CODE: AtomicU8 = AtomicU8::new(0);
     static CALLBACK_DATA_RECORD_LEN: AtomicUsize = AtomicUsize::new(0);
+    static TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
+    static TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
+    static TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
 
     unsafe extern "C" fn capture_contactless_outcome(
         outcome: *const KrnContactlessOutcome,
@@ -574,6 +788,41 @@ mod tests {
         let outcome = outcome.as_ref().expect("outcome pointer");
         CALLBACK_OUTCOME_CODE.store(outcome.outcome_code, Ordering::SeqCst);
         CALLBACK_DATA_RECORD_LEN.store(outcome.data_record_len, Ordering::SeqCst);
+    }
+
+    unsafe extern "C" fn capture_select_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = [
+            0x6f, 0x09, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0x90, 0x00,
+        ];
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn fill_unpredictable_number(
+        out: *mut u8,
+        out_len: usize,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        for idx in 0..out_len {
+            *out.add(idx) = idx as u8;
+        }
+        KernelError::Ok.code()
     }
 
     #[test]
@@ -646,6 +895,68 @@ mod tests {
                 ContactlessOutcomeCode::OnlineRequired as u8
             );
             assert_eq!(CALLBACK_DATA_RECORD_LEN.load(Ordering::SeqCst), 4);
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_init_validates_runtime_callbacks_and_runs_first_select_apdu() {
+        unsafe {
+            let mut ctx = ptr::null_mut();
+            let bad_runtime = KrnRuntime {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnRuntime>() as u32,
+                transmit_apdu: None,
+                get_unpredictable_number: Some(fill_unpredictable_number),
+                contactless_outcome: None,
+                user_data: ptr::null_mut(),
+            };
+            assert_eq!(
+                krn_init(ptr::null(), &bad_runtime, &mut ctx),
+                KernelError::InvalidArgument.code()
+            );
+            assert!(ctx.is_null());
+
+            let runtime = KrnRuntime {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnRuntime>() as u32,
+                transmit_apdu: Some(capture_select_apdu),
+                get_unpredictable_number: Some(fill_unpredictable_number),
+                contactless_outcome: None,
+                user_data: ptr::null_mut(),
+            };
+            assert_eq!(
+                krn_init(ptr::null(), &runtime, &mut ctx),
+                KernelError::Ok.code()
+            );
+            assert!(!ctx.is_null());
+
+            let params = KrnTxnParams {
+                struct_size: mem::size_of::<KrnTxnParams>() as u32,
+                amount_authorised_minor: 2_000,
+                amount_other_minor: 0,
+                currency_code: 840,
+                terminal_country_code: 840,
+                transaction_type: 0,
+                terminal_type: 0x22,
+                merchant_category_code: [0x53, 0x11],
+                interface_preference: 1,
+                merchant_name_location: ptr::null(),
+                merchant_name_location_len: 0,
+            };
+            assert_eq!(
+                krn_set_transaction_params(ctx, &params),
+                KernelError::Ok.code()
+            );
+            assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xa4);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 20);
+            assert_eq!(
+                TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
+                APDU_TRANSMIT_TIMEOUT_MS
+            );
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S2AidList.code());
+            assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             krn_context_free(ctx);
         }
     }
