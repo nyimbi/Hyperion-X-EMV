@@ -28,6 +28,7 @@ use crate::selection::{
 };
 use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
+use crate::taa::{decide as decide_taa, ActionCodes, TaaInput, TerminalAction};
 use crate::trm::{evaluate as evaluate_trm, TrmInput};
 use core::mem;
 use core::ptr;
@@ -147,6 +148,7 @@ pub struct KrnContext {
     profiles: Option<ProfileSet>,
     profile_evaluation_date: Option<EmvDate>,
     selected_application: Option<SelectedApplication>,
+    requested_cryptogram: Option<CryptogramRequest>,
     card_data: DataStore,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -166,6 +168,7 @@ impl KrnContext {
             profiles: None,
             profile_evaluation_date: None,
             selected_application: None,
+            requested_cryptogram: None,
             card_data: DataStore::new(),
             runtime: None,
             contactless_outcome_callback: None,
@@ -182,6 +185,7 @@ impl KrnContext {
         self.busy = false;
         self.txn_params = None;
         self.selected_application = None;
+        self.requested_cryptogram = None;
         self.card_data = DataStore::new();
     }
 
@@ -316,6 +320,9 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.txn_params = Some(stored);
         ctx.tvr = Tvr::cleared();
         ctx.tsi = Tsi::cleared();
+        ctx.selected_application = None;
+        ctx.requested_cryptogram = None;
+        ctx.card_data = DataStore::new();
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
         Ok(0usize)
@@ -1114,6 +1121,60 @@ fn run_terminal_risk_management(
     Ok(())
 }
 
+fn run_terminal_action_analysis(
+    ctx: &mut KrnContext,
+    profiles: &ProfileSet,
+) -> Result<(), KernelError> {
+    let selected = ctx
+        .selected_application
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let scheme = profiles
+        .schemes
+        .get(selected.scheme_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    let aid = scheme
+        .aids
+        .get(selected.aid_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    let decision = decide_taa(TaaInput {
+        tvr: ctx.tvr,
+        tac: aid.action_codes,
+        iac: issuer_action_codes(&ctx.card_data)?,
+        terminal_online_capable: true,
+        profile: scheme.taa,
+    });
+    let (request, event, state) = match decision.action {
+        TerminalAction::Aac => (
+            CryptogramRequest::Aac,
+            FsmEvent::TaaAac,
+            KernelState::FinalOutcome,
+        ),
+        TerminalAction::Tc => (
+            CryptogramRequest::Tc,
+            FsmEvent::TaaTc,
+            KernelState::FinalOutcome,
+        ),
+        TerminalAction::Arqc => (
+            CryptogramRequest::Arqc,
+            FsmEvent::TaaArqc,
+            KernelState::FirstGenerateAc,
+        ),
+    };
+    ctx.requested_cryptogram = Some(request);
+    apply_transition(ctx, event)?;
+    ctx.state = state;
+    Ok(())
+}
+
+fn issuer_action_codes(data: &DataStore) -> Result<ActionCodes, KernelError> {
+    Ok(ActionCodes {
+        denial: optional_fixed::<5>(data, &[0x9f, 0x0e])?.unwrap_or([0; 5]),
+        online: optional_fixed::<5>(data, &[0x9f, 0x0f])?.unwrap_or([0; 5]),
+        default: optional_fixed::<5>(data, &[0x9f, 0x0d])?.unwrap_or([0; 5]),
+    })
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let Some(params) = ctx.txn_params.as_ref() else {
         ctx.last_error = KernelError::InvalidArgument;
@@ -1447,6 +1508,14 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     }
+    if ctx.fsm_state == FsmState::S9 {
+        if let Err(err) = run_terminal_action_analysis(ctx, &profiles) {
+            ctx.last_error = err;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
+    }
 
     ctx.last_error = KernelError::InvalidArgument;
     KrnOutcome::Error
@@ -1624,10 +1693,12 @@ mod tests {
                 0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
             ],
             _ => vec![
-                0x70, 0x31, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
+                0x70, 0x49, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
                 0x03, 0x30, 0x12, 0x31, 0x5f, 0x25, 0x03, 0x25, 0x01, 0x01, 0x5f, 0x28, 0x02, 0x08,
                 0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x8e, 0x0a, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x90, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x9f, 0x0d, 0x05, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x9f, 0x0e, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9f, 0x0f, 0x05,
+                0x00, 0x00, 0x00, 0x80, 0x00, 0x90, 0x00,
             ],
         };
         let capacity = *resp_len;
@@ -1725,7 +1796,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_init_validates_runtime_callbacks_and_reaches_taa_after_trm() {
+    fn ffi_init_validates_runtime_callbacks_and_reaches_generate_ac_after_taa() {
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -1787,7 +1858,7 @@ mod tests {
                 TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
                 APDU_TRANSMIT_TIMEOUT_MS
             );
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S9.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S10.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(
@@ -1813,6 +1884,11 @@ mod tests {
             assert_eq!(
                 ctx_ref.card_data.get(&[0x9f, 0x34]),
                 Some(&[0x1f, 0x00, 0x02][..])
+            );
+            assert_eq!(ctx_ref.requested_cryptogram, Some(CryptogramRequest::Arqc));
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9f, 0x0f]),
+                Some(&[0x00, 0x00, 0x00, 0x80, 0x00][..])
             );
             assert_eq!(
                 ctx_ref.card_data.get(&[0x95]),
