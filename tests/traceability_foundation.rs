@@ -18,6 +18,10 @@ use hyperion_emv::gac::{build_online_authorization_package, parse_generate_ac_re
 use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
 };
+use hyperion_emv::oda::{
+    apply_oda_outcome, select_capk, select_oda_method, validate_oda_vector_annex, CapkIntegrity,
+    OdaFailure, OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput,
+};
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
     ServiceType, TransactionRegion,
@@ -39,6 +43,7 @@ const RTM: &str = concat!(
 const SCHEME_PROFILES: &str = include_str!("../docs/scheme_profiles.cert.json");
 const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
+const ODA_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
 
 #[test]
 fn rtm_contains_foundation_requirements_under_test() {
@@ -65,6 +70,11 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-C8-001",
         "KRN-C8-002",
         "KRN-C8-003",
+        "KRN-ODA-001",
+        "KRN-ODA-005",
+        "KRN-ODA-006",
+        "KRN-ODA-007",
+        "KRN-ODA-008",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -166,6 +176,27 @@ fn corrected_spec_contains_config_profile_and_capk_requirements() {
         "KRN-PROFILE-002",
         "KRN-CAPK-001",
         "KRN-CAPK-002",
+    ] {
+        assert!(
+            CORRECTED_SPEC.contains(krn_id),
+            "corrected spec missing {krn_id}"
+        );
+    }
+}
+
+#[test]
+fn corrected_spec_contains_oda_selection_capk_and_vector_requirements() {
+    for krn_id in [
+        "KRN-ODA-001",
+        "KRN-ODA-002",
+        "KRN-ODA-003",
+        "KRN-ODA-004",
+        "KRN-ODA-005",
+        "KRN-ODA-006",
+        "KRN-ODA-007",
+        "KRN-CAPK-001",
+        "KRN-CAPK-002",
+        "KRN-ODATV-001",
     ] {
         assert!(
             CORRECTED_SPEC.contains(krn_id),
@@ -515,6 +546,103 @@ fn krn_cless_003_limits_are_signed_profile_inputs() {
         }),
         ContactlessLimitDecision::AlternateInterface
     );
+}
+
+#[test]
+fn krn_oda_001_005_006_007_selects_method_and_sets_tvr_tsi_without_cda_fallback() {
+    let selection = select_oda_method(OdaSelectionInput {
+        aip_sda_supported: true,
+        aip_dda_supported: true,
+        aip_cda_supported: true,
+        profile_sda_allowed: true,
+        profile_dda_allowed: true,
+        profile_cda_allowed: true,
+        terminal_supports_dynamic_authentication: true,
+        oda_required: true,
+    });
+    assert_eq!(selection, OdaSelection::Perform(OdaMethod::Cda));
+
+    let (tvr, tsi) = apply_oda_outcome(
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+        OdaOutcome::Failed {
+            method: OdaMethod::Cda,
+            failure: OdaFailure::CdaSignature,
+        },
+    );
+    assert!(tvr.is_set(Tvr::B1_CDA_FAILED));
+    assert!(!tvr.is_set(Tvr::B1_DDA_FAILED));
+    assert!(tsi.is_set(hyperion_emv::state::Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+
+    let (tvr, _) = apply_oda_outcome(
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+        OdaOutcome::Failed {
+            method: OdaMethod::Sda,
+            failure: OdaFailure::StaticSignature,
+        },
+    );
+    assert!(tvr.is_set(Tvr::B1_SDA_FAILED));
+
+    let (tvr, _) = apply_oda_outcome(
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+        OdaOutcome::Failed {
+            method: OdaMethod::Dda,
+            failure: OdaFailure::DynamicSignature,
+        },
+    );
+    assert!(tvr.is_set(Tvr::B1_DDA_FAILED));
+}
+
+#[test]
+fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
+    let policy = ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::Verified,
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    };
+    let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &policy).unwrap();
+    let rid = [0xa0, 0x00, 0x00, 0x00, 0x03];
+
+    assert_eq!(
+        select_capk(
+            &profiles,
+            &rid,
+            1,
+            policy.evaluation_date,
+            CapkIntegrity::Unverified,
+        )
+        .unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+    let capk = select_capk(
+        &profiles,
+        &rid,
+        1,
+        policy.evaluation_date,
+        CapkIntegrity::Verified,
+    )
+    .unwrap();
+    assert_eq!(capk.rid, rid);
+    assert_eq!(capk.key_index, 1);
+}
+
+#[test]
+fn krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode() {
+    assert_eq!(
+        validate_oda_vector_annex(ODA_VECTORS.as_bytes(), true).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let complete = br#"{"test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
+    validate_oda_vector_annex(complete, true).unwrap();
 }
 
 #[test]
