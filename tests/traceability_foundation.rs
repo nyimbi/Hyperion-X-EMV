@@ -15,9 +15,10 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
-    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error, krn_init,
-    krn_load_profiles_verified, krn_reset, krn_run_transaction, krn_set_transaction_params,
-    KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
+    krn_context_free, krn_context_new, krn_get_fsm_state, krn_get_last_error,
+    krn_get_online_authorization_data, krn_init, krn_load_profiles_verified, krn_reset,
+    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
+    KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -698,6 +699,29 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         assert_eq!(
             krn_get_last_error(ctx),
             hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        let mut auth_len = 0usize;
+        assert_eq!(
+            krn_get_online_authorization_data(ctx, ptr::null_mut(), &mut auth_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut auth = vec![0u8; auth_len];
+        assert_eq!(
+            krn_get_online_authorization_data(ctx, auth.as_mut_ptr(), &mut auth_len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let auth_tlvs = tlv::parse_many(&auth).unwrap();
+        assert_eq!(
+            tlv::find_first(&auth_tlvs, &[0x9f, 0x26]),
+            Some(&hex("1112131415161718")[..])
+        );
+        assert_eq!(
+            tlv::find_first(&auth_tlvs, &[0x9f, 0x27]),
+            Some(&[0x80][..])
+        );
+        assert_eq!(
+            tlv::find_first(&auth_tlvs, &[0x82]),
+            Some(&[0x80, 0x00][..])
         );
         krn_context_free(ctx);
     }

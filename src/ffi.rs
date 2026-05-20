@@ -13,7 +13,10 @@ use crate::cvm::{
 use crate::dol::{build_dol, parse_dol, DataStore};
 use crate::error::KernelError;
 use crate::fsm::{self, FsmEvent, FsmState};
-use crate::gac::{parse_generate_ac_response, GenerateAcResponse};
+use crate::gac::{
+    build_online_authorization_package, parse_generate_ac_response, GenerateAcResponse,
+    OnlineAuthorizationPackage,
+};
 use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
 use crate::oda::{
     apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip, CapkIntegrity,
@@ -53,6 +56,7 @@ pub type KrnGetUnpredictableNumberCallback =
 pub const KRN_ABI_VERSION: u32 = 1;
 pub const MAX_MERCHANT_NAME_LOCATION_LEN: usize = 128;
 pub const MAX_APDU_RESPONSE_LEN: usize = 258;
+pub const MAX_ONLINE_AUTH_DATA_LEN: usize = 1024;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
 
 #[repr(C)]
@@ -152,6 +156,7 @@ pub struct KrnContext {
     selected_application: Option<SelectedApplication>,
     requested_cryptogram: Option<CryptogramRequest>,
     first_gac_response: Option<GenerateAcResponse>,
+    online_authorization_data: Option<Vec<u8>>,
     card_data: DataStore,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -173,6 +178,7 @@ impl KrnContext {
             selected_application: None,
             requested_cryptogram: None,
             first_gac_response: None,
+            online_authorization_data: None,
             card_data: DataStore::new(),
             runtime: None,
             contactless_outcome_callback: None,
@@ -191,6 +197,7 @@ impl KrnContext {
         self.selected_application = None;
         self.requested_cryptogram = None;
         self.first_gac_response = None;
+        self.online_authorization_data = None;
         self.card_data = DataStore::new();
     }
 
@@ -328,6 +335,7 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.selected_application = None;
         ctx.requested_cryptogram = None;
         ctx.first_gac_response = None;
+        ctx.online_authorization_data = None;
         ctx.card_data = DataStore::new();
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
@@ -488,6 +496,35 @@ pub unsafe extern "C" fn krn_build_generate_ac(
     };
     let encoded = apdu::generate_ac(request, values, cda_control).and_then(|cmd| cmd.encode());
     let result = encoded.and_then(|bytes| write_output(&bytes, out, out_len));
+    ctx.set_result(result)
+}
+
+/// Copies the encoded online authorization TLV package for Level 3 handoff.
+///
+/// The package is available after the first GENERATE AC returns ARQC and the
+/// transaction FSM reaches S11. The kernel only packages ICC/terminal data; it
+/// does not format host messages, validate ARQC, or generate ARPC.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `out_len` must
+/// point to a writable `usize`; on input it contains `out` capacity and on
+/// output it receives the required payload length. `out` may be null only for a
+/// size query.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_online_authorization_data(
+    ctx: *mut KrnContext,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    let result = ctx
+        .online_authorization_data
+        .as_deref()
+        .ok_or(KernelError::InvalidArgument)
+        .and_then(|bytes| write_output(bytes, out, out_len));
     ctx.set_result(result)
 }
 
@@ -692,6 +729,9 @@ fn transaction_data_store(
     data.put(&[0x9a], &emv_date_bcd(transaction_date))?;
     data.put(&[0x9f, 0x35], &[params.terminal_type])?;
     data.put(&[0x9f, 0x15], &params.merchant_category_code)?;
+    if !params.merchant_name_location.is_empty() {
+        data.put(&[0x9f, 0x4e], &params.merchant_name_location)?;
+    }
     data.put(&[0x95], &tvr.bytes())?;
     data.put(&[0x9b], &tsi.bytes())?;
 
@@ -708,6 +748,60 @@ fn transaction_data_store(
     }
     data.put(&[0x9f, 0x37], &unpredictable_number)?;
     Ok(data)
+}
+
+fn encode_online_authorization_package(
+    package: &OnlineAuthorizationPackage,
+) -> Result<Vec<u8>, KernelError> {
+    let mut out = Vec::new();
+    for object in &package.objects {
+        append_tlv(&mut out, &object.tag, &object.value)?;
+    }
+    if out.len() > MAX_ONLINE_AUTH_DATA_LEN {
+        return Err(KernelError::LengthOverflow);
+    }
+    Ok(out)
+}
+
+fn append_tlv(out: &mut Vec<u8>, tag: &[u8], value: &[u8]) -> Result<(), KernelError> {
+    if tag.is_empty() || tag.len() > 4 || value.len() > u16::MAX as usize {
+        return Err(KernelError::LengthOverflow);
+    }
+    let additional_len = tag
+        .len()
+        .checked_add(encoded_length_size(value.len()))
+        .and_then(|len| len.checked_add(value.len()))
+        .ok_or(KernelError::LengthOverflow)?;
+    if out.len().saturating_add(additional_len) > MAX_ONLINE_AUTH_DATA_LEN {
+        return Err(KernelError::LengthOverflow);
+    }
+    out.extend_from_slice(tag);
+    encode_length(out, value.len())?;
+    out.extend_from_slice(value);
+    Ok(())
+}
+
+fn encoded_length_size(len: usize) -> usize {
+    if len < 0x80 {
+        1
+    } else if len <= u8::MAX as usize {
+        2
+    } else {
+        3
+    }
+}
+
+fn encode_length(out: &mut Vec<u8>, len: usize) -> Result<(), KernelError> {
+    if len < 0x80 {
+        out.push(len as u8);
+    } else if len <= u8::MAX as usize {
+        out.extend_from_slice(&[0x81, len as u8]);
+    } else if len <= u16::MAX as usize {
+        out.extend_from_slice(&[0x82, (len >> 8) as u8, len as u8]);
+    } else {
+        return Err(KernelError::LengthOverflow);
+    }
+    Ok(())
 }
 
 fn emv_date_bcd(date: EmvDate) -> [u8; 3] {
@@ -1250,6 +1344,12 @@ fn run_first_generate_ac(
             return Err(KernelError::InvalidArgument);
         }
     };
+    if parsed.cid.cryptogram_type() == CryptogramType::Arqc {
+        let package = build_online_authorization_package(&parsed, &ctx.card_data);
+        ctx.online_authorization_data = Some(encode_online_authorization_package(&package)?);
+    } else {
+        ctx.online_authorization_data = None;
+    }
     ctx.first_gac_response = Some(parsed);
     apply_transition(ctx, event)?;
     ctx.state = state;
@@ -1536,6 +1636,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         GpoResponseFormat::Template77 => FsmEvent::GpoTemplate77,
         GpoResponseFormat::Template80 => FsmEvent::GpoTemplate80,
     };
+    if let Err(err) = ctx.card_data.put(&[0x82], &parsed_gpo.aip) {
+        ctx.last_error = err;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    }
     let transition = match fsm::transition(ctx.fsm_state, event) {
         Ok(transition) => transition,
         Err(err) => {
@@ -2014,6 +2120,7 @@ mod tests {
                 Some(&[0x00, 0x09][..])
             );
             assert!(ctx_ref.first_gac_response.is_some());
+            assert!(ctx_ref.online_authorization_data.is_some());
             assert_eq!(
                 ctx_ref.card_data.get(&[0x95]),
                 Some(&ctx_ref.tvr.bytes()[..])
@@ -2022,6 +2129,34 @@ mod tests {
                 ctx_ref.card_data.get(&[0x9b]),
                 Some(&ctx_ref.tsi.bytes()[..])
             );
+            let _ = ctx_ref;
+            let mut auth_len = 0usize;
+            assert_eq!(
+                krn_get_online_authorization_data(ctx, ptr::null_mut(), &mut auth_len),
+                KernelError::BufferTooSmall.code()
+            );
+            assert!(auth_len > 0);
+            assert!(auth_len <= MAX_ONLINE_AUTH_DATA_LEN);
+            let mut auth = vec![0u8; auth_len];
+            assert_eq!(
+                krn_get_online_authorization_data(ctx, auth.as_mut_ptr(), &mut auth_len),
+                KernelError::Ok.code()
+            );
+            let auth_tlvs = crate::tlv::parse_many(&auth).unwrap();
+            assert_eq!(
+                crate::tlv::find_first(&auth_tlvs, &[0x9f, 0x26]),
+                Some(&[0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18][..])
+            );
+            assert_eq!(
+                crate::tlv::find_first(&auth_tlvs, &[0x9f, 0x27]),
+                Some(&[0x80][..])
+            );
+            assert_eq!(
+                crate::tlv::find_first(&auth_tlvs, &[0x82]),
+                Some(&[0x80, 0x00][..])
+            );
+            assert!(crate::tlv::find_first(&auth_tlvs, &[0x95]).is_some());
+            assert!(crate::tlv::find_first(&auth_tlvs, &[0x9f, 0x37]).is_some());
             krn_context_free(ctx);
         }
     }
