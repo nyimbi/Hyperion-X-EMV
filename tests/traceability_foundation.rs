@@ -1,8 +1,10 @@
+use hyperion_emv::afl::{parse_afl, read_record_commands, record_plan};
 use hyperion_emv::apdu::{
     generate_ac, select_environment, CdaRequestControl, CryptogramRequest, Interface,
 };
 use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::state::Tvr;
+use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
 use hyperion_emv::tlv;
 
@@ -26,11 +28,28 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-TAA-005",
         "KRN-TAA-006",
         "KRN-TAA-007",
+        "KRN-APDU-009",
+        "KRN-APDU-010",
         "KRN-API-006",
     ] {
         assert!(
             RTM.contains(krn_id),
             "missing traceability row for {krn_id}"
+        );
+    }
+}
+
+#[test]
+fn state_machine_annex_contains_afl_read_record_rows() {
+    let state_machine = include_str!("../docs/state_machine.csv");
+    for fragment in [
+        "Parse AIP/AFL, start reading",
+        "Store record, continue AFL loop",
+        "Set TVR_ICC_DATA_MISSING, continue",
+    ] {
+        assert!(
+            state_machine.contains(fragment),
+            "state machine missing {fragment}"
         );
     }
 }
@@ -132,6 +151,54 @@ fn krn_taa_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks() {
             .unwrap(),
     });
     assert_eq!(no_match.action, TerminalAction::Tc);
+}
+
+#[test]
+fn lifecycle_afl_plan_produces_read_record_sequence_and_oda_flags() {
+    let entries = parse_afl(&hex("10010302")).unwrap();
+    let plan = record_plan(&entries).unwrap();
+    assert_eq!(plan.len(), 3);
+    assert!(plan[0].contributes_to_offline_auth);
+    assert!(plan[1].contributes_to_offline_auth);
+    assert!(!plan[2].contributes_to_offline_auth);
+
+    let commands: Vec<Vec<u8>> = read_record_commands(&entries)
+        .unwrap()
+        .iter()
+        .map(|cmd| cmd.encode().unwrap())
+        .collect();
+    assert_eq!(
+        commands,
+        vec![hex("00B2011400"), hex("00B2021400"), hex("00B2031400")]
+    );
+}
+
+#[test]
+fn krn_apdu_009_010_status_handling_is_context_specific() {
+    assert_eq!(
+        classify(ApduContext::SelectPse, StatusWord::new(0x6a, 0x82)),
+        StatusAction::FallbackToDirectAid
+    );
+    assert_eq!(
+        classify(ApduContext::SelectAid, StatusWord::new(0x6a, 0x82)),
+        StatusAction::TryNextAid
+    );
+    assert_eq!(
+        classify(ApduContext::ReadRecord, StatusWord::new(0x6a, 0x83)),
+        StatusAction::EndOfRecords
+    );
+    assert_eq!(
+        classify(ApduContext::ReadRecord, StatusWord::new(0x69, 0x85)),
+        StatusAction::ContinueWithTvr {
+            bit: Tvr::B1_ICC_DATA_MISSING
+        }
+    );
+    assert_eq!(
+        classify(ApduContext::GenerateAc, StatusWord::new(0x69, 0x85)),
+        StatusAction::Fail {
+            error: hyperion_emv::KernelError::CardRemoved
+        }
+    );
 }
 
 #[test]
