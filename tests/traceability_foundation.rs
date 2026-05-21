@@ -1666,7 +1666,7 @@ fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
 #[test]
 fn rtm_promotes_logging_policy_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
-        for id in ["KRN-LOG-002", "KRN-LOG-004"] {
+        for id in ["KRN-LOG-002", "KRN-LOG-003", "KRN-LOG-004"] {
             let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
             assert!(
                 !row.contains("pending implementation evidence"),
@@ -1679,6 +1679,11 @@ fn rtm_promotes_logging_policy_evidence() {
         assert!(production
             .contains("production_policy_never_emits_full_apdu_data_even_if_misconfigured"));
         assert!(production.contains("replay_is_exact_order_and_evidence_is_masked"));
+
+        let crash_dump = csv_row_for_requirement(csv, "KRN-LOG-003").unwrap();
+        assert!(crash_dump.contains("datastore_debug_redacts_values_for_crash_safety"));
+        assert!(crash_dump.contains("replay_debug_redacts_raw_apdu_bytes_for_crash_safety"));
+        assert!(crash_dump.contains("replay_rejects_pin_verify_payload_custody"));
 
         let identity = csv_row_for_requirement(csv, "KRN-LOG-004").unwrap();
         assert!(identity

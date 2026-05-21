@@ -1,4 +1,5 @@
 use crate::error::{KernelError, KernelResult};
+use core::fmt;
 
 pub const MAX_DOL_ENTRIES: usize = 128;
 pub const MAX_DOL_OUTPUT: usize = 252;
@@ -15,9 +16,18 @@ pub enum DolPaddingPolicy {
     RequireExactValues,
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Default, Eq, PartialEq)]
 pub struct DataStore {
     entries: Vec<(Vec<u8>, Vec<u8>)>,
+}
+
+impl fmt::Debug for DataStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DataStore")
+            .field("entry_count", &self.entries.len())
+            .field("value_policy", &"values redacted for crash safety")
+            .finish()
+    }
 }
 
 impl DataStore {
@@ -227,5 +237,20 @@ mod tests {
                 .unwrap_err(),
             KernelError::LengthOverflow
         );
+    }
+
+    #[test]
+    fn datastore_debug_redacts_values_for_crash_safety() {
+        let mut data = DataStore::new();
+        data.put(&[0x5a], &[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f])
+            .unwrap();
+        data.put(&[0x9f, 0x37], &[0xaa, 0xbb, 0xcc, 0xdd]).unwrap();
+
+        let debug = format!("{data:?}");
+        assert!(debug.contains("DataStore"));
+        assert!(debug.contains("entry_count"));
+        assert!(!debug.contains("123456789012345"));
+        assert!(!debug.contains("aa"));
+        assert!(!debug.contains("bb"));
     }
 }

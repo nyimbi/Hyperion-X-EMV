@@ -1,7 +1,7 @@
 use crate::error::{KernelError, KernelResult};
 use crate::gac::{parse_generate_ac_response, GenerateAcResponse};
 use crate::tlv;
-use core::fmt::Write;
+use core::fmt::{self, Write};
 
 pub const MAX_TRACE_FIELDS: usize = 128;
 pub const MAX_REPLAY_STEPS: usize = 256;
@@ -114,12 +114,24 @@ pub struct ApduTrace {
     pub fields: Vec<MaskedField>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ReplayExchange {
     pub command: Vec<u8>,
     pub response_data: Vec<u8>,
     pub sw: [u8; 2],
     pub context: ApduTraceContext,
+}
+
+impl fmt::Debug for ReplayExchange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReplayExchange")
+            .field("command_len", &self.command.len())
+            .field("response_data_len", &self.response_data.len())
+            .field("sw", &self.sw)
+            .field("context", &self.context)
+            .field("data_policy", &"raw APDU bytes redacted for crash safety")
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -162,10 +174,20 @@ impl ReplayExchange {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ReplayScript {
     steps: Vec<ReplayExchange>,
     cursor: usize,
+}
+
+impl fmt::Debug for ReplayScript {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReplayScript")
+            .field("step_count", &self.steps.len())
+            .field("cursor", &self.cursor)
+            .field("data_policy", &"raw APDU bytes redacted for crash safety")
+            .finish()
+    }
 }
 
 impl ReplayScript {
@@ -740,6 +762,29 @@ mod tests {
         let jsonl = script.masked_jsonl(LogPolicy::production()).unwrap();
         assert!(jsonl.contains("***********2345"));
         assert!(!jsonl.contains("123456789012345"));
+    }
+
+    #[test]
+    fn replay_debug_redacts_raw_apdu_bytes_for_crash_safety() {
+        let record = ReplayExchange::new(
+            &[0x00, 0xb2, 0x01, 0x14, 0x00],
+            &[
+                0x70, 0x0a, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f,
+            ],
+            [0x90, 0x00],
+            ApduTraceContext::Generic,
+        )
+        .unwrap();
+        let exchange_debug = format!("{record:?}");
+        assert!(exchange_debug.contains("raw APDU bytes redacted"));
+        assert!(!exchange_debug.contains("123456789012345"));
+        assert!(!exchange_debug.contains("5a"));
+
+        let script = ReplayScript::new(vec![record]).unwrap();
+        let script_debug = format!("{script:?}");
+        assert!(script_debug.contains("raw APDU bytes redacted"));
+        assert!(!script_debug.contains("123456789012345"));
+        assert!(!script_debug.contains("5a"));
     }
 
     #[test]

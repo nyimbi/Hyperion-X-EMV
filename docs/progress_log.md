@@ -176,3 +176,16 @@ decision record, while this file tracks work toward certification readiness.
   implementation source scanning, and the RTM guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:29:23Z
+
+- Increment completed: harden crash/debug redaction evidence for KRN-LOG-003.
+- Code impact: `DataStore`, `ReplayExchange`, and `ReplayScript` no longer
+  expose stored card data or raw APDU bytes through `Debug`; replay fixtures
+  still reject VERIFY APDUs carrying PIN data, preserving the existing PED-owned
+  PIN custody boundary.
+- Evidence updated: KRN-LOG-003 RTM rows now cite data-store debug redaction,
+  replay debug redaction, PIN VERIFY replay rejection, and the logging RTM
+  guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
