@@ -39,7 +39,8 @@ use hyperion_emv::issuer::{
 };
 use hyperion_emv::oda::{
     apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
-    parse_recovered_public_key_certificate, select_capk, select_oda_method,
+    parse_recovered_public_key_certificate, recovered_public_key_certificate_hash_input,
+    recovered_public_key_certificate_hash_is_valid, select_capk, select_oda_method,
     selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
     validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
     OdaSelectionInput, RecoveredCertificateKind,
@@ -2141,7 +2142,7 @@ fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() 
          09\
          01\
          A1A2A3A4A5A6\
-         11223344556677889900AABBCCDDEEFF00112233\
+         54E3F6BE991906017C1752CD7BA97BEC321202FC\
          BC");
     let issuer = parse_recovered_public_key_certificate(
         RecoveredCertificateKind::Issuer,
@@ -2154,6 +2155,11 @@ fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() 
     assert_eq!(issuer.expiration_date, [0x30, 0x12]);
     assert_eq!(issuer.serial_number, [0x01, 0x02, 0x03]);
     assert_eq!(issuer.public_key, hex("A1A2A3A4A5A6B1B2B3"));
+    assert_eq!(
+        recovered_public_key_certificate_hash_input(&issuer, &[]).unwrap(),
+        hex("0212345678901234567890301201020301010901A1A2A3A4A5A6B1B2B303")
+    );
+    assert!(recovered_public_key_certificate_hash_is_valid(&issuer, &[]).unwrap());
 
     let icc_recovered = hex("6A04\
          12345678901234567890\
@@ -2164,7 +2170,7 @@ fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() 
          08\
          03\
          C1C2C3C4C5\
-         00112233445566778899AABBCCDDEEFF00112233\
+         840BF276D2DE65ADCBF883B0028C9C26A8B7CCFF\
          BC");
     let icc = parse_recovered_public_key_certificate(
         RecoveredCertificateKind::Icc,
@@ -2176,6 +2182,8 @@ fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() 
     assert_eq!(icc.kind, RecoveredCertificateKind::Icc);
     assert_eq!(icc.public_key, hex("C1C2C3C4C5D1D2D3"));
     assert_eq!(icc.exponent, hex("010001"));
+    assert!(recovered_public_key_certificate_hash_is_valid(&icc, &hex("DEADBEEF")).unwrap());
+    assert!(!recovered_public_key_certificate_hash_is_valid(&icc, &[]).unwrap());
 
     assert_eq!(
         parse_recovered_public_key_certificate(

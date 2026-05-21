@@ -9,6 +9,8 @@ pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
 pub const MAX_ODA_REMAINDER_BYTES: usize = 248;
 const SHA1_DIGEST_BYTES: usize = 20;
+const EMV_SHA1_HASH_ALGORITHM_INDICATOR: u8 = 0x01;
+const EMV_RSA_PUBLIC_KEY_ALGORITHM_INDICATOR: u8 = 0x01;
 const RECOVERED_CERTIFICATE_HEADER: u8 = 0x6a;
 const RECOVERED_CERTIFICATE_TRAILER: u8 = 0xbc;
 const MIN_RECOVERED_CERTIFICATE_BYTES: usize = 35;
@@ -313,6 +315,62 @@ pub fn parse_recovered_public_key_certificate(
         exponent: exponent.to_vec(),
         hash_result,
     })
+}
+
+pub fn recovered_public_key_certificate_hash_input(
+    certificate: &RecoveredPublicKeyCertificate,
+    authentication_data: &[u8],
+) -> KernelResult<Vec<u8>> {
+    let public_key_len =
+        u8::try_from(certificate.public_key.len()).map_err(|_| KernelError::LengthOverflow)?;
+    let exponent_len =
+        u8::try_from(certificate.exponent.len()).map_err(|_| KernelError::LengthOverflow)?;
+    let mut input = Vec::with_capacity(
+        1 + certificate.identifier.len()
+            + certificate.expiration_date.len()
+            + certificate.serial_number.len()
+            + 4
+            + certificate.public_key.len()
+            + certificate.exponent.len()
+            + authentication_data.len(),
+    );
+    input.push(certificate.kind.certificate_format());
+    input.extend_from_slice(&certificate.identifier);
+    input.extend_from_slice(&certificate.expiration_date);
+    input.extend_from_slice(&certificate.serial_number);
+    input.push(certificate.hash_algorithm_indicator);
+    input.push(certificate.public_key_algorithm_indicator);
+    input.push(public_key_len);
+    input.push(exponent_len);
+    input.extend_from_slice(&certificate.public_key);
+    input.extend_from_slice(&certificate.exponent);
+    input.extend_from_slice(authentication_data);
+    Ok(input)
+}
+
+pub fn recovered_public_key_certificate_hash(
+    certificate: &RecoveredPublicKeyCertificate,
+    authentication_data: &[u8],
+) -> KernelResult<[u8; SHA1_DIGEST_BYTES]> {
+    if certificate.hash_algorithm_indicator != EMV_SHA1_HASH_ALGORITHM_INDICATOR
+        || certificate.public_key_algorithm_indicator != EMV_RSA_PUBLIC_KEY_ALGORITHM_INDICATOR
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+    let mut sha1 = Sha1::new();
+    let hash_input = recovered_public_key_certificate_hash_input(certificate, authentication_data)?;
+    sha1.update(&hash_input);
+    Ok(sha1.finalize())
+}
+
+pub fn recovered_public_key_certificate_hash_is_valid(
+    certificate: &RecoveredPublicKeyCertificate,
+    authentication_data: &[u8],
+) -> KernelResult<bool> {
+    Ok(
+        recovered_public_key_certificate_hash(certificate, authentication_data)?
+            == certificate.hash_result,
+    )
 }
 
 fn validate_public_key_inputs(
@@ -804,7 +862,7 @@ mod tests {
              09\
              01\
              A1A2A3A4A5A6\
-             11223344556677889900AABBCCDDEEFF00112233\
+             54E3F6BE991906017C1752CD7BA97BEC321202FC\
              BC",
         )
         .unwrap();
@@ -825,6 +883,22 @@ mod tests {
             decode_hex("A1A2A3A4A5A6B1B2B3").unwrap()
         );
         assert_eq!(certificate.exponent, vec![0x03]);
+        assert_eq!(
+            recovered_public_key_certificate_hash_input(&certificate, &[]).unwrap(),
+            decode_hex("0212345678901234567890301201020301010901A1A2A3A4A5A6B1B2B303").unwrap()
+        );
+        assert!(recovered_public_key_certificate_hash_is_valid(&certificate, &[]).unwrap());
+
+        let mut tampered_key = certificate.clone();
+        tampered_key.public_key[0] ^= 0x01;
+        assert!(!recovered_public_key_certificate_hash_is_valid(&tampered_key, &[]).unwrap());
+
+        let mut unsupported_hash = certificate.clone();
+        unsupported_hash.hash_algorithm_indicator = 0x02;
+        assert_eq!(
+            recovered_public_key_certificate_hash_is_valid(&unsupported_hash, &[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
 
         let mut bad_format = recovered.clone();
         bad_format[1] = 0x04;
