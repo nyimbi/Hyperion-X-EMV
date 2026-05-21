@@ -365,7 +365,7 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
         ..unsigned_policy
     };
     let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &verified_policy).unwrap();
-    assert_eq!(profiles.schemes.len(), 3);
+    assert_eq!(profiles.schemes.len(), 2);
     assert_eq!(profiles.schemes[0].rid, hex("A000000003").as_slice());
     assert_eq!(
         profiles.schemes[0].aids[0].action_codes.online,
@@ -385,14 +385,10 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
         .iter()
         .flat_map(|scheme| scheme.capks.iter())
         .all(|capk| capk.checksum.len() == 20));
-    let c8_profile = profiles
-        .schemes
-        .iter()
-        .find(|scheme| scheme.kernel_type == "c8")
-        .unwrap();
-    assert_eq!(c8_profile.rid, hex("A000000999").as_slice());
-    assert_eq!(c8_profile.aids[0].aid, hex("A000000999C8"));
-    assert_eq!(c8_profile.aids[0].interfaces, ["contactless"]);
+    assert!(profiles.schemes.iter().all(|scheme| {
+        scheme.rid != hex("A000000999").as_slice()
+            && scheme.aids.iter().all(|aid| aid.aid != hex("A000000999C8"))
+    }));
 }
 
 #[test]
