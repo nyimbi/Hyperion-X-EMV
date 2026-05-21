@@ -104,6 +104,7 @@ pub struct Capk {
     pub exponent: Vec<u8>,
     pub expiry: EmvDate,
     pub checksum: Vec<u8>,
+    pub source: ProfileSource,
 }
 
 pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<ProfileSet> {
@@ -132,7 +133,12 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
 
     let mut schemes = Vec::with_capacity(schemes_array.len());
     for scheme_value in schemes_array {
-        schemes.push(parse_scheme(scheme_value, policy.evaluation_date)?);
+        schemes.push(parse_scheme(
+            scheme_value,
+            policy.evaluation_date,
+            profile_class,
+            policy.mode,
+        )?);
     }
     Ok(ProfileSet {
         version: policy.candidate_version,
@@ -179,7 +185,13 @@ fn parse_profile_source(
             _ => Err(KernelError::InvalidProfile),
         };
     };
-    let source = value.as_object()?;
+    parse_source_object(value.as_object()?, profile_class)
+}
+
+fn parse_source_object(
+    source: &BTreeMap<String, JsonValue>,
+    profile_class: ProfileClass,
+) -> KernelResult<ProfileSource> {
     let owner = required_string(source, "owner")?;
     let document = required_string(source, "document")?;
     let version = required_string(source, "version")?;
@@ -203,7 +215,12 @@ fn parse_profile_source(
     })
 }
 
-fn parse_scheme(value: &JsonValue, evaluation_date: EmvDate) -> KernelResult<SchemeProfile> {
+fn parse_scheme(
+    value: &JsonValue,
+    evaluation_date: EmvDate,
+    profile_class: ProfileClass,
+    mode: BuildMode,
+) -> KernelResult<SchemeProfile> {
     let object = value.as_object()?;
     let scheme_name = required_string(object, "scheme_name")?;
     reject_placeholder(scheme_name)?;
@@ -244,7 +261,13 @@ fn parse_scheme(value: &JsonValue, evaluation_date: EmvDate) -> KernelResult<Sch
     }
     let mut capks = Vec::with_capacity(capks_array.len());
     for capk_value in capks_array {
-        capks.push(parse_capk(capk_value, rid, evaluation_date)?);
+        capks.push(parse_capk(
+            capk_value,
+            rid,
+            evaluation_date,
+            profile_class,
+            mode,
+        )?);
     }
 
     Ok(SchemeProfile {
@@ -336,7 +359,13 @@ fn parse_cda_request_encoding(input: &str) -> KernelResult<CdaRequestEncoding> {
     Ok(CdaRequestEncoding::P1LowBits(bits))
 }
 
-fn parse_capk(value: &JsonValue, rid: [u8; 5], evaluation_date: EmvDate) -> KernelResult<Capk> {
+fn parse_capk(
+    value: &JsonValue,
+    rid: [u8; 5],
+    evaluation_date: EmvDate,
+    profile_class: ProfileClass,
+    mode: BuildMode,
+) -> KernelResult<Capk> {
     let object = value.as_object()?;
     let key_index = required_u64(object, "key_index")?;
     if key_index > u8::MAX as u64 {
@@ -355,6 +384,18 @@ fn parse_capk(value: &JsonValue, rid: [u8; 5], evaluation_date: EmvDate) -> Kern
     if expiry < evaluation_date {
         return Err(KernelError::InvalidProfile);
     }
+    let source = match object.get("source") {
+        Some(value) => parse_source_object(value.as_object()?, profile_class)?,
+        None => match (mode, profile_class) {
+            (BuildMode::Test, ProfileClass::ExampleOnly) => ProfileSource {
+                owner: "unspecified_test_capk".to_string(),
+                document: "inline_test_fixture".to_string(),
+                version: "0".to_string(),
+                verification: "test_only".to_string(),
+            },
+            _ => return Err(KernelError::InvalidProfile),
+        },
+    };
 
     Ok(Capk {
         rid,
@@ -363,6 +404,7 @@ fn parse_capk(value: &JsonValue, rid: [u8; 5], evaluation_date: EmvDate) -> Kern
         exponent,
         expiry,
         checksum,
+        source,
     })
 }
 
@@ -766,7 +808,13 @@ mod tests {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+          "source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_capk_bundle",
+            "version": "2",
+            "verification": "external_signature_required"
+          }
         }]
       }]
     }"#;
@@ -802,6 +850,14 @@ mod tests {
         );
         assert_eq!(profiles.schemes[0].capks[0].key_index, 1);
         assert!(profiles.schemes[0].capks[0].modulus.len() >= 64);
+        assert_eq!(
+            profiles.schemes[0].capks[0].source.document,
+            "signed_certification_capk_bundle"
+        );
+        assert_eq!(
+            profiles.schemes[0].capks[0].source.verification,
+            "external_signature_required"
+        );
         assert_eq!(
             profiles.schemes[0].aids[0].critical_issuer_script_ins,
             [0xe2]
@@ -883,7 +939,13 @@ mod tests {
               "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
               "exponent_hex": "010001",
               "expiry": "2030-12-31",
-              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+              "source": {
+                "owner": "scheme_or_acquirer",
+                "document": "signed_certification_capk_bundle",
+                "version": "2",
+                "verification": "external_signature_required"
+              }
             }]
           }]
         }"#;
@@ -967,7 +1029,13 @@ mod tests {
               "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
               "exponent_hex": "010001",
               "expiry": "2030-12-31",
-              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+              "source": {
+                "owner": "scheme_or_acquirer",
+                "document": "signed_certification_capk_bundle",
+                "version": "2",
+                "verification": "external_signature_required"
+              }
             }]
           }]
         }"#;

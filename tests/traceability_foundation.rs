@@ -179,6 +179,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-CVM-002",
         "KRN-CVM-003",
         "KRN-SEC-002",
+        "KRN-SEC-003",
         "KRN-GAC-008",
         "KRN-GAC-009",
         "KRN-GAC-010",
@@ -202,6 +203,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-C8-003",
         "KRN-CFG-004",
         "KRN-ODA-001",
+        "KRN-ODA-002",
         "KRN-ODA-003",
         "KRN-ODA-004",
         "KRN-ODA-005",
@@ -524,6 +526,14 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
         [0xe2]
     );
     assert_eq!(
+        profiles.schemes[0].capks[0].source.document,
+        "signed_certification_capk_bundle"
+    );
+    assert_eq!(
+        profiles.schemes[0].capks[0].source.verification,
+        "external_signature_required"
+    );
+    assert_eq!(
         profiles.schemes[0].aids[0]
             .trm_profile()
             .unwrap()
@@ -550,6 +560,84 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
         scheme.rid != hex("A000000999").as_slice()
             && scheme.aids.iter().all(|aid| aid.aid != hex("A000000999C8"))
     }));
+}
+
+#[test]
+fn krn_sec_003_oda_002_capks_retain_signed_public_provenance() {
+    let policy = ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::Verified,
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    };
+    let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &policy).unwrap();
+
+    for capk in profiles
+        .schemes
+        .iter()
+        .flat_map(|scheme| scheme.capks.iter())
+    {
+        assert_eq!(capk.source.owner, "scheme_or_acquirer");
+        assert_eq!(capk.source.document, "signed_certification_capk_bundle");
+        assert_eq!(capk.source.version, "2");
+        assert_eq!(capk.source.verification, "external_signature_required");
+        assert!(capk.modulus.len() >= 64);
+        assert_eq!(capk.checksum.len(), 20);
+    }
+
+    let missing_capk_source = br#"{
+      "profile_class": "CERTIFICATION",
+      "profile_source": {
+        "owner": "scheme_or_acquirer",
+        "document": "signed_certification_profile_bundle",
+        "version": "2",
+        "verification": "external_signature_required"
+      },
+      "scheme_profiles": [{
+        "scheme_name": "Visa",
+        "rid": "A000000003",
+        "kernel_type": "c8_contactless",
+        "taa_fallback_when_offline_unable_online": "AAC",
+        "taa_no_match_default_when_online_capable": "ARQC",
+        "taa_no_match_default_when_offline_only": "AAC",
+        "aids": [{
+          "aid": "A0000000031010",
+          "priority": 10,
+          "partial_selection": true,
+          "interfaces": ["contact", "contactless"],
+          "tac_online": "E0F8C80000",
+          "tac_denial": "0000000000",
+          "tac_default": "8000000000",
+          "iac_online": "0000000000",
+          "iac_denial": "0000000000",
+          "iac_default": "0000000000",
+          "floor_limit": 0,
+          "cvm_limit_contact": 5000,
+          "random_selection_percent": 5,
+          "contactless_transaction_limit": 5000,
+          "contactless_cvm_limit": 3000,
+          "cdcvm_supported": true,
+          "cda_supported": true,
+          "cda_request_encoding": "CDOL1_bit"
+        }],
+        "capks": [{
+          "key_index": 1,
+          "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+          "exponent_hex": "010001",
+          "expiry": "2030-12-31",
+          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+        }]
+      }]
+    }"#;
+    assert_eq!(
+        load_profile_set(missing_capk_source, &policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
 }
 
 #[test]
@@ -774,7 +862,13 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+          "source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_capk_bundle",
+            "version": "2",
+            "verification": "external_signature_required"
+          }
         }]
       }]
     }"#;
@@ -823,7 +917,13 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+          "source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_capk_bundle",
+            "version": "2",
+            "verification": "external_signature_required"
+          }
         }]
       }]
     }"#;
