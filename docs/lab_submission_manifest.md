@@ -24,13 +24,14 @@
 - [x] Trace identity metadata – masked APDU logs retain ABI version and signed profile version
 - [x] Reproducible build provenance – `cargo run --example krn_build_manifest -- ...` emits canonical JSON with SHA-256 for source, lockfile, annexes, and binary artifacts
 - [x] Source code (under NDA)
-- [x] Unit test report (≥95% coverage) – [to be attached]
-- [x] Integration test report (100% of EMV test plan) – [to be attached]
-- [x] Static analysis report (MISRA C compliant) – [to be attached]
-- [x] Fuzzing report (1M iterations, no crashes) – [to be attached]
-- [x] PCI PTS integration statement (Model A – PED‑owned VERIFY) – [to be attached]
-- [x] Conformance statement (EMVCo template) – `krn_get_conformance_statement_json` emits deterministic KRN-REF-001 JSON for the ABI build; signed lab template to be attached
-- [x] APDU trace logs (masked) for all test cases – [to be attached]
+- [ ] Unit test report (≥95% coverage) – [to be attached]
+- [ ] Integration test report (100% of EMV test plan) – [to be attached]
+- [ ] Static analysis report (MISRA C compliant) – [to be attached]
+- [ ] Fuzzing report (1M iterations, no crashes) – [to be attached]
+- [ ] PCI PTS integration statement (Model A – PED‑owned VERIFY) – [to be attached]
+- [x] Conformance statement (ABI JSON) – `krn_get_conformance_statement_json` emits deterministic KRN-REF-001 JSON for the ABI build
+- [ ] Conformance statement (signed EMVCo/lab template) – [to be attached]
+- [ ] APDU trace logs (masked) for all test cases – [to be attached]
 
 ## Test Tool Configuration
 - **EMVCo L2 Contact Test Tool:** Fime Eval4dev v3.2 (or equivalent)

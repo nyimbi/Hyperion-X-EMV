@@ -233,3 +233,17 @@ decision record, while this file tracks work toward certification readiness.
   baseline` in the active specification.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:46:55Z
+
+- Increment completed: make lab-manifest attachment state match actual evidence
+  availability.
+- Code impact: `docs/lab_submission_manifest.md` now leaves unattached external
+  reports, PCI PTS statements, signed lab conformance templates, and full APDU
+  trace packs unchecked while keeping locally generated ABI conformance JSON,
+  build provenance, and trace identity metadata checked.
+- Evidence updated: traceability coverage now fails if any `[to be attached]`
+  manifest line is marked complete and explicitly checks the expected local
+  versus external artifact states.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

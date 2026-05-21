@@ -1022,6 +1022,44 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
 }
 
 #[test]
+fn lab_manifest_leaves_unattached_external_reports_unchecked() {
+    for line in LAB_SUBMISSION_MANIFEST.lines() {
+        if line.contains("[to be attached]") {
+            assert!(
+                line.starts_with("- [ ]"),
+                "pending external artifact is incorrectly checked: {line}"
+            );
+        }
+    }
+
+    for attached in [
+        "Conformance statement (ABI JSON)",
+        "Reproducible build provenance",
+        "Trace identity metadata",
+    ] {
+        assert!(
+            LAB_SUBMISSION_MANIFEST.contains(&format!("- [x] {attached}")),
+            "locally generated artifact should remain checked: {attached}"
+        );
+    }
+
+    for pending in [
+        "Unit test report",
+        "Integration test report",
+        "Static analysis report",
+        "Fuzzing report",
+        "PCI PTS integration statement",
+        "Conformance statement (signed EMVCo/lab template)",
+        "APDU trace logs",
+    ] {
+        assert!(
+            LAB_SUBMISSION_MANIFEST.contains(&format!("- [ ] {pending}")),
+            "external artifact should remain unchecked: {pending}"
+        );
+    }
+}
+
+#[test]
 fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
     assert!(RTM.contains("KRN-REF-001"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_get_conformance_statement_json"));
