@@ -30,8 +30,8 @@ use hyperion_emv::ffi::{
     krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
     krn_run_transaction, krn_set_cvm_capabilities, krn_set_offline_pin_handle,
     krn_set_terminal_capabilities, krn_set_terminal_transaction_qualifiers,
-    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
-    KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
+    krn_set_transaction_params, KrnConfigBlob, KrnOutcome, KrnRuntime, KrnTxnParams,
+    KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -1474,6 +1474,33 @@ fn rtm_promotes_signed_profile_and_capk_validation_evidence() {
 }
 
 #[test]
+fn rtm_promotes_api_abi_and_callback_validation_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-API-001", "KRN-API-002"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete ABI validation evidence"
+            );
+            assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
+            assert!(
+                row.contains("krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded")
+            );
+        }
+
+        let callbacks = csv_row_for_requirement(csv, "KRN-API-002").unwrap();
+        assert!(callbacks
+            .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
+
+        let amount_currency = csv_row_for_requirement(csv, "KRN-API-003").unwrap();
+        assert!(
+            amount_currency.contains("pending implementation evidence"),
+            "KRN-API-003 remains pending until currency exponent policy is explicit"
+        );
+    }
+}
+
+#[test]
 fn krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic() {
     unsafe {
         let ctx = krn_context_new();
@@ -2024,6 +2051,101 @@ fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks()
             hyperion_emv::KernelError::InvalidArgument.code()
         );
         assert_eq!(krn_get_fsm_state(ctx), FsmState::Se.code());
+        krn_context_free(ctx);
+    }
+}
+
+#[test]
+fn krn_api_001_002_rejects_bad_abi_before_optional_fields() {
+    unsafe {
+        let mut ctx = ptr::null_mut();
+        let bad_config = KrnConfigBlob {
+            abi_version: KRN_ABI_VERSION + 1,
+            struct_size: core::mem::size_of::<KrnConfigBlob>() as u32,
+            bytes: ptr::null(),
+            len: 1,
+        };
+        let runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_transmit_apdu),
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(&bad_config, &runtime, &mut ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert!(ctx.is_null());
+
+        let bad_runtime_abi = KrnRuntime {
+            abi_version: KRN_ABI_VERSION + 1,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: None,
+            get_unpredictable_number: None,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &bad_runtime_abi, &mut ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert!(ctx.is_null());
+
+        let short_runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: 0,
+            transmit_apdu: None,
+            get_unpredictable_number: None,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &short_runtime, &mut ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert!(ctx.is_null());
+
+        let missing_callbacks = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: None,
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &missing_callbacks, &mut ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert!(ctx.is_null());
+
+        assert_eq!(
+            krn_init(ptr::null(), &runtime, &mut ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let bad_params = KrnTxnParams {
+            struct_size: 0,
+            amount_authorised_minor: 1_500,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 1,
+        };
+        assert_eq!(
+            krn_set_transaction_params(ctx, &bad_params),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
         krn_context_free(ctx);
     }
 }
