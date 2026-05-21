@@ -18,14 +18,14 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
-    krn_apply_host_response, krn_context_free, krn_context_new, krn_error_code_at,
-    krn_error_description, krn_error_name, krn_error_table_len, krn_get_final_outcome,
-    krn_get_fsm_state, krn_get_issuer_script_result, krn_get_issuer_script_result_count,
-    krn_get_last_error, krn_get_online_authorization_data, krn_get_profile_version, krn_init,
-    krn_load_profiles_verified, krn_process_final_generate_ac, krn_process_issuer_authentication,
-    krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
-    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION,
+    krn_apply_host_response, krn_build_select_environment, krn_context_free, krn_context_new,
+    krn_error_code_at, krn_error_description, krn_error_name, krn_error_table_len,
+    krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
+    krn_get_issuer_script_result_count, krn_get_last_error, krn_get_online_authorization_data,
+    krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_process_final_generate_ac,
+    krn_process_issuer_authentication, krn_process_issuer_scripts,
+    krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
+    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -194,6 +194,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-RR-002",
         "KRN-RR-003",
         "KRN-SEC-004",
+        "KRN-API-005",
         "KRN-API-006",
         "KRN-LOG-001",
         "KRN-C8-001",
@@ -966,6 +967,60 @@ fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks()
             hyperion_emv::KernelError::InvalidArgument.code()
         );
         assert_eq!(krn_get_fsm_state(ctx), FsmState::Se.code());
+        krn_context_free(ctx);
+    }
+}
+
+#[test]
+fn krn_api_005_caller_owned_output_buffers_are_probeable_and_not_partially_written() {
+    unsafe {
+        let ctx = krn_context_new();
+
+        let mut probe_len = 0usize;
+        assert_eq!(
+            krn_build_select_environment(ctx, false, ptr::null_mut(), &mut probe_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        assert_eq!(probe_len, 20);
+
+        let mut short = [0xa5u8; 8];
+        let mut short_len = short.len();
+        assert_eq!(
+            krn_build_select_environment(ctx, false, short.as_mut_ptr(), &mut short_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        assert_eq!(short_len, 20);
+        assert_eq!(short, [0xa5u8; 8]);
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+
+        let mut exact = [0u8; 20];
+        let mut exact_len = exact.len();
+        assert_eq!(
+            krn_build_select_environment(ctx, false, exact.as_mut_ptr(), &mut exact_len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(exact_len, exact.len());
+        assert_eq!(
+            exact.as_slice(),
+            hex("00A404000E315041592E5359532E444446303100").as_slice()
+        );
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+
+        assert_eq!(
+            krn_build_select_environment(ctx, false, exact.as_mut_ptr(), ptr::null_mut()),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+
         krn_context_free(ctx);
     }
 }

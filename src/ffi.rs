@@ -949,6 +949,9 @@ unsafe fn write_output(
     }
     let capacity = *out_len;
     *out_len = bytes.len();
+    if bytes.is_empty() {
+        return Ok(0);
+    }
     if out.is_null() {
         return Err(KernelError::BufferTooSmall);
     }
@@ -2780,6 +2783,20 @@ mod tests {
             assert_eq!(len, 20);
             assert_eq!(krn_get_last_error(ctx), KernelError::BufferTooSmall.code());
             krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_write_output_handles_empty_outputs_without_buffer() {
+        unsafe {
+            let mut len = usize::MAX;
+            assert_eq!(write_output(&[], ptr::null_mut(), &mut len), Ok(0));
+            assert_eq!(len, 0);
+
+            assert_eq!(
+                write_output(&[], ptr::null_mut(), ptr::null_mut()).unwrap_err(),
+                KernelError::InvalidArgument
+            );
         }
     }
 
