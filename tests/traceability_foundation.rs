@@ -662,6 +662,39 @@ fn corrected_spec_requirement_ids_are_all_in_rtm_annexes() {
 }
 
 #[test]
+fn rtm_pending_evidence_is_limited_to_external_lab_gates() {
+    for (name, csv) in [
+        ("requirements_traceability.csv", CURRENT_RTM),
+        ("requirements-traceability-matrix.csv", LEGACY_RTM),
+    ] {
+        let pending = csv
+            .lines()
+            .skip(1)
+            .filter(|line| line.contains("pending implementation evidence"))
+            .map(|line| line.split_once(',').unwrap().0)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            pending,
+            vec!["KRN-ANNEX-005", "KRN-CERT-001"],
+            "{name} has unexpected pending evidence rows"
+        );
+
+        let vectors = csv_row_for_requirement(csv, "KRN-ANNEX-005").unwrap();
+        assert!(vectors.contains("complete cryptographic vectors"));
+        assert!(vectors.contains("pending implementation evidence"));
+
+        let approval = csv_row_for_requirement(csv, "KRN-CERT-001").unwrap();
+        assert!(approval.contains("EMV Level 2 approval"));
+        assert!(approval.contains("pending implementation evidence"));
+    }
+
+    assert!(LAB_SUBMISSION_MANIFEST.contains("lab-supplied SDA/DDA/CDA vectors"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Conformance statement (signed EMVCo/lab template)"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("APDU trace logs (masked) for all test cases"));
+    assert!(include_str!("../docs/spec.md").contains("approval artifacts"));
+}
+
+#[test]
 fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-SEL-001", "KRN-SEL-002"] {

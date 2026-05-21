@@ -261,3 +261,16 @@ decision record, while this file tracks work toward certification readiness.
   are authentic" declaration in the active spec.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:54:20Z
+
+- Increment completed: tighten RTM pending-evidence governance.
+- Code impact: traceability coverage now allowlists pending implementation
+  evidence to exactly KRN-ANNEX-005 and KRN-CERT-001 across both RTM annexes.
+  The guard also verifies those rows remain tied to complete lab cryptographic
+  vectors and EMV Level 2 approval artifacts rather than ordinary implementation
+  backlog.
+- Evidence updated: accidental new pending RTM rows or premature promotion of
+  lab-only gates will now fail the traceability suite.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
