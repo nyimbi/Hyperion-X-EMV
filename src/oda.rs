@@ -632,6 +632,25 @@ pub fn recover_and_verify_signed_application_data(
     Ok(signed_data)
 }
 
+pub fn verify_static_data_authentication(
+    issuer_public_key: &RecoveredPublicKeyCertificate,
+    signed_static_application_data: &[u8],
+    records: &[StaticAuthenticationRecord],
+    data: &DataStore,
+) -> KernelResult<RecoveredSignedApplicationData> {
+    if issuer_public_key.kind != RecoveredCertificateKind::Issuer {
+        return Err(KernelError::InvalidProfile);
+    }
+    let authentication_data = build_static_authentication_data(records, data)?;
+    recover_and_verify_signed_application_data(
+        RecoveredSignedDataKind::StaticApplicationData,
+        signed_static_application_data,
+        &issuer_public_key.public_key,
+        &issuer_public_key.exponent,
+        &authentication_data,
+    )
+}
+
 pub fn recover_rsa_public_block(
     signature: &[u8],
     modulus: &[u8],
@@ -1585,6 +1604,80 @@ mod tests {
                 &dynamic_modulus,
                 &decode_hex("010001").unwrap(),
                 &decode_hex("11223344").unwrap(),
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn verifies_sda_from_issuer_key_static_records_and_signed_data() {
+        let issuer_public_key = RecoveredPublicKeyCertificate {
+            kind: RecoveredCertificateKind::Issuer,
+            identifier: hex10("12345678901234567890"),
+            expiration_date: [0x30, 0x12],
+            serial_number: [0x01, 0x02, 0x03],
+            hash_algorithm_indicator: 0x01,
+            public_key_algorithm_indicator: 0x01,
+            public_key: decode_hex(
+                "B0428067C589A60DDEACFDDF558479E0DB7676E1FFCEBC3B3B55657D5C4E57EA\
+                 B2D5592AAC2F9B767E0832C473200621",
+            )
+            .unwrap(),
+            exponent: decode_hex("010001").unwrap(),
+            hash_result: [0x11; SHA1_DIGEST_BYTES],
+        };
+        let signed_static_application_data = decode_hex(
+            "6D492A5DB481273D1127EF24D1059B5702AED358BB75A3AD004766DD75157DE9\
+             9A517A830517EB821D22CD55E0FF2AE4",
+        )
+        .unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x4a], &[0x82]).unwrap();
+        data.put(&[0x82], &[0xcc]).unwrap();
+        let records = [
+            StaticAuthenticationRecord {
+                sfi: 11,
+                record: 1,
+                body: decode_hex("AA").unwrap(),
+            },
+            StaticAuthenticationRecord {
+                sfi: 12,
+                record: 1,
+                body: decode_hex("BB").unwrap(),
+            },
+        ];
+
+        let recovered = verify_static_data_authentication(
+            &issuer_public_key,
+            &signed_static_application_data,
+            &records,
+            &data,
+        )
+        .unwrap();
+        assert_eq!(recovered.data_authentication_code, Some([0x12, 0x34]));
+
+        let mut wrong_key_kind = issuer_public_key.clone();
+        wrong_key_kind.kind = RecoveredCertificateKind::Icc;
+        assert_eq!(
+            verify_static_data_authentication(
+                &wrong_key_kind,
+                &signed_static_application_data,
+                &records,
+                &data,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut wrong_tag_value = data;
+        wrong_tag_value.put(&[0x82], &[0xdd]).unwrap();
+        assert_eq!(
+            verify_static_data_authentication(
+                &issuer_public_key,
+                &signed_static_application_data,
+                &records,
+                &wrong_tag_value,
             )
             .unwrap_err(),
             KernelError::InvalidProfile
