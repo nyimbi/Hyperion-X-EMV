@@ -1,11 +1,14 @@
 use crate::error::{KernelError, KernelResult};
 use crate::restrictions::EmvDate;
+use crate::sha1::{Sha1, SHA1_DIGEST_BYTES};
 use crate::taa::{ActionCodes, TaaProfile, TerminalAction};
 use crate::trm::TrmProfile;
 use std::collections::BTreeMap;
 
 pub const MAX_JSON_DEPTH: usize = 24;
 pub const MAX_JSON_NODES: usize = 4096;
+const CAPK_CHECKSUM_ALGORITHM: &str = "sha1(rid || key_index || modulus || exponent)";
+const CAPK_CHECKSUM_SCOPE: [&str; 4] = ["rid", "key_index", "modulus_hex", "exponent_hex"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildMode {
@@ -380,6 +383,16 @@ fn parse_capk(
     reject_dummy_bytes(&modulus)?;
     reject_dummy_bytes(&checksum)?;
 
+    if profile_class == ProfileClass::Certification {
+        validate_capk_checksum_metadata(object)?;
+        if checksum.len() != SHA1_DIGEST_BYTES
+            || checksum
+                != capk_checksum_components(&rid, key_index as u8, &modulus, &exponent).as_slice()
+        {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+
     let expiry = parse_iso_date(required_string(object, "expiry")?)?;
     if expiry < evaluation_date {
         return Err(KernelError::InvalidProfile);
@@ -406,6 +419,39 @@ fn parse_capk(
         checksum,
         source,
     })
+}
+
+pub(crate) fn capk_checksum_components(
+    rid: &[u8; 5],
+    key_index: u8,
+    modulus: &[u8],
+    exponent: &[u8],
+) -> [u8; SHA1_DIGEST_BYTES] {
+    let mut sha1 = Sha1::new();
+    sha1.update(rid);
+    sha1.update(&[key_index]);
+    sha1.update(modulus);
+    sha1.update(exponent);
+    sha1.finalize()
+}
+
+fn validate_capk_checksum_metadata(object: &BTreeMap<String, JsonValue>) -> KernelResult<()> {
+    if required_string(object, "checksum_algorithm")? != CAPK_CHECKSUM_ALGORITHM {
+        return Err(KernelError::InvalidProfile);
+    }
+    let scope = object
+        .get("checksum_scope")
+        .ok_or(KernelError::InvalidProfile)?
+        .as_array()?;
+    if scope.len() != CAPK_CHECKSUM_SCOPE.len() {
+        return Err(KernelError::InvalidProfile);
+    }
+    for (actual, expected) in scope.iter().zip(CAPK_CHECKSUM_SCOPE) {
+        if actual.as_string()? != expected {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+    Ok(())
 }
 
 fn parse_action(input: &str) -> KernelResult<TerminalAction> {
@@ -808,7 +854,9 @@ mod tests {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+          "checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5",
+          "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
+          "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"],
           "source": {
             "owner": "scheme_or_acquirer",
             "document": "signed_certification_capk_bundle",
@@ -867,6 +915,39 @@ mod tests {
             Some(CdaRequestEncoding::InCdolData)
         );
         assert!(profiles.schemes[0].aids[0].cda_allowed_by_profile());
+    }
+
+    #[test]
+    fn rejects_certification_capk_checksum_mismatch_or_metadata_drift() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let bad_checksum = profile.replace(
+            "\"checksum_hex\": \"E7BE39F210609E8609E23255BC1B54E81C7EC5D5\"",
+            "\"checksum_hex\": \"E7BE39F210609E8609E23255BC1B54E81C7EC5D4\"",
+        );
+        assert_eq!(
+            load_profile_set(bad_checksum.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let bad_algorithm = profile.replace(
+            "\"checksum_algorithm\": \"sha1(rid || key_index || modulus || exponent)\"",
+            "\"checksum_algorithm\": \"sha1(modulus || exponent)\"",
+        );
+        assert_eq!(
+            load_profile_set(bad_algorithm.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let bad_scope = profile.replace(
+            "\"checksum_scope\": [\"rid\", \"key_index\", \"modulus_hex\", \"exponent_hex\"]",
+            "\"checksum_scope\": [\"modulus_hex\", \"exponent_hex\"]",
+        );
+        assert_eq!(
+            load_profile_set(bad_scope.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
     }
 
     #[test]
@@ -949,7 +1030,7 @@ mod tests {
               "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
               "exponent_hex": "010001",
               "expiry": "2030-12-31",
-              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+              "checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5",
               "source": {
                 "owner": "scheme_or_acquirer",
                 "document": "signed_certification_capk_bundle",
@@ -1039,7 +1120,7 @@ mod tests {
               "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
               "exponent_hex": "010001",
               "expiry": "2030-12-31",
-              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+              "checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5",
               "source": {
                 "owner": "scheme_or_acquirer",
                 "document": "signed_certification_capk_bundle",

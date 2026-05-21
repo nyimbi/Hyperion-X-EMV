@@ -107,13 +107,22 @@ unsafe extern "C" fn it_transmit_apdu(
     resp: *mut u8,
     resp_len: *mut usize,
     timeout_ms: i32,
-    _user_data: *mut c_void,
+    user_data: *mut c_void,
 ) -> i32 {
     let command = std::slice::from_raw_parts(cmd, cmd_len);
-    let count = IT_TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
-    IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
-    IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
-    IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    let count = if user_data.is_null() {
+        let count = IT_TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        count
+    } else {
+        let script = &*(user_data as *const TerminalCapabilitiesScript);
+        let count = script.counter.fetch_add(1, Ordering::SeqCst);
+        script.commands.lock().unwrap().push(command.to_vec());
+        IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        count
+    };
     write_scripted_response(command, count, resp, resp_len)
 }
 
@@ -1016,6 +1025,39 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
 }
 
 #[test]
+fn krn_sec_003_oda_001_cert_profile_loader_rejects_capk_checksum_drift() {
+    let policy = ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::Verified,
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    };
+
+    let tampered_checksum = SCHEME_PROFILES.replace(
+        "\"checksum_hex\": \"1FF80A40173F52D7D27E0F26A146A1C8CCB29046\"",
+        "\"checksum_hex\": \"1FF80A40173F52D7D27E0F26A146A1C8CCB29047\"",
+    );
+    assert_eq!(
+        load_profile_set(tampered_checksum.as_bytes(), &policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let tampered_algorithm = SCHEME_PROFILES.replace(
+        "\"checksum_algorithm\": \"sha1(rid || key_index || modulus || exponent)\"",
+        "\"checksum_algorithm\": \"sha1(modulus || exponent)\"",
+    );
+    assert_eq!(
+        load_profile_set(tampered_algorithm.as_bytes(), &policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+}
+
+#[test]
 fn krn_sec_003_oda_002_capks_retain_signed_public_provenance() {
     let policy = ConfigLoadPolicy {
         mode: BuildMode::Certification,
@@ -1083,7 +1125,9 @@ fn krn_sec_003_oda_002_capks_retain_signed_public_provenance() {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+          "checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5",
+          "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
+          "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"]
         }]
       }]
     }"#;
@@ -1261,7 +1305,7 @@ fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+          "checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5"
         }]
       }]
     }"#;
@@ -1398,7 +1442,9 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+          "checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5",
+          "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
+          "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"],
           "source": {
             "owner": "scheme_or_acquirer",
             "document": "signed_certification_capk_bundle",
@@ -1453,7 +1499,7 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
           "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
           "exponent_hex": "010001",
           "expiry": "2030-12-31",
-          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+          "checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5",
           "source": {
             "owner": "scheme_or_acquirer",
             "document": "signed_certification_capk_bundle",
@@ -2269,13 +2315,17 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         );
         assert!(ctx.is_null());
 
+        let script = TerminalCapabilitiesScript {
+            counter: AtomicUsize::new(0),
+            commands: Mutex::new(Vec::new()),
+        };
         let runtime = KrnRuntime {
             abi_version: KRN_ABI_VERSION,
             struct_size: core::mem::size_of::<KrnRuntime>() as u32,
             transmit_apdu: Some(it_transmit_apdu),
             get_unpredictable_number: Some(it_unpredictable_number),
             contactless_outcome: None,
-            user_data: ptr::null_mut(),
+            user_data: &script as *const TerminalCapabilitiesScript as *mut c_void,
         };
         assert_eq!(
             krn_init(ptr::null(), &runtime, &mut ctx),
@@ -2319,11 +2369,14 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
-        IT_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
         assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired as i32);
-        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
-        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 5);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 30);
+        assert_eq!(script.counter.load(Ordering::SeqCst), 5);
+        {
+            let commands = script.commands.lock().unwrap();
+            let command = commands.last().unwrap();
+            assert_eq!(command[1], 0xae);
+            assert_eq!(command.len(), 30);
+        }
         assert!(IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst) > 0);
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S11.code());
         assert_eq!(
@@ -2363,17 +2416,25 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             krn_process_issuer_authentication(ctx),
             hyperion_emv::KernelError::Ok.code()
         );
-        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0x82);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
-        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 6);
+        assert_eq!(script.counter.load(Ordering::SeqCst), 6);
+        {
+            let commands = script.commands.lock().unwrap();
+            let command = commands.last().unwrap();
+            assert_eq!(command[1], 0x82);
+            assert_eq!(command.len(), 13);
+        }
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S13.code());
         assert_eq!(
             krn_process_issuer_scripts(ctx),
             hyperion_emv::KernelError::Ok.code()
         );
-        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
-        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 7);
+        assert_eq!(script.counter.load(Ordering::SeqCst), 7);
+        {
+            let commands = script.commands.lock().unwrap();
+            let command = commands.last().unwrap();
+            assert_eq!(command[1], 0xda);
+            assert_eq!(command.len(), 6);
+        }
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S14.code());
         assert_eq!(krn_get_issuer_script_result_count(ctx), 1);
         let mut sw1 = 0u8;
@@ -2387,9 +2448,13 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             krn_process_final_generate_ac(ctx),
             hyperion_emv::KernelError::Ok.code()
         );
-        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 23);
-        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 8);
+        assert_eq!(script.counter.load(Ordering::SeqCst), 8);
+        {
+            let commands = script.commands.lock().unwrap();
+            let command = commands.last().unwrap();
+            assert_eq!(command[1], 0xae);
+            assert_eq!(command.len(), 23);
+        }
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S15.code());
         assert_eq!(
             krn_get_final_outcome(ctx),
@@ -2399,9 +2464,13 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             krn_process_post_final_issuer_scripts(ctx),
             hyperion_emv::KernelError::Ok.code()
         );
-        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xe2);
-        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
-        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 9);
+        assert_eq!(script.counter.load(Ordering::SeqCst), 9);
+        {
+            let commands = script.commands.lock().unwrap();
+            let command = commands.last().unwrap();
+            assert_eq!(command[1], 0xe2);
+            assert_eq!(command.len(), 6);
+        }
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S16.code());
         assert_eq!(krn_get_issuer_script_result_count(ctx), 2);
         assert_eq!(

@@ -23,6 +23,7 @@ pub mod provenance;
 pub mod record;
 pub mod restrictions;
 pub mod selection;
+mod sha1;
 pub mod state;
 pub mod sw;
 pub mod taa;

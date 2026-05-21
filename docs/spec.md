@@ -288,7 +288,7 @@ Requirement ID,Requirement Text,Unit Test ID,Integration Test ID,EMVCo Test Case
 KRN-REF-001,Comply with normative references,UT-REF-001,IT-REF-001,EMV-B1-001,Conformance statement
 KRN-SEC-001,No issuer master key in kernel,UT-SEC-001,IT-SEC-001,N/A,Code review
 KRN-SEC-002,Kernel does not generate ARQC/TC/AAC,UT-SEC-002,IT-SEC-002,EMV-L2-ARQC-001,APDU logs
-KRN-SEC-003,CAPKs public key integrity only,UT-SEC-003,IT-SEC-003,N/A,Config signature
+KRN-SEC-003,CAPKs public key integrity only,UT-SEC-003,IT-SEC-003,N/A,Config signature and CAPK checksum validation
 KRN-SEC-004,PED-owned VERIFY model,UT-SEC-004,IT-SEC-004,PCI-PTS-PIN-001,PED statement
 KRN-SEL-001,Correct PSE/PPSE selection,UT-SEL-001,IT-SEL-001,EMV-L2-SEL-001,APDU traces
 KRN-TVR-001,Symbolic constants for TVR,UT-TVR-001,IT-TVR-001,EMV-L2-TVR-001,Code review
@@ -315,7 +315,7 @@ KRN-TAA-006,TAA decision order,UT-TAA-003,IT-TAA-003,EMV-L2-TAA-003,Decision tra
 KRN-TAA-007,Deterministic fallback from profile,UT-TAA-004,IT-TAA-004,EMV-L2-TAA-004,Profile + trace
 KRN-APDU-009,State-specific SW handling,UT-APDU-001,IT-APDU-001,EMV-L2-APDU-001,APDU + state
 KRN-APDU-010,No generic non-9000 error,UT-APDU-002,IT-APDU-002,EMV-L2-APDU-002,Error injection
-KRN-ODA-001,CAPK hash verification,UT-ODA-001,IT-ODA-001,EMV-L2-ODA-001,CAPK log
+KRN-ODA-001,CAPK hash verification,UT-ODA-001,IT-ODA-001,EMV-L2-ODA-001,CAPK checksum validation evidence
 KRN-ODA-002,CAPK integrity not confidentiality,UT-ODA-002,IT-ODA-002,N/A,Config signature
 KRN-ODA-003,Issuer cert recovery failure TVR,UT-ODA-003,IT-ODA-003,EMV-L2-ODA-003,TVR after failure
 KRN-ODA-004,ICC cert recovery failure TVR,UT-ODA-004,IT-ODA-004,EMV-L2-ODA-004,TVR

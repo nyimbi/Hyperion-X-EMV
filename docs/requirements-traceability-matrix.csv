@@ -2,7 +2,7 @@ Requirement ID,Requirement Text,Unit Test ID,Integration Test ID,EMVCo Test Case
 KRN-REF-001,"Implementation SHALL comply with all normative references. In case of conflict, referenced standards prevail.",UT-REF-001,IT-REF-001,EMV-B1-001,Conformance statement
 KRN-SEC-001,No issuer master key SHALL be stored or accessible inside the kernel.,UT-SEC-001,IT-SEC-001,N/A,Architecture review + code scan
 KRN-SEC-002,"Kernel SHALL NOT generate ARQC, TC, or AAC; these cryptograms are returned by the card.",UT-SEC-002,IT-SEC-002,EMV-L2-ARQC-001,APDU logs
-KRN-SEC-003,CAPKs are public keys requiring integrity and authenticity but not confidentiality.,UT-SEC-003,IT-SEC-003,N/A,Configuration manifest signature check
+KRN-SEC-003,CAPKs are public keys requiring integrity and authenticity but not confidentiality.,UT-SEC-003,IT-SEC-003,N/A,Configuration manifest signature check and CAPK checksum validation
 KRN-SEC-004,PIN processing SHALL follow certified integration model (Model A); kernel SHALL NOT access clear PIN.,UT-SEC-004,IT-SEC-004,PCI-PTS-PIN-001,PED integration statement
 KRN-SEL-001,Kernel SHALL select PSE using exact contact APDU and PPSE using exact contactless APDU.,UT-SEL-001,IT-SEL-001,EMV-L2-SEL-001,APDU traces
 KRN-TVR-001,Kernel SHALL use symbolic constants for TVR bits; raw hex SHALL NOT be used directly.,UT-TVR-001,IT-TVR-001,EMV-L2-TVR-001,Code review
@@ -28,7 +28,7 @@ KRN-TAA-006,Kernel SHALL evaluate TAA decision steps in exact order; fallback po
 KRN-TAA-007,Kernel SHALL use deterministic profile fallback policy for TAA no-match/default cases.,UT-TAA-004,IT-TAA-004,EMV-L2-TAA-004,Profile + trace
 KRN-APDU-009,Kernel SHALL implement state-specific handling for all SW codes in full state machine.,UT-APDU-001,IT-APDU-001,EMV-L2-APDU-001,APDU logs + state trace
 KRN-APDU-010,Kernel SHALL NOT treat all non-9000 responses as generic errors.,UT-APDU-002,IT-APDU-002,EMV-L2-APDU-002,Error injection test
-KRN-ODA-001,Kernel SHALL verify CAPK hash before use; if invalid treat as missing.,UT-ODA-001,IT-ODA-001,EMV-L2-ODA-001,CAPK validation log
+KRN-ODA-001,Kernel SHALL verify CAPK hash before use; if invalid treat as missing.,UT-ODA-001,IT-ODA-001,EMV-L2-ODA-001,CAPK checksum validation evidence
 KRN-ODA-002,CAPKs require integrity and authenticity; confidentiality not required.,UT-ODA-002,IT-ODA-002,N/A,Config signature check
 KRN-ODA-003,"If issuer public key certificate recovery fails, set appropriate TVR bit and continue to TAA.",UT-ODA-003,IT-ODA-003,EMV-L2-ODA-003,TVR after ODA failure
 KRN-ODA-004,"If ICC public key certificate recovery fails, set DDA or CDA failure TVR bit.",UT-ODA-004,IT-ODA-004,EMV-L2-ODA-004,TVR after recovery failure
