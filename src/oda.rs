@@ -132,8 +132,14 @@ pub fn apply_oda_outcome(mut tvr: Tvr, mut tsi: Tsi, outcome: OdaOutcome) -> (Tv
         OdaOutcome::Passed(_) => {
             tsi.set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED);
         }
-        OdaOutcome::Failed { method, .. } => {
+        OdaOutcome::Failed { method, failure } => {
             tsi.set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED);
+            if matches!(
+                failure,
+                OdaFailure::IssuerCertificateRecovery | OdaFailure::IccCertificateRecovery
+            ) {
+                tvr.set(Tvr::B1_ICC_DATA_MISSING);
+            }
             match method {
                 OdaMethod::Sda => tvr.set(Tvr::B1_SDA_FAILED),
                 OdaMethod::Dda => tvr.set(Tvr::B1_DDA_FAILED),
@@ -269,6 +275,43 @@ mod tests {
         assert_eq!(selection, OdaSelection::NotPerformedRequired);
         let (tvr, _) = apply_oda_outcome(Tvr::cleared(), Tsi::cleared(), OdaOutcome::NotPerformed);
         assert!(tvr.is_set(Tvr::B1_OFFLINE_DATA_AUTH_NOT_PERFORMED));
+    }
+
+    #[test]
+    fn certificate_recovery_failures_set_missing_icc_data_and_method_bits() {
+        let (tvr, tsi) = apply_oda_outcome(
+            Tvr::cleared(),
+            Tsi::cleared(),
+            OdaOutcome::Failed {
+                method: OdaMethod::Sda,
+                failure: OdaFailure::IssuerCertificateRecovery,
+            },
+        );
+        assert!(tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+        assert!(tvr.is_set(Tvr::B1_SDA_FAILED));
+        assert!(tsi.is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+
+        let (tvr, _) = apply_oda_outcome(
+            Tvr::cleared(),
+            Tsi::cleared(),
+            OdaOutcome::Failed {
+                method: OdaMethod::Dda,
+                failure: OdaFailure::IccCertificateRecovery,
+            },
+        );
+        assert!(tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+        assert!(tvr.is_set(Tvr::B1_DDA_FAILED));
+
+        let (tvr, _) = apply_oda_outcome(
+            Tvr::cleared(),
+            Tsi::cleared(),
+            OdaOutcome::Failed {
+                method: OdaMethod::Cda,
+                failure: OdaFailure::CdaSignature,
+            },
+        );
+        assert!(!tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+        assert!(tvr.is_set(Tvr::B1_CDA_FAILED));
     }
 
     #[test]

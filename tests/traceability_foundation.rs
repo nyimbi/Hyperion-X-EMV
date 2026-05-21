@@ -202,6 +202,8 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-C8-003",
         "KRN-CFG-004",
         "KRN-ODA-001",
+        "KRN-ODA-003",
+        "KRN-ODA-004",
         "KRN-ODA-005",
         "KRN-ODA-006",
         "KRN-ODA-007",
@@ -1557,6 +1559,44 @@ fn krn_oda_001_005_006_007_selects_method_and_sets_tvr_tsi_without_cda_fallback(
         },
     );
     assert!(tvr.is_set(Tvr::B1_DDA_FAILED));
+}
+
+#[test]
+fn krn_oda_003_004_certificate_recovery_failures_set_tvr() {
+    let (tvr, tsi) = apply_oda_outcome(
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+        OdaOutcome::Failed {
+            method: OdaMethod::Sda,
+            failure: OdaFailure::IssuerCertificateRecovery,
+        },
+    );
+    assert!(tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+    assert!(tvr.is_set(Tvr::B1_SDA_FAILED));
+    assert!(tsi.is_set(hyperion_emv::state::Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+
+    let (tvr, tsi) = apply_oda_outcome(
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+        OdaOutcome::Failed {
+            method: OdaMethod::Dda,
+            failure: OdaFailure::IccCertificateRecovery,
+        },
+    );
+    assert!(tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+    assert!(tvr.is_set(Tvr::B1_DDA_FAILED));
+    assert!(tsi.is_set(hyperion_emv::state::Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+
+    let (tvr, _) = apply_oda_outcome(
+        Tvr::cleared(),
+        hyperion_emv::state::Tsi::cleared(),
+        OdaOutcome::Failed {
+            method: OdaMethod::Cda,
+            failure: OdaFailure::CdaSignature,
+        },
+    );
+    assert!(!tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+    assert!(tvr.is_set(Tvr::B1_CDA_FAILED));
 }
 
 #[test]
