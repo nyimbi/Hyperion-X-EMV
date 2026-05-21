@@ -15,6 +15,11 @@ const EMV_RSA_PUBLIC_KEY_ALGORITHM_INDICATOR: u8 = 0x01;
 const RECOVERED_CERTIFICATE_HEADER: u8 = 0x6a;
 const RECOVERED_CERTIFICATE_TRAILER: u8 = 0xbc;
 const MIN_RECOVERED_CERTIFICATE_BYTES: usize = 35;
+const RECOVERED_SIGNED_DATA_HEADER: u8 = 0x6a;
+const RECOVERED_SIGNED_DATA_TRAILER: u8 = 0xbc;
+const RECOVERED_SIGNED_STATIC_DATA_FORMAT: u8 = 0x03;
+const RECOVERED_SIGNED_DYNAMIC_DATA_FORMAT: u8 = 0x05;
+const RECOVERED_PADDING_BYTE: u8 = 0xbb;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OdaMethod {
@@ -83,6 +88,21 @@ impl RecoveredCertificateKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecoveredSignedDataKind {
+    StaticApplicationData,
+    DynamicApplicationData,
+}
+
+impl RecoveredSignedDataKind {
+    fn signed_data_format(self) -> u8 {
+        match self {
+            Self::StaticApplicationData => RECOVERED_SIGNED_STATIC_DATA_FORMAT,
+            Self::DynamicApplicationData => RECOVERED_SIGNED_DYNAMIC_DATA_FORMAT,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InternalAuthenticateResponse {
     pub signed_dynamic_application_data: Vec<u8>,
@@ -106,6 +126,16 @@ pub struct RecoveredPublicKeyCertificate {
     pub public_key_algorithm_indicator: u8,
     pub public_key: Vec<u8>,
     pub exponent: Vec<u8>,
+    pub hash_result: [u8; SHA1_DIGEST_BYTES],
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecoveredSignedApplicationData {
+    pub kind: RecoveredSignedDataKind,
+    pub hash_algorithm_indicator: u8,
+    pub data_authentication_code: Option<[u8; 2]>,
+    pub icc_dynamic_data: Option<Vec<u8>>,
+    pub padding: Vec<u8>,
     pub hash_result: [u8; SHA1_DIGEST_BYTES],
 }
 
@@ -395,6 +425,174 @@ pub fn recover_and_verify_public_key_certificate(
         return Err(KernelError::InvalidProfile);
     }
     Ok(certificate)
+}
+
+pub fn parse_recovered_signed_application_data(
+    kind: RecoveredSignedDataKind,
+    recovered: &[u8],
+) -> KernelResult<RecoveredSignedApplicationData> {
+    if recovered.len() < MIN_ODA_SIGNATURE_BYTES + SHA1_DIGEST_BYTES {
+        return Err(KernelError::ParseError);
+    }
+    if recovered[0] != RECOVERED_SIGNED_DATA_HEADER
+        || recovered[1] != kind.signed_data_format()
+        || *recovered.last().ok_or(KernelError::ParseError)? != RECOVERED_SIGNED_DATA_TRAILER
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let mut cursor = 2usize;
+    let hash_algorithm_indicator = next_recovered_byte(recovered, &mut cursor)?;
+    let hash_start = recovered
+        .len()
+        .checked_sub(SHA1_DIGEST_BYTES + 1)
+        .ok_or(KernelError::ParseError)?;
+    if cursor >= hash_start {
+        return Err(KernelError::ParseError);
+    }
+
+    let (data_authentication_code, icc_dynamic_data, padding) = match kind {
+        RecoveredSignedDataKind::StaticApplicationData => {
+            let data_authentication_code = fixed_from_slice::<2>(recovered, &mut cursor)?;
+            let padding = recovered
+                .get(cursor..hash_start)
+                .ok_or(KernelError::ParseError)?
+                .to_vec();
+            (Some(data_authentication_code), None, padding)
+        }
+        RecoveredSignedDataKind::DynamicApplicationData => {
+            let dynamic_data_length = next_recovered_byte(recovered, &mut cursor)? as usize;
+            if dynamic_data_length == 0 {
+                return Err(KernelError::InvalidProfile);
+            }
+            let dynamic_data_end = cursor
+                .checked_add(dynamic_data_length)
+                .ok_or(KernelError::LengthOverflow)?;
+            if dynamic_data_end > hash_start {
+                return Err(KernelError::ParseError);
+            }
+            let icc_dynamic_data = recovered[cursor..dynamic_data_end].to_vec();
+            cursor = dynamic_data_end;
+            let padding = recovered
+                .get(cursor..hash_start)
+                .ok_or(KernelError::ParseError)?
+                .to_vec();
+            (None, Some(icc_dynamic_data), padding)
+        }
+    };
+
+    if padding.iter().any(|byte| *byte != RECOVERED_PADDING_BYTE) {
+        return Err(KernelError::InvalidProfile);
+    }
+    let hash_result = fixed_from_range::<SHA1_DIGEST_BYTES>(recovered, hash_start)?;
+    if all_zero_or_ff(&hash_result) {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    Ok(RecoveredSignedApplicationData {
+        kind,
+        hash_algorithm_indicator,
+        data_authentication_code,
+        icc_dynamic_data,
+        padding,
+        hash_result,
+    })
+}
+
+pub fn recovered_signed_application_data_hash_input(
+    signed_data: &RecoveredSignedApplicationData,
+    authentication_data: &[u8],
+) -> KernelResult<Vec<u8>> {
+    let mut input = Vec::with_capacity(
+        2 + signed_data
+            .data_authentication_code
+            .map(|value| value.len())
+            .unwrap_or(0)
+            + signed_data
+                .icc_dynamic_data
+                .as_ref()
+                .map(|value| 1 + value.len())
+                .unwrap_or(0)
+            + signed_data.padding.len()
+            + authentication_data.len(),
+    );
+    input.push(signed_data.kind.signed_data_format());
+    input.push(signed_data.hash_algorithm_indicator);
+    match signed_data.kind {
+        RecoveredSignedDataKind::StaticApplicationData => {
+            input.extend_from_slice(
+                &signed_data
+                    .data_authentication_code
+                    .ok_or(KernelError::InvalidProfile)?,
+            );
+            if signed_data.icc_dynamic_data.is_some() {
+                return Err(KernelError::InvalidProfile);
+            }
+        }
+        RecoveredSignedDataKind::DynamicApplicationData => {
+            let dynamic_data = signed_data
+                .icc_dynamic_data
+                .as_ref()
+                .ok_or(KernelError::InvalidProfile)?;
+            let dynamic_data_len =
+                u8::try_from(dynamic_data.len()).map_err(|_| KernelError::LengthOverflow)?;
+            input.push(dynamic_data_len);
+            input.extend_from_slice(dynamic_data);
+            if signed_data.data_authentication_code.is_some() {
+                return Err(KernelError::InvalidProfile);
+            }
+        }
+    }
+    input.extend_from_slice(&signed_data.padding);
+    input.extend_from_slice(authentication_data);
+    Ok(input)
+}
+
+pub fn recovered_signed_application_data_hash(
+    signed_data: &RecoveredSignedApplicationData,
+    authentication_data: &[u8],
+) -> KernelResult<[u8; SHA1_DIGEST_BYTES]> {
+    if signed_data.hash_algorithm_indicator != EMV_SHA1_HASH_ALGORITHM_INDICATOR {
+        return Err(KernelError::InvalidProfile);
+    }
+    if signed_data
+        .padding
+        .iter()
+        .any(|byte| *byte != RECOVERED_PADDING_BYTE)
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+    let mut sha1 = Sha1::new();
+    let hash_input =
+        recovered_signed_application_data_hash_input(signed_data, authentication_data)?;
+    sha1.update(&hash_input);
+    Ok(sha1.finalize())
+}
+
+pub fn recovered_signed_application_data_hash_is_valid(
+    signed_data: &RecoveredSignedApplicationData,
+    authentication_data: &[u8],
+) -> KernelResult<bool> {
+    Ok(
+        recovered_signed_application_data_hash(signed_data, authentication_data)?
+            == signed_data.hash_result,
+    )
+}
+
+pub fn recover_and_verify_signed_application_data(
+    kind: RecoveredSignedDataKind,
+    signed_data_signature: &[u8],
+    signing_modulus: &[u8],
+    signing_exponent: &[u8],
+    authentication_data: &[u8],
+) -> KernelResult<RecoveredSignedApplicationData> {
+    let recovered =
+        recover_rsa_public_block(signed_data_signature, signing_modulus, signing_exponent)?;
+    let signed_data = parse_recovered_signed_application_data(kind, &recovered)?;
+    if !recovered_signed_application_data_hash_is_valid(&signed_data, authentication_data)? {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(signed_data)
 }
 
 pub fn recover_rsa_public_block(
@@ -1174,6 +1372,76 @@ mod tests {
                 &decode_hex("B1B2B3").unwrap(),
                 &[0x03],
                 &[],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn recovers_parses_and_verifies_signed_application_data() {
+        let static_modulus = decode_hex(
+            "B0428067C589A60DDEACFDDF558479E0DB7676E1FFCEBC3B3B55657D5C4E57EA\
+             B2D5592AAC2F9B767E0832C473200621",
+        )
+        .unwrap();
+        let static_signature = decode_hex(
+            "6D492A5DB481273D1127EF24D1059B5702AED358BB75A3AD004766DD75157DE9\
+             9A517A830517EB821D22CD55E0FF2AE4",
+        )
+        .unwrap();
+        let static_data = recover_and_verify_signed_application_data(
+            RecoveredSignedDataKind::StaticApplicationData,
+            &static_signature,
+            &static_modulus,
+            &decode_hex("010001").unwrap(),
+            &decode_hex("AABBCC").unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(static_data.data_authentication_code, Some([0x12, 0x34]));
+        assert_eq!(static_data.icc_dynamic_data, None);
+        assert!(static_data.padding.iter().all(|byte| *byte == 0xbb));
+        assert!(recovered_signed_application_data_hash_is_valid(
+            &static_data,
+            &decode_hex("AABBCC").unwrap()
+        )
+        .unwrap());
+
+        let dynamic_modulus = decode_hex(
+            "B706C0C6940601638E89144AEC5D8C229DA65024129CD31CE56F75F4FEC42EC\
+             9921572260452EC32BDC7672863BEAA53",
+        )
+        .unwrap();
+        let dynamic_signature = decode_hex(
+            "A826FBA6E8D7C0548D2E05551AFEEE0512C8AB02F33055BC389BECD93026B69F\
+             B5ED72B750BE23C27E932C963F820550",
+        )
+        .unwrap();
+        let dynamic_data = recover_and_verify_signed_application_data(
+            RecoveredSignedDataKind::DynamicApplicationData,
+            &dynamic_signature,
+            &dynamic_modulus,
+            &decode_hex("010001").unwrap(),
+            &decode_hex("11223344").unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(dynamic_data.data_authentication_code, None);
+        assert_eq!(dynamic_data.icc_dynamic_data, Some(vec![1, 2, 3, 4]));
+        assert!(recovered_signed_application_data_hash_is_valid(
+            &dynamic_data,
+            &decode_hex("11223344").unwrap()
+        )
+        .unwrap());
+        assert!(!recovered_signed_application_data_hash_is_valid(&dynamic_data, &[]).unwrap());
+        assert_eq!(
+            recover_and_verify_signed_application_data(
+                RecoveredSignedDataKind::StaticApplicationData,
+                &dynamic_signature,
+                &dynamic_modulus,
+                &decode_hex("010001").unwrap(),
+                &decode_hex("11223344").unwrap(),
             )
             .unwrap_err(),
             KernelError::InvalidProfile

@@ -40,11 +40,12 @@ use hyperion_emv::issuer::{
 use hyperion_emv::oda::{
     apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
     parse_recovered_public_key_certificate, recover_and_verify_public_key_certificate,
-    recover_rsa_public_block, recovered_public_key_certificate_hash_input,
-    recovered_public_key_certificate_hash_is_valid, select_capk, select_oda_method,
+    recover_and_verify_signed_application_data, recover_rsa_public_block,
+    recovered_public_key_certificate_hash_input, recovered_public_key_certificate_hash_is_valid,
+    recovered_signed_application_data_hash_is_valid, select_capk, select_oda_method,
     selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
     validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
-    OdaSelectionInput, RecoveredCertificateKind,
+    OdaSelectionInput, RecoveredCertificateKind, RecoveredSignedDataKind,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -2243,6 +2244,64 @@ fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() 
             &issuer_recovered,
             &hex("B1B2B3"),
             &hex("010001"),
+        )
+        .unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+}
+
+#[test]
+fn krn_oda_005_006_007_recovers_and_verifies_signed_application_data() {
+    let static_modulus = hex(
+        "B0428067C589A60DDEACFDDF558479E0DB7676E1FFCEBC3B3B55657D5C4E57EA\
+         B2D5592AAC2F9B767E0832C473200621",
+    );
+    let static_signature = hex(
+        "6D492A5DB481273D1127EF24D1059B5702AED358BB75A3AD004766DD75157DE9\
+         9A517A830517EB821D22CD55E0FF2AE4",
+    );
+    let static_data = recover_and_verify_signed_application_data(
+        RecoveredSignedDataKind::StaticApplicationData,
+        &static_signature,
+        &static_modulus,
+        &hex("010001"),
+        &hex("AABBCC"),
+    )
+    .unwrap();
+    assert_eq!(static_data.data_authentication_code, Some([0x12, 0x34]));
+    assert_eq!(static_data.icc_dynamic_data, None);
+    assert!(recovered_signed_application_data_hash_is_valid(&static_data, &hex("AABBCC")).unwrap());
+    assert!(!recovered_signed_application_data_hash_is_valid(&static_data, &[]).unwrap());
+
+    let dynamic_modulus = hex(
+        "B706C0C6940601638E89144AEC5D8C229DA65024129CD31CE56F75F4FEC42EC\
+         9921572260452EC32BDC7672863BEAA53",
+    );
+    let dynamic_signature = hex(
+        "A826FBA6E8D7C0548D2E05551AFEEE0512C8AB02F33055BC389BECD93026B69F\
+         B5ED72B750BE23C27E932C963F820550",
+    );
+    let dynamic_data = recover_and_verify_signed_application_data(
+        RecoveredSignedDataKind::DynamicApplicationData,
+        &dynamic_signature,
+        &dynamic_modulus,
+        &hex("010001"),
+        &hex("11223344"),
+    )
+    .unwrap();
+    assert_eq!(dynamic_data.icc_dynamic_data, Some(hex("01020304")));
+    assert_eq!(dynamic_data.data_authentication_code, None);
+    assert!(
+        recovered_signed_application_data_hash_is_valid(&dynamic_data, &hex("11223344")).unwrap()
+    );
+
+    assert_eq!(
+        recover_and_verify_signed_application_data(
+            RecoveredSignedDataKind::StaticApplicationData,
+            &dynamic_signature,
+            &dynamic_modulus,
+            &hex("010001"),
+            &hex("11223344"),
         )
         .unwrap_err(),
         hyperion_emv::KernelError::InvalidProfile
