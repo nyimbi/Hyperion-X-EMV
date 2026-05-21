@@ -84,3 +84,15 @@ decision record, while this file tracks work toward certification readiness.
   environment SELECT, READ RECORD validation, and traceability tests.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T22:50:33Z
+
+- Increment completed: promote phase-gated TSI evidence for KRN-TSI-002.
+- Code impact: added a regression covering ODA-not-performed, ODA-performed,
+  empty issuer-script, non-empty issuer-script, and TRM execution paths so TSI
+  bits are asserted only after their corresponding processing has run.
+- Evidence updated: KRN-TSI-002 RTM rows now cite the phase-gating regression,
+  the RTM guard, and existing runtime coverage for CVM/TRM, issuer
+  authentication, and issuer scripts.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

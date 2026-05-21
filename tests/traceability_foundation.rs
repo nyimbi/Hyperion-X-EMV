@@ -1726,6 +1726,24 @@ fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
 }
 
 #[test]
+fn rtm_promotes_tsi_phase_gating_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-TSI-002").expect("RTM row exists");
+        assert!(
+            !row.contains("pending implementation evidence"),
+            "KRN-TSI-002 should cite concrete phase-gated TSI evidence"
+        );
+        assert!(row.contains("tsi_bits_are_set_only_after_corresponding_processing"));
+        assert!(
+            row.contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac")
+        );
+        assert!(row.contains("issuer_authentication_failure_sets_tvr_and_reaches_scripts"));
+        assert!(row.contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final"));
+        assert!(row.contains("rtm_promotes_tsi_phase_gating_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_api_abi_and_callback_validation_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-API-001", "KRN-API-002"] {
@@ -4760,6 +4778,54 @@ fn trm_sets_floor_random_velocity_exception_and_tsi_bits() {
     assert!(result.force_online);
     assert_eq!(result.tvr.bytes(), [0x10, 0x00, 0x00, 0xf8, 0x00]);
     assert_eq!(result.tsi.bytes(), [0x08, 0x00]);
+}
+
+#[test]
+fn tsi_bits_are_set_only_after_corresponding_processing() {
+    let (tvr, tsi) = apply_oda_outcome(Tvr::cleared(), Tsi::cleared(), OdaOutcome::NotPerformed);
+    assert!(tvr.is_set(Tvr::B1_OFFLINE_DATA_AUTH_NOT_PERFORMED));
+    assert!(!tsi.is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+    assert_eq!(tsi.bytes(), [0x00, 0x00]);
+
+    let (_, tsi) = apply_oda_outcome(
+        Tvr::cleared(),
+        Tsi::cleared(),
+        OdaOutcome::Passed(OdaMethod::Sda),
+    );
+    assert_eq!(tsi.bytes(), [0x80, 0x00]);
+
+    let no_scripts = apply_script_results(
+        ScriptPhase::BeforeFinalGenerateAc,
+        &[],
+        Tvr::cleared(),
+        Tsi::cleared(),
+    );
+    assert_eq!(no_scripts.tsi.bytes(), [0x00, 0x00]);
+
+    let script = apply_script_results(
+        ScriptPhase::BeforeFinalGenerateAc,
+        &[ScriptCommandResult {
+            sw1: 0x90,
+            sw2: 0x00,
+        }],
+        Tvr::cleared(),
+        Tsi::cleared(),
+    );
+    assert_eq!(script.tsi.bytes(), [0x04, 0x00]);
+
+    let trm = evaluate_trm(
+        TrmInput {
+            amount_authorized: 100,
+            exception_file_match: false,
+            merchant_forced_online: false,
+            consecutive_offline_count: Some(0),
+            random_sample_basis_points: Some(9_999),
+            profile: TrmProfile::new(5_000, 0, None, None).unwrap(),
+        },
+        Tvr::cleared(),
+        Tsi::cleared(),
+    );
+    assert_eq!(trm.tsi.bytes(), [0x08, 0x00]);
 }
 
 #[test]
