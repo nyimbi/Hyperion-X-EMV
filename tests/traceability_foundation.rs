@@ -3192,6 +3192,47 @@ fn krn_cless_003_limits_are_signed_profile_inputs() {
 }
 
 #[test]
+fn rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in [
+            "KRN-CLESS-001",
+            "KRN-CLESS-002",
+            "KRN-CLESS-003",
+            "KRN-CLESS-004",
+            "KRN-CVM-004",
+        ] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete contactless evidence"
+            );
+        }
+
+        let entry = csv_row_for_requirement(csv, "KRN-CLESS-001").unwrap();
+        assert!(entry.contains("builds_exact_contact_pse_and_contactless_ppse_selects"));
+        assert!(entry.contains("krn_c8_001_002_003_uses_structured_contactless_only_outcomes"));
+
+        let outcome = csv_row_for_requirement(csv, "KRN-CLESS-002").unwrap();
+        assert!(outcome.contains("outcome_model_preserves_structured_records_for_callback"));
+        assert!(outcome.contains("ffi_emits_structured_contactless_outcome_callback"));
+
+        let limits = csv_row_for_requirement(csv, "KRN-CLESS-003").unwrap();
+        assert!(limits.contains("contactless_limits_are_profile_driven_and_deterministic"));
+        assert!(limits.contains("contactless_limit_processing_uses_profile_limits_and_ctq_cdcvm"));
+        assert!(limits.contains("krn_cless_003_limits_are_signed_profile_inputs"));
+
+        for id in ["KRN-CLESS-004", "KRN-CVM-004"] {
+            let cdcvm = csv_row_for_requirement(csv, id).unwrap();
+            assert!(cdcvm.contains("contactless_scheme_specific_cdcvm_is_profile_context_driven"));
+            assert!(
+                cdcvm.contains("contactless_limit_processing_uses_profile_limits_and_ctq_cdcvm")
+            );
+            assert!(cdcvm.contains("contactless_cdcvm_is_not_hardcoded_to_cvm_code_0x05"));
+        }
+    }
+}
+
+#[test]
 fn krn_cless_005_relay_resistance_is_profile_required_and_traced() {
     let profile = RelayResistanceProfile::new(
         hex("80CA9F7A00"),
