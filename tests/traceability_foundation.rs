@@ -68,6 +68,7 @@ use hyperion_emv::trace::{
     ReplayScript, TraceIdentity,
 };
 use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
+use std::collections::BTreeSet;
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering};
@@ -90,6 +91,21 @@ static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
 static IT_TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
 static IT_TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
+
+fn krn_ids_from_csv(csv: &str) -> BTreeSet<&str> {
+    csv.lines()
+        .skip(1)
+        .filter_map(|line| line.split_once(',').map(|(id, _)| id))
+        .filter(|id| id.starts_with("KRN-"))
+        .collect()
+}
+
+fn krn_ids_from_spec(spec: &str) -> BTreeSet<&str> {
+    spec.lines()
+        .filter_map(|line| line.split_once(',').map(|(id, _)| id))
+        .filter(|id| id.starts_with("KRN-"))
+        .collect()
+}
 
 struct CvmMethodScript {
     counter: AtomicUsize,
@@ -466,6 +482,28 @@ fn rtm_contains_foundation_requirements_under_test() {
         assert!(
             RTM.contains(krn_id),
             "missing traceability row for {krn_id}"
+        );
+    }
+}
+
+#[test]
+fn rtm_annexes_cover_the_same_requirement_ids_independently() {
+    let current_ids = krn_ids_from_csv(CURRENT_RTM);
+    let legacy_ids = krn_ids_from_csv(LEGACY_RTM);
+    assert_eq!(
+        legacy_ids, current_ids,
+        "RTM annexes must independently cover the same KRN requirement set"
+    );
+
+    let spec_ids = krn_ids_from_spec(include_str!("../docs/spec.md"));
+    for krn_id in spec_ids {
+        assert!(
+            current_ids.contains(krn_id),
+            "current RTM missing spec requirement {krn_id}"
+        );
+        assert!(
+            legacy_ids.contains(krn_id),
+            "legacy RTM missing spec requirement {krn_id}"
         );
     }
 }
