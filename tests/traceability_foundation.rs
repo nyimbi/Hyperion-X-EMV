@@ -37,9 +37,9 @@ use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
 };
 use hyperion_emv::oda::{
-    apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip,
-    validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
-    OdaSelectionInput,
+    apply_oda_outcome, capk_checksum, capk_checksum_is_valid, select_capk, select_oda_method,
+    selection_input_from_aip, validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod,
+    OdaOutcome, OdaSelection, OdaSelectionInput,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -2055,6 +2055,22 @@ fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
     .unwrap();
     assert_eq!(capk.rid, rid);
     assert_eq!(capk.key_index, 8);
+    assert!(capk_checksum_is_valid(capk));
+    assert_eq!(capk_checksum(capk).as_slice(), capk.checksum.as_slice());
+
+    let mut tampered = profiles.clone();
+    tampered.schemes[0].capks[0].checksum[19] ^= 0xff;
+    assert_eq!(
+        select_capk(
+            &tampered,
+            &rid,
+            8,
+            policy.evaluation_date,
+            CapkIntegrity::Verified,
+        )
+        .unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
 }
 
 #[test]
