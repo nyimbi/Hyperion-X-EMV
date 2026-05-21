@@ -26,9 +26,9 @@ use crate::issuer::{
     apply_script_results, parse_host_response, HostResponse, ScriptCommandResult, ScriptPhase,
 };
 use crate::oda::{
-    apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip,
-    validate_icc_public_key_inputs, validate_issuer_public_key_inputs, CapkIntegrity, OdaFailure,
-    OdaMethod, OdaOutcome, OdaSelection,
+    apply_oda_outcome, build_static_authentication_data, select_capk, select_oda_method,
+    selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
+    CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection, StaticAuthenticationRecord,
 };
 use crate::record::parse_read_record_body;
 use crate::restrictions::{
@@ -174,6 +174,7 @@ pub struct KrnContext {
     host_response: Option<HostResponse>,
     issuer_script_results: Vec<ScriptCommandResult>,
     card_data: DataStore,
+    offline_auth_records: Vec<StaticAuthenticationRecord>,
     last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -202,6 +203,7 @@ impl KrnContext {
             host_response: None,
             issuer_script_results: Vec::new(),
             card_data: DataStore::new(),
+            offline_auth_records: Vec::new(),
             last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
@@ -227,6 +229,7 @@ impl KrnContext {
         self.host_response = None;
         self.issuer_script_results.clear();
         self.card_data = DataStore::new();
+        self.offline_auth_records.clear();
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -1395,6 +1398,13 @@ fn read_application_records(
         match classify(ApduContext::ReadRecord, sw) {
             StatusAction::Success => {
                 parse_read_record_body(body, &mut ctx.card_data)?;
+                if locator.contributes_to_offline_auth {
+                    ctx.offline_auth_records.push(StaticAuthenticationRecord {
+                        sfi: locator.sfi,
+                        record: locator.record,
+                        body: body.to_vec(),
+                    });
+                }
                 apply_transition(ctx, FsmEvent::RecordRead)?;
                 if index + 1 == plan.len() {
                     apply_transition(ctx, FsmEvent::AflComplete)?;
@@ -1477,6 +1487,7 @@ fn run_offline_data_authentication(
                 &scheme.rid,
                 evaluation_date,
                 &ctx.card_data,
+                &ctx.offline_auth_records,
             )
         }
     };
@@ -1505,6 +1516,7 @@ fn oda_outcome_for_method(
     rid: &[u8; 5],
     evaluation_date: EmvDate,
     card_data: &DataStore,
+    offline_auth_records: &[StaticAuthenticationRecord],
 ) -> OdaOutcome {
     let Some(key_index) = card_data
         .get(&[0x8f])
@@ -1537,6 +1549,12 @@ fn oda_outcome_for_method(
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::IssuerCertificateRecovery,
+                };
+            }
+            if build_static_authentication_data(offline_auth_records, card_data).is_err() {
+                return OdaOutcome::Failed {
+                    method,
+                    failure: OdaFailure::StaticSignature,
                 };
             }
             if card_data.get(&[0x93]).is_none() {
@@ -2428,6 +2446,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         }
     };
     ctx.card_data = data;
+    ctx.offline_auth_records.clear();
     let gpo = match apdu::get_processing_options(&pdol, &ctx.card_data).and_then(|cmd| cmd.encode())
     {
         Ok(bytes) => bytes,
@@ -2886,6 +2905,32 @@ mod tests {
                 SCRIPT_SW1.load(Ordering::SeqCst),
                 SCRIPT_SW2.load(Ordering::SeqCst),
             ],
+        };
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_offline_auth_record_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        let count = TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = match count {
+            0 => vec![0x70, 0x03, 0x5a, 0x01, 0x99, 0x90, 0x00],
+            _ => vec![0x5f, 0x20, 0x00, 0x90, 0x00],
         };
         let capacity = *resp_len;
         *resp_len = response.len();
@@ -3442,6 +3487,54 @@ mod tests {
                 .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC));
             krn_context_free(ctx);
         }
+    }
+
+    #[test]
+    fn read_records_retains_ordered_offline_authentication_bodies() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S4;
+        ctx.state = KernelState::ReadRecords;
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_offline_auth_record_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        let afl = [
+            AflEntry {
+                sfi: 2,
+                first_record: 1,
+                last_record: 1,
+                offline_auth_record_count: 1,
+            },
+            AflEntry {
+                sfi: 11,
+                first_record: 1,
+                last_record: 1,
+                offline_auth_record_count: 1,
+            },
+        ];
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        assert_eq!(read_application_records(&mut ctx, runtime, &afl), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S5);
+        assert_eq!(ctx.state, KernelState::OfflineDataAuthentication);
+        assert_eq!(ctx.offline_auth_records.len(), 2);
+        assert_eq!(ctx.offline_auth_records[0].sfi, 2);
+        assert_eq!(
+            ctx.offline_auth_records[0].body,
+            vec![0x70, 0x03, 0x5a, 0x01, 0x99]
+        );
+        assert_eq!(ctx.offline_auth_records[1].sfi, 11);
+        assert_eq!(ctx.offline_auth_records[1].body, vec![0x5f, 0x20, 0x00]);
+
+        ctx.card_data.put(&[0x9f, 0x4a], &[0x82]).unwrap();
+        ctx.card_data.put(&[0x82], &[0x80, 0x00]).unwrap();
+        assert_eq!(
+            build_static_authentication_data(&ctx.offline_auth_records, &ctx.card_data).unwrap(),
+            vec![0x5a, 0x01, 0x99, 0x5f, 0x20, 0x00, 0x80, 0x00]
+        );
     }
 
     #[test]
