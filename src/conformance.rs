@@ -76,6 +76,7 @@ const GENERATED_FROM: &[&str] = &[
 const CERTIFICATION_CONDITIONS: &[&str] = &[
     "This artifact is not a substitute for licensed EMVCo, scheme, acquirer, PCI PTS, or laboratory documents.",
     "Licensed external standards prevail over docs/spec.md and annexes on conflict.",
+    "docs/oda_test_vectors.json is a structural fixture annex unless vector_class is CERTIFICATION.",
     "Production certification requires signed configuration, scheme profiles, CAPKs, traces, and lab approval.",
 ];
 

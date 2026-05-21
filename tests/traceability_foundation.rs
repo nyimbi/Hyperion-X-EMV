@@ -797,6 +797,7 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "SIGNED-SCHEME-PROFILES",
             "LAB-TEST-PLANS",
             "Licensed external standards prevail",
+            "docs/oda_test_vectors.json is a structural fixture annex unless vector_class is CERTIFICATION",
         ] {
             assert!(
                 json.contains(required),
@@ -1033,6 +1034,17 @@ fn scheme_profile_annex_declares_capk_checksum_derivation() {
 fn scheme_profile_annex_excludes_synthetic_c8_payment_profile() {
     assert!(!SCHEME_PROFILES.contains("A000000999"));
     assert!(!SCHEME_PROFILES.contains("A000000999C8"));
+}
+
+#[test]
+fn spec_status_matches_non_certification_oda_fixture_gate() {
+    let spec = include_str!("../docs/spec.md");
+
+    assert!(spec.contains("engineering baseline pending licensed review"));
+    assert!(spec.contains("vector_class = \"CERTIFICATION\""));
+    assert!(spec.contains("lab-supplied ODA vectors"));
+    assert!(!spec.contains("fully correct, complete, and certifiable"));
+    assert!(!spec.contains("ready for implementation and EMVCo Level"));
 }
 
 #[test]
@@ -3510,12 +3522,14 @@ fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
 
 #[test]
 fn krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode() {
+    assert!(ODA_VECTORS.contains("\"vector_class\": \"STRUCTURAL_FIXTURE\""));
+    validate_oda_vector_annex(ODA_VECTORS.as_bytes(), false).unwrap();
     assert_eq!(
         validate_oda_vector_annex(ODA_VECTORS.as_bytes(), true).unwrap_err(),
         hyperion_emv::KernelError::InvalidProfile
     );
 
-    let complete = br#"{"test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
+    let complete = br#"{"vector_class":"CERTIFICATION","test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
     validate_oda_vector_annex(complete, true).unwrap();
 }
 

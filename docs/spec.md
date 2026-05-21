@@ -152,37 +152,43 @@ Tag,Name,Format,Presence,Source
 
 ```json
 {
+  "schema_version": "1.0",
+  "vector_class": "STRUCTURAL_FIXTURE",
   "test_vectors": [
     {
       "id": "SDA_PASS",
-      "capk": { "rid": "A000000003", "key_index": 1, "modulus_hex": "D2E5F5B3A1...", "exponent_hex": "010001", "expiry": "2030-12-31", "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6" },
-      "issuer_certificate_hex": "6F2A...", 
-      "static_signature_hex": "ABCD1234...",
+      "capk": { "rid": "A000000003", "key_index": 1, "modulus_hex": "<complete-even-length-hex>", "exponent_hex": "010001" },
+      "issuer_certificate_hex": "<complete-even-length-hex>",
+      "static_signature_hex": "<complete-even-length-hex>",
       "expected_tvr": "0000000000",
       "expected_oda_result": "PASS"
     },
     {
       "id": "DDA_PASS",
-      "capk": { "rid": "A000000004", "key_index": 2, "modulus_hex": "AB3C4D5E6F...", "exponent_hex": "010001" },
-      "issuer_certificate_hex": "6F2A...",
-      "icc_certificate_hex": "7F49...",
-      "ddol_input_hex": "9F3704...",
-      "internal_auth_response_hex": "9F4C...",
+      "capk": { "rid": "A000000004", "key_index": 2, "modulus_hex": "<complete-even-length-hex>", "exponent_hex": "010001" },
+      "issuer_certificate_hex": "<complete-even-length-hex>",
+      "icc_certificate_hex": "<complete-even-length-hex>",
+      "ddol_input_hex": "<complete-even-length-hex>",
+      "internal_auth_response_hex": "<complete-even-length-hex>",
       "expected_tvr": "0000000000"
     },
     {
       "id": "CDA_PASS",
-      "capk": { "rid": "A000000003", "key_index": 1, "modulus_hex": "D2E5F5B3A1..." },
-      "issuer_certificate_hex": "6F2A...",
-      "icc_certificate_hex": "7F49...",
-      "generate_ac_response_hex": "9F2680...9F4C...",
+      "capk": { "rid": "A000000003", "key_index": 1, "modulus_hex": "<complete-even-length-hex>", "exponent_hex": "010001" },
+      "issuer_certificate_hex": "<complete-even-length-hex>",
+      "icc_certificate_hex": "<complete-even-length-hex>",
+      "generate_ac_response_hex": "<complete-even-length-hex>",
       "expected_tvr": "0000000000",
-      "cda_request_bit_used": 0x00  (profile-defined, not colliding)
+      "cda_request_bit_used": "profile-defined-non-colliding"
     }
   ]
 }
 ```
-(Note: Real hex values would be provided by the certification lab.)
+
+`STRUCTURAL_FIXTURE` vectors are executable parser and evidence-plumbing fixtures
+only. Certification loading SHALL require `vector_class = "CERTIFICATION"` and
+complete lab-supplied cryptographic vectors with no placeholder, dummy, or
+fictitious material.
 
 ### Annex D – Trace Log Format Specification
 
@@ -225,53 +231,11 @@ SE,any,–,S0,Reset after error,KRN_OK
 
 ### Annex F – Scheme Profiles (`scheme_profiles.cert.json`)
 
-```json
-{
-  "scheme_profiles": [
-    {
-      "scheme_name": "Visa",
-      "rid": "A000000003",
-      "kernel_type": "c8_contactless",
-      "contact_kernel_type": "legacy_visa",
-      "taa_fallback_when_offline_unable_online": "AAC",
-      "taa_no_match_default_when_online_capable": "ARQC",
-      "taa_no_match_default_when_offline_only": "AAC",
-      "aids": [
-        {
-          "aid": "A0000000031010",
-          "priority": 10,
-          "partial_selection": true,
-          "interfaces": ["contact", "contactless"],
-          "tac_online": "E0F8C80000",
-          "tac_denial": "0000000000",
-          "tac_default": "8000000000",
-          "iac_online": "0000000000",
-          "iac_denial": "0000000000",
-          "iac_default": "0000000000",
-          "floor_limit": 0,
-          "cvm_limit_contact": 5000,
-          "random_selection_percent": 5,
-          "contactless_transaction_limit": 5000,
-          "contactless_cvm_limit": 3000,
-          "cdcvm_supported": true,
-          "cda_supported": true,
-          "cda_request_encoding": "CDOL1_bit",  // profile-defined
-          "critical_issuer_script_ins": ["E2"]  // profile-defined
-        }
-      ],
-      "capks": [ ... ]  // real values
-    },
-    {
-      "scheme_name": "Mastercard",
-      "rid": "A000000004",
-      "taa_fallback_when_offline_unable_online": "AAC",
-      "taa_no_match_default_when_online_capable": "ARQC",
-      "taa_no_match_default_when_offline_only": "AAC",
-      "aids": [ ... ]
-    }
-  ]
-}
-```
+The executable certification profile is `docs/scheme_profiles.cert.json`.
+It SHALL be valid JSON, declare `profile_class = "CERTIFICATION"`, carry
+signed-profile provenance, and include complete AID, TAC/IAC, limit, CDA-control,
+issuer-script, CAPK, checksum, expiry, and CAPK-source fields for each bundled
+scheme profile.
 
 C-8 contactless behavior is certified through the contactless kernel approval
 package and lab-supplied profile data. The certification scheme profile annex
@@ -396,12 +360,12 @@ We confirm that the submitted kernel and accompanying documentation accurately r
 
 ## 7. Final Verdict
 
-This v6.0 specification together with its complete annexes is **fully correct, complete, and certifiable**. All prior blockers have been resolved:
+This v6.0 specification and annex set is an **engineering baseline pending licensed review and laboratory evidence**. The implemented controls resolve several prior blockers:
 
 - **CDA P1 encoding** no longer collides with cryptogram‑type bits.
 - **CVM codes** are taken from an EMV Book 3 validated table, with CDCVM handled via contactless profiles.
 - **TAA fallback** is deterministic with explicit configuration keys.
 - **ODA/CDA** details are fully specified.
-- **All annexes** are included and contain real (non‑placeholder) certification data.
+- **Certification data gates** reject structural ODA fixtures and require lab-supplied certification vectors before submission.
 
-**This specification is ready for implementation and EMVCo Level 2 certification.**
+**This specification is ready for continued implementation and EMVCo Level 2 pre-certification hardening, but final certification requires licensed review, signed profiles/CAPKs, lab-supplied ODA vectors, and laboratory approval.**

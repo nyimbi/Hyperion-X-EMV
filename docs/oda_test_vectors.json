@@ -1,6 +1,7 @@
 {
   "schema_version": "1.0",
-  "description": "ODA test vectors – placeholders for lab-supplied cryptographic data. All hex strings are of even length and syntactically correct.",
+  "vector_class": "STRUCTURAL_FIXTURE",
+  "description": "ODA test vectors – structural fixtures for parser and evidence plumbing. Lab-supplied SDA/DDA/CDA cryptographic vectors are required before certification use.",
   "test_vectors": [
     {
       "id": "SDA_PASS",
@@ -24,7 +25,7 @@
       "capk": {
         "rid": "A000000004",
         "key_index": 2,
-        "modulus_hex": "AB3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0",
+        "modulus_hex": "AB3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A00",
         "exponent_hex": "010001",
         "expiry": "2031-06-30",
         "checksum_hex": "E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2"

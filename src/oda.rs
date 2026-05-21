@@ -887,6 +887,12 @@ fn fixed_from_range<const N: usize>(recovered: &[u8], start: usize) -> KernelRes
 
 pub fn validate_oda_vector_annex(json: &[u8], certification: bool) -> KernelResult<()> {
     let text = core::str::from_utf8(json).map_err(|_| KernelError::ParseError)?;
+    match required_json_string_field(text, "vector_class")? {
+        "CERTIFICATION" => {}
+        "STRUCTURAL_FIXTURE" if !certification => {}
+        _ => return Err(KernelError::InvalidProfile),
+    }
+
     if certification && contains_forbidden_placeholder(text) {
         return Err(KernelError::InvalidProfile);
     }
@@ -950,6 +956,19 @@ fn quoted_value_start(after_key: &str) -> Option<usize> {
     let after_colon = &after_key[colon + 1..];
     let quote = after_colon.find('"')?;
     Some(colon + 1 + quote + 1)
+}
+
+fn required_json_string_field<'a>(text: &'a str, key: &str) -> KernelResult<&'a str> {
+    let pattern = format!("\"{key}\"");
+    let key_start = text.find(&pattern).ok_or(KernelError::InvalidProfile)?;
+    let value_start = quoted_value_start(&text[key_start + pattern.len()..])
+        .map(|offset| key_start + pattern.len() + offset)
+        .ok_or(KernelError::ParseError)?;
+    let value_end = text[value_start..]
+        .find('"')
+        .map(|offset| value_start + offset)
+        .ok_or(KernelError::ParseError)?;
+    Ok(&text[value_start..value_end])
 }
 
 fn contains_forbidden_placeholder(text: &str) -> bool {
@@ -1580,10 +1599,17 @@ mod tests {
 
     #[test]
     fn validates_complete_vector_syntax_and_rejects_placeholders() {
-        let complete = br#"{"test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
+        let complete = br#"{"vector_class":"CERTIFICATION","test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
         validate_oda_vector_annex(complete, true).unwrap();
 
-        let placeholder = br#"{"test_vectors":[{"issuer_certificate_hex":"...","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
+        let fixture = br#"{"vector_class":"STRUCTURAL_FIXTURE","test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
+        validate_oda_vector_annex(fixture, false).unwrap();
+        assert_eq!(
+            validate_oda_vector_annex(fixture, true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let placeholder = br#"{"vector_class":"CERTIFICATION","test_vectors":[{"issuer_certificate_hex":"...","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
         assert_eq!(
             validate_oda_vector_annex(placeholder, true).unwrap_err(),
             KernelError::InvalidProfile
