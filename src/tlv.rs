@@ -2,6 +2,7 @@ use crate::error::{KernelError, KernelResult};
 
 pub const MAX_TLV_DEPTH: usize = 8;
 pub const MAX_TLV_NODES: usize = 512;
+pub const MAX_TLV_VALUE_LENGTH: usize = 4096;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tlv<'a> {
@@ -142,6 +143,9 @@ fn read_length(input: &[u8], offset: &mut usize) -> KernelResult<usize> {
         *offset += 1;
         length = (length << 8) | byte as usize;
     }
+    if length > MAX_TLV_VALUE_LENGTH {
+        return Err(KernelError::LengthOverflow);
+    }
     Ok(length)
 }
 
@@ -165,6 +169,17 @@ mod tests {
     fn rejects_indefinite_lengths_for_fuzzability() {
         let err = parse_many(&[0x5a, 0x80, 0x00, 0x00]).unwrap_err();
         assert_eq!(err, KernelError::ParseError);
+    }
+
+    #[test]
+    fn rejects_overlong_tags_and_configured_value_length_overflow() {
+        let err = parse_many(&[0x9f, 0x81, 0x82, 0x83, 0x04, 0x00]).unwrap_err();
+        assert_eq!(err, KernelError::ParseError);
+
+        let mut value_overflow = vec![0x5a, 0x82, 0x10, 0x01];
+        value_overflow.resize(MAX_TLV_VALUE_LENGTH + 5, 0x00);
+        let err = parse_many(&value_overflow).unwrap_err();
+        assert_eq!(err, KernelError::LengthOverflow);
     }
 
     #[test]

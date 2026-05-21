@@ -1479,14 +1479,24 @@ fn rtm_promotes_signed_profile_and_capk_validation_evidence() {
 #[test]
 fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
-        for id in ["KRN-ANNEX-003", "KRN-TLV-002", "KRN-TLV-004", "KRN-TLV-005"] {
+        for id in [
+            "KRN-ANNEX-003",
+            "KRN-TLV-001",
+            "KRN-TLV-002",
+            "KRN-TLV-003",
+            "KRN-TLV-004",
+            "KRN-TLV-005",
+        ] {
             let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
             assert!(
                 !row.contains("pending implementation evidence"),
                 "{id} should cite concrete TLV catalogue evidence"
             );
-            assert!(row.contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers"));
         }
+
+        let parser = csv_row_for_requirement(csv, "KRN-TLV-001").unwrap();
+        assert!(parser.contains("parses_nested_fci_template"));
+        assert!(parser.contains("tlv_parser_is_deterministic_for_valid_and_truncated_inputs"));
 
         let annex = csv_row_for_requirement(csv, "KRN-ANNEX-003").unwrap();
         assert!(annex.contains("parses_and_builds_pdol_deterministically"));
@@ -1495,15 +1505,22 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         let dol = csv_row_for_requirement(csv, "KRN-TLV-002").unwrap();
         assert!(dol.contains("parses_and_builds_pdol_deterministically"));
         assert!(dol.contains("krn_dda_001_internal_authenticate_uses_ddol_values"));
+        assert!(dol.contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers"));
 
         let catalogue = csv_row_for_requirement(csv, "KRN-TLV-004").unwrap();
+        assert!(
+            catalogue.contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers")
+        );
         assert!(catalogue.contains("tlv_catalogue_contains_required_foundation_tags"));
 
-        let parser = csv_row_for_requirement(csv, "KRN-TLV-001").unwrap();
-        assert!(
-            parser.contains("pending implementation evidence"),
-            "KRN-TLV-001 remains pending until primitive/constructed parser coverage is promoted separately"
-        );
+        let scheme_defined = csv_row_for_requirement(csv, "KRN-TLV-005").unwrap();
+        assert!(scheme_defined
+            .contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers"));
+
+        let malformed = csv_row_for_requirement(csv, "KRN-TLV-003").unwrap();
+        assert!(malformed.contains("rejects_indefinite_lengths_for_fuzzability"));
+        assert!(malformed.contains("rejects_overlong_tags_and_configured_value_length_overflow"));
+        assert!(malformed.contains("rejects_truncated_values_without_panicking"));
     }
 }
 
