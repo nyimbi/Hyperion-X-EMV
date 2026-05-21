@@ -108,6 +108,55 @@
           }
         }
       ]
+    },
+    {
+      "scheme_name": "C-8",
+      "rid": "A000000999",
+      "kernel_type": "c8_contactless",
+      "contact_kernel_type": null,
+      "taa_fallback_when_offline_unable_online": "AAC",
+      "taa_no_match_default_when_online_capable": "ARQC",
+      "taa_no_match_default_when_offline_only": "TC",
+      "aids": [
+        {
+          "aid": "A000000999C8",
+          "priority": 100,
+          "partial_selection": true,
+          "interfaces": ["contactless"],
+          "tac_online": "E0F8C80000",
+          "tac_denial": "0000000000",
+          "tac_default": "8000000000",
+          "iac_online": "0000000000",
+          "iac_denial": "0000000000",
+          "iac_default": "0000000000",
+          "floor_limit": 0,
+          "cvm_limit_contact": 2000,
+          "random_selection_percent": 0,
+          "contactless_transaction_limit": 5000,
+          "contactless_cvm_limit": 2000,
+          "cdcvm_supported": true,
+          "cda_supported": false,
+          "critical_issuer_script_ins": ["E2"]
+        }
+      ],
+      "capks": [
+        {
+          "key_index": 1,
+          "modulus_hex": "C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+          "exponent_hex": "03",
+          "expiry": "2030-01-01",
+          "checksum_hex": "1AEC92BC162238EAF322655D2D0A3B965226F987",
+          "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
+          "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"],
+          "source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_capk_bundle",
+            "version": "2",
+            "retrieved": "2026-05-21",
+            "verification": "external_signature_required"
+          }
+        }
+      ]
     }
   ]
 }
