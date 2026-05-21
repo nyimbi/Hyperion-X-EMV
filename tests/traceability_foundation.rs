@@ -395,8 +395,17 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
             .random_selection_percent,
         5
     );
-    assert_eq!(profiles.schemes[0].capks[0].key_index, 1);
+    assert_eq!(profiles.schemes[0].capks[0].key_index, 8);
     assert!(profiles.schemes[0].capks[0].modulus.len() >= 64);
+    assert_eq!(
+        profiles.schemes[0].capks[0].checksum,
+        hex("20D213126955DE205ADC2FD2822BD22DE21CF9A8")
+    );
+    assert_eq!(profiles.schemes[1].capks[0].key_index, 5);
+    assert_eq!(
+        profiles.schemes[1].capks[0].checksum,
+        hex("EBFA0D5D06D8CE702DA3EAE890701D45E274C845")
+    );
     assert!(profiles
         .schemes
         .iter()
