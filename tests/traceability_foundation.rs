@@ -109,6 +109,22 @@ fn krn_ids_from_spec(spec: &str) -> BTreeSet<&str> {
         .collect()
 }
 
+fn krn_ids_from_markdown(markdown: &str) -> BTreeSet<String> {
+    markdown
+        .split(|ch: char| !(ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '-'))
+        .filter(|token| {
+            let mut parts = token.split('-');
+            matches!(parts.next(), Some("KRN"))
+                && parts.next().is_some_and(|part| !part.is_empty())
+                && parts.next().is_some_and(|part| {
+                    part.len() == 3 && part.chars().all(|ch| ch.is_ascii_digit())
+                })
+                && parts.next().is_none()
+        })
+        .map(str::to_string)
+        .collect()
+}
+
 struct CvmMethodScript {
     counter: AtomicUsize,
     cvm_code: u8,
@@ -577,6 +593,45 @@ fn spec_delegates_requirement_traceability_to_csv_annexes() {
     assert!(
         current_ids.contains("KRN-SCR-006"),
         "canonical RTM missing issuer script result reporting requirement"
+    );
+}
+
+#[test]
+fn corrected_spec_requirement_ids_are_all_in_rtm_annexes() {
+    let corrected_ids = krn_ids_from_markdown(CORRECTED_SPEC);
+    let current_ids = krn_ids_from_csv(CURRENT_RTM)
+        .into_iter()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+    let legacy_ids = krn_ids_from_csv(LEGACY_RTM)
+        .into_iter()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+
+    let missing_current = corrected_ids
+        .difference(&current_ids)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        missing_current.is_empty(),
+        "current RTM missing corrected-spec KRN IDs: {missing_current:?}"
+    );
+
+    let missing_legacy = corrected_ids
+        .difference(&legacy_ids)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        missing_legacy.is_empty(),
+        "legacy RTM missing corrected-spec KRN IDs: {missing_legacy:?}"
+    );
+
+    assert!(
+        CURRENT_RTM.contains("pending implementation evidence"),
+        "newly traced requirements should not overstate certification evidence"
+    );
+    assert!(
+        include_str!("../docs/spec.md").contains("engineering baseline pending licensed review")
     );
 }
 
