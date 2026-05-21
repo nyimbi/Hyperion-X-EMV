@@ -127,6 +127,14 @@ pub fn internal_authenticate(ddol_values: &[u8]) -> KernelResult<CommandApdu> {
     })
 }
 
+pub fn internal_authenticate_from_ddol(
+    ddol: &[DolEntry],
+    data: &DataStore,
+) -> KernelResult<CommandApdu> {
+    let ddol_values = build_dol(ddol, data)?;
+    internal_authenticate(&ddol_values)
+}
+
 pub fn external_authenticate(issuer_authentication_data: &[u8]) -> KernelResult<CommandApdu> {
     if issuer_authentication_data.is_empty() || issuer_authentication_data.len() > u8::MAX as usize
     {
@@ -226,6 +234,21 @@ mod tests {
         assert_eq!(
             get_response(0x1a).encode().unwrap(),
             [0x00, 0xc0, 0x00, 0x00, 0x1a]
+        );
+    }
+
+    #[test]
+    fn builds_internal_authenticate_from_ddol_values() {
+        let ddol = parse_dol(&[0x9f, 0x37, 0x04, 0x9f, 0x4c, 0x02]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x37], &[0x11, 0x22, 0x33, 0x44]).unwrap();
+
+        assert_eq!(
+            internal_authenticate_from_ddol(&ddol, &data)
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [0x00, 0x88, 0x00, 0x00, 0x06, 0x11, 0x22, 0x33, 0x44, 0x00, 0x00, 0x00]
         );
     }
 

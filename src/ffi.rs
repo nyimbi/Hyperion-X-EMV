@@ -550,6 +550,49 @@ pub unsafe extern "C" fn krn_build_generate_ac(
     ctx.set_result(result)
 }
 
+/// Builds an INTERNAL AUTHENTICATE APDU from caller-provided DDOL values.
+///
+/// The DDOL value construction is owned by the kernel DOL builder; this ABI
+/// entry point exposes the APDU boundary for Level 1/L3 harnesses that need to
+/// inspect or transmit a DDA command. The kernel does not perform issuer-key or
+/// ICC private-key operations.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. If
+/// `ddol_values_len` is non-zero, `ddol_values` must point to
+/// `ddol_values_len` readable bytes. `out_len` and `out` follow the same
+/// caller-owned buffer contract as `krn_build_select_environment`.
+#[no_mangle]
+pub unsafe extern "C" fn krn_build_internal_authenticate(
+    ctx: *mut KrnContext,
+    ddol_values: *const u8,
+    ddol_values_len: usize,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    if ddol_values.is_null() && ddol_values_len != 0 {
+        ctx.last_error = KernelError::InvalidArgument;
+        return KernelError::InvalidArgument.code();
+    }
+
+    let values = if ddol_values_len == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(ddol_values, ddol_values_len)
+    };
+    let result = apdu::internal_authenticate(values)
+        .and_then(|cmd| cmd.encode())
+        .and_then(|bytes| write_output(&bytes, out, out_len));
+    ctx.set_result(result)
+}
+
 /// Copies the encoded online authorization TLV package for Level 3 handoff.
 ///
 /// The package is available after the first GENERATE AC returns ARQC and the

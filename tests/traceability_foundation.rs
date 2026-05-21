@@ -1,6 +1,7 @@
 use hyperion_emv::afl::{parse_afl, read_record_commands, record_plan};
 use hyperion_emv::apdu::{
-    generate_ac, select_environment, CdaRequestControl, CryptogramRequest, Interface,
+    generate_ac, internal_authenticate_from_ddol, select_environment, CdaRequestControl,
+    CryptogramRequest, Interface,
 };
 use hyperion_emv::c8::{
     evaluate_contactless_limits, outcome_from_limit_decision, AlternateInterface,
@@ -16,13 +17,13 @@ use hyperion_emv::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface, PedPinHandle,
 };
-use hyperion_emv::dol::DataStore;
+use hyperion_emv::dol::{parse_dol, DataStore};
 use hyperion_emv::ffi::{
-    krn_apply_host_response, krn_build_select_environment, krn_context_free, krn_context_new,
-    krn_error_code_at, krn_error_description, krn_error_name, krn_error_table_len,
-    krn_get_conformance_statement_json, krn_get_final_outcome, krn_get_fsm_state,
-    krn_get_issuer_script_result, krn_get_issuer_script_result_count, krn_get_last_error,
-    krn_get_online_authorization_data, krn_get_profile_version, krn_init,
+    krn_apply_host_response, krn_build_internal_authenticate, krn_build_select_environment,
+    krn_context_free, krn_context_new, krn_error_code_at, krn_error_description, krn_error_name,
+    krn_error_table_len, krn_get_conformance_statement_json, krn_get_final_outcome,
+    krn_get_fsm_state, krn_get_issuer_script_result, krn_get_issuer_script_result_count,
+    krn_get_last_error, krn_get_online_authorization_data, krn_get_profile_version, krn_init,
     krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
     krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
     krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
@@ -527,6 +528,8 @@ fn corrected_spec_contains_oda_selection_capk_and_vector_requirements() {
         "KRN-ODA-007",
         "KRN-CAPK-001",
         "KRN-CAPK-002",
+        "KRN-DDA-001",
+        "KRN-DDA-002",
         "KRN-ODATV-001",
     ] {
         assert!(
@@ -1265,6 +1268,53 @@ fn krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates() {
         parse_gpo_response(&hex("770482021800")).unwrap_err(),
         hyperion_emv::KernelError::MissingMandatoryTag
     );
+}
+
+#[test]
+fn krn_dda_001_internal_authenticate_uses_ddol_values() {
+    let ddol = parse_dol(&[0x9f, 0x37, 0x04, 0x9f, 0x4c, 0x02]).unwrap();
+    let mut data = DataStore::new();
+    data.put(&[0x9f, 0x37], &[0x21, 0x22, 0x23, 0x24]).unwrap();
+
+    assert_eq!(
+        internal_authenticate_from_ddol(&ddol, &data)
+            .unwrap()
+            .encode()
+            .unwrap(),
+        [0x00, 0x88, 0x00, 0x00, 0x06, 0x21, 0x22, 0x23, 0x24, 0x00, 0x00, 0x00]
+    );
+
+    unsafe {
+        let ctx = krn_context_new();
+        let ddol_values = [0x21, 0x22, 0x23, 0x24, 0x00, 0x00];
+        let mut len = 0usize;
+        assert_eq!(
+            krn_build_internal_authenticate(
+                ctx,
+                ddol_values.as_ptr(),
+                ddol_values.len(),
+                ptr::null_mut(),
+                &mut len,
+            ),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut apdu = vec![0u8; len];
+        assert_eq!(
+            krn_build_internal_authenticate(
+                ctx,
+                ddol_values.as_ptr(),
+                ddol_values.len(),
+                apdu.as_mut_ptr(),
+                &mut len,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            apdu,
+            [0x00, 0x88, 0x00, 0x00, 0x06, 0x21, 0x22, 0x23, 0x24, 0x00, 0x00, 0x00]
+        );
+        krn_context_free(ctx);
+    }
 }
 
 #[test]
