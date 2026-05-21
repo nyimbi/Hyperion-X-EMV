@@ -374,6 +374,29 @@ pub fn recovered_public_key_certificate_hash_is_valid(
     )
 }
 
+pub fn recover_and_verify_public_key_certificate(
+    kind: RecoveredCertificateKind,
+    certificate_signature: &[u8],
+    signing_modulus: &[u8],
+    signing_exponent: &[u8],
+    public_key_remainder: &[u8],
+    public_key_exponent: &[u8],
+    authentication_data: &[u8],
+) -> KernelResult<RecoveredPublicKeyCertificate> {
+    let recovered =
+        recover_rsa_public_block(certificate_signature, signing_modulus, signing_exponent)?;
+    let certificate = parse_recovered_public_key_certificate(
+        kind,
+        &recovered,
+        public_key_remainder,
+        public_key_exponent,
+    )?;
+    if !recovered_public_key_certificate_hash_is_valid(&certificate, authentication_data)? {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(certificate)
+}
+
 pub fn recover_rsa_public_block(
     signature: &[u8],
     modulus: &[u8],
@@ -1093,6 +1116,64 @@ mod tests {
                 &decode_hex("08A7").unwrap(),
                 &decode_hex("0CA1").unwrap(),
                 &[0x02]
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn recovers_parses_and_verifies_public_key_certificates() {
+        let signing_modulus = decode_hex(
+            "E818096D661646F609946CBEEF726473A6639B5155FE6C9F5B5F941685E43A75\
+             E896E4F401899CF2862D673A0434B6D1",
+        )
+        .unwrap();
+        let certificate_signature = decode_hex(
+            "C4D65E662B5043337656B47BF6400C1DAFBC58EAEC6FD9E2B01EB308C2CA501\
+             C2538BD302ADE38BD73E2032AF4B3BB7C",
+        )
+        .unwrap();
+        let certificate = recover_and_verify_public_key_certificate(
+            RecoveredCertificateKind::Issuer,
+            &certificate_signature,
+            &signing_modulus,
+            &decode_hex("010001").unwrap(),
+            &decode_hex("B1B2B3").unwrap(),
+            &[0x03],
+            &[],
+        )
+        .unwrap();
+
+        assert_eq!(certificate.kind, RecoveredCertificateKind::Issuer);
+        assert_eq!(certificate.identifier, hex10("12345678901234567890"));
+        assert_eq!(
+            certificate.public_key,
+            decode_hex("A1A2A3A4A5A6B1B2B3").unwrap()
+        );
+
+        assert_eq!(
+            recover_and_verify_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &certificate_signature,
+                &signing_modulus,
+                &decode_hex("010001").unwrap(),
+                &decode_hex("B1B2B3").unwrap(),
+                &decode_hex("010001").unwrap(),
+                &[],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            recover_and_verify_public_key_certificate(
+                RecoveredCertificateKind::Icc,
+                &certificate_signature,
+                &signing_modulus,
+                &decode_hex("010001").unwrap(),
+                &decode_hex("B1B2B3").unwrap(),
+                &[0x03],
+                &[],
             )
             .unwrap_err(),
             KernelError::InvalidProfile

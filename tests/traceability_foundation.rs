@@ -39,11 +39,12 @@ use hyperion_emv::issuer::{
 };
 use hyperion_emv::oda::{
     apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
-    parse_recovered_public_key_certificate, recover_rsa_public_block,
-    recovered_public_key_certificate_hash_input, recovered_public_key_certificate_hash_is_valid,
-    select_capk, select_oda_method, selection_input_from_aip, validate_icc_public_key_inputs,
-    validate_issuer_public_key_inputs, validate_oda_vector_annex, CapkIntegrity, OdaFailure,
-    OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput, RecoveredCertificateKind,
+    parse_recovered_public_key_certificate, recover_and_verify_public_key_certificate,
+    recover_rsa_public_block, recovered_public_key_certificate_hash_input,
+    recovered_public_key_certificate_hash_is_valid, select_capk, select_oda_method,
+    selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
+    validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
+    OdaSelectionInput, RecoveredCertificateKind,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -2138,6 +2139,39 @@ fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() 
     assert_eq!(recovered_block, hex("0042"));
     assert_eq!(
         recover_rsa_public_block(&hex("0CA1"), &hex("0CA1"), &hex("010001")).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let signing_modulus = hex(
+        "E818096D661646F609946CBEEF726473A6639B5155FE6C9F5B5F941685E43A75\
+         E896E4F401899CF2862D673A0434B6D1",
+    );
+    let certificate_signature = hex(
+        "C4D65E662B5043337656B47BF6400C1DAFBC58EAEC6FD9E2B01EB308C2CA501\
+         C2538BD302ADE38BD73E2032AF4B3BB7C",
+    );
+    let verified_issuer = recover_and_verify_public_key_certificate(
+        RecoveredCertificateKind::Issuer,
+        &certificate_signature,
+        &signing_modulus,
+        &hex("010001"),
+        &hex("B1B2B3"),
+        &hex("03"),
+        &[],
+    )
+    .unwrap();
+    assert_eq!(verified_issuer.public_key, hex("A1A2A3A4A5A6B1B2B3"));
+    assert_eq!(
+        recover_and_verify_public_key_certificate(
+            RecoveredCertificateKind::Icc,
+            &certificate_signature,
+            &signing_modulus,
+            &hex("010001"),
+            &hex("B1B2B3"),
+            &hex("03"),
+            &[],
+        )
+        .unwrap_err(),
         hyperion_emv::KernelError::InvalidProfile
     );
 
