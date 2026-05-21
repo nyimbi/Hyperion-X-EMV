@@ -240,6 +240,15 @@ impl KrnContext {
     }
 }
 
+fn mark_reentrant_call(ctx: &mut KrnContext) -> bool {
+    if ctx.busy {
+        ctx.last_error = KernelError::Busy;
+        true
+    } else {
+        false
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn krn_context_new() -> *mut KrnContext {
     Box::into_raw(Box::new(KrnContext::new()))
@@ -304,6 +313,9 @@ pub unsafe extern "C" fn krn_reset(ctx: *mut KrnContext) -> i32 {
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     ctx.reset();
     KernelError::Ok.code()
 }
@@ -352,6 +364,9 @@ pub unsafe extern "C" fn krn_set_transaction_params(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     let result = read_transaction_params(params).and_then(|stored| {
         let transition = fsm::transition(FsmState::S0, FsmEvent::SetTransactionParams)?;
         ctx.txn_params = Some(stored);
@@ -397,6 +412,9 @@ pub unsafe extern "C" fn krn_load_profiles_verified(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     let result = readable_slice(json, json_len).and_then(|bytes| {
         let evaluation_date = EmvDate {
             year: eval_year,
@@ -436,8 +454,7 @@ pub unsafe extern "C" fn krn_run_transaction(ctx: *mut KrnContext) -> i32 {
     let Some(ctx) = ctx.as_mut() else {
         return KrnOutcome::Error.code();
     };
-    if ctx.busy {
-        ctx.last_error = KernelError::Busy;
+    if mark_reentrant_call(ctx) {
         return KrnOutcome::Error.code();
     }
     ctx.busy = true;
@@ -464,6 +481,9 @@ pub unsafe extern "C" fn krn_build_select_environment(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
 
     let interface = if contactless {
         Interface::Contactless
@@ -496,6 +516,9 @@ pub unsafe extern "C" fn krn_build_generate_ac(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     if cdol_values.is_null() && cdol_len != 0 {
         ctx.last_error = KernelError::InvalidArgument;
         return KernelError::InvalidArgument.code();
@@ -546,6 +569,9 @@ pub unsafe extern "C" fn krn_get_online_authorization_data(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     let result = ctx
         .online_authorization_data
         .as_deref()
@@ -576,6 +602,9 @@ pub unsafe extern "C" fn krn_apply_host_response(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     let result = readable_slice(host_response, host_response_len).and_then(|bytes| {
         if bytes.is_empty() || bytes.len() > MAX_HOST_RESPONSE_LEN {
             return Err(KernelError::LengthOverflow);
@@ -602,8 +631,7 @@ pub unsafe extern "C" fn krn_process_issuer_authentication(ctx: *mut KrnContext)
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
-    if ctx.busy {
-        ctx.last_error = KernelError::Busy;
+    if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
     let Some(runtime) = ctx.runtime else {
@@ -634,8 +662,7 @@ pub unsafe extern "C" fn krn_process_issuer_scripts(ctx: *mut KrnContext) -> i32
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
-    if ctx.busy {
-        ctx.last_error = KernelError::Busy;
+    if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
     let Some(runtime) = ctx.runtime else {
@@ -664,8 +691,7 @@ pub unsafe extern "C" fn krn_process_post_final_issuer_scripts(ctx: *mut KrnCont
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
-    if ctx.busy {
-        ctx.last_error = KernelError::Busy;
+    if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
     let Some(runtime) = ctx.runtime else {
@@ -694,8 +720,7 @@ pub unsafe extern "C" fn krn_process_final_generate_ac(ctx: *mut KrnContext) -> 
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
-    if ctx.busy {
-        ctx.last_error = KernelError::Busy;
+    if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
     let Some(runtime) = ctx.runtime else {
@@ -738,6 +763,9 @@ pub unsafe extern "C" fn krn_get_issuer_script_result(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     let result = (|| {
         if sw1.is_null() || sw2.is_null() {
             return Err(KernelError::InvalidArgument);
@@ -769,6 +797,9 @@ pub unsafe extern "C" fn krn_get_profile_version(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     let result = (|| {
         if profile_version.is_null() {
             return Err(KernelError::InvalidArgument);
@@ -812,6 +843,9 @@ pub unsafe extern "C" fn krn_set_contactless_outcome_callback(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     ctx.contactless_outcome_callback = callback;
     ctx.contactless_outcome_user_data = user_data;
     if let Some(runtime) = ctx.runtime.as_mut() {
@@ -850,6 +884,9 @@ pub unsafe extern "C" fn krn_emit_contactless_outcome(
     let Some(ctx) = ctx.as_mut() else {
         return KernelError::InvalidArgument.code();
     };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
     let args = RawContactlessOutcomeArgs {
         outcome_code,
         start_signal,
@@ -2797,6 +2834,90 @@ mod tests {
                 write_output(&[], ptr::null_mut(), ptr::null_mut()).unwrap_err(),
                 KernelError::InvalidArgument
             );
+        }
+    }
+
+    #[test]
+    fn krn_api_004_rejects_reentrant_mutating_entrypoints() {
+        unsafe {
+            let ctx = krn_context_new();
+            (*ctx).busy = true;
+
+            assert_eq!(krn_reset(ctx), KernelError::Busy.code());
+            assert_eq!(
+                krn_set_transaction_params(ctx, ptr::null()),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_load_profiles_verified(ctx, ptr::null(), 0, 1, 2, 26, 5, 21),
+                KernelError::Busy.code()
+            );
+            assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
+
+            let mut out_len = 0usize;
+            assert_eq!(
+                krn_build_select_environment(ctx, false, ptr::null_mut(), &mut out_len),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_build_generate_ac(ctx, 2, ptr::null(), 1, 0, ptr::null_mut(), &mut out_len),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_get_online_authorization_data(ctx, ptr::null_mut(), &mut out_len),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_apply_host_response(ctx, ptr::null(), 0),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_process_issuer_authentication(ctx),
+                KernelError::Busy.code()
+            );
+            assert_eq!(krn_process_issuer_scripts(ctx), KernelError::Busy.code());
+            assert_eq!(
+                krn_process_post_final_issuer_scripts(ctx),
+                KernelError::Busy.code()
+            );
+            assert_eq!(krn_process_final_generate_ac(ctx), KernelError::Busy.code());
+
+            let mut sw1 = 0u8;
+            let mut sw2 = 0u8;
+            assert_eq!(
+                krn_get_issuer_script_result(ctx, 0, &mut sw1, &mut sw2),
+                KernelError::Busy.code()
+            );
+            let mut version = 0u64;
+            assert_eq!(
+                krn_get_profile_version(ctx, &mut version),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_contactless_outcome_callback(ctx, None, ptr::null_mut()),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_emit_contactless_outcome(
+                    ctx,
+                    ContactlessOutcomeCode::OnlineRequired as u8,
+                    StartSignal::Start as u8,
+                    0,
+                    UiStatus::Processing as u8,
+                    0,
+                    0,
+                    ptr::null(),
+                    0,
+                    ptr::null(),
+                    0,
+                    AlternateInterface::None as u8,
+                ),
+                KernelError::Busy.code()
+            );
+
+            assert_eq!(krn_get_last_error(ctx), KernelError::Busy.code());
+            (*ctx).busy = false;
+            krn_context_free(ctx);
         }
     }
 
