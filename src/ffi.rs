@@ -18,7 +18,9 @@ use crate::gac::{
     OnlineAuthorizationPackage,
 };
 use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
-use crate::issuer::{apply_script_results, parse_host_response, HostResponse, ScriptCommandResult};
+use crate::issuer::{
+    apply_script_results, parse_host_response, HostResponse, ScriptCommandResult, ScriptPhase,
+};
 use crate::oda::{
     apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip, CapkIntegrity,
     OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
@@ -612,7 +614,8 @@ pub unsafe extern "C" fn krn_process_issuer_authentication(ctx: *mut KrnContext)
 /// Scripts are executed in host-provided order. SW1/SW2 for each command is
 /// retained in the context, non-critical failures update TVR/TSI according to
 /// the script template phase, and the FSM advances to second GENERATE AC when
-/// all scripts have been consumed.
+/// all Template 71 scripts have been consumed. Template 72 scripts are retained
+/// for `krn_process_post_final_issuer_scripts`.
 ///
 /// # Safety
 ///
@@ -634,6 +637,36 @@ pub unsafe extern "C" fn krn_process_issuer_scripts(ctx: *mut KrnContext) -> i32
 
     ctx.busy = true;
     let result = run_issuer_scripts(ctx, runtime).map(|()| 0usize);
+    ctx.busy = false;
+    ctx.set_result(result)
+}
+
+/// Executes Template 72 issuer scripts after second GENERATE AC.
+///
+/// This entry point runs only host-provided post-final-GAC issuer scripts and
+/// then advances the FSM to final completion. It does not alter the
+/// card-generated final cryptogram or the host authorization decision.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. Calls for the same
+/// context must be serialized by the integration layer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_process_post_final_issuer_scripts(ctx: *mut KrnContext) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if ctx.busy {
+        ctx.last_error = KernelError::Busy;
+        return KernelError::Busy.code();
+    }
+    let Some(runtime) = ctx.runtime else {
+        ctx.last_error = KernelError::InvalidArgument;
+        return KernelError::InvalidArgument.code();
+    };
+
+    ctx.busy = true;
+    let result = run_post_final_issuer_scripts(ctx, runtime).map(|()| 0usize);
     ctx.busy = false;
     ctx.set_result(result)
 }
@@ -1617,17 +1650,43 @@ fn run_issuer_authentication(
 }
 
 fn run_issuer_scripts(ctx: &mut KrnContext, runtime: RuntimeCallbacks) -> Result<(), KernelError> {
-    if ctx.fsm_state != FsmState::S13 {
+    run_issuer_scripts_for_phase(ctx, runtime, ScriptPhase::BeforeFinalGenerateAc)
+}
+
+fn run_post_final_issuer_scripts(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+) -> Result<(), KernelError> {
+    run_issuer_scripts_for_phase(ctx, runtime, ScriptPhase::AfterFinalGenerateAc)
+}
+
+fn run_issuer_scripts_for_phase(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+    phase: ScriptPhase,
+) -> Result<(), KernelError> {
+    let expected_state = match phase {
+        ScriptPhase::BeforeFinalGenerateAc => FsmState::S13,
+        ScriptPhase::AfterFinalGenerateAc => FsmState::S15,
+    };
+    if ctx.fsm_state != expected_state {
         return Err(KernelError::InvalidArgument);
     }
     let scripts = ctx
         .host_response
         .as_ref()
-        .map(|response| response.scripts.clone())
+        .map(|response| {
+            response
+                .scripts
+                .iter()
+                .filter(|script| script.phase == phase)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
         .ok_or(KernelError::InvalidArgument)?;
     if scripts.is_empty() {
         apply_transition(ctx, FsmEvent::NoMoreScripts)?;
-        ctx.state = KernelState::SecondGenerateAc;
+        ctx.state = state_after_script_phase(phase);
         return Ok(());
     }
 
@@ -1677,8 +1736,15 @@ fn run_issuer_scripts(ctx: &mut KrnContext, runtime: RuntimeCallbacks) -> Result
     }
 
     apply_transition(ctx, FsmEvent::NoMoreScripts)?;
-    ctx.state = KernelState::SecondGenerateAc;
+    ctx.state = state_after_script_phase(phase);
     Ok(())
+}
+
+fn state_after_script_phase(phase: ScriptPhase) -> KernelState {
+    match phase {
+        ScriptPhase::BeforeFinalGenerateAc => KernelState::SecondGenerateAc,
+        ScriptPhase::AfterFinalGenerateAc => KernelState::FinalOutcome,
+    }
 }
 
 fn run_final_generate_ac(
@@ -1691,7 +1757,7 @@ fn run_final_generate_ac(
     let Some(cdol2) = ctx.card_data.get(&[0x8d]).map(|value| value.to_vec()) else {
         apply_transition(ctx, FsmEvent::FinalGenerateAcSkipped)?;
         ctx.final_outcome = Some(KrnOutcome::ApprovedOnline);
-        ctx.state = KernelState::FinalOutcome;
+        ctx.state = KernelState::PostFinalIssuerScripts;
         return Ok(());
     };
     let host_arc = ctx
@@ -1757,7 +1823,7 @@ fn run_final_generate_ac(
         }
     }
     ctx.final_gac_response = Some(parsed);
-    ctx.state = KernelState::FinalOutcome;
+    ctx.state = KernelState::PostFinalIssuerScripts;
     Ok(())
 }
 
@@ -2669,7 +2735,8 @@ mod tests {
             assert!(crate::tlv::find_first(&auth_tlvs, &[0x9f, 0x37]).is_some());
             let host = [
                 0x8a, 0x02, b'0', b'0', 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-                0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+                0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa, 0x72, 0x08, 0x86, 0x06,
+                0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb,
             ];
             assert_eq!(
                 krn_apply_host_response(ctx, host.as_ptr(), host.len()),
@@ -2690,7 +2757,7 @@ mod tests {
                 ctx_ref.card_data.get(&[0x91]),
                 Some(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88][..])
             );
-            assert_eq!(ctx_ref.host_response.as_ref().unwrap().scripts.len(), 1);
+            assert_eq!(ctx_ref.host_response.as_ref().unwrap().scripts.len(), 2);
             assert!(ctx_ref.tsi.is_set(Tsi::ISSUER_AUTHENTICATION_PERFORMED));
             assert!(!ctx_ref.tvr.is_set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED));
             assert_eq!(
@@ -2725,7 +2792,7 @@ mod tests {
             assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
             assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 8);
             assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 23);
-            assert_eq!(krn_get_fsm_state(ctx), FsmState::S16.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S15.code());
             assert_eq!(
                 krn_get_final_outcome(ctx),
                 KrnOutcome::ApprovedOnline.code()
@@ -2742,6 +2809,27 @@ mod tests {
                 ctx_ref.card_data.get(&[0x9f, 0x36]),
                 Some(&[0x00, 0x0a][..])
             );
+            let _ = ctx_ref;
+            assert_eq!(
+                krn_process_post_final_issuer_scripts(ctx),
+                KernelError::Ok.code()
+            );
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xe2);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 9);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S16.code());
+            let ctx_ref = ctx.as_ref().unwrap();
+            assert_eq!(ctx_ref.issuer_script_results.len(), 2);
+            assert_eq!(
+                ctx_ref.issuer_script_results[1],
+                ScriptCommandResult {
+                    sw1: 0x90,
+                    sw2: 0x00
+                }
+            );
+            assert!(!ctx_ref
+                .tvr
+                .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC));
             krn_context_free(ctx);
         }
     }
@@ -2821,6 +2909,53 @@ mod tests {
         assert!(ctx
             .tvr
             .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC));
+        assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
+        assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
+        SCRIPT_SW1.store(0x90, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn post_final_issuer_script_failure_sets_after_final_tvr_and_completes() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S15;
+        ctx.state = KernelState::PostFinalIssuerScripts;
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: None,
+            scripts: vec![crate::issuer::IssuerScript {
+                phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
+                identifier: None,
+                commands: vec![vec![0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb]],
+            }],
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        SCRIPT_SW1.store(0x69, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x85, Ordering::SeqCst);
+        assert_eq!(run_post_final_issuer_scripts(&mut ctx, runtime), Ok(()));
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xe2);
+        assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(ctx.fsm_state, FsmState::S16);
+        assert_eq!(ctx.state, KernelState::FinalOutcome);
+        assert_eq!(
+            ctx.issuer_script_results,
+            vec![ScriptCommandResult {
+                sw1: 0x69,
+                sw2: 0x85
+            }]
+        );
+        assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
+        assert!(ctx
+            .tvr
+            .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC));
         assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
         assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
         SCRIPT_SW1.store(0x90, Ordering::SeqCst);

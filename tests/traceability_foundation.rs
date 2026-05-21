@@ -19,8 +19,8 @@ use hyperion_emv::ffi::{
     krn_get_fsm_state, krn_get_issuer_script_result, krn_get_issuer_script_result_count,
     krn_get_last_error, krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
     krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
-    krn_reset, krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime,
-    KrnTxnParams, KRN_ABI_VERSION,
+    krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
+    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -346,6 +346,21 @@ fn state_machine_annex_contains_restrictions_and_trm_rows() {
         "TRM force online",
         "EXTERNAL AUTHENTICATE returns 9000",
         "Set issuer-authentication TSI and TVR failure bit",
+    ] {
+        assert!(
+            state_machine.contains(fragment),
+            "state machine missing {fragment}"
+        );
+    }
+}
+
+#[test]
+fn state_machine_annex_contains_post_final_script_rows() {
+    let state_machine = include_str!("../docs/state_machine.csv");
+    for fragment in [
+        "Process post-final issuer scripts before online approve",
+        "Template 72",
+        "Log post-final script failure, continue (non-critical)",
     ] {
         assert!(
             state_machine.contains(fragment),
@@ -754,7 +769,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             tlv::find_first(&auth_tlvs, &[0x82]),
             Some(&[0x80, 0x00][..])
         );
-        let host = hex("8A023030910811223344556677887108860600DA000001AA");
+        let host = hex("8A023030910811223344556677887108860600DA000001AA7208860680E2000001BB");
         assert_eq!(
             krn_apply_host_response(ctx, host.as_ptr(), host.len()),
             hyperion_emv::KernelError::Ok.code()
@@ -791,7 +806,25 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
         assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 23);
         assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 8);
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S15.code());
+        assert_eq!(
+            krn_get_final_outcome(ctx),
+            KrnOutcome::ApprovedOnline as i32
+        );
+        assert_eq!(
+            krn_process_post_final_issuer_scripts(ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xe2);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 9);
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S16.code());
+        assert_eq!(krn_get_issuer_script_result_count(ctx), 2);
+        assert_eq!(
+            krn_get_issuer_script_result(ctx, 1, &mut sw1, &mut sw2),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!((sw1, sw2), (0x90, 0x00));
         assert_eq!(
             krn_get_final_outcome(ctx),
             KrnOutcome::ApprovedOnline as i32

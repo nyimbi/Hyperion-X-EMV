@@ -23,6 +23,8 @@ pub enum FsmState {
     S13,
     S13Script,
     S14,
+    S15,
+    S15Script,
     S16,
     Se,
 }
@@ -51,7 +53,9 @@ impl FsmState {
             FsmState::S13 => 18,
             FsmState::S13Script => 19,
             FsmState::S14 => 20,
+            FsmState::S15 => 21,
             FsmState::S16 => 22,
+            FsmState::S15Script => 23,
             FsmState::Se => 255,
         }
     }
@@ -143,6 +147,7 @@ pub enum FsmAction {
     ProcessArpc,
     ProcessIssuerScripts,
     RequestFinalGenerateAc,
+    ProcessPostFinalIssuerScripts,
     FinalOutcome,
     Reset,
     Error,
@@ -325,15 +330,13 @@ pub fn transition(state: FsmState, event: FsmEvent) -> KernelResult<Transition> 
             FsmAction::RequestFinalGenerateAc,
             KernelError::Ok,
         ),
-        (FsmState::S14, FsmEvent::Gac2Tc) => {
-            (FsmState::S16, FsmAction::FinalOutcome, KernelError::Ok)
-        }
-        (FsmState::S14, FsmEvent::Gac2Aac) => {
-            (FsmState::S16, FsmAction::FinalOutcome, KernelError::Ok)
-        }
-        (FsmState::S14, FsmEvent::FinalGenerateAcSkipped) => {
-            (FsmState::S16, FsmAction::FinalOutcome, KernelError::Ok)
-        }
+        (FsmState::S14, FsmEvent::Gac2Tc)
+        | (FsmState::S14, FsmEvent::Gac2Aac)
+        | (FsmState::S14, FsmEvent::FinalGenerateAcSkipped) => (
+            FsmState::S15,
+            FsmAction::ProcessPostFinalIssuerScripts,
+            KernelError::Ok,
+        ),
         (FsmState::S14, FsmEvent::Gac2Failed) => {
             (FsmState::Se, FsmAction::Error, KernelError::CardRemoved)
         }
@@ -344,6 +347,23 @@ pub fn transition(state: FsmState, event: FsmEvent) -> KernelResult<Transition> 
             KernelError::Ok,
         ),
         (FsmState::S13Script, FsmEvent::ScriptCriticalFailure) => {
+            (FsmState::Se, FsmAction::Error, KernelError::ScriptFailed)
+        }
+        (FsmState::S15, FsmEvent::ScriptAvailable) => (
+            FsmState::S15Script,
+            FsmAction::ProcessPostFinalIssuerScripts,
+            KernelError::Ok,
+        ),
+        (FsmState::S15, FsmEvent::NoMoreScripts) => {
+            (FsmState::S16, FsmAction::FinalOutcome, KernelError::Ok)
+        }
+        (FsmState::S15Script, FsmEvent::ScriptSuccess)
+        | (FsmState::S15Script, FsmEvent::ScriptNonCriticalFailure) => (
+            FsmState::S15,
+            FsmAction::ProcessPostFinalIssuerScripts,
+            KernelError::Ok,
+        ),
+        (FsmState::S15Script, FsmEvent::ScriptCriticalFailure) => {
             (FsmState::Se, FsmAction::Error, KernelError::ScriptFailed)
         }
         (FsmState::S16, FsmEvent::FinalOutcomeComplete) | (FsmState::Se, FsmEvent::ErrorReset) => {
@@ -444,6 +464,8 @@ fn parse_state(value: &str) -> KernelResult<FsmState> {
         "S13" => Ok(FsmState::S13),
         "S13_SCRIPT" => Ok(FsmState::S13Script),
         "S14" => Ok(FsmState::S14),
+        "S15" => Ok(FsmState::S15),
+        "S15_SCRIPT" => Ok(FsmState::S15Script),
         "S16" => Ok(FsmState::S16),
         "SE" => Ok(FsmState::Se),
         _ => Err(KernelError::ParseError),
@@ -535,10 +557,16 @@ mod tests {
         );
         assert_eq!(
             transition(FsmState::S14, FsmEvent::Gac2Tc).unwrap().to,
-            FsmState::S16
+            FsmState::S15
         );
         assert_eq!(
             transition(FsmState::S14, FsmEvent::Gac2Aac).unwrap().to,
+            FsmState::S15
+        );
+        assert_eq!(
+            transition(FsmState::S15, FsmEvent::NoMoreScripts)
+                .unwrap()
+                .to,
             FsmState::S16
         );
     }

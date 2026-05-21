@@ -17,6 +17,7 @@ pub enum KernelState {
     IssuerAuthentication,
     IssuerScripts,
     SecondGenerateAc,
+    PostFinalIssuerScripts,
     FinalOutcome,
     Error,
 }
