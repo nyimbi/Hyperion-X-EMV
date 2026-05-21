@@ -1068,6 +1068,12 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
         Some(CdaRequestEncoding::InCdolData)
     );
     assert!(visa_aid.cda_allowed_by_profile());
+    let mastercard_aid = &profiles.schemes[1].aids[0];
+    assert_eq!(
+        mastercard_aid.cda_request_encoding,
+        Some(CdaRequestEncoding::P1LowBits(0x10))
+    );
+    assert!(mastercard_aid.cda_allowed_by_profile());
 
     let missing_encoding = br#"{
       "profile_class": "CERTIFICATION",

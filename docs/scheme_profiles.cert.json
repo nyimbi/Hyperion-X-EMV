@@ -86,7 +86,7 @@
           "contactless_cvm_limit": 5000,
           "cdcvm_supported": true,
           "cda_supported": true,
-          "cda_request_encoding": "CDOL1_bit",
+          "cda_request_encoding": "P1_low_bits_0x10",
           "critical_issuer_script_ins": ["E2"]
         }
       ],
