@@ -2928,7 +2928,7 @@ fn transmit_apdu(
         )
     };
     if status != KernelError::Ok.code() {
-        return Err(KernelError::CardRemoved);
+        return Err(KernelError::from_code(status).unwrap_or(KernelError::InternalError));
     }
     if response_len > response.len() {
         return Err(KernelError::LengthOverflow);

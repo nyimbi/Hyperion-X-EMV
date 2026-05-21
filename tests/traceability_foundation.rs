@@ -117,6 +117,30 @@ unsafe extern "C" fn it_rng_test_transmit_apdu(
     write_scripted_response(command, count, resp, resp_len)
 }
 
+unsafe extern "C" fn it_host_timeout_transmit_apdu(
+    _cmd: *const u8,
+    _cmd_len: usize,
+    _resp: *mut u8,
+    _resp_len: *mut usize,
+    timeout_ms: i32,
+    _user_data: *mut c_void,
+) -> i32 {
+    IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    hyperion_emv::KernelError::HostTimeout.code()
+}
+
+unsafe extern "C" fn it_unknown_error_transmit_apdu(
+    _cmd: *const u8,
+    _cmd_len: usize,
+    _resp: *mut u8,
+    _resp_len: *mut usize,
+    timeout_ms: i32,
+    _user_data: *mut c_void,
+) -> i32 {
+    IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    12_345
+}
+
 unsafe fn write_scripted_response(
     command: &[u8],
     count: usize,
@@ -211,6 +235,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SEC-004",
         "KRN-API-005",
         "KRN-API-006",
+        "KRN-API-007",
         "KRN-LOG-001",
         "KRN-C8-001",
         "KRN-C8-002",
@@ -247,6 +272,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-RNG-001",
         "KRN-RNG-002",
         "KRN-ERR-001",
+        "KRN-ERR-002",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -1498,6 +1524,108 @@ fn krn_api_005_caller_owned_output_buffers_are_probeable_and_not_partially_writt
         );
 
         krn_context_free(ctx);
+    }
+}
+
+#[test]
+fn krn_api_007_err_002_preserves_callback_error_codes_fail_closed() {
+    unsafe {
+        let mut ctx = ptr::null_mut();
+        let runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_host_timeout_transmit_apdu),
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &runtime, &mut ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let params = KrnTxnParams {
+            struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_500,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 0,
+        };
+        assert_eq!(
+            krn_set_transaction_params(ctx, &params),
+            hyperion_emv::KernelError::Ok.code()
+        );
+
+        assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::HostTimeout.code()
+        );
+        assert_eq!(
+            IT_TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
+            hyperion_emv::ffi::APDU_TRANSMIT_TIMEOUT_MS
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::Se.code());
+
+        krn_context_free(ctx);
+
+        let mut unknown_ctx = ptr::null_mut();
+        let unknown_runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_unknown_error_transmit_apdu),
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &unknown_runtime, &mut unknown_ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_load_profiles_verified(
+                unknown_ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_set_transaction_params(unknown_ctx, &params),
+            hyperion_emv::KernelError::Ok.code()
+        );
+
+        assert_eq!(krn_run_transaction(unknown_ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(unknown_ctx),
+            hyperion_emv::KernelError::InternalError.code()
+        );
+        assert_eq!(krn_get_fsm_state(unknown_ctx), FsmState::Se.code());
+
+        krn_context_free(unknown_ctx);
     }
 }
 

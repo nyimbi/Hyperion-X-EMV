@@ -57,11 +57,13 @@ KRN-C8-003,C-8 not contact kernel,UT-C8-003,IT-C8-003,N/A,Interface test
 KRN-CFG-004,Reject example-only profiles from certification or production loading,UT-CFG-004,IT-CFG-004,N/A,Signed profile class validation
 KRN-API-004,Non-re-entrant,UT-API-001,IT-API-001,N/A,Concurrency test
 KRN-API-005,Buffer ownership,UT-API-002,IT-API-002,N/A,Memory analysis
-KRN-API-006,Required API functions,UT-API-003,IT-API-003,N/A,API coverage
+KRN-API-006,Bounded callback timeouts,UT-API-003,IT-API-003,N/A,Callback timeout trace
+KRN-API-007,Stable error codes retrievable after terminal outcome,UT-API-004,IT-API-004,N/A,Last-error ABI query
 KRN-LOG-001,Formal log policy,UT-LOG-001,IT-LOG-001,PCI-PTS-LOG-003,Log config audit
 KRN-RNG-001,Obtain unpredictable numbers from approved platform RNG callback,UT-RNG-001,IT-RNG-001,N/A,RNG callback trace
 KRN-RNG-002,Reject all-zero or repeated unpredictable numbers,UT-RNG-002,IT-RNG-002,N/A,RNG failure injection
 KRN-ERR-001,Define every error code in a stable ABI table,UT-ERR-001,IT-ERR-001,N/A,ABI error table query
+KRN-ERR-002,Fail closed for unknown or unpermitted callback failures,UT-ERR-002,IT-ERR-002,N/A,Callback failure injection
 KRN-DPL-001,Support signed configuration updates,UT-DPL-001,IT-DPL-001,N/A,Verified profile update trace
 KRN-DPL-002,Reject rollback or replayed configuration versions,UT-DPL-002,IT-DPL-002,N/A,Monotonic version check
 KRN-DPL-003,Apply configuration updates atomically,UT-DPL-003,IT-DPL-003,N/A,Failed update preservation test
