@@ -17,10 +17,11 @@ use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
     krn_apply_host_response, krn_context_free, krn_context_new, krn_get_final_outcome,
     krn_get_fsm_state, krn_get_issuer_script_result, krn_get_issuer_script_result_count,
-    krn_get_last_error, krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
-    krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
-    krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
-    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
+    krn_get_last_error, krn_get_online_authorization_data, krn_get_profile_version, krn_init,
+    krn_load_profiles_verified, krn_process_final_generate_ac, krn_process_issuer_authentication,
+    krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
+    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
+    KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -47,7 +48,7 @@ use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalActio
 use hyperion_emv::tlv;
 use hyperion_emv::trace::{
     mask_apdu_response, mask_tlv_value, ApduTraceContext, LogPolicy, MaskedValue, ReplayExchange,
-    ReplayScript,
+    ReplayScript, TraceIdentity,
 };
 use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
 use std::ffi::c_void;
@@ -163,6 +164,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SCR-004",
         "KRN-SCR-005",
         "KRN-SCR-006",
+        "KRN-DPL-004",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -294,6 +296,7 @@ fn corrected_spec_contains_config_profile_and_capk_requirements() {
         "KRN-PROFILE-002",
         "KRN-CAPK-001",
         "KRN-CAPK-002",
+        "KRN-DPL-004",
     ] {
         assert!(
             CORRECTED_SPEC.contains(krn_id),
@@ -727,6 +730,12 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             ),
             hyperion_emv::KernelError::Ok.code()
         );
+        let mut profile_version = 0u64;
+        assert_eq!(
+            krn_get_profile_version(ctx, &mut profile_version),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(profile_version, 2);
 
         let params = KrnTxnParams {
             struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
@@ -898,7 +907,12 @@ fn deterministic_replay_matches_script_order_and_emits_masked_jsonl() {
         hex("700A5A08123456789012345F9000")
     );
 
-    let jsonl = script.masked_jsonl(LogPolicy::production()).unwrap();
+    let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
+    let jsonl = script
+        .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
+        .unwrap();
+    assert!(jsonl.contains("\"type\":\"trace-identity\""));
+    assert!(jsonl.contains("\"profile_version\":2"));
     assert!(jsonl.contains("***********2345"));
     assert!(!jsonl.contains("123456789012345"));
 

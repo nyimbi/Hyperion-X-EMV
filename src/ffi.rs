@@ -749,6 +749,33 @@ pub unsafe extern "C" fn krn_get_issuer_script_result(
     ctx.set_result(result)
 }
 
+/// Copies the loaded signed profile version for log/build provenance.
+///
+/// # Safety
+///
+/// `ctx` must be a valid context pointer. `profile_version` must point to a
+/// writable `u64`.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_profile_version(
+    ctx: *mut KrnContext,
+    profile_version: *mut u64,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    let result = (|| {
+        if profile_version.is_null() {
+            return Err(KernelError::InvalidArgument);
+        }
+        let profiles = ctx.profiles.as_ref().ok_or(KernelError::InvalidProfile)?;
+        unsafe {
+            *profile_version = profiles.version;
+        }
+        Ok(0usize)
+    })();
+    ctx.set_result(result)
+}
+
 /// Returns the last final transaction outcome recorded by the kernel.
 ///
 /// # Safety
@@ -2653,6 +2680,41 @@ mod tests {
                 ContactlessOutcomeCode::OnlineRequired as u8
             );
             assert_eq!(CALLBACK_DATA_RECORD_LEN.load(Ordering::SeqCst), 4);
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_reports_loaded_profile_version_for_log_identity() {
+        unsafe {
+            let ctx = krn_context_new();
+            let mut version = 0u64;
+            assert_eq!(
+                krn_get_profile_version(ctx, &mut version),
+                KernelError::InvalidProfile.code()
+            );
+            assert_eq!(
+                krn_load_profiles_verified(
+                    ctx,
+                    include_bytes!("../docs/scheme_profiles.cert.json").as_ptr(),
+                    include_bytes!("../docs/scheme_profiles.cert.json").len(),
+                    1,
+                    7,
+                    26,
+                    5,
+                    21,
+                ),
+                KernelError::Ok.code()
+            );
+            assert_eq!(
+                krn_get_profile_version(ctx, &mut version),
+                KernelError::Ok.code()
+            );
+            assert_eq!(version, 7);
+            assert_eq!(
+                krn_get_profile_version(ctx, ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
             krn_context_free(ctx);
         }
     }

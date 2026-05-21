@@ -117,6 +117,25 @@ pub struct ReplayExchange {
     pub context: ApduTraceContext,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TraceIdentity {
+    pub kernel_name: &'static str,
+    pub kernel_version: &'static str,
+    pub abi_version: u32,
+    pub profile_version: u64,
+}
+
+impl TraceIdentity {
+    pub fn current(abi_version: u32, profile_version: u64) -> Self {
+        Self {
+            kernel_name: env!("CARGO_PKG_NAME"),
+            kernel_version: env!("CARGO_PKG_VERSION"),
+            abi_version,
+            profile_version,
+        }
+    }
+}
+
 impl ReplayExchange {
     pub fn new(
         command: &[u8],
@@ -174,7 +193,27 @@ impl ReplayScript {
     }
 
     pub fn masked_jsonl(&self, policy: LogPolicy) -> KernelResult<String> {
+        self.masked_jsonl_with_identity(policy, None)
+    }
+
+    pub fn masked_jsonl_with_trace_identity(
+        &self,
+        policy: LogPolicy,
+        identity: &TraceIdentity,
+    ) -> KernelResult<String> {
+        self.masked_jsonl_with_identity(policy, Some(identity))
+    }
+
+    fn masked_jsonl_with_identity(
+        &self,
+        policy: LogPolicy,
+        identity: Option<&TraceIdentity>,
+    ) -> KernelResult<String> {
         let mut out = String::new();
+        if let Some(identity) = identity {
+            push_trace_identity_json(&mut out, identity, policy);
+            out.push('\n');
+        }
         for (idx, step) in self.steps.iter().enumerate() {
             let command = mask_apdu_command((idx as u64) * 2, &step.command, policy)?;
             command.push_json(&mut out);
@@ -395,6 +434,40 @@ fn push_gac_fields(
     }
 }
 
+fn push_trace_identity_json(out: &mut String, identity: &TraceIdentity, policy: LogPolicy) {
+    out.push('{');
+    push_json_str(out, "type", "trace-identity");
+    out.push(',');
+    push_json_str(out, "kernel_name", identity.kernel_name);
+    out.push(',');
+    push_json_str(out, "kernel_version", identity.kernel_version);
+    out.push(',');
+    push_json_number(out, "abi_version", identity.abi_version as u64);
+    out.push(',');
+    push_json_number(out, "profile_version", identity.profile_version);
+    out.push(',');
+    push_json_str(
+        out,
+        "log_build_mode",
+        log_build_mode_name(policy.build_mode),
+    );
+    out.push(',');
+    push_json_bool(
+        out,
+        "support_authorization_verified",
+        policy.support_verified(),
+    );
+    out.push('}');
+}
+
+fn log_build_mode_name(mode: LogBuildMode) -> &'static str {
+    match mode {
+        LogBuildMode::Production => "production",
+        LogBuildMode::Certification => "certification",
+        LogBuildMode::Development => "development",
+    }
+}
+
 fn validate_replay_apdu(bytes: &[u8]) -> KernelResult<()> {
     if bytes.len() > MAX_REPLAY_APDU_BYTES {
         return Err(KernelError::LengthOverflow);
@@ -477,6 +550,11 @@ fn push_json_number(out: &mut String, key: &str, value: u64) {
 
 fn push_json_hex_byte(out: &mut String, key: &str, value: u8) {
     push_json_str(out, key, &to_hex(&[value]));
+}
+
+fn push_json_bool(out: &mut String, key: &str, value: bool) {
+    push_json_key(out, key);
+    out.push_str(if value { "true" } else { "false" });
 }
 
 fn push_json_str(out: &mut String, key: &str, value: &str) {
@@ -637,6 +715,34 @@ mod tests {
         assert_eq!(script.remaining(), 0);
 
         let jsonl = script.masked_jsonl(LogPolicy::production()).unwrap();
+        assert!(jsonl.contains("***********2345"));
+        assert!(!jsonl.contains("123456789012345"));
+    }
+
+    #[test]
+    fn replay_trace_identity_records_profile_version_without_unmasking_data() {
+        let record = ReplayExchange::new(
+            &[0x00, 0xb2, 0x01, 0x14, 0x00],
+            &[
+                0x70, 0x0a, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f,
+            ],
+            [0x90, 0x00],
+            ApduTraceContext::Generic,
+        )
+        .unwrap();
+        let script = ReplayScript::new(vec![record]).unwrap();
+        let identity = TraceIdentity::current(1, 42);
+
+        let jsonl = script
+            .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
+            .unwrap();
+
+        assert!(jsonl.starts_with("{\"type\":\"trace-identity\""));
+        assert!(jsonl.contains("\"kernel_name\":\"hyperion-emv\""));
+        assert!(jsonl.contains("\"abi_version\":1"));
+        assert!(jsonl.contains("\"profile_version\":42"));
+        assert!(jsonl.contains("\"log_build_mode\":\"production\""));
+        assert!(jsonl.contains("\"support_authorization_verified\":false"));
         assert!(jsonl.contains("***********2345"));
         assert!(!jsonl.contains("123456789012345"));
     }

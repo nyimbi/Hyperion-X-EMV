@@ -19,6 +19,7 @@
 - [x] ODA test vectors (`oda_test_vectors.json`) – syntactically correct, placeholders for lab-supplied crypto data
 - [x] Scheme profiles (`scheme_profiles.cert.json`) – structured with valid hex lengths, contains deterministic TAA keys; actual CAPK values to be replaced by lab
 - [x] Requirement traceability matrix (`requirements_traceability.csv`) – mapped to EMVCo test case categories
+- [x] Trace identity metadata – masked APDU logs retain ABI version and signed profile version
 - [x] Source code (under NDA)
 - [x] Unit test report (≥95% coverage) – [to be attached]
 - [x] Integration test report (100% of EMV test plan) – [to be attached]
