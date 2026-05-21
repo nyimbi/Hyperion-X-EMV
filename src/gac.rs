@@ -66,6 +66,7 @@ pub fn build_online_authorization_package(
         &[0x5f, 0x2a][..],
         &[0x82][..],
         &[0x9f, 0x1a][..],
+        &[0x9f, 0x34][..],
         &[0x5a][..],
         &[0x57][..],
     ] {
@@ -180,6 +181,7 @@ mod tests {
         let mut data = DataStore::new();
         data.put(&[0x9f, 0x37], &[0x01, 0x02, 0x03, 0x04]).unwrap();
         data.put(&[0x95], &[0, 0, 0, 0, 0]).unwrap();
+        data.put(&[0x9f, 0x34], &[0x01, 0x00, 0x02]).unwrap();
 
         let package = build_online_authorization_package(&response, &data);
         assert_eq!(package.objects[0].tag, vec![0x9f, 0x26]);
@@ -189,5 +191,9 @@ mod tests {
             .iter()
             .any(|object| object.tag == [0x9f, 0x37]));
         assert!(package.objects.iter().any(|object| object.tag == [0x95]));
+        assert!(package
+            .objects
+            .iter()
+            .any(|object| object.tag == [0x9f, 0x34] && object.value == [0x01, 0x00, 0x02]));
     }
 }

@@ -299,6 +299,10 @@ KRN-CID-001,CID decode with mask 0xC0,UT-CID-001,IT-CID-001,EMV-L2-CID-001,CID l
 KRN-CVM-001,CVM List parsing and limits,UT-CVM-001,IT-CVM-001,EMV-L2-CVM-001,CVM trace
 KRN-CVM-002,TVR byte3 bits on CVM outcome,UT-CVM-002,IT-CVM-002,EMV-L2-CVM-002,TVR after CVM
 KRN-CVM-003,Use certified CVM code table,UT-CVM-003,IT-CVM-003,EMV-L2-CVM-003,Code review
+KRN-CVMRES-001,CVM Results stored as three-byte EMV object,UT-CVMRES-001,IT-CVMRES-001,EMV-L2-CVM-004,9F34 transaction data
+KRN-PIN-001,Distinguish offline plaintext offline enciphered and online PIN methods,UT-PIN-001,IT-PIN-001,PCI-PTS-PIN-003,CVM method evidence
+KRN-PIN-002,No clear PIN values exposed to kernel memory,UT-PIN-002,IT-PIN-002,PCI-PTS-PIN-004,Opaque handle ABI test
+KRN-PIN-003,Delegate PIN block construction to PED or secure PIN module,UT-PIN-003,IT-PIN-003,PCI-PTS-PIN-005,Opaque handle ABI test
 KRN-GAC-008,P1 encoding: 0x00/0x40/0x80,UT-GAC-001,IT-GAC-001,EMV-L2-GAC-001,APDU logs
 KRN-GAC-009,CDA request not colliding with type bits,UT-GAC-002,IT-GAC-002,EMV-L2-CDA-001,APDU + profile
 KRN-GAC-010,CDA request profile-defined,UT-GAC-003,IT-GAC-003,EMV-L2-CDA-002,Profile validation
@@ -327,6 +331,8 @@ KRN-API-004,Non-re-entrant,UT-API-001,IT-API-001,N/A,Concurrency test
 KRN-API-005,Buffer ownership,UT-API-002,IT-API-002,N/A,Memory analysis
 KRN-API-006,Bounded callback timeouts,UT-API-003,IT-API-003,N/A,Callback timeout trace
 KRN-API-007,Stable error codes retrievable after terminal outcome,UT-API-004,IT-API-004,N/A,Last-error ABI query
+KRN-PINAPI-001,PED API returns status and secure handles only,UT-PINAPI-001,IT-PINAPI-001,PCI-PTS-PIN-006,Opaque handle ABI test
+KRN-PINAPI-002,Online PIN encrypted blocks are not copied into general kernel memory,UT-PINAPI-002,IT-PINAPI-002,PCI-PTS-PIN-007,ABI boundary review
 KRN-LOG-001,Formal log policy,UT-LOG-001,IT-LOG-001,PCI-PTS-LOG-001,Log config audit
 KRN-RNG-001,Obtain unpredictable numbers from approved platform RNG callback,UT-RNG-001,IT-RNG-001,N/A,RNG callback trace
 KRN-RNG-002,Reject all-zero or repeated unpredictable numbers,UT-RNG-002,IT-RNG-002,N/A,RNG failure injection

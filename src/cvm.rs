@@ -116,6 +116,35 @@ pub enum CvmAction {
     Cdcvm,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CvmPinHandles {
+    pub offline_plaintext: Option<PedPinHandle>,
+    pub offline_enciphered: Option<PedPinHandle>,
+}
+
+impl CvmPinHandles {
+    pub fn none() -> Self {
+        Self {
+            offline_plaintext: None,
+            offline_enciphered: None,
+        }
+    }
+
+    pub fn with_offline_plaintext(handle: PedPinHandle) -> Self {
+        Self {
+            offline_plaintext: Some(handle),
+            offline_enciphered: None,
+        }
+    }
+
+    pub fn with_offline_enciphered(handle: PedPinHandle) -> Self {
+        Self {
+            offline_plaintext: None,
+            offline_enciphered: Some(handle),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CvmOutcome {
     Selected {
@@ -156,17 +185,13 @@ pub fn parse_cvm_list(input: &[u8]) -> KernelResult<CvmList> {
     })
 }
 
-pub fn evaluate(
-    list: &CvmList,
-    context: CvmContext,
-    offline_pin_handle: Option<PedPinHandle>,
-) -> CvmOutcome {
+pub fn evaluate(list: &CvmList, context: CvmContext, pin_handles: CvmPinHandles) -> CvmOutcome {
     for rule in &list.rules {
         if !condition_matches(*rule, list, context) {
             continue;
         }
 
-        let Some(action) = action_for_method(rule.method, context, offline_pin_handle) else {
+        let Some(action) = action_for_method(rule.method, context, pin_handles) else {
             if rule.continue_on_failure() {
                 continue;
             }
@@ -188,27 +213,31 @@ pub fn evaluate(
 fn action_for_method(
     method: CvmMethod,
     context: CvmContext,
-    offline_pin_handle: Option<PedPinHandle>,
+    pin_handles: CvmPinHandles,
 ) -> Option<CvmAction> {
     match method {
         CvmMethod::NoCvmRequired => Some(CvmAction::NoCvm),
         CvmMethod::OnlinePin if context.online_pin_supported => Some(CvmAction::OnlinePin),
         CvmMethod::Signature if context.signature_supported => Some(CvmAction::Signature),
-        CvmMethod::OfflinePlaintextPin if context.offline_pin_supported => {
-            offline_pin_handle.map(|ped_handle| CvmAction::OfflinePlaintextPin { ped_handle })
-        }
-        CvmMethod::OfflineEncipheredPin if context.offline_pin_supported => {
-            offline_pin_handle.map(|ped_handle| CvmAction::OfflineEncipheredPin { ped_handle })
-        }
+        CvmMethod::OfflinePlaintextPin if context.offline_pin_supported => pin_handles
+            .offline_plaintext
+            .map(|ped_handle| CvmAction::OfflinePlaintextPin { ped_handle }),
+        CvmMethod::OfflineEncipheredPin if context.offline_pin_supported => pin_handles
+            .offline_enciphered
+            .map(|ped_handle| CvmAction::OfflineEncipheredPin { ped_handle }),
         CvmMethod::OfflinePlaintextPinAndSignature
             if context.offline_pin_supported && context.signature_supported =>
         {
-            offline_pin_handle.map(|ped_handle| CvmAction::OfflinePlaintextPin { ped_handle })
+            pin_handles
+                .offline_plaintext
+                .map(|ped_handle| CvmAction::OfflinePlaintextPin { ped_handle })
         }
         CvmMethod::OfflineEncipheredPinAndSignature
             if context.offline_pin_supported && context.signature_supported =>
         {
-            offline_pin_handle.map(|ped_handle| CvmAction::OfflineEncipheredPin { ped_handle })
+            pin_handles
+                .offline_enciphered
+                .map(|ped_handle| CvmAction::OfflineEncipheredPin { ped_handle })
         }
         CvmMethod::SchemeSpecific(_)
             if context.interface == Interface::Contactless && context.cdcvm_performed =>
@@ -286,7 +315,7 @@ mod tests {
     #[test]
     fn offline_pin_requires_ped_owned_opaque_handle() {
         let list = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x00]).unwrap();
-        let failed = evaluate(&list, context(), None);
+        let failed = evaluate(&list, context(), CvmPinHandles::none());
         assert_eq!(
             failed,
             CvmOutcome::Failed {
@@ -297,10 +326,23 @@ mod tests {
 
         let handle = PedPinHandle::new(0xfeed_beef).unwrap();
         assert_eq!(
-            evaluate(&list, context(), Some(handle)),
+            evaluate(
+                &list,
+                context(),
+                CvmPinHandles::with_offline_plaintext(handle)
+            ),
             CvmOutcome::Selected {
                 action: CvmAction::OfflinePlaintextPin { ped_handle: handle },
                 cvm_results: [0x01, 0x00, 0x02]
+            }
+        );
+
+        let enciphered_only = CvmPinHandles::with_offline_enciphered(handle);
+        assert_eq!(
+            evaluate(&list, context(), enciphered_only),
+            CvmOutcome::Failed {
+                cvm_results: [0x01, 0x00, 0x01],
+                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
             }
         );
     }
@@ -312,7 +354,7 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(
-            evaluate(&list, context(), None),
+            evaluate(&list, context(), CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::NoCvm,
                 cvm_results: [0x1f, 0x00, 0x02]
@@ -322,7 +364,7 @@ mod tests {
         let mut high_amount = context();
         high_amount.amount_authorized = 6_000;
         assert_eq!(
-            evaluate(&list, high_amount, None),
+            evaluate(&list, high_amount, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
                 cvm_results: [0x02, 0x07, 0x02]
@@ -338,7 +380,7 @@ mod tests {
         ctx.cdcvm_performed = true;
 
         assert_eq!(
-            evaluate(&list, ctx, None),
+            evaluate(&list, ctx, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::Cdcvm,
                 cvm_results: [0x20, 0x00, 0x02]

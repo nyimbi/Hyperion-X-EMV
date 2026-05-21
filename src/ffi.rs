@@ -12,8 +12,8 @@ use crate::config::{
 };
 use crate::conformance::baseline_conformance_statement;
 use crate::cvm::{
-    evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
-    Interface as CvmInterface,
+    evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome, CvmPinHandles,
+    Interface as CvmInterface, PedPinHandle,
 };
 use crate::dol::{build_dol, parse_dol, DataStore};
 use crate::error::{KernelError, ERROR_TABLE};
@@ -72,6 +72,8 @@ pub const MAX_APDU_RESPONSE_LEN: usize = 258;
 pub const MAX_ONLINE_AUTH_DATA_LEN: usize = 1024;
 pub const MAX_HOST_RESPONSE_LEN: usize = 1024;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
+pub const KRN_PIN_METHOD_OFFLINE_PLAINTEXT: u8 = 1;
+pub const KRN_PIN_METHOD_OFFLINE_ENCIPHERED: u8 = 2;
 const MAX_APDU_FOLLOWUPS: usize = 4;
 
 #[repr(C)]
@@ -180,6 +182,7 @@ pub struct KrnContext {
     issuer_script_results: Vec<ScriptCommandResult>,
     card_data: DataStore,
     offline_auth_records: Vec<StaticAuthenticationRecord>,
+    cvm_pin_handles: CvmPinHandles,
     last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -209,6 +212,7 @@ impl KrnContext {
             issuer_script_results: Vec::new(),
             card_data: DataStore::new(),
             offline_auth_records: Vec::new(),
+            cvm_pin_handles: CvmPinHandles::none(),
             last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
@@ -235,6 +239,7 @@ impl KrnContext {
         self.issuer_script_results.clear();
         self.card_data = DataStore::new();
         self.offline_auth_records.clear();
+        self.cvm_pin_handles = CvmPinHandles::none();
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -389,10 +394,47 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.online_authorization_data = None;
         ctx.host_response = None;
         ctx.card_data = DataStore::new();
+        ctx.cvm_pin_handles = CvmPinHandles::none();
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
         Ok(0usize)
     });
+    ctx.set_result(result)
+}
+
+/// Registers a PED-owned opaque handle for offline PIN verification.
+///
+/// The kernel stores only the opaque handle and method class. It never accepts
+/// or copies plaintext PIN bytes or PIN blocks across the C ABI.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_offline_pin_handle(
+    ctx: *mut KrnContext,
+    method: u8,
+    secure_pin_data_handle: u64,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        let handle = PedPinHandle::new(secure_pin_data_handle)?;
+        match method {
+            KRN_PIN_METHOD_OFFLINE_PLAINTEXT => {
+                ctx.cvm_pin_handles.offline_plaintext = Some(handle);
+            }
+            KRN_PIN_METHOD_OFFLINE_ENCIPHERED => {
+                ctx.cvm_pin_handles.offline_enciphered = Some(handle);
+            }
+            _ => return Err(KernelError::InvalidArgument),
+        }
+        Ok(0usize)
+    })();
     ctx.set_result(result)
 }
 
@@ -1857,12 +1899,13 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
             } else {
                 CvmInterface::Contact
             },
-            offline_pin_supported: false,
+            offline_pin_supported: ctx.cvm_pin_handles.offline_plaintext.is_some()
+                || ctx.cvm_pin_handles.offline_enciphered.is_some(),
             online_pin_supported: false,
             signature_supported: false,
             cdcvm_performed: false,
         },
-        None,
+        ctx.cvm_pin_handles,
     );
 
     let (cvm_results, event) = match outcome {
