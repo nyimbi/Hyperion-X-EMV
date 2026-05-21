@@ -54,6 +54,7 @@ use hyperion_emv::oda::{
     OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput, RecoveredCertificateKind,
     RecoveredPublicKeyCertificate, RecoveredSignedDataKind, StaticAuthenticationRecord,
 };
+use hyperion_emv::perf::{parse_performance_profile, PerfAccumulator, PerfStage};
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
@@ -90,6 +91,7 @@ const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v
 const ODA_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
 const STATE_MACHINE_CSV: &str = include_str!("../docs/state_machine.csv");
 const BITMAP_CATALOGUE: &str = include_str!("../docs/bitmap_catalogue.csv");
+const PERFORMANCE_PROFILE: &str = include_str!("../docs/performance_profile.csv");
 const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manifest.md");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
@@ -755,6 +757,58 @@ fn rtm_promotes_bitmap_catalogue_evidence() {
 }
 
 #[test]
+fn performance_profile_defines_product_targets_and_buckets() {
+    assert!(LAB_SUBMISSION_MANIFEST.contains("performance_profile.csv"));
+
+    let targets = parse_performance_profile(PERFORMANCE_PROFILE).unwrap();
+    assert_eq!(targets.len(), 2);
+    assert!(targets
+        .iter()
+        .all(|target| target.profile_id.starts_with("hyperion-mp35p")));
+    assert!(targets
+        .iter()
+        .all(|target| target.test_id.contains("KRN-PERF-001")));
+    assert!(targets
+        .iter()
+        .all(|target| target.test_id.contains("KRN-PERF-002")));
+
+    let mut perf = PerfAccumulator::new();
+    perf.record(PerfStage::OdaRsa, 100).unwrap();
+    perf.record(PerfStage::OdaEcc, 200).unwrap();
+    perf.record(PerfStage::TlvParsing, 30).unwrap();
+    perf.record(PerfStage::ApduOverhead, 20).unwrap();
+
+    assert_eq!(perf.stage_micros(PerfStage::OdaRsa), 100);
+    assert_eq!(perf.stage_micros(PerfStage::OdaEcc), 200);
+    assert_eq!(perf.stage_micros(PerfStage::TlvParsing), 30);
+    assert_eq!(perf.stage_micros(PerfStage::ApduOverhead), 20);
+    assert!(perf.within_target(&targets[0]).unwrap());
+}
+
+#[test]
+fn rtm_promotes_performance_profile_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let buckets = csv_row_for_requirement(csv, "KRN-PERF-001").expect("RTM row exists");
+        assert!(
+            !buckets.contains("pending implementation evidence"),
+            "KRN-PERF-001 should cite concrete performance bucket evidence"
+        );
+        assert!(buckets.contains("records_oda_crypto_tlv_and_apdu_buckets_separately"));
+        assert!(buckets.contains("performance_profile_defines_product_targets_and_buckets"));
+        assert!(buckets.contains("rtm_promotes_performance_profile_evidence"));
+
+        let targets = csv_row_for_requirement(csv, "KRN-PERF-002").expect("RTM row exists");
+        assert!(
+            !targets.contains("pending implementation evidence"),
+            "KRN-PERF-002 should cite concrete product profile target evidence"
+        );
+        assert!(targets.contains("validates_product_performance_profile_targets"));
+        assert!(targets.contains("performance_profile_defines_product_targets_and_buckets"));
+        assert!(targets.contains("rtm_promotes_performance_profile_evidence"));
+    }
+}
+
+#[test]
 fn both_rtms_cover_dynamic_oda_rows_independently() {
     for krn_id in [
         "KRN-GAC-010",
@@ -862,6 +916,10 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
                 bytes: ODA_VECTORS.as_bytes(),
             },
             Artifact {
+                name: "docs/performance_profile.csv",
+                bytes: PERFORMANCE_PROFILE.as_bytes(),
+            },
+            Artifact {
                 name: "docs/requirements_traceability.csv",
                 bytes: include_bytes!("../docs/requirements_traceability.csv"),
             },
@@ -902,6 +960,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
             "docs/bitmap_catalogue.csv",
             "docs/lab_submission_manifest.md",
             "docs/oda_test_vectors.json",
+            "docs/performance_profile.csv",
             "docs/requirements_traceability.csv",
             "docs/scheme_profiles.cert.json",
             "docs/spec.md",

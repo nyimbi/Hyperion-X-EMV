@@ -19,6 +19,7 @@ pub mod gac;
 pub mod gpo;
 pub mod issuer;
 pub mod oda;
+pub mod perf;
 pub mod provenance;
 pub mod record;
 pub mod restrictions;

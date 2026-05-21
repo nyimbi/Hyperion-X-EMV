@@ -189,3 +189,17 @@ decision record, while this file tracks work toward certification readiness.
   guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:34:31Z
+
+- Increment completed: add product-level performance profile and measurement
+  buckets for KRN-PERF-001 and KRN-PERF-002.
+- Code impact: `src/perf.rs` separates ODA RSA, ODA ECC, TLV parsing, and APDU
+  overhead timing buckets; `docs/performance_profile.csv` defines Hyperion MP35P
+  target buckets; the lab manifest and build provenance include the performance
+  profile.
+- Evidence updated: KRN-PERF-001 and KRN-PERF-002 RTM rows now cite performance
+  bucket accumulation, product profile validation, traceability coverage, and
+  the RTM guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

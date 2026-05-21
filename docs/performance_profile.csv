@@ -1,0 +1,3 @@
+profile_id,tier,device_class,oda_rsa_us_max,oda_ecc_us_max,tlv_parse_us_max,apdu_overhead_us_max,kernel_only_us_max,test_id
+hyperion-mp35p-contact,A,Hyperion MP35P contact kernel,20000,30000,2000,1500,50000,KRN-PERF-001;KRN-PERF-002
+hyperion-mp35p-contactless-c8,A,Hyperion MP35P C8 contactless kernel,20000,30000,1500,1200,25000,KRN-PERF-001;KRN-PERF-002
