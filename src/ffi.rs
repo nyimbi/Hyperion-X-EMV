@@ -68,7 +68,7 @@ pub type KrnTransmitApduCallback = unsafe extern "C" fn(
 pub type KrnGetUnpredictableNumberCallback =
     unsafe extern "C" fn(out: *mut u8, out_len: usize, user_data: *mut c_void) -> i32;
 
-pub const KRN_ABI_VERSION: u32 = 1;
+pub const KRN_ABI_VERSION: u32 = 2;
 pub const MAX_MERCHANT_NAME_LOCATION_LEN: usize = 128;
 pub const MAX_APDU_RESPONSE_LEN: usize = 258;
 pub const MAX_ONLINE_AUTH_DATA_LEN: usize = 1024;
@@ -131,6 +131,7 @@ pub struct KrnTxnParams {
     pub amount_authorised_minor: u64,
     pub amount_other_minor: u64,
     pub currency_code: u16,
+    pub currency_exponent: u8,
     pub terminal_country_code: u16,
     pub transaction_type: u8,
     pub terminal_type: u8,
@@ -145,6 +146,7 @@ pub struct StoredTxnParams {
     pub amount_authorised_minor: u64,
     pub amount_other_minor: u64,
     pub currency_code: u16,
+    pub currency_exponent: u8,
     pub terminal_country_code: u16,
     pub transaction_type: u8,
     pub terminal_type: u8,
@@ -1360,6 +1362,9 @@ unsafe fn read_transaction_params(
     if params.interface_preference > 2 {
         return Err(KernelError::InvalidArgument);
     }
+    if params.currency_exponent > 9 {
+        return Err(KernelError::InvalidArgument);
+    }
     if params.merchant_name_location_len > MAX_MERCHANT_NAME_LOCATION_LEN {
         return Err(KernelError::LengthOverflow);
     }
@@ -1373,6 +1378,7 @@ unsafe fn read_transaction_params(
         amount_authorised_minor: params.amount_authorised_minor,
         amount_other_minor: params.amount_other_minor,
         currency_code: params.currency_code,
+        currency_exponent: params.currency_exponent,
         terminal_country_code: params.terminal_country_code,
         transaction_type: params.transaction_type,
         terminal_type: params.terminal_type,
@@ -1412,6 +1418,7 @@ fn transaction_data_store(
         &[0x5f, 0x2a],
         &numeric_bcd_fixed(params.currency_code as u64, 2)?,
     )?;
+    data.put(&[0x5f, 0x36], &[params.currency_exponent])?;
     data.put(
         &[0x9f, 0x1a],
         &numeric_bcd_fixed(params.terminal_country_code as u64, 2)?,
@@ -3443,6 +3450,61 @@ mod tests {
     }
 
     #[test]
+    fn transaction_params_bind_minor_units_to_currency_exponent() {
+        let merchant = b"HYPERION TEST MERCHANT";
+        let params = KrnTxnParams {
+            struct_size: mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_234,
+            amount_other_minor: 56,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 2,
+            merchant_name_location: merchant.as_ptr(),
+            merchant_name_location_len: merchant.len(),
+        };
+        let stored = unsafe { read_transaction_params(&params).unwrap() };
+        assert_eq!(stored.amount_authorised_minor, 1_234);
+        assert_eq!(stored.amount_other_minor, 56);
+        assert_eq!(stored.currency_code, 840);
+        assert_eq!(stored.currency_exponent, 2);
+
+        let data = transaction_data_store(
+            &stored,
+            [0x11, 0x22, 0x33, 0x44],
+            EmvDate {
+                year: 26,
+                month: 5,
+                day: 21,
+            },
+            Tvr::cleared(),
+            Tsi::cleared(),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            data.get(&[0x9f, 0x02]),
+            Some(&[0, 0, 0, 0x00, 0x12, 0x34][..])
+        );
+        assert_eq!(data.get(&[0x9f, 0x03]), Some(&[0, 0, 0, 0, 0, 0x56][..]));
+        assert_eq!(data.get(&[0x5f, 0x2a]), Some(&[0x08, 0x40][..]));
+        assert_eq!(data.get(&[0x5f, 0x36]), Some(&[0x02][..]));
+
+        let invalid_exponent = KrnTxnParams {
+            currency_exponent: 10,
+            ..params
+        };
+        assert_eq!(
+            unsafe { read_transaction_params(&invalid_exponent).unwrap_err() },
+            KernelError::InvalidArgument
+        );
+    }
+
+    #[test]
     fn offline_taa_and_first_gac_results_finish_with_real_outcomes() {
         let mut ctx = KrnContext::new();
         ctx.requested_cryptogram = Some(CryptogramRequest::Tc);
@@ -4420,6 +4482,7 @@ mod tests {
             amount_authorised_minor: 4_000,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -4482,6 +4545,7 @@ mod tests {
             amount_authorised_minor: 1_000,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -4562,6 +4626,7 @@ mod tests {
                 amount_authorised_minor: 5_001,
                 amount_other_minor: 0,
                 currency_code: 840,
+                currency_exponent: 2,
                 terminal_country_code: 840,
                 transaction_type: 0,
                 terminal_type: 0x22,
@@ -4641,6 +4706,7 @@ mod tests {
                     amount_authorised_minor: 2_000,
                     amount_other_minor: 0,
                     currency_code: 840,
+                    currency_exponent: 2,
                     terminal_country_code: 840,
                     transaction_type: 0,
                     terminal_type: 0x22,
@@ -4756,6 +4822,7 @@ mod tests {
                 amount_authorised_minor: 2_000,
                 amount_other_minor: 0,
                 currency_code: 840,
+                currency_exponent: 2,
                 terminal_country_code: 840,
                 transaction_type: 0,
                 terminal_type: 0x22,

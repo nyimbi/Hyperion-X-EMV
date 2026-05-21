@@ -9,6 +9,7 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 5F28,Issuer Country Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
 5F2A,Transaction Currency Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
 5F34,Application PAN Sequence Number,Primitive,1 byte,EMV Book 3,contact and contactless,all,Optional,cardholder-data,UT-TLV-004
+5F36,Transaction Currency Exponent,Primitive,1 byte,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
 5F5A,Application Program Identifier,Primitive,variable,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
 5F5D,Available Offline Spending Amount,Primitive,5 bytes,EMV Book 3,contact and contactless,PROFILE-DEFINED,Optional,profile-defined,UT-TLV-005
 71,Issuer Script Template 1,Constructed,variable,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-004

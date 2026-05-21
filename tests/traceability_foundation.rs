@@ -871,7 +871,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     let json = manifest.canonical_json();
     assert!(json.starts_with("{\"type\":\"build-provenance\""));
     assert!(json.contains("\"kernel_name\":\"hyperion-emv\""));
-    assert!(json.contains("\"abi_version\":1"));
+    assert!(json.contains(&format!("\"abi_version\":{KRN_ABI_VERSION}")));
     assert!(json.contains("\"name\":\"docs/scheme_profiles.cert.json\""));
     assert!(json.contains("\"sha256\":\""));
     assert!(!json.contains("placeholder"));
@@ -1706,8 +1706,11 @@ fn rtm_promotes_api_abi_and_callback_validation_evidence() {
 
         let amount_currency = csv_row_for_requirement(csv, "KRN-API-003").unwrap();
         assert!(
-            amount_currency.contains("pending implementation evidence"),
-            "KRN-API-003 remains pending until currency exponent policy is explicit"
+            !amount_currency.contains("pending implementation evidence"),
+            "KRN-API-003 should cite minor-unit and currency exponent evidence"
+        );
+        assert!(
+            amount_currency.contains("transaction_params_bind_minor_units_to_currency_exponent")
         );
     }
 }
@@ -1880,7 +1883,9 @@ fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
 
 #[test]
 fn tlv_catalogue_contains_required_foundation_tags() {
-    for row_prefix in ["84,", "94,", "95,", "9B,", "9F26,", "9F27,", "9F37,"] {
+    for row_prefix in [
+        "5F36,", "84,", "94,", "95,", "9B,", "9F26,", "9F27,", "9F37,",
+    ] {
         assert!(
             TLV_CATALOGUE
                 .lines()
@@ -1913,7 +1918,7 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
     let rows = lines
         .map(|line| line.split(',').collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 58);
+    assert_eq!(rows.len(), 59);
     for row in &rows {
         assert_eq!(row.len(), expected_header.len(), "invalid TLV row {row:?}");
         assert!(row[0].chars().all(|ch| ch.is_ascii_hexdigit()));
@@ -2426,6 +2431,7 @@ fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks()
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -2525,6 +2531,7 @@ fn krn_api_001_002_rejects_bad_abi_before_optional_fields() {
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -2694,6 +2701,7 @@ fn krn_api_007_err_002_preserves_callback_error_codes_fail_closed() {
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -2809,6 +2817,7 @@ fn krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles() {
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -2919,6 +2928,7 @@ unsafe fn run_cvm_capability_transaction(
         amount_authorised_minor: 1_500,
         amount_other_minor: 0,
         currency_code: 840,
+        currency_exponent: 2,
         terminal_country_code: 840,
         transaction_type: 0,
         terminal_type: 0x22,
@@ -3037,6 +3047,7 @@ fn krn_termcap_001_supplies_9f33_to_pdol_and_online_handoff() {
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -3130,6 +3141,7 @@ fn krn_ttq_001_supplies_9f66_to_contactless_pdol_and_online_handoff() {
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -3240,6 +3252,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
@@ -3412,6 +3425,7 @@ fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
             amount_authorised_minor: 1_500,
             amount_other_minor: 0,
             currency_code: 840,
+            currency_exponent: 2,
             terminal_country_code: 840,
             transaction_type: 0,
             terminal_type: 0x22,
