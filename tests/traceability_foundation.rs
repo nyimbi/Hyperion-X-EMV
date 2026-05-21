@@ -16,9 +16,10 @@ use hyperion_emv::cvm::{
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
     krn_apply_host_response, krn_context_free, krn_context_new, krn_get_fsm_state,
-    krn_get_last_error, krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
-    krn_process_issuer_authentication, krn_reset, krn_run_transaction, krn_set_transaction_params,
-    KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
+    krn_get_issuer_script_result, krn_get_issuer_script_result_count, krn_get_last_error,
+    krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
+    krn_process_issuer_authentication, krn_process_issuer_scripts, krn_reset, krn_run_transaction,
+    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -150,6 +151,11 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-IAUTH-001",
         "KRN-IAUTH-002",
         "KRN-IAUTH-003",
+        "KRN-SCR-001",
+        "KRN-SCR-002",
+        "KRN-SCR-003",
+        "KRN-SCR-004",
+        "KRN-SCR-005",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -223,6 +229,8 @@ fn corrected_spec_contains_gac_online_and_script_requirements() {
         "KRN-IAUTH-003",
         "KRN-GAC2-001",
         "KRN-SCR-001",
+        "KRN-SCR-002",
+        "KRN-SCR-003",
         "KRN-SCR-004",
         "KRN-SCR-005",
     ] {
@@ -742,6 +750,22 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
         assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 6);
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S13.code());
+        assert_eq!(
+            krn_process_issuer_scripts(ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 7);
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S14.code());
+        assert_eq!(krn_get_issuer_script_result_count(ctx), 1);
+        let mut sw1 = 0u8;
+        let mut sw2 = 0u8;
+        assert_eq!(
+            krn_get_issuer_script_result(ctx, 0, &mut sw1, &mut sw2),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!((sw1, sw2), (0x90, 0x00));
         krn_context_free(ctx);
     }
 }

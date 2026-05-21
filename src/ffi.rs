@@ -18,7 +18,7 @@ use crate::gac::{
     OnlineAuthorizationPackage,
 };
 use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
-use crate::issuer::{parse_host_response, HostResponse};
+use crate::issuer::{apply_script_results, parse_host_response, HostResponse, ScriptCommandResult};
 use crate::oda::{
     apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip, CapkIntegrity,
     OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
@@ -160,6 +160,7 @@ pub struct KrnContext {
     first_gac_response: Option<GenerateAcResponse>,
     online_authorization_data: Option<Vec<u8>>,
     host_response: Option<HostResponse>,
+    issuer_script_results: Vec<ScriptCommandResult>,
     card_data: DataStore,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -183,6 +184,7 @@ impl KrnContext {
             first_gac_response: None,
             online_authorization_data: None,
             host_response: None,
+            issuer_script_results: Vec::new(),
             card_data: DataStore::new(),
             runtime: None,
             contactless_outcome_callback: None,
@@ -203,6 +205,7 @@ impl KrnContext {
         self.first_gac_response = None;
         self.online_authorization_data = None;
         self.host_response = None;
+        self.issuer_script_results.clear();
         self.card_data = DataStore::new();
     }
 
@@ -594,6 +597,83 @@ pub unsafe extern "C" fn krn_process_issuer_authentication(ctx: *mut KrnContext)
     ctx.busy = true;
     let result = run_issuer_authentication(ctx, runtime).map(|()| 0usize);
     ctx.busy = false;
+    ctx.set_result(result)
+}
+
+/// Executes issuer script APDU commands parsed from host response templates.
+///
+/// Scripts are executed in host-provided order. SW1/SW2 for each command is
+/// retained in the context, non-critical failures update TVR/TSI according to
+/// the script template phase, and the FSM advances to final outcome when all
+/// scripts have been consumed.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. Calls for the same
+/// context must be serialized by the integration layer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_process_issuer_scripts(ctx: *mut KrnContext) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if ctx.busy {
+        ctx.last_error = KernelError::Busy;
+        return KernelError::Busy.code();
+    }
+    let Some(runtime) = ctx.runtime else {
+        ctx.last_error = KernelError::InvalidArgument;
+        return KernelError::InvalidArgument.code();
+    };
+
+    ctx.busy = true;
+    let result = run_issuer_scripts(ctx, runtime).map(|()| 0usize);
+    ctx.busy = false;
+    ctx.set_result(result)
+}
+
+/// Returns the number of captured issuer script command status words.
+///
+/// # Safety
+///
+/// `ctx` must be either null or a valid context pointer. Null returns zero.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_issuer_script_result_count(ctx: *const KrnContext) -> usize {
+    let Some(ctx) = ctx.as_ref() else {
+        return 0;
+    };
+    ctx.issuer_script_results.len()
+}
+
+/// Copies one captured issuer script command SW1/SW2 pair to caller storage.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `sw1` and `sw2`
+/// must point to writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_issuer_script_result(
+    ctx: *mut KrnContext,
+    index: usize,
+    sw1: *mut u8,
+    sw2: *mut u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    let result = (|| {
+        if sw1.is_null() || sw2.is_null() {
+            return Err(KernelError::InvalidArgument);
+        }
+        let result = ctx
+            .issuer_script_results
+            .get(index)
+            .ok_or(KernelError::InvalidArgument)?;
+        unsafe {
+            *sw1 = result.sw1;
+            *sw2 = result.sw2;
+        }
+        Ok(0usize)
+    })();
     ctx.set_result(result)
 }
 
@@ -1485,6 +1565,66 @@ fn run_issuer_authentication(
     Ok(())
 }
 
+fn run_issuer_scripts(ctx: &mut KrnContext, runtime: RuntimeCallbacks) -> Result<(), KernelError> {
+    if ctx.fsm_state != FsmState::S13 {
+        return Err(KernelError::InvalidArgument);
+    }
+    let scripts = ctx
+        .host_response
+        .as_ref()
+        .map(|response| response.scripts.clone())
+        .ok_or(KernelError::InvalidArgument)?;
+    if scripts.is_empty() {
+        apply_transition(ctx, FsmEvent::NoMoreScripts)?;
+        ctx.state = KernelState::FinalOutcome;
+        return Ok(());
+    }
+
+    for script in scripts {
+        apply_transition(ctx, FsmEvent::ScriptAvailable)?;
+        let mut script_results = Vec::with_capacity(script.commands.len());
+        for command in &script.commands {
+            let response = transmit_apdu(runtime, command, APDU_TRANSMIT_TIMEOUT_MS)?;
+            if response.len() < 2 {
+                return Err(KernelError::ParseError);
+            }
+            let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+            let result = ScriptCommandResult {
+                sw1: sw.sw1,
+                sw2: sw.sw2,
+            };
+            script_results.push(result);
+            ctx.issuer_script_results.push(result);
+            match classify(ApduContext::IssuerScript { critical: false }, sw) {
+                StatusAction::Success | StatusAction::ContinueAfterNonCriticalScriptFailure => {}
+                StatusAction::Fail { error } => return Err(error),
+                _ => return Err(KernelError::InvalidArgument),
+            }
+        }
+
+        let summary = apply_script_results(script.phase, &script_results, ctx.tvr, ctx.tsi);
+        ctx.tvr = summary.tvr;
+        ctx.tsi = summary.tsi;
+        ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
+        ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
+        let all_success = script_results
+            .iter()
+            .all(|result| result.sw1 == 0x90 && result.sw2 == 0x00);
+        apply_transition(
+            ctx,
+            if all_success {
+                FsmEvent::ScriptSuccess
+            } else {
+                FsmEvent::ScriptNonCriticalFailure
+            },
+        )?;
+    }
+
+    apply_transition(ctx, FsmEvent::NoMoreScripts)?;
+    ctx.state = KernelState::FinalOutcome;
+    Ok(())
+}
+
 fn issuer_action_codes(data: &DataStore) -> Result<ActionCodes, KernelError> {
     Ok(ActionCodes {
         denial: optional_fixed::<5>(data, &[0x9f, 0x0e])?.unwrap_or([0; 5]),
@@ -2002,6 +2142,8 @@ mod tests {
     static TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
     static ISSUER_AUTH_SW1: AtomicU8 = AtomicU8::new(0x90);
     static ISSUER_AUTH_SW2: AtomicU8 = AtomicU8::new(0x00);
+    static SCRIPT_SW1: AtomicU8 = AtomicU8::new(0x90);
+    static SCRIPT_SW2: AtomicU8 = AtomicU8::new(0x00);
 
     unsafe extern "C" fn capture_contactless_outcome(
         outcome: *const KrnContactlessOutcome,
@@ -2051,9 +2193,13 @@ mod tests {
                 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x9f, 0x10, 0x03, 0xaa, 0xbb, 0xcc,
                 0x90, 0x00,
             ],
-            _ => vec![
+            _ if command[1] == 0x82 => vec![
                 ISSUER_AUTH_SW1.load(Ordering::SeqCst),
                 ISSUER_AUTH_SW2.load(Ordering::SeqCst),
+            ],
+            _ => vec![
+                SCRIPT_SW1.load(Ordering::SeqCst),
+                SCRIPT_SW2.load(Ordering::SeqCst),
             ],
         };
         let capacity = *resp_len;
@@ -2326,6 +2472,25 @@ mod tests {
                 ctx_ref.card_data.get(&[0x95]),
                 Some(&ctx_ref.tvr.bytes()[..])
             );
+            let _ = ctx_ref;
+            assert_eq!(krn_process_issuer_scripts(ctx), KernelError::Ok.code());
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 7);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S14.code());
+            let ctx_ref = ctx.as_ref().unwrap();
+            assert_eq!(ctx_ref.issuer_script_results.len(), 1);
+            assert_eq!(
+                ctx_ref.issuer_script_results[0],
+                ScriptCommandResult {
+                    sw1: 0x90,
+                    sw2: 0x00
+                }
+            );
+            assert!(ctx_ref.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
+            assert!(!ctx_ref
+                .tvr
+                .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC));
             krn_context_free(ctx);
         }
     }
@@ -2361,5 +2526,51 @@ mod tests {
         assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
         ISSUER_AUTH_SW1.store(0x90, Ordering::SeqCst);
         ISSUER_AUTH_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final() {
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S13;
+        ctx.state = KernelState::IssuerScripts;
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: None,
+            scripts: vec![crate::issuer::IssuerScript {
+                phase: crate::issuer::ScriptPhase::BeforeFinalGenerateAc,
+                identifier: None,
+                commands: vec![vec![0x00, 0xda, 0x00, 0x00, 0x01, 0xaa]],
+            }],
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(6, Ordering::SeqCst);
+        SCRIPT_SW1.store(0x6a, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x80, Ordering::SeqCst);
+        assert_eq!(run_issuer_scripts(&mut ctx, runtime), Ok(()));
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
+        assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(ctx.fsm_state, FsmState::S14);
+        assert_eq!(ctx.state, KernelState::FinalOutcome);
+        assert_eq!(
+            ctx.issuer_script_results,
+            vec![ScriptCommandResult {
+                sw1: 0x6a,
+                sw2: 0x80
+            }]
+        );
+        assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
+        assert!(ctx
+            .tvr
+            .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC));
+        assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
+        assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
+        SCRIPT_SW1.store(0x90, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x00, Ordering::SeqCst);
     }
 }
