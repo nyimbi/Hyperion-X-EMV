@@ -1596,6 +1596,32 @@ fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
 }
 
 #[test]
+fn rtm_promotes_logging_policy_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-LOG-002", "KRN-LOG-004"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete logging policy evidence"
+            );
+            assert!(row.contains("rtm_promotes_logging_policy_evidence"));
+        }
+
+        let production = csv_row_for_requirement(csv, "KRN-LOG-002").unwrap();
+        assert!(production
+            .contains("production_policy_never_emits_full_apdu_data_even_if_misconfigured"));
+        assert!(production.contains("replay_is_exact_order_and_evidence_is_masked"));
+
+        let identity = csv_row_for_requirement(csv, "KRN-LOG-004").unwrap();
+        assert!(identity
+            .contains("replay_trace_identity_records_profile_version_without_unmasking_data"));
+        assert!(
+            identity.contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl")
+        );
+    }
+}
+
+#[test]
 fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in [

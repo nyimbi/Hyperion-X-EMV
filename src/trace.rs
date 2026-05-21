@@ -55,7 +55,12 @@ impl LogPolicy {
     }
 
     fn allows_full_apdu(self) -> bool {
-        self.full_apdu && self.support_verified()
+        self.full_apdu
+            && self.support_verified()
+            && matches!(
+                self.build_mode,
+                LogBuildMode::Certification | LogBuildMode::Development
+            )
     }
 
     fn allows_transaction_cryptograms(self) -> bool {
@@ -680,6 +685,24 @@ mod tests {
         assert!(json.contains("\"tag\":\"9f26\""));
         assert!(json.contains("transaction-cryptogram"));
         assert!(!json.contains("deadbeef00000001"));
+    }
+
+    #[test]
+    fn production_policy_never_emits_full_apdu_data_even_if_misconfigured() {
+        let misconfigured = LogPolicy {
+            build_mode: LogBuildMode::Production,
+            support_authorization: SupportAuthorization::Verified,
+            full_apdu: true,
+            track2_debug_hash: true,
+            transaction_cryptograms: true,
+        };
+        let command = [
+            0x80, 0xa8, 0x00, 0x00, 0x06, 0x83, 0x04, 0x01, 0x02, 0x03, 0x04, 0x00,
+        ];
+        let event = mask_apdu_command(1, &command, misconfigured).unwrap();
+
+        assert_eq!(event.data, MaskedValue::Suppressed("full-apdu-disabled"));
+        assert!(!event.to_json().contains("830401020304"));
     }
 
     #[test]

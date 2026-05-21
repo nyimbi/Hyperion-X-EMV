@@ -59,3 +59,16 @@ decision record, while this file tracks work toward certification readiness.
   FFI runtime, issuer parser, and traceability evidence.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T22:41:48Z
+
+- Increment completed: harden production APDU logging policy and trace identity
+  evidence.
+- Code impact: full APDU command data is now suppressed whenever the log policy
+  is in production mode, even if a caller constructs a misconfigured public
+  `LogPolicy` with support authorization and `full_apdu = true`.
+- Evidence updated: KRN-LOG-002 and KRN-LOG-004 RTM rows now cite production
+  suppression, deterministic replay, and trace identity tests. KRN-LOG-003
+  remains pending because crash-dump exclusion still needs dedicated evidence.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
