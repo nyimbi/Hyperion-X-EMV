@@ -1313,6 +1313,25 @@ fn krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic() {
                 ctx,
                 SCHEME_PROFILES.as_ptr(),
                 SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::InvalidProfile.code()
+        );
+        assert_eq!(
+            krn_get_profile_version(ctx, &mut version),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(version, 2);
+
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
                 2,
                 2,
                 26,

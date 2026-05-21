@@ -582,12 +582,17 @@ pub unsafe extern "C" fn krn_load_profiles_verified(
             month: eval_month,
             day: eval_day,
         };
+        let current_version = ctx
+            .profiles
+            .as_ref()
+            .map(|profiles| profiles.version)
+            .unwrap_or(0);
         let profiles = load_profile_set(
             bytes,
             &ConfigLoadPolicy {
                 mode: BuildMode::Certification,
                 signature_status: SignatureStatus::Verified,
-                installed_version,
+                installed_version: installed_version.max(current_version),
                 candidate_version,
                 evaluation_date,
             },
