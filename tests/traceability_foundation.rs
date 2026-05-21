@@ -20,13 +20,13 @@ use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
     krn_apply_host_response, krn_build_select_environment, krn_context_free, krn_context_new,
     krn_error_code_at, krn_error_description, krn_error_name, krn_error_table_len,
-    krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
-    krn_get_issuer_script_result_count, krn_get_last_error, krn_get_online_authorization_data,
-    krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_mask_apdu_command_json,
-    krn_mask_apdu_response_json, krn_process_final_generate_ac, krn_process_issuer_authentication,
-    krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
-    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION,
+    krn_get_conformance_statement_json, krn_get_final_outcome, krn_get_fsm_state,
+    krn_get_issuer_script_result, krn_get_issuer_script_result_count, krn_get_last_error,
+    krn_get_online_authorization_data, krn_get_profile_version, krn_init,
+    krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
+    krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
+    krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
+    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -172,6 +172,7 @@ unsafe extern "C" fn it_fixed_unpredictable_number(
 #[test]
 fn rtm_contains_foundation_requirements_under_test() {
     for krn_id in [
+        "KRN-REF-001",
         "KRN-SEL-001",
         "KRN-TVR-001",
         "KRN-TVR-002",
@@ -370,6 +371,50 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(json.contains("\"name\":\"docs/scheme_profiles.cert.json\""));
     assert!(json.contains("\"sha256\":\""));
     assert!(!json.contains("placeholder"));
+}
+
+#[test]
+fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
+    assert!(RTM.contains("KRN-REF-001"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_get_conformance_statement_json"));
+
+    unsafe {
+        let mut len = 0usize;
+        assert_eq!(
+            krn_get_conformance_statement_json(ptr::null_mut(), &mut len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut json = vec![0u8; len];
+        assert_eq!(
+            krn_get_conformance_statement_json(json.as_mut_ptr(), &mut len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let json = String::from_utf8(json).unwrap();
+
+        assert!(json.contains("\"type\":\"conformance-statement\""));
+        assert!(json.contains("\"kernel_name\":\"Hyperion EMV Level 2 Kernel\""));
+        assert!(json.contains(&format!("\"abi_version\":{KRN_ABI_VERSION}")));
+        assert!(json.contains("\"status\":\"engineering-baseline-pending-licensed-review\""));
+        assert!(json.contains("\"normative_hierarchy\":\"licensed_external_standards_prevail\""));
+        for required in [
+            "docs/spec.md",
+            "docs/scheme_profiles.cert.json",
+            "EMV-B1",
+            "EMV-B2",
+            "EMV-B3",
+            "EMV-B4",
+            "EMV-C8",
+            "PCI-PTS-POI",
+            "SIGNED-SCHEME-PROFILES",
+            "LAB-TEST-PLANS",
+            "Licensed external standards prevail",
+        ] {
+            assert!(
+                json.contains(required),
+                "conformance statement missing {required}"
+            );
+        }
+    }
 }
 
 #[test]

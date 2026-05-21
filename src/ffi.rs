@@ -9,6 +9,7 @@ use crate::config::{
     load_profile_set, AidProfile, BuildMode, CdaRequestEncoding, ConfigLoadPolicy, ProfileSet,
     SignatureStatus,
 };
+use crate::conformance::baseline_conformance_statement;
 use crate::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface,
@@ -966,6 +967,27 @@ pub unsafe extern "C" fn krn_mask_apdu_response_json(
     result
         .map(|_| KernelError::Ok.code())
         .unwrap_or_else(|err| err.code())
+}
+
+/// Copies the deterministic KRN-REF-001 conformance statement JSON.
+///
+/// This artifact declares the controlling engineering baseline, normative
+/// reference hierarchy, and certification caveats for the current ABI build.
+///
+/// # Safety
+///
+/// `out_len` must point to writable `usize` storage. `out` may be null only for
+/// length probing; otherwise it must point to `*out_len` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_conformance_statement_json(
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let json = baseline_conformance_statement(KRN_ABI_VERSION).canonical_json();
+    match write_output(json.as_bytes(), out, out_len) {
+        Ok(_) => KernelError::Ok.code(),
+        Err(err) => err.code(),
+    }
 }
 
 #[no_mangle]

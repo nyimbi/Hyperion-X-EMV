@@ -27,7 +27,7 @@
 - [x] Static analysis report (MISRA C compliant) – [to be attached]
 - [x] Fuzzing report (1M iterations, no crashes) – [to be attached]
 - [x] PCI PTS integration statement (Model A – PED‑owned VERIFY) – [to be attached]
-- [x] Conformance statement (EMVCo template) – [to be attached]
+- [x] Conformance statement (EMVCo template) – `krn_get_conformance_statement_json` emits deterministic KRN-REF-001 JSON for the ABI build; signed lab template to be attached
 - [x] APDU trace logs (masked) for all test cases – [to be attached]
 
 ## Test Tool Configuration

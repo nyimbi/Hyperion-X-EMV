@@ -9,6 +9,7 @@ pub mod apdu;
 pub mod c8;
 pub mod cid;
 pub mod config;
+pub mod conformance;
 pub mod cvm;
 pub mod dol;
 pub mod error;
