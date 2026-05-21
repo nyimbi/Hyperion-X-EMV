@@ -442,6 +442,32 @@ fn scheme_profile_annex_contains_deterministic_taa_keys() {
 }
 
 #[test]
+fn scheme_profile_annex_uses_certification_provenance() {
+    for key in [
+        "\"profile_class\": \"CERTIFICATION\"",
+        "\"document\": \"signed_certification_profile_bundle\"",
+        "\"document\": \"signed_certification_capk_bundle\"",
+        "\"verification\": \"external_signature_required\"",
+    ] {
+        assert!(
+            SCHEME_PROFILES.contains(key),
+            "scheme profile annex missing provenance key {key}"
+        );
+    }
+
+    for forbidden in [
+        "l2emv_public_capkey_viewer",
+        "Public reference value",
+        "certification builds must use",
+    ] {
+        assert!(
+            !SCHEME_PROFILES.contains(forbidden),
+            "scheme profile annex still contains non-certification provenance {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
     let unsigned_policy = ConfigLoadPolicy {
         mode: BuildMode::Certification,

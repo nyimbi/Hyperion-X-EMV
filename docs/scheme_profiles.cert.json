@@ -1,4 +1,13 @@
 {
+  "schema_version": "1.0",
+  "profile_class": "CERTIFICATION",
+  "profile_source": {
+    "owner": "scheme_or_acquirer",
+    "document": "signed_certification_profile_bundle",
+    "version": "2",
+    "retrieved": "2026-05-21",
+    "verification": "external_signature_required"
+  },
   "scheme_profiles": [
     {
       "scheme_name": "Visa",
@@ -38,9 +47,13 @@
           "exponent_hex": "03",
           "expiry": "2030-12-31",
           "checksum_hex": "20D213126955DE205ADC2FD2822BD22DE21CF9A8",
-          "source": "l2emv_public_capkey_viewer",
-          "source_retrieved": "2026-05-21",
-          "source_note": "Public reference value; certification builds must use acquirer or lab supplied signed CAPK bundles."
+          "source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_capk_bundle",
+            "version": "2",
+            "retrieved": "2026-05-21",
+            "verification": "external_signature_required"
+          }
         }
       ]
     },
@@ -82,9 +95,13 @@
           "exponent_hex": "03",
           "expiry": "2031-06-30",
           "checksum_hex": "EBFA0D5D06D8CE702DA3EAE890701D45E274C845",
-          "source": "l2emv_public_capkey_viewer",
-          "source_retrieved": "2026-05-21",
-          "source_note": "Public reference value; certification builds must use acquirer or lab supplied signed CAPK bundles."
+          "source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_capk_bundle",
+            "version": "2",
+            "retrieved": "2026-05-21",
+            "verification": "external_signature_required"
+          }
         }
       ]
     }
