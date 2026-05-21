@@ -6,7 +6,8 @@ use crate::c8::{
 };
 use crate::cid::CryptogramType;
 use crate::config::{
-    load_profile_set, AidProfile, BuildMode, ConfigLoadPolicy, ProfileSet, SignatureStatus,
+    load_profile_set, AidProfile, BuildMode, CdaRequestEncoding, ConfigLoadPolicy, ProfileSet,
+    SignatureStatus,
 };
 use crate::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
@@ -161,6 +162,7 @@ pub struct KrnContext {
     profiles: Option<ProfileSet>,
     profile_evaluation_date: Option<EmvDate>,
     selected_application: Option<SelectedApplication>,
+    selected_oda_method: Option<OdaMethod>,
     requested_cryptogram: Option<CryptogramRequest>,
     first_gac_response: Option<GenerateAcResponse>,
     final_gac_response: Option<GenerateAcResponse>,
@@ -188,6 +190,7 @@ impl KrnContext {
             profiles: None,
             profile_evaluation_date: None,
             selected_application: None,
+            selected_oda_method: None,
             requested_cryptogram: None,
             first_gac_response: None,
             final_gac_response: None,
@@ -212,6 +215,7 @@ impl KrnContext {
         self.busy = false;
         self.txn_params = None;
         self.selected_application = None;
+        self.selected_oda_method = None;
         self.requested_cryptogram = None;
         self.first_gac_response = None;
         self.final_gac_response = None;
@@ -1263,21 +1267,32 @@ fn run_offline_data_authentication(
         .get(selected.aid_index)
         .ok_or(KernelError::InvalidProfile)?;
 
-    let selection = select_oda_method(selection_input_from_aip(aip, aid.cda_supported, true));
+    let selection = select_oda_method(selection_input_from_aip(
+        aip,
+        aid.cda_allowed_by_profile(),
+        true,
+    ));
     let outcome = match selection {
         OdaSelection::NotRequired => {
+            ctx.selected_oda_method = None;
             apply_transition(ctx, FsmEvent::OdaSuccess)?;
             ctx.state = KernelState::ProcessingRestrictions;
             return Ok(());
         }
-        OdaSelection::NotPerformedRequired => OdaOutcome::NotPerformed,
-        OdaSelection::Perform(method) => oda_outcome_for_method(
-            method,
-            profiles,
-            &scheme.rid,
-            evaluation_date,
-            &ctx.card_data,
-        ),
+        OdaSelection::NotPerformedRequired => {
+            ctx.selected_oda_method = None;
+            OdaOutcome::NotPerformed
+        }
+        OdaSelection::Perform(method) => {
+            ctx.selected_oda_method = Some(method);
+            oda_outcome_for_method(
+                method,
+                profiles,
+                &scheme.rid,
+                evaluation_date,
+                &ctx.card_data,
+            )
+        }
     };
     let failed = matches!(
         outcome,
@@ -1632,8 +1647,8 @@ fn run_first_generate_ac(
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
     let cdol_values = build_dol(&cdol, &ctx.card_data)?;
-    let command =
-        apdu::generate_ac(request, &cdol_values, CdaRequestControl::NotRequested)?.encode()?;
+    let cda_control = cda_request_control_for_first_gac(ctx)?;
+    let command = apdu::generate_ac(request, &cdol_values, cda_control)?.encode()?;
     let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
     if response.len() < 2 {
         return Err(KernelError::ParseError);
@@ -1878,6 +1893,19 @@ fn issuer_script_command_is_critical(
     Ok(selected_aid_profile(ctx)?
         .critical_issuer_script_ins
         .contains(ins))
+}
+
+fn cda_request_control_for_first_gac(ctx: &KrnContext) -> Result<CdaRequestControl, KernelError> {
+    if ctx.selected_oda_method != Some(OdaMethod::Cda) {
+        return Ok(CdaRequestControl::NotRequested);
+    }
+    let encoding = selected_aid_profile(ctx)?
+        .cda_request_encoding
+        .ok_or(KernelError::UnsupportedCdaRequest)?;
+    match encoding {
+        CdaRequestEncoding::InCdolData => Ok(CdaRequestControl::InCdolData),
+        CdaRequestEncoding::P1LowBits(bits) => Ok(CdaRequestControl::P1LowBits(bits)),
+    }
 }
 
 fn state_after_script_phase(phase: ScriptPhase) -> KernelState {
@@ -2587,6 +2615,28 @@ mod tests {
             aip: None,
             afl: Vec::new(),
         });
+    }
+
+    #[test]
+    fn first_gac_cda_request_control_is_profile_defined() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        assert_eq!(
+            cda_request_control_for_first_gac(&ctx).unwrap(),
+            CdaRequestControl::NotRequested
+        );
+
+        ctx.selected_oda_method = Some(OdaMethod::Cda);
+        assert_eq!(
+            cda_request_control_for_first_gac(&ctx).unwrap(),
+            CdaRequestControl::InCdolData
+        );
+
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].cda_request_encoding = None;
+        assert_eq!(
+            cda_request_control_for_first_gac(&ctx).unwrap_err(),
+            KernelError::UnsupportedCdaRequest
+        );
     }
 
     unsafe extern "C" fn capture_contactless_outcome(

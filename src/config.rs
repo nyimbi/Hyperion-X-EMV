@@ -76,7 +76,7 @@ pub struct AidProfile {
     pub contactless_cvm_limit: u64,
     pub cdcvm_supported: bool,
     pub cda_supported: bool,
-    pub cda_request_encoding: Option<String>,
+    pub cda_request_encoding: Option<CdaRequestEncoding>,
     pub critical_issuer_script_ins: Vec<u8>,
 }
 
@@ -84,6 +84,16 @@ impl AidProfile {
     pub fn trm_profile(&self) -> Option<TrmProfile> {
         TrmProfile::new(self.floor_limit, self.random_selection_percent, None, None)
     }
+
+    pub fn cda_allowed_by_profile(&self) -> bool {
+        self.cda_supported && self.cda_request_encoding.is_some()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CdaRequestEncoding {
+    InCdolData,
+    P1LowBits(u8),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -300,9 +310,30 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         cda_request_encoding: object
             .get("cda_request_encoding")
             .and_then(JsonValue::as_string_opt)
-            .map(str::to_string),
+            .map(parse_cda_request_encoding)
+            .transpose()?,
         critical_issuer_script_ins: optional_hex_byte_array(object, "critical_issuer_script_ins")?,
     })
+}
+
+fn parse_cda_request_encoding(input: &str) -> KernelResult<CdaRequestEncoding> {
+    if input == "CDOL1_bit" {
+        return Ok(CdaRequestEncoding::InCdolData);
+    }
+    let Some(hex) = input.strip_prefix("P1_low_bits_0x") else {
+        return Err(KernelError::InvalidProfile);
+    };
+    if hex.len() != 2 {
+        return Err(KernelError::InvalidProfile);
+    }
+    let bits = decode_hex(hex)?
+        .into_iter()
+        .next()
+        .ok_or(KernelError::InvalidProfile)?;
+    if bits == 0 || bits & 0xc0 != 0 {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(CdaRequestEncoding::P1LowBits(bits))
 }
 
 fn parse_capk(value: &JsonValue, rid: [u8; 5], evaluation_date: EmvDate) -> KernelResult<Capk> {
@@ -775,6 +806,11 @@ mod tests {
             profiles.schemes[0].aids[0].critical_issuer_script_ins,
             [0xe2]
         );
+        assert_eq!(
+            profiles.schemes[0].aids[0].cda_request_encoding,
+            Some(CdaRequestEncoding::InCdolData)
+        );
+        assert!(profiles.schemes[0].aids[0].cda_allowed_by_profile());
     }
 
     #[test]
@@ -937,6 +973,26 @@ mod tests {
         }"#;
         assert_eq!(
             load_profile_set(invalid, &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn cda_request_encoding_is_profile_defined_and_non_colliding() {
+        assert_eq!(
+            parse_cda_request_encoding("CDOL1_bit").unwrap(),
+            CdaRequestEncoding::InCdolData
+        );
+        assert_eq!(
+            parse_cda_request_encoding("P1_low_bits_0x10").unwrap(),
+            CdaRequestEncoding::P1LowBits(0x10)
+        );
+        assert_eq!(
+            parse_cda_request_encoding("P1_low_bits_0x40").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_cda_request_encoding("implicit").unwrap_err(),
             KernelError::InvalidProfile
         );
     }

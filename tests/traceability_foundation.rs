@@ -9,7 +9,8 @@ use hyperion_emv::c8::{
 };
 use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::{
-    load_profile_set, BuildMode, ConfigLoadPolicy, ProfileClass, SignatureStatus,
+    load_profile_set, BuildMode, CdaRequestEncoding, ConfigLoadPolicy, ProfileClass,
+    SignatureStatus,
 };
 use hyperion_emv::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
@@ -178,6 +179,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SEC-002",
         "KRN-GAC-008",
         "KRN-GAC-009",
+        "KRN-GAC-010",
         "KRN-TAA-004",
         "KRN-TAA-005",
         "KRN-TAA-006",
@@ -705,6 +707,125 @@ fn krn_gac_008_009_cda_control_never_changes_type_bits() {
         CdaRequestControl::P1LowBits(0x40),
     );
     assert!(invalid.is_err());
+}
+
+#[test]
+fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
+    let policy = ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::Verified,
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    };
+    let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &policy).unwrap();
+    let visa_aid = &profiles.schemes[0].aids[0];
+    assert_eq!(
+        visa_aid.cda_request_encoding,
+        Some(CdaRequestEncoding::InCdolData)
+    );
+    assert!(visa_aid.cda_allowed_by_profile());
+
+    let missing_encoding = br#"{
+      "profile_class": "CERTIFICATION",
+      "profile_source": {
+        "owner": "scheme_or_acquirer",
+        "document": "signed_certification_profile_bundle",
+        "version": "2",
+        "verification": "external_signature_required"
+      },
+      "scheme_profiles": [{
+        "scheme_name": "Visa",
+        "rid": "A000000003",
+        "kernel_type": "c8_contactless",
+        "taa_fallback_when_offline_unable_online": "AAC",
+        "taa_no_match_default_when_online_capable": "ARQC",
+        "taa_no_match_default_when_offline_only": "AAC",
+        "aids": [{
+          "aid": "A0000000031010",
+          "priority": 10,
+          "partial_selection": true,
+          "interfaces": ["contact", "contactless"],
+          "tac_online": "E0F8C80000",
+          "tac_denial": "0000000000",
+          "tac_default": "8000000000",
+          "iac_online": "0000000000",
+          "iac_denial": "0000000000",
+          "iac_default": "0000000000",
+          "floor_limit": 0,
+          "cvm_limit_contact": 5000,
+          "random_selection_percent": 5,
+          "contactless_transaction_limit": 5000,
+          "contactless_cvm_limit": 3000,
+          "cdcvm_supported": true,
+          "cda_supported": true
+        }],
+        "capks": [{
+          "key_index": 1,
+          "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+          "exponent_hex": "010001",
+          "expiry": "2030-12-31",
+          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+        }]
+      }]
+    }"#;
+    let profiles = load_profile_set(missing_encoding, &policy).unwrap();
+    let aid = &profiles.schemes[0].aids[0];
+    assert!(aid.cda_supported);
+    assert!(!aid.cda_allowed_by_profile());
+
+    let colliding_encoding = br#"{
+      "profile_class": "CERTIFICATION",
+      "profile_source": {
+        "owner": "scheme_or_acquirer",
+        "document": "signed_certification_profile_bundle",
+        "version": "2",
+        "verification": "external_signature_required"
+      },
+      "scheme_profiles": [{
+        "scheme_name": "Visa",
+        "rid": "A000000003",
+        "kernel_type": "c8_contactless",
+        "taa_fallback_when_offline_unable_online": "AAC",
+        "taa_no_match_default_when_online_capable": "ARQC",
+        "taa_no_match_default_when_offline_only": "AAC",
+        "aids": [{
+          "aid": "A0000000031010",
+          "priority": 10,
+          "partial_selection": true,
+          "interfaces": ["contact"],
+          "tac_online": "E0F8C80000",
+          "tac_denial": "0000000000",
+          "tac_default": "8000000000",
+          "iac_online": "0000000000",
+          "iac_denial": "0000000000",
+          "iac_default": "0000000000",
+          "floor_limit": 0,
+          "cvm_limit_contact": 0,
+          "random_selection_percent": 0,
+          "contactless_transaction_limit": 0,
+          "contactless_cvm_limit": 0,
+          "cdcvm_supported": false,
+          "cda_supported": true,
+          "cda_request_encoding": "P1_low_bits_0x40"
+        }],
+        "capks": [{
+          "key_index": 1,
+          "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+          "exponent_hex": "010001",
+          "expiry": "2030-12-31",
+          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+        }]
+      }]
+    }"#;
+    assert_eq!(
+        load_profile_set(colliding_encoding, &policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
 }
 
 #[test]
