@@ -39,8 +39,9 @@ use hyperion_emv::issuer::{
 };
 use hyperion_emv::oda::{
     apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
-    select_capk, select_oda_method, selection_input_from_aip, validate_oda_vector_annex,
-    CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput,
+    select_capk, select_oda_method, selection_input_from_aip, validate_icc_public_key_inputs,
+    validate_issuer_public_key_inputs, validate_oda_vector_annex, CapkIntegrity, OdaFailure,
+    OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -2087,6 +2088,45 @@ fn krn_oda_003_004_certificate_recovery_failures_set_tvr() {
     );
     assert!(!tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
     assert!(tvr.is_set(Tvr::B1_CDA_FAILED));
+}
+
+#[test]
+fn krn_oda_003_004_public_key_inputs_require_certificates_exponents_and_remainders() {
+    let mut data = DataStore::new();
+    data.put(&[0x90], &hex("6A02030405060708090A0B0C0D0E0FBC"))
+        .unwrap();
+    data.put(&[0x92], &hex("313233")).unwrap();
+    data.put(&[0x9f, 0x32], &hex("03")).unwrap();
+    data.put(&[0x9f, 0x46], &hex("6A1112131415161718191A1B1C1D1EBC"))
+        .unwrap();
+    data.put(&[0x9f, 0x48], &hex("4142")).unwrap();
+    data.put(&[0x9f, 0x47], &hex("010001")).unwrap();
+
+    let issuer = validate_issuer_public_key_inputs(&data).unwrap();
+    assert_eq!(issuer.certificate, hex("6A02030405060708090A0B0C0D0E0FBC"));
+    assert_eq!(issuer.remainder, hex("313233"));
+    assert_eq!(issuer.exponent, hex("03"));
+
+    let icc = validate_icc_public_key_inputs(&data).unwrap();
+    assert_eq!(icc.certificate, hex("6A1112131415161718191A1B1C1D1EBC"));
+    assert_eq!(icc.remainder, hex("4142"));
+    assert_eq!(icc.exponent, hex("010001"));
+
+    let mut missing_issuer_exponent = data.clone();
+    missing_issuer_exponent.put(&[0x9f, 0x32], &[]).unwrap();
+    assert_eq!(
+        validate_issuer_public_key_inputs(&missing_issuer_exponent).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let mut truncated_icc_certificate = data;
+    truncated_icc_certificate
+        .put(&[0x9f, 0x46], &hex("6A1112"))
+        .unwrap();
+    assert_eq!(
+        validate_icc_public_key_inputs(&truncated_icc_certificate).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
 }
 
 #[test]

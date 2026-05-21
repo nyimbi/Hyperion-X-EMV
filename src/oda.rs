@@ -1,4 +1,5 @@
 use crate::config::{decode_hex, Capk, ProfileSet};
+use crate::dol::DataStore;
 use crate::error::{KernelError, KernelResult};
 use crate::restrictions::EmvDate;
 use crate::state::{Tsi, Tvr};
@@ -6,6 +7,7 @@ use crate::tlv;
 
 pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
+pub const MAX_ODA_REMAINDER_BYTES: usize = 248;
 const SHA1_DIGEST_BYTES: usize = 20;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,6 +66,13 @@ pub enum CapkIntegrity {
 pub struct InternalAuthenticateResponse {
     pub signed_dynamic_application_data: Vec<u8>,
     pub icc_dynamic_number: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicKeyInput {
+    pub certificate: Vec<u8>,
+    pub remainder: Vec<u8>,
+    pub exponent: Vec<u8>,
 }
 
 pub fn selection_input_from_aip(
@@ -195,6 +204,51 @@ pub fn parse_internal_authenticate_response(
     })
 }
 
+pub fn validate_issuer_public_key_inputs(data: &DataStore) -> KernelResult<PublicKeyInput> {
+    validate_public_key_inputs(
+        data.get(&[0x90]),
+        data.get(&[0x92]),
+        data.get(&[0x9f, 0x32]),
+    )
+}
+
+pub fn validate_icc_public_key_inputs(data: &DataStore) -> KernelResult<PublicKeyInput> {
+    validate_public_key_inputs(
+        data.get(&[0x9f, 0x46]),
+        data.get(&[0x9f, 0x48]),
+        data.get(&[0x9f, 0x47]),
+    )
+}
+
+fn validate_public_key_inputs(
+    certificate: Option<&[u8]>,
+    remainder: Option<&[u8]>,
+    exponent: Option<&[u8]>,
+) -> KernelResult<PublicKeyInput> {
+    let certificate = certificate.ok_or(KernelError::MissingMandatoryTag)?;
+    if certificate.len() < MIN_ODA_CERTIFICATE_BYTES || all_zero_or_ff(certificate) {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let remainder = remainder.unwrap_or(&[]);
+    if remainder.len() > MAX_ODA_REMAINDER_BYTES
+        || (!remainder.is_empty() && all_zero_or_ff(remainder))
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let exponent = exponent.ok_or(KernelError::MissingMandatoryTag)?;
+    if exponent.is_empty() || exponent.len() > 3 || all_zero_or_ff(exponent) {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    Ok(PublicKeyInput {
+        certificate: certificate.to_vec(),
+        remainder: remainder.to_vec(),
+        exponent: exponent.to_vec(),
+    })
+}
+
 pub fn validate_oda_vector_annex(json: &[u8], certification: bool) -> KernelResult<()> {
     let text = core::str::from_utf8(json).map_err(|_| KernelError::ParseError)?;
     if certification && contains_forbidden_placeholder(text) {
@@ -236,6 +290,10 @@ pub fn validate_oda_vector_annex(json: &[u8], certification: bool) -> KernelResu
         return Err(KernelError::InvalidProfile);
     }
     Ok(())
+}
+
+fn all_zero_or_ff(value: &[u8]) -> bool {
+    value.iter().all(|byte| *byte == 0x00) || value.iter().all(|byte| *byte == 0xff)
 }
 
 fn validate_vector_hex_field(key: &str, value: &str) -> KernelResult<()> {
@@ -567,6 +625,53 @@ mod tests {
         );
         assert_eq!(
             parse_internal_authenticate_response(&[0x9f, 0x4b, 0x02, 0xaa, 0xbb]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn validates_public_key_certificate_inputs_before_recovery() {
+        let mut data = DataStore::new();
+        data.put(
+            &[0x90],
+            &[
+                0x6a, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0xbc,
+            ],
+        )
+        .unwrap();
+        data.put(&[0x92], &[0x31, 0x32, 0x33]).unwrap();
+        data.put(&[0x9f, 0x32], &[0x03]).unwrap();
+        data.put(
+            &[0x9f, 0x46],
+            &[
+                0x6a, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0xbc,
+            ],
+        )
+        .unwrap();
+        data.put(&[0x9f, 0x48], &[0x41, 0x42]).unwrap();
+        data.put(&[0x9f, 0x47], &[0x01, 0x00, 0x01]).unwrap();
+
+        let issuer = validate_issuer_public_key_inputs(&data).unwrap();
+        assert_eq!(issuer.remainder, vec![0x31, 0x32, 0x33]);
+        assert_eq!(issuer.exponent, vec![0x03]);
+
+        let icc = validate_icc_public_key_inputs(&data).unwrap();
+        assert_eq!(icc.remainder, vec![0x41, 0x42]);
+        assert_eq!(icc.exponent, vec![0x01, 0x00, 0x01]);
+
+        let mut missing_exponent = data.clone();
+        missing_exponent.put(&[0x9f, 0x32], &[]).unwrap();
+        assert_eq!(
+            validate_issuer_public_key_inputs(&missing_exponent).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut truncated = data;
+        truncated.put(&[0x9f, 0x46], &[0x6a, 0x01, 0x02]).unwrap();
+        assert_eq!(
+            validate_icc_public_key_inputs(&truncated).unwrap_err(),
             KernelError::InvalidProfile
         );
     }

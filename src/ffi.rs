@@ -26,8 +26,9 @@ use crate::issuer::{
     apply_script_results, parse_host_response, HostResponse, ScriptCommandResult, ScriptPhase,
 };
 use crate::oda::{
-    apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip, CapkIntegrity,
-    OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
+    apply_oda_outcome, select_capk, select_oda_method, selection_input_from_aip,
+    validate_icc_public_key_inputs, validate_issuer_public_key_inputs, CapkIntegrity, OdaFailure,
+    OdaMethod, OdaOutcome, OdaSelection,
 };
 use crate::record::parse_read_record_body;
 use crate::restrictions::{
@@ -1532,7 +1533,7 @@ fn oda_outcome_for_method(
 
     match method {
         OdaMethod::Sda => {
-            if card_data.get(&[0x90]).is_none() {
+            if validate_issuer_public_key_inputs(card_data).is_err() {
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::IssuerCertificateRecovery,
@@ -1550,13 +1551,13 @@ fn oda_outcome_for_method(
             }
         }
         OdaMethod::Dda => {
-            if card_data.get(&[0x90]).is_none() {
+            if validate_issuer_public_key_inputs(card_data).is_err() {
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::IssuerCertificateRecovery,
                 };
             }
-            if card_data.get(&[0x9f, 0x46]).is_none() || card_data.get(&[0x9f, 0x47]).is_none() {
+            if validate_icc_public_key_inputs(card_data).is_err() {
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::IccCertificateRecovery,
@@ -1568,13 +1569,13 @@ fn oda_outcome_for_method(
             }
         }
         OdaMethod::Cda => {
-            if card_data.get(&[0x90]).is_none() {
+            if validate_issuer_public_key_inputs(card_data).is_err() {
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::IssuerCertificateRecovery,
                 };
             }
-            if card_data.get(&[0x9f, 0x46]).is_none() || card_data.get(&[0x9f, 0x47]).is_none() {
+            if validate_icc_public_key_inputs(card_data).is_err() {
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::IccCertificateRecovery,
