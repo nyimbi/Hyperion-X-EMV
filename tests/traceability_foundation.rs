@@ -1407,6 +1407,21 @@ fn spec_status_matches_non_certification_oda_fixture_gate() {
 }
 
 #[test]
+fn spec_delegates_lab_manifest_state_to_executable_manifest() {
+    let spec = include_str!("../docs/spec.md");
+
+    assert!(spec.contains("The executable lab submission manifest is"));
+    assert!(spec.contains("docs/lab_submission_manifest.md"));
+    assert!(spec.contains("authoritative manifest for"));
+    assert!(spec.contains("artifact attachment state"));
+    assert!(spec.contains("SHALL NOT mark an item complete while its row still says"));
+    assert!(spec.contains("Bundled ODA vectors remain structural fixtures"));
+    assert!(spec.contains("vector_class = \"CERTIFICATION\""));
+    assert!(!spec.contains("All test vectors and configuration profiles are authentic"));
+    assert!(!spec.contains("EMV Level 2 Contact:** Yes (Visa, Mastercard, Amex, Discover)"));
+}
+
+#[test]
 fn certification_package_rejects_illustrative_profiles_and_placeholder_vectors() {
     load_profile_set(SCHEME_PROFILES.as_bytes(), &certification_policy()).unwrap();
 

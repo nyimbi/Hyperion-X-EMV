@@ -229,50 +229,22 @@ requirements, evidence references, or lab mappings change.
 
 ### Annex H – Lab Submission Manifest (`lab_submission_manifest.md`)
 
-```markdown
-# Lab Submission Manifest – Hyperion EMV Kernel v6.0
+The executable lab submission manifest is
+`docs/lab_submission_manifest.md`. It is the authoritative manifest for
+artifact attachment state. The manifest SHALL distinguish:
 
-## Product Information
-- **Product Name:** Hyperion EMV Kernel
-- **Version:** 6.0
-- **Vendor:** Hyperion-X
-- **Target Device:** Hyperion MP35P terminal and certified contactless readers
-- **Submission Date:** [to be filled]
+- locally generated engineering evidence that is present in the repository,
+  such as source, annexes, reproducible build provenance, trace identity
+  metadata, and ABI conformance JSON;
+- external evidence that remains unchecked until attached and independently
+  verified, such as signed EMVCo/lab conformance templates, full APDU trace
+  packs, static-analysis reports, fuzzing reports, PCI PTS integration
+  statements, recognized-lab execution reports, and approval artifacts.
 
-## Certification Scope
-- **EMV Level 2 Contact:** Yes (Visa, Mastercard, Amex, Discover)
-- **EMV Level 2 Contactless (C‑8):** Yes (unified kernel)
-- **PCI PTS POI v7.0 alignment:** Yes (via PED integration statement)
-
-## Attached Artifacts
-- [ ] Specification document (this file)
-- [ ] TLV catalogue (`tlv_catalogue.csv`)
-- [ ] State machine table (`state_machine.csv`)
-- [ ] ODA test vectors (`oda_test_vectors.json`)
-- [ ] Scheme profiles (`scheme_profiles.cert.json`)
-- [ ] Requirement traceability matrix (`requirements_traceability.csv`)
-- [ ] Trace identity metadata in masked APDU logs (ABI version and profile version)
-- [ ] Source code (under NDA)
-- [ ] Unit test report
-- [ ] Integration test report
-- [ ] Static analysis report (MISRA C)
-- [ ] Fuzzing report
-- [ ] PCI PTS integration statement
-- [ ] Conformance statement (EMVCo template)
-- [ ] APDU trace logs (masked) for all test cases
-
-## Test Tool Configuration
-- **EMVCo L2 Test Tool:** Fime Eval4dev v3.2
-- **Contactless Test Tool:** EMVCo C‑8 test harness v1.0
-- **Test Environment:** Hyperion test terminal with simulated cards
-
-## Certification Contact
-- **Engineer:** [Name]
-- **Email:** [email]
-
-## Declaration
-We confirm that the submitted kernel and accompanying documentation accurately represent the product intended for certification. All test vectors and configuration profiles are authentic and can be independently verified by the laboratory.
-```
+The manifest SHALL NOT mark an item complete while its row still says
+`[to be attached]`. Bundled ODA vectors remain structural fixtures unless the
+annex declares `vector_class = "CERTIFICATION"` and contains complete
+lab-supplied cryptographic material.
 
 ---
 

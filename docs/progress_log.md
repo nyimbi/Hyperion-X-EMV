@@ -247,3 +247,17 @@ decision record, while this file tracks work toward certification readiness.
   versus external artifact states.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:50:48Z
+
+- Increment completed: remove stale embedded lab-manifest checklist and
+  declaration from `docs/spec.md`.
+- Code impact: the spec now delegates attachment state to
+  `docs/lab_submission_manifest.md`, requires unchecked external evidence until
+  attached and independently verified, and carries the ODA structural-fixture
+  gate instead of declaring bundled vectors and profiles authentic.
+- Evidence updated: traceability coverage now rejects the old broad contact
+  scope claim and the unsupported "all test vectors and configuration profiles
+  are authentic" declaration in the active spec.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
