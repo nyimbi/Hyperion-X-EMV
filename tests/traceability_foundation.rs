@@ -46,7 +46,7 @@ use hyperion_emv::restrictions::{
     ServiceType, TransactionRegion,
 };
 use hyperion_emv::selection::{match_profile_candidates, parse_fci_candidate_aids};
-use hyperion_emv::state::Tvr;
+use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
 use hyperion_emv::tlv;
@@ -172,6 +172,8 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SEL-001",
         "KRN-TVR-001",
         "KRN-TVR-002",
+        "KRN-TVR-003",
+        "KRN-TSI-001",
         "KRN-CID-001",
         "KRN-CVM-001",
         "KRN-CVM-002",
@@ -1558,6 +1560,71 @@ fn krn_tvr_001_002_tvr_is_symbolic_and_cleared() {
     assert_eq!(tvr.bytes(), [0; 5]);
     tvr.set(Tvr::B1_SDA_FAILED);
     assert_eq!(tvr.bytes(), [0x40, 0, 0, 0, 0]);
+}
+
+#[test]
+fn krn_tvr_003_tsi_001_state_bits_are_defined_and_rfu_safe() {
+    let mut tvr = Tvr::cleared();
+    tvr.set((0, 0x03));
+    tvr.set((1, 0x07));
+    tvr.set((2, 0x03));
+    tvr.set((3, 0x07));
+    tvr.set((4, 0x8f));
+    tvr.set((9, 0xff));
+    assert_eq!(tvr.bytes(), [0; 5]);
+    assert!(!tvr.has_rfu_bits());
+
+    for bit in [
+        Tvr::B1_OFFLINE_DATA_AUTH_NOT_PERFORMED,
+        Tvr::B1_SDA_FAILED,
+        Tvr::B1_ICC_DATA_MISSING,
+        Tvr::B1_CARD_ON_EXCEPTION_FILE,
+        Tvr::B1_DDA_FAILED,
+        Tvr::B1_CDA_FAILED,
+        Tvr::B2_DIFFERENT_APPLICATION_VERSIONS,
+        Tvr::B2_EXPIRED_APPLICATION,
+        Tvr::B2_APPLICATION_NOT_YET_EFFECTIVE,
+        Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED,
+        Tvr::B2_NEW_CARD,
+        Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,
+        Tvr::B3_UNRECOGNIZED_CVM,
+        Tvr::B3_PIN_TRY_LIMIT_EXCEEDED,
+        Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING,
+        Tvr::B3_PIN_NOT_ENTERED,
+        Tvr::B3_ONLINE_PIN_ENTERED,
+        Tvr::B4_FLOOR_LIMIT_EXCEEDED,
+        Tvr::B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED,
+        Tvr::B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED,
+        Tvr::B4_RANDOM_TRANSACTION_SELECTION_PERFORMED,
+        Tvr::B4_MERCHANT_FORCED_TRANSACTION_ONLINE,
+        Tvr::B5_ISSUER_AUTHENTICATION_FAILED,
+        Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC,
+        Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC,
+    ] {
+        tvr.set(bit);
+    }
+    assert_eq!(tvr.bytes(), Tvr::ALLOWED_MASKS);
+    assert!(!tvr.has_rfu_bits());
+
+    let mut tsi = Tsi::cleared();
+    tsi.set((0, 0x03));
+    tsi.set((1, 0xff));
+    tsi.set((4, 0xff));
+    assert_eq!(tsi.bytes(), [0; 2]);
+    assert!(!tsi.has_rfu_bits());
+
+    for bit in [
+        Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED,
+        Tsi::CARDHOLDER_VERIFICATION_PERFORMED,
+        Tsi::CARD_RISK_MANAGEMENT_PERFORMED,
+        Tsi::ISSUER_AUTHENTICATION_PERFORMED,
+        Tsi::TERMINAL_RISK_MANAGEMENT_PERFORMED,
+        Tsi::SCRIPT_PROCESSING_PERFORMED,
+    ] {
+        tsi.set(bit);
+    }
+    assert_eq!(tsi.bytes(), Tsi::ALLOWED_MASKS);
+    assert!(!tsi.has_rfu_bits());
 }
 
 #[test]
