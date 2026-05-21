@@ -169,6 +169,7 @@ pub struct KrnContext {
     host_response: Option<HostResponse>,
     issuer_script_results: Vec<ScriptCommandResult>,
     card_data: DataStore,
+    last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
     contactless_outcome_user_data: *mut c_void,
@@ -195,6 +196,7 @@ impl KrnContext {
             host_response: None,
             issuer_script_results: Vec::new(),
             card_data: DataStore::new(),
+            last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
             contactless_outcome_user_data: ptr::null_mut(),
@@ -965,7 +967,7 @@ unsafe fn read_transaction_params(
 
 fn transaction_data_store(
     params: &StoredTxnParams,
-    runtime: RuntimeCallbacks,
+    unpredictable_number: [u8; 4],
     transaction_date: EmvDate,
     tvr: Tvr,
     tsi: Tsi,
@@ -996,7 +998,14 @@ fn transaction_data_store(
     }
     data.put(&[0x95], &tvr.bytes())?;
     data.put(&[0x9b], &tsi.bytes())?;
+    data.put(&[0x9f, 0x37], &unpredictable_number)?;
+    Ok(data)
+}
 
+fn request_unpredictable_number(
+    runtime: RuntimeCallbacks,
+    previous: Option<[u8; 4]>,
+) -> Result<[u8; 4], KernelError> {
     let mut unpredictable_number = [0u8; 4];
     let status = unsafe {
         (runtime.get_unpredictable_number)(
@@ -1006,10 +1015,13 @@ fn transaction_data_store(
         )
     };
     if status != KernelError::Ok.code() {
-        return Err(KernelError::InternalError);
+        return Err(KernelError::RngFailure);
     }
-    data.put(&[0x9f, 0x37], &unpredictable_number)?;
-    Ok(data)
+    if unpredictable_number.iter().all(|byte| *byte == 0) || previous == Some(unpredictable_number)
+    {
+        return Err(KernelError::RngFailure);
+    }
+    Ok(unpredictable_number)
 }
 
 fn encode_online_authorization_package(
@@ -2113,7 +2125,24 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     };
-    let data = match transaction_data_store(params, runtime, transaction_date, ctx.tvr, ctx.tsi) {
+    let unpredictable_number =
+        match request_unpredictable_number(runtime, ctx.last_unpredictable_number) {
+            Ok(value) => value,
+            Err(err) => {
+                ctx.last_error = err;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
+        };
+    ctx.last_unpredictable_number = Some(unpredictable_number);
+    let data = match transaction_data_store(
+        params,
+        unpredictable_number,
+        transaction_date,
+        ctx.tvr,
+        ctx.tsi,
+    ) {
         Ok(data) => data,
         Err(err) => {
             ctx.last_error = err;

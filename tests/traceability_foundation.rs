@@ -83,6 +83,29 @@ unsafe extern "C" fn it_transmit_apdu(
     IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
     IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
     IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    write_scripted_response(command, count, resp, resp_len)
+}
+
+unsafe extern "C" fn it_rng_test_transmit_apdu(
+    cmd: *const u8,
+    cmd_len: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+    _timeout_ms: i32,
+    user_data: *mut c_void,
+) -> i32 {
+    let command = std::slice::from_raw_parts(cmd, cmd_len);
+    let counter = &*(user_data as *const AtomicUsize);
+    let count = counter.fetch_add(1, Ordering::SeqCst);
+    write_scripted_response(command, count, resp, resp_len)
+}
+
+unsafe fn write_scripted_response(
+    command: &[u8],
+    count: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+) -> i32 {
     let response = match count {
         0 => hex("6F13A511BF0C0E610C4F07A00000000310108701019000"),
         1 => hex("6F118407A0000000031010A5069F38039F37049000"),
@@ -112,6 +135,29 @@ unsafe extern "C" fn it_unpredictable_number(
 ) -> i32 {
     for idx in 0..out_len {
         *out.add(idx) = (idx as u8).wrapping_add(1);
+    }
+    hyperion_emv::KernelError::Ok.code()
+}
+
+unsafe extern "C" fn it_zero_unpredictable_number(
+    out: *mut u8,
+    out_len: usize,
+    _user_data: *mut c_void,
+) -> i32 {
+    for idx in 0..out_len {
+        *out.add(idx) = 0;
+    }
+    hyperion_emv::KernelError::Ok.code()
+}
+
+unsafe extern "C" fn it_fixed_unpredictable_number(
+    out: *mut u8,
+    out_len: usize,
+    _user_data: *mut c_void,
+) -> i32 {
+    let value = [0x11, 0x22, 0x33, 0x44];
+    for idx in 0..out_len {
+        *out.add(idx) = value[idx % value.len()];
     }
     hyperion_emv::KernelError::Ok.code()
 }
@@ -165,6 +211,8 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SCR-005",
         "KRN-SCR-006",
         "KRN-DPL-004",
+        "KRN-RNG-001",
+        "KRN-RNG-002",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -184,6 +232,8 @@ fn corrected_spec_contains_logging_and_replay_requirements() {
         "KRN-LOG-002",
         "KRN-LOG-003",
         "KRN-LOG-004",
+        "KRN-RNG-001",
+        "KRN-RNG-002",
     ] {
         assert!(
             CORRECTED_SPEC.contains(krn_id),
@@ -849,6 +899,99 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             KrnOutcome::ApprovedOnline as i32
         );
         krn_context_free(ctx);
+    }
+}
+
+#[test]
+fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
+    unsafe fn init_with_rng(
+        callback: hyperion_emv::ffi::KrnGetUnpredictableNumberCallback,
+        apdu_counter: &AtomicUsize,
+    ) -> *mut hyperion_emv::ffi::KrnContext {
+        let mut ctx = ptr::null_mut();
+        let runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_rng_test_transmit_apdu),
+            get_unpredictable_number: Some(callback),
+            contactless_outcome: None,
+            user_data: (apdu_counter as *const AtomicUsize)
+                .cast_mut()
+                .cast::<c_void>(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &runtime, &mut ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        ctx
+    }
+
+    unsafe fn set_params(ctx: *mut hyperion_emv::ffi::KrnContext) {
+        let params = KrnTxnParams {
+            struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_500,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 0,
+        };
+        assert_eq!(
+            krn_set_transaction_params(ctx, &params),
+            hyperion_emv::KernelError::Ok.code()
+        );
+    }
+
+    unsafe {
+        let zero_apdu_counter = AtomicUsize::new(0);
+        let zero_ctx = init_with_rng(it_zero_unpredictable_number, &zero_apdu_counter);
+        set_params(zero_ctx);
+        assert_eq!(krn_run_transaction(zero_ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(zero_ctx),
+            hyperion_emv::KernelError::RngFailure.code()
+        );
+        assert_eq!(krn_get_fsm_state(zero_ctx), FsmState::Se.code());
+        krn_context_free(zero_ctx);
+
+        let repeated_apdu_counter = AtomicUsize::new(0);
+        let repeated_ctx = init_with_rng(it_fixed_unpredictable_number, &repeated_apdu_counter);
+        set_params(repeated_ctx);
+        assert_eq!(krn_run_transaction(repeated_ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(repeated_ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert_eq!(
+            krn_reset(repeated_ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        set_params(repeated_ctx);
+        repeated_apdu_counter.store(0, Ordering::SeqCst);
+        assert_eq!(krn_run_transaction(repeated_ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(repeated_ctx),
+            hyperion_emv::KernelError::RngFailure.code()
+        );
+        assert_eq!(krn_get_fsm_state(repeated_ctx), FsmState::Se.code());
+        krn_context_free(repeated_ctx);
     }
 }
 

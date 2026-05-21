@@ -18,6 +18,7 @@ pub enum KernelError {
     HostTimeout = 10,
     ScriptFailed = 11,
     Busy = 12,
+    RngFailure = 13,
     InternalError = 255,
 }
 
@@ -43,6 +44,7 @@ impl fmt::Display for KernelError {
             KernelError::HostTimeout => "host timeout",
             KernelError::ScriptFailed => "script failed",
             KernelError::Busy => "kernel busy",
+            KernelError::RngFailure => "RNG failure",
             KernelError::InternalError => "internal error",
         })
     }
