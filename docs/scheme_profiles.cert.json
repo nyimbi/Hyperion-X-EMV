@@ -27,7 +27,8 @@
           "contactless_cvm_limit": 3000,
           "cdcvm_supported": true,
           "cda_supported": true,
-          "cda_request_encoding": "CDOL1_bit"
+          "cda_request_encoding": "CDOL1_bit",
+          "critical_issuer_script_ins": ["E2"]
         }
       ],
       "capks": [
@@ -70,7 +71,8 @@
           "contactless_cvm_limit": 5000,
           "cdcvm_supported": true,
           "cda_supported": true,
-          "cda_request_encoding": "CDOL1_bit"
+          "cda_request_encoding": "CDOL1_bit",
+          "critical_issuer_script_ins": ["E2"]
         }
       ],
       "capks": [
