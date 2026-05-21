@@ -1654,6 +1654,38 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
 }
 
 #[test]
+fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-TRM-001", "KRN-TRM-002", "KRN-TRM-004"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete TRM evidence"
+            );
+            assert!(row.contains("trm_sets_floor_random_velocity_exception_and_tsi_bits"));
+        }
+
+        let floor = csv_row_for_requirement(csv, "KRN-TRM-001").unwrap();
+        assert!(floor.contains("evaluates_floor_exception_velocity_random_and_merchant_bits"));
+        assert!(floor
+            .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
+
+        let random = csv_row_for_requirement(csv, "KRN-TRM-002").unwrap();
+        assert!(random.contains("random_selection_is_deterministic_from_external_sample"));
+        assert!(random.contains("rejects_invalid_profile_percent"));
+
+        let tsi = csv_row_for_requirement(csv, "KRN-TRM-004").unwrap();
+        assert!(tsi.contains("evaluates_floor_exception_velocity_random_and_merchant_bits"));
+
+        let counters = csv_row_for_requirement(csv, "KRN-TRM-003").unwrap();
+        assert!(
+            counters.contains("pending implementation evidence"),
+            "offline counter persistence needs dedicated non-volatile storage evidence"
+        );
+    }
+}
+
+#[test]
 fn rtm_promotes_api_abi_and_callback_validation_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-API-001", "KRN-API-002"] {
