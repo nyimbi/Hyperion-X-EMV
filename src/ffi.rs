@@ -2711,7 +2711,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     };
-    let response = match transmit_apdu(runtime, &select, APDU_TRANSMIT_TIMEOUT_MS) {
+    let response = match transmit_apdu_with_followups(
+        runtime,
+        &select,
+        APDU_TRANSMIT_TIMEOUT_MS,
+        ApduContext::SelectPse,
+    ) {
         Ok(response) => response,
         Err(err) => {
             ctx.last_error = err;
@@ -2726,13 +2731,20 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         ctx.fsm_state = FsmState::Se;
         return KrnOutcome::Error;
     }
-    let sw = [response[response.len() - 2], response[response.len() - 1]];
+    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
     let fci = &response[..response.len() - 2];
-    let event = match sw {
-        [0x90, 0x00] => FsmEvent::PseSelected,
-        [0x6a, 0x82] => FsmEvent::PseNotFound,
+    let pse_status = classify(ApduContext::SelectPse, sw);
+    let event = match pse_status {
+        StatusAction::Success => FsmEvent::PseSelected,
+        StatusAction::FallbackToDirectAid => FsmEvent::PseNotFound,
+        StatusAction::Fail { error } => {
+            ctx.last_error = error;
+            ctx.state = KernelState::Error;
+            ctx.fsm_state = FsmState::Se;
+            return KrnOutcome::Error;
+        }
         _ => {
-            ctx.last_error = KernelError::MissingMandatoryTag;
+            ctx.last_error = KernelError::NoCommonAid;
             ctx.state = KernelState::Error;
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
@@ -2752,7 +2764,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         }
     }
 
-    let candidates = match if sw == [0x90, 0x00] {
+    let candidates = match if matches!(pse_status, StatusAction::Success) {
         parse_fci_candidate_aids(fci).and_then(|aids| {
             if aids.is_empty() {
                 direct_profile_candidates(&profiles, interface)
@@ -2793,7 +2805,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
                 return KrnOutcome::Error;
             }
         };
-        let select_response = match transmit_apdu(runtime, &select_aid, APDU_TRANSMIT_TIMEOUT_MS) {
+        let select_response = match transmit_apdu_with_followups(
+            runtime,
+            &select_aid,
+            APDU_TRANSMIT_TIMEOUT_MS,
+            ApduContext::SelectAid,
+        ) {
             Ok(response) => response,
             Err(err) => {
                 ctx.last_error = err;
@@ -2808,12 +2825,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
         }
-        let select_sw = [
+        let select_sw = StatusWord::new(
             select_response[select_response.len() - 2],
             select_response[select_response.len() - 1],
-        ];
-        match select_sw {
-            [0x90, 0x00] => {
+        );
+        match classify(ApduContext::SelectAid, select_sw) {
+            StatusAction::Success => {
                 let select_fci = select_response[..select_response.len() - 2].to_vec();
                 let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidSelected) {
                     Ok(transition) => transition,
@@ -2829,7 +2846,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
                 selected = Some((candidate, select_fci));
                 break;
             }
-            [0x6a, 0x82] => {
+            StatusAction::TryNextAid => {
                 let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidNotSupported) {
                     Ok(transition) => transition,
                     Err(err) => {
@@ -2841,8 +2858,14 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
                 };
                 ctx.fsm_state = transition.to;
             }
+            StatusAction::Fail { error } => {
+                ctx.last_error = error;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
             _ => {
-                ctx.last_error = KernelError::NoCommonAid;
+                ctx.last_error = KernelError::InvalidArgument;
                 ctx.state = KernelState::Error;
                 ctx.fsm_state = FsmState::Se;
                 return KrnOutcome::Error;
@@ -3306,6 +3329,12 @@ mod tests {
     static FOLLOWUP_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
     static FOLLOWUP_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
     static DDA_RESPONSE_MODE: AtomicU8 = AtomicU8::new(0);
+
+    struct SelectionStatusPolicyScript {
+        counter: AtomicUsize,
+        mode: u8,
+        commands: Mutex<Vec<Vec<u8>>>,
+    }
 
     fn install_profile_selection(ctx: &mut KrnContext) {
         let evaluation_date = EmvDate {
@@ -3887,28 +3916,10 @@ mod tests {
                 0x6f, 0x13, 0xa5, 0x11, 0xbf, 0x0c, 0x0e, 0x61, 0x0c, 0x4f, 0x07, 0xa0, 0x00, 0x00,
                 0x00, 0x03, 0x10, 0x10, 0x87, 0x01, 0x01, 0x90, 0x00,
             ],
-            1 => vec![
-                0x6f, 0x11, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x06, 0x9f,
-                0x38, 0x03, 0x9f, 0x37, 0x04, 0x90, 0x00,
-            ],
-            2 => vec![
-                0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
-            ],
-            3 => vec![
-                0x70, 0x67, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
-                0x03, 0x30, 0x12, 0x31, 0x5f, 0x25, 0x03, 0x25, 0x01, 0x01, 0x5f, 0x28, 0x02, 0x08,
-                0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x8e, 0x0a, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x9f, 0x0d, 0x05, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x9f, 0x0e, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9f, 0x0f, 0x05,
-                0x00, 0x00, 0x00, 0x80, 0x00, 0x8c, 0x12, 0x9f, 0x02, 0x06, 0x9f, 0x37, 0x04, 0x95,
-                0x05, 0x9a, 0x03, 0x9c, 0x01, 0x9f, 0x1a, 0x02, 0x9f, 0x34, 0x03, 0x8d, 0x08, 0x8a,
-                0x02, 0x91, 0x08, 0x95, 0x05, 0x9b, 0x02, 0x90, 0x00,
-            ],
-            4 => vec![
-                0x77, 0x1a, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
-                0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x9f, 0x10, 0x03, 0xaa, 0xbb, 0xcc,
-                0x90, 0x00,
-            ],
+            1 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]),
+            2 => gpo_aip_afl_response(),
+            3 => application_record_response(),
+            4 => first_gac_arqc_response(),
             _ if command[1] == 0x82 => vec![
                 ISSUER_AUTH_SW1.load(Ordering::SeqCst),
                 ISSUER_AUTH_SW2.load(Ordering::SeqCst),
@@ -3929,6 +3940,92 @@ mod tests {
         }
         ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
         KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_selection_status_policy_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        let script = &*(user_data as *const SelectionStatusPolicyScript);
+        let count = script.counter.fetch_add(1, Ordering::SeqCst);
+        script.commands.lock().unwrap().push(command.to_vec());
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+
+        let response = match script.mode {
+            1 => match count {
+                0 => vec![0x61, 0x17],
+                1 => pse_directory_response(),
+                2 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]),
+                3 => gpo_aip_afl_response(),
+                4 => application_record_response(),
+                5 => first_gac_arqc_response(),
+                _ => vec![0x6a, 0x80],
+            },
+            2 => match count {
+                0 => vec![0x62, 0x83],
+                1 => vec![0x62, 0x83],
+                2 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x04, 0x10, 0x10]),
+                3 => gpo_aip_afl_response(),
+                4 => application_record_response(),
+                5 => first_gac_arqc_response(),
+                _ => vec![0x6a, 0x80],
+            },
+            _ => vec![0x6a, 0x80],
+        };
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    fn pse_directory_response() -> Vec<u8> {
+        vec![
+            0x6f, 0x1b, 0xa5, 0x19, 0xbf, 0x0c, 0x16, 0x61, 0x09, 0x4f, 0x07, 0xa0, 0x00, 0x00,
+            0x00, 0x03, 0x10, 0x10, 0x61, 0x09, 0x4f, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x04, 0x10,
+            0x10, 0x90, 0x00,
+        ]
+    }
+
+    fn selected_fci_response(aid: &[u8]) -> Vec<u8> {
+        let mut response = vec![0x6f, 0x11, 0x84, aid.len() as u8];
+        response.extend_from_slice(aid);
+        response.extend_from_slice(&[0xa5, 0x06, 0x9f, 0x38, 0x03, 0x9f, 0x37, 0x04, 0x90, 0x00]);
+        response
+    }
+
+    fn gpo_aip_afl_response() -> Vec<u8> {
+        vec![
+            0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
+        ]
+    }
+
+    fn application_record_response() -> Vec<u8> {
+        vec![
+            0x70, 0x67, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
+            0x03, 0x30, 0x12, 0x31, 0x5f, 0x25, 0x03, 0x25, 0x01, 0x01, 0x5f, 0x28, 0x02, 0x08,
+            0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x8e, 0x0a, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x9f, 0x0d, 0x05, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x9f, 0x0e, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9f, 0x0f, 0x05,
+            0x00, 0x00, 0x00, 0x80, 0x00, 0x8c, 0x12, 0x9f, 0x02, 0x06, 0x9f, 0x37, 0x04, 0x95,
+            0x05, 0x9a, 0x03, 0x9c, 0x01, 0x9f, 0x1a, 0x02, 0x9f, 0x34, 0x03, 0x8d, 0x08, 0x8a,
+            0x02, 0x91, 0x08, 0x95, 0x05, 0x9b, 0x02, 0x90, 0x00,
+        ]
+    }
+
+    fn first_gac_arqc_response() -> Vec<u8> {
+        vec![
+            0x77, 0x1a, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x9f, 0x10, 0x03, 0xaa, 0xbb, 0xcc,
+            0x90, 0x00,
+        ]
     }
 
     unsafe extern "C" fn capture_offline_auth_record_apdu(
@@ -4334,6 +4431,88 @@ mod tests {
                 Some(KrnOutcome::AlternateInterface)
             );
             krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn runtime_selection_uses_status_policy_for_get_response_and_invalidated_aids() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        for (mode, expected_aid, expected_second_ins) in [
+            (1, [0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10], 0xc0),
+            (2, [0xa0, 0x00, 0x00, 0x00, 0x04, 0x10, 0x10], 0xa4),
+        ] {
+            unsafe {
+                let script = SelectionStatusPolicyScript {
+                    counter: AtomicUsize::new(0),
+                    mode,
+                    commands: Mutex::new(Vec::new()),
+                };
+                let mut ctx = ptr::null_mut();
+                let runtime = KrnRuntime {
+                    abi_version: KRN_ABI_VERSION,
+                    struct_size: mem::size_of::<KrnRuntime>() as u32,
+                    transmit_apdu: Some(capture_selection_status_policy_apdu),
+                    get_unpredictable_number: Some(fill_unpredictable_number),
+                    contactless_outcome: None,
+                    user_data: &script as *const SelectionStatusPolicyScript as *mut c_void,
+                };
+                assert_eq!(
+                    krn_init(ptr::null(), &runtime, &mut ctx),
+                    KernelError::Ok.code()
+                );
+                let profiles = include_bytes!("../docs/scheme_profiles.cert.json");
+                assert_eq!(
+                    krn_load_profiles_verified(
+                        ctx,
+                        profiles.as_ptr(),
+                        profiles.len(),
+                        1,
+                        2,
+                        26,
+                        5,
+                        21
+                    ),
+                    KernelError::Ok.code()
+                );
+                let params = KrnTxnParams {
+                    struct_size: mem::size_of::<KrnTxnParams>() as u32,
+                    amount_authorised_minor: 2_000,
+                    amount_other_minor: 0,
+                    currency_code: 840,
+                    terminal_country_code: 840,
+                    transaction_type: 0,
+                    terminal_type: 0x22,
+                    merchant_category_code: [0x53, 0x11],
+                    interface_preference: 1,
+                    merchant_name_location: ptr::null(),
+                    merchant_name_location_len: 0,
+                };
+                assert_eq!(
+                    krn_set_transaction_params(ctx, &params),
+                    KernelError::Ok.code()
+                );
+
+                assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired.code());
+                assert_eq!(krn_get_last_error(ctx), KernelError::Ok.code());
+                assert_eq!(krn_get_fsm_state(ctx), FsmState::S11.code());
+                let ctx_ref = ctx.as_ref().unwrap();
+                assert_eq!(
+                    ctx_ref.selected_application.as_ref().unwrap().aid,
+                    expected_aid
+                );
+
+                let commands = script.commands.lock().unwrap();
+                assert_eq!(commands[1][1], expected_second_ins);
+                if mode == 1 {
+                    assert_eq!(commands[1], vec![0x00, 0xc0, 0x00, 0x00, 0x17]);
+                } else {
+                    assert_eq!(&commands[0][..5], &[0x00, 0xa4, 0x04, 0x00, 0x0e]);
+                    assert_eq!(&commands[1][..5], &[0x00, 0xa4, 0x04, 0x00, 0x07]);
+                    assert_eq!(&commands[2][..5], &[0x00, 0xa4, 0x04, 0x00, 0x07]);
+                }
+                drop(commands);
+                krn_context_free(ctx);
+            }
         }
     }
 

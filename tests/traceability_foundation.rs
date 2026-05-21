@@ -125,6 +125,13 @@ fn krn_ids_from_markdown(markdown: &str) -> BTreeSet<String> {
         .collect()
 }
 
+fn csv_row_for_requirement<'a>(csv: &'a str, id: &str) -> Option<&'a str> {
+    csv.lines().find(|line| {
+        line.strip_prefix(id)
+            .is_some_and(|rest| rest.starts_with(','))
+    })
+}
+
 struct CvmMethodScript {
     counter: AtomicUsize,
     cvm_code: u8,
@@ -633,6 +640,25 @@ fn corrected_spec_requirement_ids_are_all_in_rtm_annexes() {
     assert!(
         include_str!("../docs/spec.md").contains("engineering baseline pending licensed review")
     );
+}
+
+#[test]
+fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-APDU-002", "KRN-APDU-003", "KRN-SEL-003"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete runtime evidence"
+            );
+            assert!(
+                row.contains(
+                    "runtime_selection_uses_status_policy_for_get_response_and_invalidated_aids"
+                ),
+                "{id} should cite runtime SELECT status-policy coverage"
+            );
+        }
+    }
 }
 
 #[test]

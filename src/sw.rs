@@ -56,7 +56,9 @@ pub fn classify(context: ApduContext, sw: StatusWord) -> StatusAction {
     }
 
     match (context, sw.sw1, sw.sw2) {
-        (ApduContext::SelectPse, 0x6a, 0x82) => StatusAction::FallbackToDirectAid,
+        (ApduContext::SelectPse, 0x6a, 0x82) | (ApduContext::SelectPse, 0x62, 0x83) => {
+            StatusAction::FallbackToDirectAid
+        }
         (ApduContext::SelectPse, _, _) => StatusAction::Fail {
             error: KernelError::NoCommonAid,
         },
@@ -131,6 +133,14 @@ mod tests {
         );
         assert_eq!(
             classify(ApduContext::SelectAid, StatusWord::new(0x6a, 0x82)),
+            StatusAction::TryNextAid
+        );
+        assert_eq!(
+            classify(ApduContext::SelectPse, StatusWord::new(0x62, 0x83)),
+            StatusAction::FallbackToDirectAid
+        );
+        assert_eq!(
+            classify(ApduContext::SelectAid, StatusWord::new(0x62, 0x83)),
             StatusAction::TryNextAid
         );
     }
