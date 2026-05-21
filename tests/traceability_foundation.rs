@@ -137,6 +137,20 @@ fn csv_row_for_requirement<'a>(csv: &'a str, id: &str) -> Option<&'a str> {
     })
 }
 
+fn certification_policy() -> ConfigLoadPolicy {
+    ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::Verified,
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    }
+}
+
 struct CvmMethodScript {
     counter: AtomicUsize,
     cvm_code: u8,
@@ -809,6 +823,25 @@ fn rtm_promotes_performance_profile_evidence() {
 }
 
 #[test]
+fn rtm_promotes_certification_evidence_boundaries() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-CERT-002").expect("RTM row exists");
+        assert!(
+            !row.contains("pending implementation evidence"),
+            "KRN-CERT-002 should cite concrete illustrative-evidence rejection"
+        );
+        assert!(
+            row.contains("profile_loader_rejects_example_only_profiles_for_certification_policy")
+        );
+        assert!(row.contains("validates_complete_vector_syntax_and_rejects_placeholders"));
+        assert!(row.contains(
+            "certification_package_rejects_illustrative_profiles_and_placeholder_vectors"
+        ));
+        assert!(row.contains("rtm_promotes_certification_evidence_boundaries"));
+    }
+}
+
+#[test]
 fn both_rtms_cover_dynamic_oda_rows_independently() {
     for krn_id in [
         "KRN-GAC-010",
@@ -1271,6 +1304,33 @@ fn scheme_profile_annex_declares_bundled_and_lab_supplied_scope() {
 }
 
 #[test]
+fn supported_contactless_profiles_use_c8_certification_scope() {
+    assert!(
+        SCHEME_PROFILES.contains("\"contactless_kernel_profile\": \"C-8 lab approval package\"")
+    );
+    assert!(LAB_SUBMISSION_MANIFEST
+        .contains("unified kernel approval package; profile data supplied by lab"));
+
+    let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &certification_policy()).unwrap();
+    assert_eq!(profiles.profile_class, ProfileClass::Certification);
+    assert!(profiles
+        .schemes
+        .iter()
+        .all(|scheme| scheme.aids.iter().any(|aid| aid
+            .interfaces
+            .iter()
+            .any(|interface| interface == "contactless"))));
+
+    for scheme in &profiles.schemes {
+        assert_eq!(scheme.kernel_type, "c8_contactless");
+        assert_ne!(
+            scheme.contact_kernel_type.as_deref(),
+            Some("c8_contactless")
+        );
+    }
+}
+
+#[test]
 fn scheme_profile_annex_declares_capk_checksum_derivation() {
     let algorithm = "\"checksum_algorithm\": \"sha1(rid || key_index || modulus || exponent)\"";
     assert_eq!(SCHEME_PROFILES.matches(algorithm).count(), 2);
@@ -1299,6 +1359,29 @@ fn spec_status_matches_non_certification_oda_fixture_gate() {
     assert!(spec.contains("lab-supplied ODA vectors"));
     assert!(!spec.contains("fully correct, complete, and certifiable"));
     assert!(!spec.contains("ready for implementation and EMVCo Level"));
+}
+
+#[test]
+fn certification_package_rejects_illustrative_profiles_and_placeholder_vectors() {
+    load_profile_set(SCHEME_PROFILES.as_bytes(), &certification_policy()).unwrap();
+
+    let illustrative_profile = SCHEME_PROFILES.replace(
+        "\"profile_class\": \"CERTIFICATION\"",
+        "\"profile_class\": \"EXAMPLE_ONLY\"",
+    );
+    assert_eq!(
+        load_profile_set(illustrative_profile.as_bytes(), &certification_policy()).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    assert!(ODA_VECTORS.contains("\"vector_class\": \"STRUCTURAL_FIXTURE\""));
+    assert_eq!(
+        validate_oda_vector_annex(ODA_VECTORS.as_bytes(), true).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+    validate_oda_vector_annex(ODA_VECTORS.as_bytes(), false).unwrap();
+    assert!(LAB_SUBMISSION_MANIFEST.contains("deterministic unit fixtures"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("lab-supplied SDA/DDA/CDA vectors"));
 }
 
 #[test]
@@ -4216,7 +4299,7 @@ fn rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence() {
 #[test]
 fn rtm_promotes_interface_kernel_mapping_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
-        for id in ["KRN-INT-001", "KRN-INT-002", "KRN-INT-004"] {
+        for id in ["KRN-INT-001", "KRN-INT-002", "KRN-INT-003", "KRN-INT-004"] {
             let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
             assert!(
                 !row.contains("pending implementation evidence"),
@@ -4231,6 +4314,9 @@ fn rtm_promotes_interface_kernel_mapping_evidence() {
         assert!(csv_row_for_requirement(csv, "KRN-INT-002")
             .unwrap()
             .contains("rejects_contact_kernel_type_that_reuses_c8"));
+        assert!(csv_row_for_requirement(csv, "KRN-INT-003")
+            .unwrap()
+            .contains("supported_contactless_profiles_use_c8_certification_scope"));
         assert!(csv_row_for_requirement(csv, "KRN-INT-004")
             .unwrap()
             .contains("rejects_contact_kernel_type_that_reuses_c8"));

@@ -203,3 +203,18 @@ decision record, while this file tracks work toward certification readiness.
   the RTM guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:39:48Z
+
+- Increment completed: promote certification evidence-boundary and supported
+  contactless C-8 scope evidence for KRN-CERT-002 and KRN-INT-003.
+- Code impact: traceability tests now prove certification-mode profile loading
+  rejects illustrative profiles, ODA structural fixtures are rejected as
+  certification vectors, and bundled contactless certification profiles route
+  supported contactless schemes through C-8 while keeping contact kernels
+  separate.
+- Evidence updated: KRN-CERT-002 and KRN-INT-003 RTM rows now cite the
+  certification evidence-boundary guards, C-8 certification-scope guard,
+  interface-specific kernel mapping, and RTM guards.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
