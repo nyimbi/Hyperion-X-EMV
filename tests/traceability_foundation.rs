@@ -1419,6 +1419,61 @@ fn profile_loader_rejects_rollback_placeholders_and_expired_capks() {
 }
 
 #[test]
+fn rtm_promotes_signed_profile_and_capk_validation_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in [
+            "KRN-ANNEX-004",
+            "KRN-CAPK-001",
+            "KRN-CAPK-002",
+            "KRN-CFG-001",
+            "KRN-CFG-003",
+            "KRN-PROFILE-001",
+            "KRN-PROFILE-002",
+        ] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete profile/CAPK validation evidence"
+            );
+        }
+
+        let signature = csv_row_for_requirement(csv, "KRN-CFG-001").unwrap();
+        assert!(signature.contains("rejects_unsigned_certification_profile_rollback_and_replay"));
+        assert!(signature
+            .contains("profile_loader_requires_verified_signature_and_extracts_capk_tac_limits"));
+
+        let rollback = csv_row_for_requirement(csv, "KRN-CFG-003").unwrap();
+        assert!(rollback.contains("profile_loader_rejects_rollback_placeholders_and_expired_capks"));
+        assert!(rollback.contains("krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic"));
+
+        for id in ["KRN-ANNEX-004", "KRN-PROFILE-001"] {
+            let placeholders = csv_row_for_requirement(csv, id).unwrap();
+            assert!(placeholders.contains("rejects_placeholder_and_bad_hex_material"));
+            assert!(placeholders
+                .contains("profile_loader_rejects_rollback_placeholders_and_expired_capks"));
+        }
+
+        let capk_integrity = csv_row_for_requirement(csv, "KRN-CAPK-001").unwrap();
+        assert!(capk_integrity
+            .contains("rejects_certification_capk_checksum_mismatch_or_metadata_drift"));
+        assert!(capk_integrity
+            .contains("krn_sec_003_oda_001_cert_profile_loader_rejects_capk_checksum_drift"));
+        assert!(
+            capk_integrity.contains("krn_capk_001_002_lookup_requires_verified_profile_integrity")
+        );
+
+        let capk_expiry = csv_row_for_requirement(csv, "KRN-CAPK-002").unwrap();
+        assert!(capk_expiry.contains("rejects_expired_capk"));
+        assert!(capk_expiry.contains("krn_capk_001_002_lookup_requires_verified_profile_integrity"));
+
+        let capk_hex = csv_row_for_requirement(csv, "KRN-PROFILE-002").unwrap();
+        assert!(capk_hex.contains("loads_profile_annex_when_signature_is_verified"));
+        assert!(capk_hex.contains("rejects_certification_capk_checksum_mismatch_or_metadata_drift"));
+        assert!(capk_hex.contains("krn_sec_003_oda_002_capks_retain_signed_public_provenance"));
+    }
+}
+
+#[test]
 fn krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic() {
     unsafe {
         let ctx = krn_context_new();
