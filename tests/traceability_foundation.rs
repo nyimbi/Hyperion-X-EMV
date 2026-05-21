@@ -1121,6 +1121,27 @@ fn scheme_profile_annex_uses_certification_provenance() {
 }
 
 #[test]
+fn scheme_profile_annex_declares_bundled_and_lab_supplied_scope() {
+    for key in [
+        "\"certification_scope\"",
+        "\"bundled_scheme_profiles\": [\"Visa\", \"Mastercard\"]",
+        "\"lab_supplied_scheme_profiles_required\": [\"Amex\", \"Discover\"]",
+        "\"contactless_kernel_profile\": \"C-8 lab approval package\"",
+    ] {
+        assert!(
+            SCHEME_PROFILES.contains(key),
+            "scheme profile annex missing scope key {key}"
+        );
+    }
+
+    assert!(LAB_SUBMISSION_MANIFEST.contains(
+        "Yes (Visa, Mastercard); Amex and Discover require lab-supplied signed profiles"
+    ));
+    assert!(LAB_SUBMISSION_MANIFEST
+        .contains("unified kernel approval package; profile data supplied by lab"));
+}
+
+#[test]
 fn scheme_profile_annex_declares_capk_checksum_derivation() {
     let algorithm = "\"checksum_algorithm\": \"sha1(rid || key_index || modulus || exponent)\"";
     assert_eq!(SCHEME_PROFILES.matches(algorithm).count(), 2);

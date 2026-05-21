@@ -8,8 +8,8 @@
 - **Submission Date:** [To be filled by lab]
 
 ## Certification Scope
-- **EMV Level 2 Contact:** Yes (Visa, Mastercard, Amex, Discover)
-- **EMV Level 2 Contactless (C‑8):** Yes (unified kernel)
+- **EMV Level 2 Contact:** Yes (Visa, Mastercard); Amex and Discover require lab-supplied signed profiles before claim
+- **EMV Level 2 Contactless (C‑8):** Yes (unified kernel approval package; profile data supplied by lab)
 - **PCI PTS POI v7.0 alignment:** Yes (via PED integration statement)
 
 ## Attached Artifacts

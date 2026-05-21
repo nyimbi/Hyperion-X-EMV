@@ -8,6 +8,11 @@
     "retrieved": "2026-05-21",
     "verification": "external_signature_required"
   },
+  "certification_scope": {
+    "bundled_scheme_profiles": ["Visa", "Mastercard"],
+    "lab_supplied_scheme_profiles_required": ["Amex", "Discover"],
+    "contactless_kernel_profile": "C-8 lab approval package"
+  },
   "scheme_profiles": [
     {
       "scheme_name": "Visa",
