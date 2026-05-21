@@ -70,6 +70,8 @@ use hyperion_emv::trace::{
 use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
 use std::collections::BTreeSet;
 use std::ffi::c_void;
+use std::fs;
+use std::path::Path;
 use std::ptr;
 use std::sync::atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -416,6 +418,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-CVM-003",
         "KRN-CVMCAP-001",
         "KRN-CVMRES-001",
+        "KRN-SEC-001",
         "KRN-SEC-002",
         "KRN-SEC-003",
         "KRN-PIN-001",
@@ -484,6 +487,52 @@ fn rtm_contains_foundation_requirements_under_test() {
             "missing traceability row for {krn_id}"
         );
     }
+}
+
+#[test]
+fn krn_sec_001_002_sources_exclude_issuer_key_custody_and_cryptogram_generation() {
+    let forbidden_terms = [
+        "issuer master key",
+        "issuer_master",
+        "master_key",
+        "issuer_secret",
+        "issuer_private",
+        "arqc_key",
+        "arpc_key",
+        "mkac",
+        "udk",
+        "session_key",
+        "cryptogram_key",
+        "generate_arqc",
+        "generate_tc",
+        "generate_aac",
+        "compute_arqc",
+        "compute_tc",
+        "compute_aac",
+    ];
+
+    let mut scanned = 0usize;
+    for entry in fs::read_dir(Path::new("src")).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+            continue;
+        }
+        scanned += 1;
+        let source = fs::read_to_string(&path).unwrap().to_ascii_lowercase();
+        for term in forbidden_terms {
+            assert!(
+                !source.contains(term),
+                "{} contains forbidden issuer-key or cryptogram-generation custody term `{}`",
+                path.display(),
+                term
+            );
+        }
+    }
+    assert!(
+        scanned >= 20,
+        "source custody scan covered only {scanned} files"
+    );
 }
 
 #[test]
