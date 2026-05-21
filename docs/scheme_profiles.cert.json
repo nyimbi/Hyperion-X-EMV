@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "profile_class": "CERTIFICATION",
   "profile_source": {
-    "owner": "scheme_or_acquirer",
+    "owner": "Hyperion-X Certification",
     "document": "signed_certification_profile_bundle",
     "version": "2",
     "retrieved": "2026-05-21",
@@ -55,7 +55,7 @@
           "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
           "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"],
           "source": {
-            "owner": "scheme_or_acquirer",
+            "owner": "Visa",
             "document": "signed_certification_capk_bundle",
             "version": "2",
             "retrieved": "2026-05-21",
@@ -105,7 +105,7 @@
           "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
           "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"],
           "source": {
-            "owner": "scheme_or_acquirer",
+            "owner": "Mastercard",
             "document": "signed_certification_capk_bundle",
             "version": "2",
             "retrieved": "2026-05-21",

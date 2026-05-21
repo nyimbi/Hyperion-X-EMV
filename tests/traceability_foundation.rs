@@ -1098,6 +1098,9 @@ fn scheme_profile_annex_contains_deterministic_taa_keys() {
 fn scheme_profile_annex_uses_certification_provenance() {
     for key in [
         "\"profile_class\": \"CERTIFICATION\"",
+        "\"owner\": \"Hyperion-X Certification\"",
+        "\"owner\": \"Visa\"",
+        "\"owner\": \"Mastercard\"",
         "\"document\": \"signed_certification_profile_bundle\"",
         "\"document\": \"signed_certification_capk_bundle\"",
         "\"verification\": \"external_signature_required\"",
@@ -1112,6 +1115,7 @@ fn scheme_profile_annex_uses_certification_provenance() {
         "l2emv_public_capkey_viewer",
         "Public reference value",
         "certification builds must use",
+        "scheme_or_acquirer",
     ] {
         assert!(
             !SCHEME_PROFILES.contains(forbidden),
@@ -1303,17 +1307,16 @@ fn krn_sec_003_oda_002_capks_retain_signed_public_provenance() {
     };
     let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &policy).unwrap();
 
-    for capk in profiles
-        .schemes
-        .iter()
-        .flat_map(|scheme| scheme.capks.iter())
-    {
-        assert_eq!(capk.source.owner, "scheme_or_acquirer");
-        assert_eq!(capk.source.document, "signed_certification_capk_bundle");
-        assert_eq!(capk.source.version, "2");
-        assert_eq!(capk.source.verification, "external_signature_required");
-        assert!(capk.modulus.len() >= 64);
-        assert_eq!(capk.checksum.len(), 20);
+    for scheme in &profiles.schemes {
+        for capk in &scheme.capks {
+            assert_eq!(capk.source.owner, scheme.scheme_name);
+            assert_ne!(capk.source.owner, "scheme_or_acquirer");
+            assert_eq!(capk.source.document, "signed_certification_capk_bundle");
+            assert_eq!(capk.source.version, "2");
+            assert_eq!(capk.source.verification, "external_signature_required");
+            assert!(capk.modulus.len() >= 64);
+            assert_eq!(capk.checksum.len(), 20);
+        }
     }
 
     let missing_capk_source = br#"{
@@ -1470,6 +1473,37 @@ fn rtm_promotes_signed_profile_and_capk_validation_evidence() {
         assert!(capk_hex.contains("loads_profile_annex_when_signature_is_verified"));
         assert!(capk_hex.contains("rejects_certification_capk_checksum_mismatch_or_metadata_drift"));
         assert!(capk_hex.contains("krn_sec_003_oda_002_capks_retain_signed_public_provenance"));
+    }
+}
+
+#[test]
+fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-ANNEX-003", "KRN-TLV-002", "KRN-TLV-004", "KRN-TLV-005"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete TLV catalogue evidence"
+            );
+            assert!(row.contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers"));
+        }
+
+        let annex = csv_row_for_requirement(csv, "KRN-ANNEX-003").unwrap();
+        assert!(annex.contains("parses_and_builds_pdol_deterministically"));
+        assert!(annex.contains("krn_dda_001_internal_authenticate_uses_ddol_values"));
+
+        let dol = csv_row_for_requirement(csv, "KRN-TLV-002").unwrap();
+        assert!(dol.contains("parses_and_builds_pdol_deterministically"));
+        assert!(dol.contains("krn_dda_001_internal_authenticate_uses_ddol_values"));
+
+        let catalogue = csv_row_for_requirement(csv, "KRN-TLV-004").unwrap();
+        assert!(catalogue.contains("tlv_catalogue_contains_required_foundation_tags"));
+
+        let parser = csv_row_for_requirement(csv, "KRN-TLV-001").unwrap();
+        assert!(
+            parser.contains("pending implementation evidence"),
+            "KRN-TLV-001 remains pending until primitive/constructed parser coverage is promoted separately"
+        );
     }
 }
 
@@ -1675,6 +1709,54 @@ fn tlv_catalogue_contains_required_foundation_tags() {
                 .any(|line| line.starts_with(row_prefix)),
             "missing TLV catalogue row {row_prefix}"
         );
+    }
+}
+
+#[test]
+fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
+    let expected_header = [
+        "Tag",
+        "Name",
+        "Type",
+        "Length Rule",
+        "Source",
+        "Interface Applicability",
+        "Scheme Applicability",
+        "Presence Rule",
+        "Sensitive Data Classification",
+        "Test IDs",
+    ];
+    let mut lines = TLV_CATALOGUE.lines();
+    let header = lines.next().expect("TLV catalogue header");
+    assert_eq!(header.split(',').collect::<Vec<_>>(), expected_header);
+    assert!(include_str!("../docs/spec.md").contains(&expected_header.join(",")));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("required 10-column schema"));
+
+    let rows = lines
+        .map(|line| line.split(',').collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 58);
+    for row in &rows {
+        assert_eq!(row.len(), expected_header.len(), "invalid TLV row {row:?}");
+        assert!(row[0].chars().all(|ch| ch.is_ascii_hexdigit()));
+        assert!(!row[9].is_empty(), "missing test IDs for {}", row[0]);
+    }
+
+    for tag in ["8C", "8D", "9F49"] {
+        let row = rows.iter().find(|row| row[0] == tag).unwrap();
+        assert_eq!(row[2], "Data Object List");
+        assert_eq!(row[3], "tag-length pairs");
+    }
+
+    for tag in ["5F5A", "5F5D", "9F10", "9F5A", "9F6C", "9F66", "9F6E"] {
+        let row = rows.iter().find(|row| row[0] == tag).unwrap();
+        assert_eq!(row[6], "PROFILE-DEFINED");
+        assert_ne!(row[8], "non-sensitive");
+    }
+
+    for tag in ["57", "5A", "5F20", "5F34"] {
+        let row = rows.iter().find(|row| row[0] == tag).unwrap();
+        assert_eq!(row[8], "cardholder-data");
     }
 }
 

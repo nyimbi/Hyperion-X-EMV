@@ -1,59 +1,59 @@
-Tag,Name,Format,Presence,Source
-4F,AID,Primitive variable,Mandatory,EMV Book 3
-50,Application Label,Primitive variable,Recommended,EMV Book 3
-57,Track 2 Equivalent Data,Primitive variable,Mandatory,EMV Book 3
-5A,PAN,Primitive variable,Mandatory,EMV Book 3
-5F20,Cardholder Name,Primitive variable,Optional,EMV Book 3
-5F24,Application Expiration Date,Primitive 3 bytes,Mandatory,EMV Book 3
-5F25,Application Effective Date,Primitive 3 bytes,Optional,EMV Book 3
-5F28,Issuer Country Code,Primitive 2 bytes,Mandatory,EMV Book 3
-5F2A,Transaction Currency Code,Primitive 2 bytes,Terminal sets,EMV Book 3
-5F34,Application PAN Sequence Number,Primitive 1 byte,Optional,EMV Book 3
-5F5A,Application Program Identifier,Primitive variable,Contactless,EMV Contactless
-5F5D,Available Offline Spending Amount,Primitive 5 bytes,Optional,EMV Book 3
-71,Issuer Script Template 1,Constructed,If present,EMV Book 3
-72,Issuer Script Template 2,Constructed,If present,EMV Book 3
-82,Application Interchange Profile (AIP),Primitive 2 bytes,Mandatory after GPO,EMV Book 3
-84,DF Name (PPSE),Primitive variable,Contactless,EMV Contactless
-8C,CDOL1,Data Object List (tag-length pairs),If present,EMV Book 3
-8D,CDOL2,Data Object List (tag-length pairs),If present,EMV Book 3
-8E,CVM List,Constructed,Mandatory,EMV Book 3
-90,Issuer Public Key Certificate,Constructed,For ODA,EMV Book 3
-91,Issuer Authentication Data,Primitive variable,For ARPC,EMV Book 3
-93,Signed Static Application Data,Primitive variable,For SDA,EMV Book 3
-94,Application File Locator (AFL),Primitive variable,Mandatory after GPO,EMV Book 3
-95,Terminal Verification Results (TVR),Primitive 5 bytes,Kernel sets,EMV Book 3
-9A,Transaction Date,Primitive 3 bytes,Terminal sets,EMV Book 3
-9B,Transaction Status Indicator (TSI),Primitive 2 bytes,Kernel sets,EMV Book 3
-9C,Transaction Type,Primitive 1 byte,Terminal sets,EMV Book 3
-9F02,Amount Authorised,Primitive 6 bytes,Terminal sets,EMV Book 3
-9F03,Amount Other,Primitive 6 bytes,Optional,EMV Book 3
-9F07,Application Usage Control,Primitive 2 bytes,Mandatory,EMV Book 3
-9F08,Application Version Number (alternative),Primitive 2 bytes,Optional,EMV Book 3
-9F09,Application Version Number,Primitive 2 bytes,Mandatory,EMV Book 3
-9F0D,IAC Denial,Primitive 5 bytes,From card,EMV Book 3
-9F0E,IAC Online,Primitive 5 bytes,From card,EMV Book 3
-9F0F,IAC Default,Primitive 5 bytes,From card,EMV Book 3
-9F10,Issuer Application Data,Primitive variable,Mandatory for host,EMV Book 3
-9F18,Issuer Script Identifier,Primitive variable,For scripts,EMV Book 3
-9F1A,Terminal Country Code,Primitive 2 bytes,Terminal sets,EMV Book 3
-9F1E,Interface Device Serial Number,Primitive variable,Optional,EMV Book 3
-9F26,Application Cryptogram,Primitive 8 bytes,From card,EMV Book 3
-9F27,Cryptogram Information Data (CID),Primitive 1 byte,From card,EMV Book 3
-9F33,Terminal Capabilities,Primitive 3 bytes,Terminal sets,EMV Book 3
-9F34,CVM Results,Primitive 3 bytes,Kernel sets,EMV Book 3
-9F35,Terminal Type,Primitive 1 byte,Terminal sets,EMV Book 3
-9F36,Application Transaction Counter (ATC),Primitive 2 bytes,From card,EMV Book 3
-9F37,Unpredictable Number,Primitive 4 bytes,Terminal generates,EMV Book 3
-9F40,Additional Terminal Capabilities,Primitive 5 bytes,Optional,EMV Book 3
-9F46,ICC Public Key Certificate,Constructed,For DDA/CDA,EMV Book 3
-9F47,ICC Public Key Exponent,Primitive variable,For DDA/CDA,EMV Book 3
-9F48,ICC Public Key Remainder,Primitive variable,For DDA/CDA,EMV Book 3
-9F49,DDOL,Data Object List (tag-length pairs),If present,EMV Book 3
-9F4A,Static Data Authentication Tag List,Constructed,For SDA,EMV Book 3
-9F4C,ICC Dynamic Number,Primitive variable,For CDA,EMV Book 3
-9F4E,Merchant Category Code,Primitive 2 bytes,Terminal sets,EMV Book 3
-9F5A,Form Factor Indicator (FFI),Primitive 1 byte,Contactless,EMV Contactless
-9F6C,Card Transaction Qualifiers (CTQ),Primitive 1 byte,Contactless,EMV Contactless
-9F66,Terminal Transaction Qualifiers (TTQ),Primitive 4 bytes,Contactless,EMV Contactless
-9F6E,Form Factor Indicator (alternative),Primitive 1 byte,Contactless,EMV Contactless
+Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Presence Rule,Sensitive Data Classification,Test IDs
+4F,AID,Primitive,variable,EMV Book 3,contact and contactless,all,Mandatory,public,UT-TLV-004
+50,Application Label,Primitive,variable,EMV Book 3,contact and contactless,all,Recommended,display,UT-TLV-004
+57,Track 2 Equivalent Data,Primitive,variable,EMV Book 3,contact and contactless,all,Mandatory,cardholder-data,UT-TLV-004
+5A,PAN,Primitive,variable,EMV Book 3,contact and contactless,all,Mandatory,cardholder-data,UT-TLV-004
+5F20,Cardholder Name,Primitive,variable,EMV Book 3,contact and contactless,all,Optional,cardholder-data,UT-TLV-004
+5F24,Application Expiration Date,Primitive,3 bytes,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
+5F25,Application Effective Date,Primitive,3 bytes,EMV Book 3,contact and contactless,all,Optional,non-sensitive,UT-TLV-004
+5F28,Issuer Country Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
+5F2A,Transaction Currency Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+5F34,Application PAN Sequence Number,Primitive,1 byte,EMV Book 3,contact and contactless,all,Optional,cardholder-data,UT-TLV-004
+5F5A,Application Program Identifier,Primitive,variable,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
+5F5D,Available Offline Spending Amount,Primitive,5 bytes,EMV Book 3,contact and contactless,PROFILE-DEFINED,Optional,profile-defined,UT-TLV-005
+71,Issuer Script Template 1,Constructed,variable,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-004
+72,Issuer Script Template 2,Constructed,variable,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-004
+82,Application Interchange Profile (AIP),Primitive,2 bytes,EMV Book 3,contact and contactless,all,Mandatory after GPO,non-sensitive,UT-TLV-004
+84,DF Name (PPSE),Primitive,variable,EMV Contactless,contactless,all,Contactless,public,UT-TLV-004
+8C,CDOL1,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
+8D,CDOL2,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
+8E,CVM List,Constructed,variable,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
+90,Issuer Public Key Certificate,Constructed,variable,EMV Book 3,contact and contactless,all,For ODA,public-key-material,UT-TLV-004
+91,Issuer Authentication Data,Primitive,variable,EMV Book 3,contact and contactless,all,For ARPC,cryptographic,UT-TLV-004
+93,Signed Static Application Data,Primitive,variable,EMV Book 3,contact and contactless,all,For SDA,cryptographic,UT-TLV-004
+94,Application File Locator (AFL),Primitive,variable,EMV Book 3,contact and contactless,all,Mandatory after GPO,non-sensitive,UT-TLV-004
+95,Terminal Verification Results (TVR),Primitive,5 bytes,EMV Book 3,contact and contactless,all,Kernel sets,non-sensitive,UT-TLV-004
+9A,Transaction Date,Primitive,3 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+9B,Transaction Status Indicator (TSI),Primitive,2 bytes,EMV Book 3,contact and contactless,all,Kernel sets,non-sensitive,UT-TLV-004
+9C,Transaction Type,Primitive,1 byte,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+9F02,Amount Authorised,Primitive,6 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+9F03,Amount Other,Primitive,6 bytes,EMV Book 3,contact and contactless,all,Optional,non-sensitive,UT-TLV-004
+9F07,Application Usage Control,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
+9F08,Application Version Number (alternative),Primitive,2 bytes,EMV Book 3,contact and contactless,all,Optional,non-sensitive,UT-TLV-004
+9F09,Application Version Number,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
+9F0D,IAC Denial,Primitive,5 bytes,EMV Book 3,contact and contactless,all,From card,non-sensitive,UT-TLV-004
+9F0E,IAC Online,Primitive,5 bytes,EMV Book 3,contact and contactless,all,From card,non-sensitive,UT-TLV-004
+9F0F,IAC Default,Primitive,5 bytes,EMV Book 3,contact and contactless,all,From card,non-sensitive,UT-TLV-004
+9F10,Issuer Application Data,Primitive,variable,EMV Book 3,contact and contactless,PROFILE-DEFINED,Mandatory for host,profile-defined,UT-TLV-005
+9F18,Issuer Script Identifier,Primitive,variable,EMV Book 3,contact and contactless,all,For scripts,non-sensitive,UT-TLV-004
+9F1A,Terminal Country Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+9F1E,Interface Device Serial Number,Primitive,variable,EMV Book 3,contact and contactless,all,Optional,device-identifier,UT-TLV-004
+9F26,Application Cryptogram,Primitive,8 bytes,EMV Book 3,contact and contactless,all,From card,cryptographic,UT-TLV-004
+9F27,Cryptogram Information Data (CID),Primitive,1 byte,EMV Book 3,contact and contactless,all,From card,non-sensitive,UT-TLV-004
+9F33,Terminal Capabilities,Primitive,3 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+9F34,CVM Results,Primitive,3 bytes,EMV Book 3,contact and contactless,all,Kernel sets,non-sensitive,UT-TLV-004
+9F35,Terminal Type,Primitive,1 byte,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+9F36,Application Transaction Counter (ATC),Primitive,2 bytes,EMV Book 3,contact and contactless,all,From card,non-sensitive,UT-TLV-004
+9F37,Unpredictable Number,Primitive,4 bytes,EMV Book 3,contact and contactless,all,Terminal generates,non-sensitive,UT-TLV-004
+9F40,Additional Terminal Capabilities,Primitive,5 bytes,EMV Book 3,contact and contactless,all,Optional,non-sensitive,UT-TLV-004
+9F46,ICC Public Key Certificate,Constructed,variable,EMV Book 3,contact and contactless,all,For DDA/CDA,public-key-material,UT-TLV-004
+9F47,ICC Public Key Exponent,Primitive,variable,EMV Book 3,contact and contactless,all,For DDA/CDA,public-key-material,UT-TLV-004
+9F48,ICC Public Key Remainder,Primitive,variable,EMV Book 3,contact and contactless,all,For DDA/CDA,public-key-material,UT-TLV-004
+9F49,DDOL,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
+9F4A,Static Data Authentication Tag List,Constructed,variable,EMV Book 3,contact and contactless,all,For SDA,non-sensitive,UT-TLV-004
+9F4C,ICC Dynamic Number,Primitive,variable,EMV Book 3,contact and contactless,all,For CDA,cryptographic,UT-TLV-004
+9F4E,Merchant Category Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
+9F5A,Form Factor Indicator (FFI),Primitive,1 byte,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
+9F6C,Card Transaction Qualifiers (CTQ),Primitive,1 byte,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
+9F66,Terminal Transaction Qualifiers (TTQ),Primitive,4 bytes,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
+9F6E,Form Factor Indicator (alternative),Primitive,1 byte,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005

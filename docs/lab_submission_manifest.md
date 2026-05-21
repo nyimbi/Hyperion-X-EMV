@@ -14,7 +14,7 @@
 
 ## Attached Artifacts
 - [x] Specification document (v6.0, this file)
-- [x] TLV catalogue (`tlv_catalogue.csv`) – complete with 55 tags
+- [x] TLV catalogue (`tlv_catalogue.csv`) – complete with 58 tags and required 10-column schema
 - [x] State machine table (`state_machine.csv`) – expanded to 85 rows, properly quoted
 - [x] ODA test vectors (`oda_test_vectors.json`) – syntactically validated with deterministic unit fixtures; lab-supplied SDA/DDA/CDA vectors still required for final certification
 - [x] Scheme profiles (`scheme_profiles.cert.json`) – structured with valid hex lengths, contains deterministic TAA keys; actual CAPK values to be replaced by lab

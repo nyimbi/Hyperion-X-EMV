@@ -101,48 +101,16 @@ The following annexes form an integral part of this specification. All files are
 
 ### Annex A – TLV Catalogue (`tlv_catalogue.csv`)
 
-```csv
-Tag,Name,Format,Presence,Source
-4F,AID,Primitive variable,Mandatory,EMV Book 3
-50,Application Label,Primitive variable,Recommended,EMV Book 3
-57,Track 2 Equivalent Data,Primitive variable,Mandatory,EMV Book 3
-5A,PAN,Primitive variable,Mandatory,EMV Book 3
-5F20,Cardholder Name,Primitive variable,Optional,EMV Book 3
-5F24,Application Expiration Date,Primitive 3 bytes,Mandatory,EMV Book 3
-5F25,Application Effective Date,Primitive 3 bytes,Optional,EMV Book 3
-5F28,Issuer Country Code,Primitive 2 bytes,Mandatory,EMV Book 3
-5F2A,Transaction Currency Code,Primitive 2 bytes,Terminal sets,EMV Book 3
-5F34,Application PAN Sequence Number,Primitive 1 byte,Optional,EMV Book 3
-82,AIP,Primitive 2 bytes,Mandatory after GPO,EMV Book 3
-84,DF Name (PPSE),Primitive variable,Contactless,EMV Contactless
-8C,CDOL1,Data Object List (tag-length pairs),If present,EMV Book 3
-8D,CDOL2,Data Object List (tag-length pairs),If present,EMV Book 3
-8E,CVM List,Constructed,Mandatory,EMV Book 3
-91,Issuer Authentication Data,Primitive variable,For ARPC,EMV Book 3
-94,AFL,Primitive variable,Mandatory after GPO,EMV Book 3
-95,TVR,Primitive 5 bytes,Kernel sets,EMV Book 3
-9A,Transaction Date,Primitive 3 bytes,Terminal sets,EMV Book 3
-9B,TSI,Primitive 2 bytes,Kernel sets,EMV Book 3
-9C,Transaction Type,Primitive 1 byte,Terminal sets,EMV Book 3
-9F02,Amount Authorised,Primitive 6 bytes,Terminal sets,EMV Book 3
-9F03,Amount Other,Primitive 6 bytes,Optional,EMV Book 3
-9F07,Application Usage Control,Primitive 2 bytes,Mandatory,EMV Book 3
-9F09,Application Version Number,Primitive 2 bytes,Mandatory,EMV Book 3
-9F10,Issuer Application Data,Primitive variable,Mandatory for host,EMV Book 3
-9F1A,Terminal Country Code,Primitive 2 bytes,Terminal sets,EMV Book 3
-9F1E,Interface Device Serial Number,Primitive variable,Optional,EMV Book 3
-9F26,Application Cryptogram,Primitive 8 bytes,From card,EMV Book 3
-9F27,CID,Primitive 1 byte,From card,EMV Book 3
-9F33,Terminal Capabilities,Primitive 3 bytes,Terminal sets,EMV Book 3
-9F34,CVM Results,Primitive 3 bytes,Kernel sets,EMV Book 3
-9F35,Terminal Type,Primitive 1 byte,Terminal sets,EMV Book 3
-9F36,ATC,Primitive 2 bytes,From card,EMV Book 3
-9F37,Unpredictable Number,Primitive 4 bytes,Terminal generates,EMV Book 3
-9F4C,ICC Dynamic Number,Primitive variable,For CDA,EMV Book 3
-9F4E,Merchant Category Code,Primitive 2 bytes,Terminal sets,EMV Book 3
-9F6C,CTQ,Primitive 1 byte,Contactless,EMV Contactless
-9F66,TTQ,Primitive 4 bytes,Contactless,EMV Contactless
+The executable TLV catalogue is `docs/tlv_catalogue.csv`.
+It SHALL be valid RFC 4180 CSV with exactly these columns:
+
+```text
+Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Presence Rule,Sensitive Data Classification,Test IDs
 ```
+
+`Type` SHALL distinguish primitive, constructed, and Data Object List tags.
+`Scheme Applicability` SHALL mark scheme-specific, proprietary, and RFU tags as
+`PROFILE-DEFINED` rather than assigning invented semantics.
 
 ### Annex B – APDU Command Summary Table
 
