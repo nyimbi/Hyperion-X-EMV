@@ -38,9 +38,9 @@ use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
 };
 use hyperion_emv::oda::{
-    apply_oda_outcome, capk_checksum, capk_checksum_is_valid, select_capk, select_oda_method,
-    selection_input_from_aip, validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod,
-    OdaOutcome, OdaSelection, OdaSelectionInput,
+    apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
+    select_capk, select_oda_method, selection_input_from_aip, validate_oda_vector_annex,
+    CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -1315,6 +1315,27 @@ fn krn_dda_001_internal_authenticate_uses_ddol_values() {
         );
         krn_context_free(ctx);
     }
+}
+
+#[test]
+fn krn_dda_002_oda_006_requires_signed_dynamic_application_data() {
+    let response =
+        parse_internal_authenticate_response(&hex("77129F4B08A1A2A3A4A5A6A7A89F4C0401020304"))
+            .unwrap();
+    assert_eq!(
+        response.signed_dynamic_application_data,
+        hex("A1A2A3A4A5A6A7A8")
+    );
+    assert_eq!(response.icc_dynamic_number, Some(hex("01020304")));
+
+    assert_eq!(
+        parse_internal_authenticate_response(&hex("77069F4C03010203")).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert_eq!(
+        parse_internal_authenticate_response(&hex("9F4B02AABB")).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
 }
 
 #[test]

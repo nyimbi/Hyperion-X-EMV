@@ -2,6 +2,7 @@ use crate::config::{decode_hex, Capk, ProfileSet};
 use crate::error::{KernelError, KernelResult};
 use crate::restrictions::EmvDate;
 use crate::state::{Tsi, Tvr};
+use crate::tlv;
 
 pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
@@ -57,6 +58,12 @@ pub enum OdaOutcome {
 pub enum CapkIntegrity {
     Unverified,
     Verified,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InternalAuthenticateResponse {
+    pub signed_dynamic_application_data: Vec<u8>,
+    pub icc_dynamic_number: Option<Vec<u8>>,
 }
 
 pub fn selection_input_from_aip(
@@ -169,6 +176,23 @@ pub fn apply_oda_outcome(mut tvr: Tvr, mut tsi: Tsi, outcome: OdaOutcome) -> (Tv
         }
     }
     (tvr, tsi)
+}
+
+pub fn parse_internal_authenticate_response(
+    input: &[u8],
+) -> KernelResult<InternalAuthenticateResponse> {
+    let tlvs = tlv::parse_many(input)?;
+    let signed_dynamic_application_data =
+        tlv::find_first(&tlvs, &[0x9f, 0x4b]).ok_or(KernelError::MissingMandatoryTag)?;
+    if signed_dynamic_application_data.len() < MIN_ODA_SIGNATURE_BYTES {
+        return Err(KernelError::InvalidProfile);
+    }
+    let icc_dynamic_number = tlv::find_first(&tlvs, &[0x9f, 0x4c]).map(|value| value.to_vec());
+
+    Ok(InternalAuthenticateResponse {
+        signed_dynamic_application_data: signed_dynamic_application_data.to_vec(),
+        icc_dynamic_number,
+    })
 }
 
 pub fn validate_oda_vector_annex(json: &[u8], certification: bool) -> KernelResult<()> {
@@ -521,6 +545,29 @@ mod tests {
             decode_hex("A9993E364706816ABA3E25717850C26C9CD0D89D")
                 .unwrap()
                 .as_slice()
+        );
+    }
+
+    #[test]
+    fn parses_internal_authenticate_response_signed_dynamic_data() {
+        let response = parse_internal_authenticate_response(&[
+            0x77, 0x12, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0x9f,
+            0x4c, 0x04, 0x01, 0x02, 0x03, 0x04,
+        ])
+        .unwrap();
+        assert_eq!(
+            response.signed_dynamic_application_data,
+            vec![0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8]
+        );
+        assert_eq!(response.icc_dynamic_number, Some(vec![1, 2, 3, 4]));
+
+        assert_eq!(
+            parse_internal_authenticate_response(&[0x77, 0x03, 0x9f, 0x4c, 0x00]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_internal_authenticate_response(&[0x9f, 0x4b, 0x02, 0xaa, 0xbb]).unwrap_err(),
+            KernelError::InvalidProfile
         );
     }
 
