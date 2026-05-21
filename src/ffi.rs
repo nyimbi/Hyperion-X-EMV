@@ -3565,6 +3565,16 @@ mod tests {
             unsafe { read_transaction_params(&invalid_exponent).unwrap_err() },
             KernelError::InvalidArgument
         );
+
+        let oversized_merchant = KrnTxnParams {
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: MAX_MERCHANT_NAME_LOCATION_LEN + 1,
+            ..params
+        };
+        assert_eq!(
+            unsafe { read_transaction_params(&oversized_merchant).unwrap_err() },
+            KernelError::LengthOverflow
+        );
     }
 
     #[test]

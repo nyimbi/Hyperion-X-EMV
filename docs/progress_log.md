@@ -109,3 +109,17 @@ decision record, while this file tracks work toward certification readiness.
   regression, existing restriction TVR tests, and the traceability guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T22:58:20Z
+
+- Increment completed: harden configuration schema rejection evidence for
+  KRN-CFG-002.
+- Code impact: signed profile loading now rejects unknown JSON fields at root,
+  source, certification-scope, scheme, AID, CAPK, and relay-resistance object
+  boundaries while preserving documented metadata fields. Transaction parameter
+  validation now also has explicit oversized merchant-name length coverage.
+- Evidence updated: KRN-CFG-002 RTM rows now cite schema/field rejection,
+  expired CAPK rejection, terminal parameter validation, and a traceability
+  guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

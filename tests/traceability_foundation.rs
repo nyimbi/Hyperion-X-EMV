@@ -1506,6 +1506,22 @@ fn rtm_promotes_signed_profile_and_capk_validation_evidence() {
 }
 
 #[test]
+fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-CFG-002").expect("RTM row exists");
+        assert!(
+            !row.contains("pending implementation evidence"),
+            "KRN-CFG-002 should cite concrete configuration rejection evidence"
+        );
+        assert!(row.contains("rejects_cfg_002_profile_schema_and_field_failures"));
+        assert!(row.contains("rejects_expired_capk"));
+        assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
+        assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
+        assert!(row.contains("rtm_promotes_cfg_schema_and_terminal_param_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in [

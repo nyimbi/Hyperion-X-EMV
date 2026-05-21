@@ -129,6 +129,19 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
 
     let root = JsonParser::new(json).parse()?;
     let object = root.as_object()?;
+    reject_unknown_fields(
+        object,
+        &[
+            "schema_version",
+            "profile_class",
+            "profile_source",
+            "certification_scope",
+            "scheme_profiles",
+        ],
+    )?;
+    if let Some(scope) = object.get("certification_scope") {
+        parse_certification_scope(scope)?;
+    }
     let profile_class = parse_profile_class(object, policy.mode)?;
     let profile_source = parse_profile_source(object, profile_class, policy.mode)?;
     let schemes_value = object
@@ -200,6 +213,10 @@ fn parse_source_object(
     source: &BTreeMap<String, JsonValue>,
     profile_class: ProfileClass,
 ) -> KernelResult<ProfileSource> {
+    reject_unknown_fields(
+        source,
+        &["owner", "document", "version", "retrieved", "verification"],
+    )?;
     let owner = required_string(source, "owner")?;
     let document = required_string(source, "document")?;
     let version = required_string(source, "version")?;
@@ -223,6 +240,22 @@ fn parse_source_object(
     })
 }
 
+fn parse_certification_scope(value: &JsonValue) -> KernelResult<()> {
+    let scope = value.as_object()?;
+    reject_unknown_fields(
+        scope,
+        &[
+            "bundled_scheme_profiles",
+            "lab_supplied_scheme_profiles_required",
+            "contactless_kernel_profile",
+            "profile_material_status",
+            "capk_material_status",
+            "production_profile_bundle_required",
+        ],
+    )?;
+    Ok(())
+}
+
 fn parse_scheme(
     value: &JsonValue,
     evaluation_date: EmvDate,
@@ -230,6 +263,20 @@ fn parse_scheme(
     mode: BuildMode,
 ) -> KernelResult<SchemeProfile> {
     let object = value.as_object()?;
+    reject_unknown_fields(
+        object,
+        &[
+            "scheme_name",
+            "rid",
+            "kernel_type",
+            "contact_kernel_type",
+            "taa_fallback_when_offline_unable_online",
+            "taa_no_match_default_when_online_capable",
+            "taa_no_match_default_when_offline_only",
+            "aids",
+            "capks",
+        ],
+    )?;
     let scheme_name = required_string(object, "scheme_name")?;
     reject_placeholder(scheme_name)?;
     let rid_vec = parse_hex_field(object, "rid")?;
@@ -304,6 +351,32 @@ fn parse_contact_kernel_type(object: &BTreeMap<String, JsonValue>) -> KernelResu
 
 fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
     let object = value.as_object()?;
+    reject_unknown_fields(
+        object,
+        &[
+            "aid",
+            "priority",
+            "partial_selection",
+            "interfaces",
+            "tac_online",
+            "tac_denial",
+            "tac_default",
+            "iac_online",
+            "iac_denial",
+            "iac_default",
+            "floor_limit",
+            "cvm_limit_contact",
+            "random_selection_percent",
+            "contactless_transaction_limit",
+            "contactless_cvm_limit",
+            "cdcvm_supported",
+            "cda_supported",
+            "cda_request_encoding",
+            "default_cdol1",
+            "critical_issuer_script_ins",
+            "relay_resistance",
+        ],
+    )?;
     let aid = parse_hex_field(object, "aid")?;
     if !(5..=16).contains(&aid.len()) {
         return Err(KernelError::InvalidProfile);
@@ -381,6 +454,16 @@ fn parse_relay_resistance_profile(
         return Ok(None);
     };
     let relay = value.as_object()?;
+    reject_unknown_fields(
+        relay,
+        &[
+            "required",
+            "command_apdu_hex",
+            "max_round_trip_ms",
+            "success_response_hex",
+            "failure_outcome",
+        ],
+    )?;
     if !required_bool(relay, "required")? {
         return Ok(None);
     }
@@ -436,6 +519,19 @@ fn parse_capk(
     mode: BuildMode,
 ) -> KernelResult<Capk> {
     let object = value.as_object()?;
+    reject_unknown_fields(
+        object,
+        &[
+            "key_index",
+            "modulus_hex",
+            "exponent_hex",
+            "expiry",
+            "checksum_hex",
+            "checksum_algorithm",
+            "checksum_scope",
+            "source",
+        ],
+    )?;
     let key_index = required_u64(object, "key_index")?;
     if key_index > u8::MAX as u64 {
         return Err(KernelError::InvalidProfile);
@@ -645,6 +741,19 @@ fn fixed_vec<const N: usize>(value: Vec<u8>) -> KernelResult<[u8; N]> {
     let mut out = [0u8; N];
     out.copy_from_slice(&value);
     Ok(out)
+}
+
+fn reject_unknown_fields(
+    object: &BTreeMap<String, JsonValue>,
+    allowed: &[&str],
+) -> KernelResult<()> {
+    if object
+        .keys()
+        .any(|key| !allowed.iter().any(|allowed_key| key == allowed_key))
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1105,6 +1214,68 @@ mod tests {
             KernelError::InvalidProfile
         );
         assert_eq!(decode_hex("A00Z").unwrap_err(), KernelError::ParseError);
+    }
+
+    #[test]
+    fn rejects_cfg_002_profile_schema_and_field_failures() {
+        assert_eq!(
+            load_profile_set(
+                br#"{"scheme_profiles":"#,
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let unknown_root = profile.replace(
+            r#""scheme_profiles": ["#,
+            r#""mandatory_future_schema": true,
+      "scheme_profiles": ["#,
+        );
+        assert_eq!(
+            load_profile_set(unknown_root.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let unknown_aid = profile.replace(
+            r#""partial_selection": true,"#,
+            r#""partial_selection": true,
+          "mandatory_terminal_parameter_length": 9,"#,
+        );
+        assert_eq!(
+            load_profile_set(unknown_aid.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let short_aid = profile.replace(r#""aid": "A0000000031010""#, r#""aid": "A000""#);
+        assert_eq!(
+            load_profile_set(short_aid.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let invalid_hex = profile.replace(
+            r#""tac_online": "E0F8C80000""#,
+            r#""tac_online": "E0F8C8000Z""#,
+        );
+        assert_eq!(
+            load_profile_set(invalid_hex.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let non_hex_key_material =
+            profile.replace(r#""modulus_hex": "D2E5F5"#, r#""modulus_hex": "Z2E5F5"#);
+        assert_eq!(
+            load_profile_set(
+                non_hex_key_material.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]
