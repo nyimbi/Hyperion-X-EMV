@@ -709,16 +709,16 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
             .random_selection_percent,
         5
     );
-    assert_eq!(profiles.schemes[0].capks[0].key_index, 8);
+    assert_eq!(profiles.schemes[0].capks[0].key_index, 9);
     assert!(profiles.schemes[0].capks[0].modulus.len() >= 64);
     assert_eq!(
         profiles.schemes[0].capks[0].checksum,
-        hex("20D213126955DE205ADC2FD2822BD22DE21CF9A8")
+        hex("1FF80A40173F52D7D27E0F26A146A1C8CCB29046")
     );
-    assert_eq!(profiles.schemes[1].capks[0].key_index, 5);
+    assert_eq!(profiles.schemes[1].capks[0].key_index, 6);
     assert_eq!(
         profiles.schemes[1].capks[0].checksum,
-        hex("EBFA0D5D06D8CE702DA3EAE890701D45E274C845")
+        hex("F910A1504D5FFB793D94F3B500765E1ABCAD72D9")
     );
     assert!(profiles
         .schemes
@@ -2427,13 +2427,13 @@ fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
     let capk = select_capk(
         &profiles,
         &rid,
-        8,
+        9,
         policy.evaluation_date,
         CapkIntegrity::Verified,
     )
     .unwrap();
     assert_eq!(capk.rid, rid);
-    assert_eq!(capk.key_index, 8);
+    assert_eq!(capk.key_index, 9);
     assert!(capk_checksum_is_valid(capk));
     assert_eq!(capk_checksum(capk).as_slice(), capk.checksum.as_slice());
 
