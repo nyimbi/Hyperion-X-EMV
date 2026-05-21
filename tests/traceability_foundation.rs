@@ -89,6 +89,7 @@ const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
 const ODA_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
 const STATE_MACHINE_CSV: &str = include_str!("../docs/state_machine.csv");
+const BITMAP_CATALOGUE: &str = include_str!("../docs/bitmap_catalogue.csv");
 const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manifest.md");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
@@ -740,6 +741,20 @@ fn rtm_promotes_state_machine_annex_validation_evidence() {
 }
 
 #[test]
+fn rtm_promotes_bitmap_catalogue_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-BIT-001").expect("RTM row exists");
+        assert!(
+            !row.contains("pending implementation evidence"),
+            "KRN-BIT-001 should cite concrete bitmap catalogue evidence"
+        );
+        assert!(row.contains("bitmap_catalogue_defines_tvr_tsi_symbols_and_rfu_masks"));
+        assert!(row.contains("implementation_uses_symbolic_bitmap_setters"));
+        assert!(row.contains("rtm_promotes_bitmap_catalogue_evidence"));
+    }
+}
+
+#[test]
 fn both_rtms_cover_dynamic_oda_rows_independently() {
     for krn_id in [
         "KRN-GAC-010",
@@ -835,6 +850,10 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
                 bytes: include_bytes!("../Cargo.toml"),
             },
             Artifact {
+                name: "docs/bitmap_catalogue.csv",
+                bytes: BITMAP_CATALOGUE.as_bytes(),
+            },
+            Artifact {
                 name: "docs/lab_submission_manifest.md",
                 bytes: LAB_SUBMISSION_MANIFEST.as_bytes(),
             },
@@ -880,6 +899,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         vec![
             "Cargo.lock",
             "Cargo.toml",
+            "docs/bitmap_catalogue.csv",
             "docs/lab_submission_manifest.md",
             "docs/oda_test_vectors.json",
             "docs/requirements_traceability.csv",
@@ -2030,6 +2050,123 @@ fn tlv_catalogue_contains_required_foundation_tags() {
                 .any(|line| line.starts_with(row_prefix)),
             "missing TLV catalogue row {row_prefix}"
         );
+    }
+}
+
+#[test]
+fn bitmap_catalogue_defines_tvr_tsi_symbols_and_rfu_masks() {
+    let expected_header = [
+        "indicator",
+        "byte",
+        "bit",
+        "mask",
+        "symbol",
+        "meaning",
+        "set_by",
+        "test_id",
+    ];
+    let mut lines = BITMAP_CATALOGUE.lines();
+    let header = lines.next().expect("bitmap catalogue header");
+    assert_eq!(header.split(',').collect::<Vec<_>>(), expected_header);
+    assert!(LAB_SUBMISSION_MANIFEST.contains("bitmap_catalogue.csv"));
+
+    let rows = lines
+        .map(|line| line.split(',').collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 56);
+    let mut keys = BTreeSet::new();
+    let mut tvr_masks = [0u8; 5];
+    let mut tsi_masks = [0u8; 2];
+
+    for row in &rows {
+        assert_eq!(
+            row.len(),
+            expected_header.len(),
+            "invalid bitmap row {row:?}"
+        );
+        assert!(matches!(row[0], "TVR" | "TSI"));
+        assert_eq!(row[7], "KRN-BIT-001");
+        assert!(
+            keys.insert((row[0], row[1], row[2])),
+            "duplicate row {row:?}"
+        );
+
+        let byte = row[1].parse::<usize>().unwrap();
+        let bit = row[2].parse::<u8>().unwrap();
+        let mask = u8::from_str_radix(row[3].trim_start_matches("0x"), 16).unwrap();
+        assert!((1..=8).contains(&bit));
+        assert_eq!(mask, 1u8 << (bit - 1));
+        assert!(!row[4].is_empty());
+
+        if !row[4].starts_with("RFU_") {
+            match row[0] {
+                "TVR" => tvr_masks[byte - 1] |= mask,
+                "TSI" => tsi_masks[byte - 1] |= mask,
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    assert_eq!(tvr_masks, Tvr::ALLOWED_MASKS);
+    assert_eq!(tsi_masks, Tsi::ALLOWED_MASKS);
+
+    for symbol in [
+        "B1_OFFLINE_DATA_AUTH_NOT_PERFORMED",
+        "B1_SDA_FAILED",
+        "B1_ICC_DATA_MISSING",
+        "B1_CARD_ON_EXCEPTION_FILE",
+        "B1_DDA_FAILED",
+        "B1_CDA_FAILED",
+        "B2_DIFFERENT_APPLICATION_VERSIONS",
+        "B2_EXPIRED_APPLICATION",
+        "B2_APPLICATION_NOT_YET_EFFECTIVE",
+        "B2_REQUESTED_SERVICE_NOT_ALLOWED",
+        "B2_NEW_CARD",
+        "B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL",
+        "B3_UNRECOGNIZED_CVM",
+        "B3_PIN_TRY_LIMIT_EXCEEDED",
+        "B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING",
+        "B3_PIN_NOT_ENTERED",
+        "B3_ONLINE_PIN_ENTERED",
+        "B4_FLOOR_LIMIT_EXCEEDED",
+        "B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED",
+        "B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED",
+        "B4_RANDOM_TRANSACTION_SELECTION_PERFORMED",
+        "B4_MERCHANT_FORCED_TRANSACTION_ONLINE",
+        "B5_ISSUER_AUTHENTICATION_FAILED",
+        "B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC",
+        "B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC",
+        "OFFLINE_DATA_AUTHENTICATION_PERFORMED",
+        "CARDHOLDER_VERIFICATION_PERFORMED",
+        "CARD_RISK_MANAGEMENT_PERFORMED",
+        "ISSUER_AUTHENTICATION_PERFORMED",
+        "TERMINAL_RISK_MANAGEMENT_PERFORMED",
+        "SCRIPT_PROCESSING_PERFORMED",
+    ] {
+        assert!(
+            rows.iter().any(|row| row[4] == symbol),
+            "bitmap catalogue missing {symbol}"
+        );
+    }
+}
+
+#[test]
+fn implementation_uses_symbolic_bitmap_setters() {
+    for entry in fs::read_dir("src").unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs")
+            || path.file_name().and_then(|name| name.to_str()) == Some("state.rs")
+        {
+            continue;
+        }
+        let source = fs::read_to_string(&path).unwrap();
+        for forbidden in ["tvr.set((", "tsi.set((", "tvr.is_set((", "tsi.is_set(("] {
+            assert!(
+                !source.contains(forbidden),
+                "{} contains raw bitmap access pattern {forbidden}",
+                path.display()
+            );
+        }
     }
 }
 

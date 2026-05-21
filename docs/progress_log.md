@@ -162,3 +162,17 @@ decision record, while this file tracks work toward certification readiness.
   schema validation, semantic-drift rejection, and a traceability guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:25:14Z
+
+- Increment completed: add canonical TVR/TSI bitmap catalogue evidence for
+  KRN-BIT-001.
+- Code impact: `docs/bitmap_catalogue.csv` now records every TVR and TSI bit,
+  symbolic name, RFU row, mask, owner, and test ID; the lab manifest and build
+  provenance include the catalogue; traceability tests verify the catalogue
+  masks match the implementation masks and implementation modules avoid raw
+  bitmap setter patterns.
+- Evidence updated: KRN-BIT-001 RTM rows now cite bitmap catalogue validation,
+  implementation source scanning, and the RTM guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

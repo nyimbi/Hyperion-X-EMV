@@ -1,0 +1,57 @@
+indicator,byte,bit,mask,symbol,meaning,set_by,test_id
+TVR,1,8,0x80,B1_OFFLINE_DATA_AUTH_NOT_PERFORMED,Offline data authentication was not performed,ODA,KRN-BIT-001
+TVR,1,7,0x40,B1_SDA_FAILED,Static data authentication failed,ODA,KRN-BIT-001
+TVR,1,6,0x20,B1_ICC_DATA_MISSING,ICC data missing,ODA,KRN-BIT-001
+TVR,1,5,0x10,B1_CARD_ON_EXCEPTION_FILE,Card on exception file,TRM,KRN-BIT-001
+TVR,1,4,0x08,B1_DDA_FAILED,Dynamic data authentication failed,ODA,KRN-BIT-001
+TVR,1,3,0x04,B1_CDA_FAILED,Combined DDA and application cryptogram failed,ODA,KRN-BIT-001
+TVR,1,2,0x02,RFU_TVR_B1_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,1,1,0x01,RFU_TVR_B1_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,2,8,0x80,B2_DIFFERENT_APPLICATION_VERSIONS,Application versions differ,Processing restrictions,KRN-BIT-001
+TVR,2,7,0x40,B2_EXPIRED_APPLICATION,Expired application,Processing restrictions,KRN-BIT-001
+TVR,2,6,0x20,B2_APPLICATION_NOT_YET_EFFECTIVE,Application not yet effective,Processing restrictions,KRN-BIT-001
+TVR,2,5,0x10,B2_REQUESTED_SERVICE_NOT_ALLOWED,Requested service not allowed,Processing restrictions,KRN-BIT-001
+TVR,2,4,0x08,B2_NEW_CARD,New card,Processing restrictions,KRN-BIT-001
+TVR,2,3,0x04,RFU_TVR_B2_B3,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,2,2,0x02,RFU_TVR_B2_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,2,1,0x01,RFU_TVR_B2_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,3,8,0x80,B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,Cardholder verification was not successful,CVM,KRN-BIT-001
+TVR,3,7,0x40,B3_UNRECOGNIZED_CVM,Unrecognized CVM,CVM,KRN-BIT-001
+TVR,3,6,0x20,B3_PIN_TRY_LIMIT_EXCEEDED,PIN try limit exceeded,CVM,KRN-BIT-001
+TVR,3,5,0x10,B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING,PIN pad not present or not working,CVM,KRN-BIT-001
+TVR,3,4,0x08,B3_PIN_NOT_ENTERED,PIN not entered,CVM,KRN-BIT-001
+TVR,3,3,0x04,B3_ONLINE_PIN_ENTERED,Online PIN entered,CVM,KRN-BIT-001
+TVR,3,2,0x02,RFU_TVR_B3_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,3,1,0x01,RFU_TVR_B3_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,4,8,0x80,B4_FLOOR_LIMIT_EXCEEDED,Transaction exceeds floor limit,TRM,KRN-BIT-001
+TVR,4,7,0x40,B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED,Lower consecutive offline limit exceeded,TRM,KRN-BIT-001
+TVR,4,6,0x20,B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED,Upper consecutive offline limit exceeded,TRM,KRN-BIT-001
+TVR,4,5,0x10,B4_RANDOM_TRANSACTION_SELECTION_PERFORMED,Random transaction selection performed,TRM,KRN-BIT-001
+TVR,4,4,0x08,B4_MERCHANT_FORCED_TRANSACTION_ONLINE,Merchant forced transaction online,TRM,KRN-BIT-001
+TVR,4,3,0x04,RFU_TVR_B4_B3,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,4,2,0x02,RFU_TVR_B4_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,4,1,0x01,RFU_TVR_B4_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,5,8,0x80,RFU_TVR_B5_B8,Default TDOL used not implemented by this kernel baseline,DOL,KRN-BIT-001
+TVR,5,7,0x40,B5_ISSUER_AUTHENTICATION_FAILED,Issuer authentication failed,Issuer authentication,KRN-BIT-001
+TVR,5,6,0x20,B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC,Script processing failed before final GENERATE AC,Issuer scripts,KRN-BIT-001
+TVR,5,5,0x10,B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC,Script processing failed after final GENERATE AC,Issuer scripts,KRN-BIT-001
+TVR,5,4,0x08,RFU_TVR_B5_B4,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,5,3,0x04,RFU_TVR_B5_B3,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,5,2,0x02,RFU_TVR_B5_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TVR,5,1,0x01,RFU_TVR_B5_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,1,8,0x80,OFFLINE_DATA_AUTHENTICATION_PERFORMED,Offline data authentication was performed,ODA,KRN-BIT-001
+TSI,1,7,0x40,CARDHOLDER_VERIFICATION_PERFORMED,Cardholder verification was performed,CVM,KRN-BIT-001
+TSI,1,6,0x20,CARD_RISK_MANAGEMENT_PERFORMED,Card risk management was performed,Card or profile,KRN-BIT-001
+TSI,1,5,0x10,ISSUER_AUTHENTICATION_PERFORMED,Issuer authentication was performed,Issuer authentication,KRN-BIT-001
+TSI,1,4,0x08,TERMINAL_RISK_MANAGEMENT_PERFORMED,Terminal risk management was performed,TRM,KRN-BIT-001
+TSI,1,3,0x04,SCRIPT_PROCESSING_PERFORMED,Script processing was performed,Issuer scripts,KRN-BIT-001
+TSI,1,2,0x02,RFU_TSI_B1_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,1,1,0x01,RFU_TSI_B1_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,8,0x80,RFU_TSI_B2_B8,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,7,0x40,RFU_TSI_B2_B7,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,6,0x20,RFU_TSI_B2_B6,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,5,0x10,RFU_TSI_B2_B5,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,4,0x08,RFU_TSI_B2_B4,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,3,0x04,RFU_TSI_B2_B3,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,2,0x02,RFU_TSI_B2_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
+TSI,2,1,0x01,RFU_TSI_B2_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
