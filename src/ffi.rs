@@ -1603,21 +1603,13 @@ fn oda_outcome_for_method(
             OdaOutcome::Passed(method)
         }
         OdaMethod::Cda => {
-            if validate_issuer_public_key_inputs(card_data).is_err() {
-                return OdaOutcome::Failed {
-                    method,
-                    failure: OdaFailure::IssuerCertificateRecovery,
-                };
-            }
-            if validate_icc_public_key_inputs(card_data).is_err() {
-                return OdaOutcome::Failed {
-                    method,
-                    failure: OdaFailure::IccCertificateRecovery,
-                };
-            }
-            OdaOutcome::Failed {
-                method,
-                failure: OdaFailure::CdaSignature,
+            let issuer_public_key = match recover_issuer_public_key(capk, card_data) {
+                Ok(certificate) => certificate,
+                Err(failure) => return OdaOutcome::Failed { method, failure },
+            };
+            match recover_icc_public_key(&issuer_public_key, card_data) {
+                Ok(_) => OdaOutcome::Passed(method),
+                Err(failure) => OdaOutcome::Failed { method, failure },
             }
         }
     }
@@ -1705,6 +1697,64 @@ fn perform_dynamic_data_authentication(
         &ddol_values,
     )?;
     Ok(())
+}
+
+fn verify_combined_data_authentication(
+    ctx: &KrnContext,
+    response: &GenerateAcResponse,
+) -> Result<(), KernelError> {
+    let profiles = ctx.profiles.as_ref().ok_or(KernelError::InvalidProfile)?;
+    let selected = ctx
+        .selected_application
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let scheme = profiles
+        .schemes
+        .get(selected.scheme_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    let evaluation_date = ctx
+        .profile_evaluation_date
+        .ok_or(KernelError::InvalidProfile)?;
+    let key_index = ctx
+        .card_data
+        .get(&[0x8f])
+        .and_then(|value| value.first())
+        .copied()
+        .ok_or(KernelError::MissingMandatoryTag)?;
+    let capk = select_capk(
+        profiles,
+        &scheme.rid,
+        key_index,
+        evaluation_date,
+        CapkIntegrity::Verified,
+    )?;
+    let issuer_public_key =
+        recover_issuer_public_key(capk, &ctx.card_data).map_err(oda_failure_to_kernel_error)?;
+    let icc_public_key = recover_icc_public_key(&issuer_public_key, &ctx.card_data)
+        .map_err(oda_failure_to_kernel_error)?;
+    let signed_dynamic_application_data = response
+        .signed_dynamic_application_data
+        .as_deref()
+        .ok_or(KernelError::MissingMandatoryTag)?;
+    recover_and_verify_signed_application_data(
+        RecoveredSignedDataKind::DynamicApplicationData,
+        signed_dynamic_application_data,
+        &icc_public_key.public_key,
+        &icc_public_key.exponent,
+        &response.application_cryptogram,
+    )?;
+    Ok(())
+}
+
+fn oda_failure_to_kernel_error(failure: OdaFailure) -> KernelError {
+    match failure {
+        OdaFailure::MissingCapk => KernelError::MissingMandatoryTag,
+        OdaFailure::IssuerCertificateRecovery
+        | OdaFailure::IccCertificateRecovery
+        | OdaFailure::StaticSignature
+        | OdaFailure::DynamicSignature
+        | OdaFailure::CdaSignature => KernelError::InvalidProfile,
+    }
 }
 
 fn run_processing_restrictions(
@@ -2074,6 +2124,15 @@ fn run_first_generate_ac(
     }
     if let Some(dynamic_number) = parsed.icc_dynamic_number.as_ref() {
         ctx.card_data.put(&[0x9f, 0x4c], dynamic_number)?;
+    }
+    if let Some(sdad) = parsed.signed_dynamic_application_data.as_ref() {
+        ctx.card_data.put(&[0x9f, 0x4b], sdad)?;
+    }
+    if ctx.selected_oda_method == Some(OdaMethod::Cda)
+        && verify_combined_data_authentication(ctx, &parsed).is_err()
+    {
+        ctx.tvr.set(Tvr::B1_CDA_FAILED);
+        ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     }
 
     let (event, state) = match parsed.cid.cryptogram_type() {
@@ -3138,6 +3197,7 @@ mod tests {
             application_cryptogram: [0x11; 8],
             issuer_application_data: Vec::new(),
             icc_dynamic_number: None,
+            signed_dynamic_application_data: None,
         });
         assert_eq!(
             finish_offline_outcome_from_first_gac(&mut ctx),
@@ -3304,6 +3364,64 @@ mod tests {
             .unwrap();
     }
 
+    fn install_cda_success_fixture(ctx: &mut KrnContext) {
+        install_profile_selection(ctx);
+        let capk_modulus = hex_bytes(
+            "95FDEDCBA9876FEDCBA9876FCFEDFEFDFCFEFEA5FE6A041234567890123456\
+             789030120102030101300195FDFEFBFEFDFCFB414444444444444744444444\
+             444444444444443417CD6B0415F87CE74BFC886E3D1ABEB65E16CB455FF98\
+             79C8FB364A8E30DD765A5614D8848519095BA4A882A0960A480FB002521E4\
+             3B0DC5EAE0A5ED3745",
+        );
+        let source = ctx.profiles.as_ref().unwrap().schemes[0].capks[0]
+            .source
+            .clone();
+        let mut capk = crate::config::Capk {
+            rid: [0xa0, 0x00, 0x00, 0x00, 0x03],
+            key_index: 0x44,
+            modulus: capk_modulus,
+            exponent: vec![0x03],
+            expiry: EmvDate {
+                year: 30,
+                month: 12,
+                day: 31,
+            },
+            checksum: Vec::new(),
+            source,
+        };
+        capk.checksum = crate::oda::capk_checksum(&capk).to_vec();
+        ctx.profiles.as_mut().unwrap().schemes[0].capks = vec![capk];
+        ctx.selected_application.as_mut().unwrap().aip = Some([0x00, 0x80]);
+        ctx.card_data.put(&[0x8f], &[0x44]).unwrap();
+        ctx.card_data
+            .put(
+                &[0x90],
+                &hex_bytes(
+                    "000000000000000000000000000000000000000000000000000000000000000000\
+                     000000000000000000000000000000000000000000000000000000000000000000\
+                     000000000000000000000000000000000000000000010000000000000000000000\
+                     000000000000000000000000000000000000000000000000000000000000000001",
+                ),
+            )
+            .unwrap();
+        ctx.card_data.put(&[0x9f, 0x32], &[0x03]).unwrap();
+        ctx.card_data
+            .put(
+                &[0x9f, 0x46],
+                &hex_bytes(
+                    "000000000000000000000000000000000000000000000000000000000000\
+                     000000000000000000000000000000000000000000000000000000000001\
+                     000000000000000000000000000000000000000000000000000000000001",
+                ),
+            )
+            .unwrap();
+        ctx.card_data.put(&[0x9f, 0x47], &[0x03]).unwrap();
+        ctx.card_data.put(&[0x8c], &[0x9f, 0x37, 0x04]).unwrap();
+        ctx.card_data
+            .put(&[0x9f, 0x37], &[0x11, 0x22, 0x33, 0x44])
+            .unwrap();
+    }
+
     fn hex_bytes(input: &str) -> Vec<u8> {
         let filtered: String = input.chars().filter(|ch| !ch.is_whitespace()).collect();
         assert_eq!(filtered.len() % 2, 0);
@@ -3448,6 +3566,113 @@ mod tests {
         assert!(ctx.tsi.is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
         assert!(ctx.tvr.is_set(Tvr::B1_DDA_FAILED));
         assert!(!ctx.tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+        DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
+    }
+
+    unsafe extern "C" fn capture_cda_generate_ac_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let mut sdad = hex_bytes(
+            "0000000000000000000000000000000000000000000000000000000000000001\
+             00000000000000000000000000000001",
+        );
+        if DDA_RESPONSE_MODE.load(Ordering::SeqCst) == 1 {
+            let last = sdad.last_mut().unwrap();
+            *last ^= 0x01;
+        }
+        let mut response = Vec::with_capacity(80);
+        response.extend_from_slice(&[
+            0x77, 0x4e, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x9f, 0x4b, 0x30,
+        ]);
+        response.extend_from_slice(&sdad);
+        response.extend_from_slice(&[0x9f, 0x4c, 0x04, 0x01, 0x02, 0x03, 0x04, 0x90, 0x00]);
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    #[test]
+    fn runtime_cda_verifies_first_gac_signed_dynamic_data() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_cda_success_fixture(&mut ctx);
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut ctx, &profiles, None),
+            Ok(())
+        );
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Cda));
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_generate_ac_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
+        assert_eq!(run_first_generate_ac(&mut ctx, runtime), Ok(()));
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 1);
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+        assert_eq!(ctx.fsm_state, FsmState::S11);
+        assert!(!ctx.tvr.is_set(Tvr::B1_CDA_FAILED));
+        assert!(ctx.first_gac_response.is_some());
+        assert!(ctx.card_data.get(&[0x9f, 0x4b]).is_some());
+        assert_eq!(
+            ctx.card_data.get(&[0x9f, 0x26]),
+            Some(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88][..])
+        );
+    }
+
+    #[test]
+    fn runtime_cda_failure_sets_tvr_without_falling_back_to_dda() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_cda_success_fixture(&mut ctx);
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut ctx, &profiles, None),
+            Ok(())
+        );
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Cda));
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_generate_ac_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        DDA_RESPONSE_MODE.store(1, Ordering::SeqCst);
+        assert_eq!(run_first_generate_ac(&mut ctx, runtime), Ok(()));
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Cda));
+        assert_eq!(ctx.fsm_state, FsmState::S11);
+        assert!(ctx.tvr.is_set(Tvr::B1_CDA_FAILED));
+        assert!(!ctx.tvr.is_set(Tvr::B1_DDA_FAILED));
         DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
     }
 

@@ -10,6 +10,7 @@ pub struct GenerateAcResponse {
     pub atc: [u8; 2],
     pub issuer_application_data: Vec<u8>,
     pub icc_dynamic_number: Option<Vec<u8>>,
+    pub signed_dynamic_application_data: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -98,6 +99,7 @@ fn parse_format_1(input: &[u8]) -> KernelResult<GenerateAcResponse> {
         application_cryptogram,
         issuer_application_data: value[11..].to_vec(),
         icc_dynamic_number: None,
+        signed_dynamic_application_data: None,
     })
 }
 
@@ -109,6 +111,8 @@ fn parse_format_2(input: &[u8]) -> KernelResult<GenerateAcResponse> {
     let issuer_application_data =
         tlv::find_first(&tlvs, &[0x9f, 0x10]).map_or_else(Vec::new, |value| value.to_vec());
     let icc_dynamic_number = tlv::find_first(&tlvs, &[0x9f, 0x4c]).map(|value| value.to_vec());
+    let signed_dynamic_application_data =
+        tlv::find_first(&tlvs, &[0x9f, 0x4b]).map(|value| value.to_vec());
 
     Ok(GenerateAcResponse {
         cid: Cid::new(cid[0]),
@@ -116,6 +120,7 @@ fn parse_format_2(input: &[u8]) -> KernelResult<GenerateAcResponse> {
         atc,
         issuer_application_data,
         icc_dynamic_number,
+        signed_dynamic_application_data,
     })
 }
 
