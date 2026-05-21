@@ -1018,15 +1018,21 @@ fn scheme_profile_annex_uses_certification_provenance() {
 #[test]
 fn scheme_profile_annex_declares_capk_checksum_derivation() {
     let algorithm = "\"checksum_algorithm\": \"sha1(rid || key_index || modulus || exponent)\"";
-    assert_eq!(SCHEME_PROFILES.matches(algorithm).count(), 3);
+    assert_eq!(SCHEME_PROFILES.matches(algorithm).count(), 2);
     assert_eq!(
         SCHEME_PROFILES
             .matches(
                 "\"checksum_scope\": [\"rid\", \"key_index\", \"modulus_hex\", \"exponent_hex\"]"
             )
             .count(),
-        3
+        2
     );
+}
+
+#[test]
+fn scheme_profile_annex_excludes_synthetic_c8_payment_profile() {
+    assert!(!SCHEME_PROFILES.contains("A000000999"));
+    assert!(!SCHEME_PROFILES.contains("A000000999C8"));
 }
 
 #[test]
@@ -1061,7 +1067,7 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
         profiles.profile_source.verification,
         "external_signature_required"
     );
-    assert_eq!(profiles.schemes.len(), 3);
+    assert_eq!(profiles.schemes.len(), 2);
     assert_eq!(profiles.schemes[0].rid, hex("A000000003").as_slice());
     assert_eq!(
         profiles.schemes[0].aids[0].action_codes.online,
@@ -1101,24 +1107,15 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
         profiles.schemes[1].capks[0].checksum,
         hex("F910A1504D5FFB793D94F3B500765E1ABCAD72D9")
     );
-    assert_eq!(profiles.schemes[2].scheme_name, "C-8");
-    assert_eq!(profiles.schemes[2].rid, hex("A000000999").as_slice());
-    assert_eq!(
-        profiles.schemes[2].taa.no_match_default_when_offline_only,
-        TerminalAction::Tc
-    );
-    assert_eq!(profiles.schemes[2].aids[0].aid, hex("A000000999C8"));
-    assert_eq!(profiles.schemes[2].aids[0].interfaces, ["contactless"]);
-    assert_eq!(profiles.schemes[2].capks[0].key_index, 1);
-    assert_eq!(
-        profiles.schemes[2].capks[0].checksum,
-        hex("1AEC92BC162238EAF322655D2D0A3B965226F987")
-    );
     assert!(profiles
         .schemes
         .iter()
         .flat_map(|scheme| scheme.capks.iter())
         .all(|capk| capk.checksum.len() == 20));
+    assert!(profiles.schemes.iter().all(|scheme| {
+        scheme.rid != hex("A000000999").as_slice()
+            && scheme.aids.iter().all(|aid| aid.aid != hex("A000000999C8"))
+    }));
 }
 
 #[test]

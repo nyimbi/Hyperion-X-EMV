@@ -268,18 +268,14 @@ SE,any,–,S0,Reset after error,KRN_OK
       "taa_no_match_default_when_online_capable": "ARQC",
       "taa_no_match_default_when_offline_only": "AAC",
       "aids": [ ... ]
-    },
-    {
-      "scheme_name": "C-8",
-      "rid": "A000000999",
-      "taa_fallback_when_offline_unable_online": "AAC",
-      "taa_no_match_default_when_online_capable": "ARQC",
-      "taa_no_match_default_when_offline_only": "TC",
-      "aids": [ ... ]
     }
   ]
 }
 ```
+
+C-8 contactless behavior is certified through the contactless kernel approval
+package and lab-supplied profile data. The certification scheme profile annex
+shall not invent a payment RID, AID, or CAPK for C-8.
 
 ### Annex G – Requirement‑to‑Test Traceability Matrix (`requirements_traceability.csv`)
 
