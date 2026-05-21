@@ -1,3 +1,4 @@
+use crate::c8::{RelayResistanceFailureOutcome, RelayResistanceProfile};
 use crate::error::{KernelError, KernelResult};
 use crate::restrictions::EmvDate;
 use crate::sha1::{Sha1, SHA1_DIGEST_BYTES};
@@ -81,6 +82,7 @@ pub struct AidProfile {
     pub cda_supported: bool,
     pub cda_request_encoding: Option<CdaRequestEncoding>,
     pub critical_issuer_script_ins: Vec<u8>,
+    pub relay_resistance: Option<RelayResistanceProfile>,
 }
 
 impl AidProfile {
@@ -339,7 +341,42 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             .map(parse_cda_request_encoding)
             .transpose()?,
         critical_issuer_script_ins: optional_hex_byte_array(object, "critical_issuer_script_ins")?,
+        relay_resistance: parse_relay_resistance_profile(object)?,
     })
+}
+
+fn parse_relay_resistance_profile(
+    object: &BTreeMap<String, JsonValue>,
+) -> KernelResult<Option<RelayResistanceProfile>> {
+    let Some(value) = object.get("relay_resistance") else {
+        return Ok(None);
+    };
+    let relay = value.as_object()?;
+    if !required_bool(relay, "required")? {
+        return Ok(None);
+    }
+    let max_round_trip_ms = required_u64(relay, "max_round_trip_ms")?;
+    if max_round_trip_ms > u16::MAX as u64 {
+        return Err(KernelError::InvalidProfile);
+    }
+    RelayResistanceProfile::new(
+        parse_hex_field(relay, "command_apdu_hex")?,
+        max_round_trip_ms as u16,
+        parse_hex_field(relay, "success_response_hex")?,
+        parse_relay_resistance_failure_outcome(required_string(relay, "failure_outcome")?)?,
+    )
+    .map(Some)
+}
+
+fn parse_relay_resistance_failure_outcome(
+    input: &str,
+) -> KernelResult<RelayResistanceFailureOutcome> {
+    match input {
+        "try_again" => Ok(RelayResistanceFailureOutcome::TryAgain),
+        "alternate_interface" => Ok(RelayResistanceFailureOutcome::AlternateInterface),
+        "terminate" => Ok(RelayResistanceFailureOutcome::Terminate),
+        _ => Err(KernelError::InvalidProfile),
+    }
 }
 
 fn parse_cda_request_encoding(input: &str) -> KernelResult<CdaRequestEncoding> {
@@ -915,6 +952,44 @@ mod tests {
             Some(CdaRequestEncoding::InCdolData)
         );
         assert!(profiles.schemes[0].aids[0].cda_allowed_by_profile());
+    }
+
+    #[test]
+    fn parses_profile_defined_relay_resistance_policy() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap().replace(
+            r#""critical_issuer_script_ins": ["E2"]"#,
+            r#""critical_issuer_script_ins": ["E2"],
+          "relay_resistance": {
+            "required": true,
+            "command_apdu_hex": "80CA9F7A00",
+            "max_round_trip_ms": 50,
+            "success_response_hex": "9000",
+            "failure_outcome": "try_again"
+          }"#,
+        );
+        let profiles =
+            load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap();
+        let relay = profiles.schemes[0].aids[0]
+            .relay_resistance
+            .as_ref()
+            .unwrap();
+        assert_eq!(relay.command_apdu, decode_hex("80CA9F7A00").unwrap());
+        assert_eq!(relay.max_round_trip_ms, 50);
+        assert_eq!(relay.success_response, decode_hex("9000").unwrap());
+        assert_eq!(
+            relay.failure_outcome,
+            RelayResistanceFailureOutcome::TryAgain
+        );
+
+        let missing_command = profile.replace(r#""command_apdu_hex": "80CA9F7A00","#, "");
+        assert_eq!(
+            load_profile_set(
+                missing_command.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
     }
 
     #[test]

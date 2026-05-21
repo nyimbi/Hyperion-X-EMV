@@ -2,6 +2,8 @@ use crate::error::{KernelError, KernelResult};
 
 pub const MAX_C8_DATA_RECORD_LEN: usize = 252;
 pub const MAX_C8_DISCRETIONARY_DATA_LEN: usize = 252;
+pub const MAX_RELAY_RESISTANCE_APDU_LEN: usize = 261;
+pub const MAX_RELAY_RESISTANCE_RESPONSE_LEN: usize = 258;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -158,6 +160,61 @@ pub enum ContactlessLimitDecision {
     AlternateInterface,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RelayResistanceFailureOutcome {
+    TryAgain,
+    AlternateInterface,
+    Terminate,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RelayResistanceProfile {
+    pub command_apdu: Vec<u8>,
+    pub max_round_trip_ms: u16,
+    pub success_response: Vec<u8>,
+    pub failure_outcome: RelayResistanceFailureOutcome,
+}
+
+impl RelayResistanceProfile {
+    pub fn new(
+        command_apdu: Vec<u8>,
+        max_round_trip_ms: u16,
+        success_response: Vec<u8>,
+        failure_outcome: RelayResistanceFailureOutcome,
+    ) -> KernelResult<Self> {
+        if !(4..=MAX_RELAY_RESISTANCE_APDU_LEN).contains(&command_apdu.len())
+            || !(2..=MAX_RELAY_RESISTANCE_RESPONSE_LEN).contains(&success_response.len())
+            || max_round_trip_ms == 0
+        {
+            return Err(KernelError::InvalidProfile);
+        }
+        Ok(Self {
+            command_apdu,
+            max_round_trip_ms,
+            success_response,
+            failure_outcome,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RelayResistanceDecision {
+    Passed,
+    Failed(RelayResistanceFailureOutcome),
+}
+
+pub fn evaluate_relay_resistance(
+    profile: &RelayResistanceProfile,
+    response: &[u8],
+    round_trip_ms: u16,
+) -> RelayResistanceDecision {
+    if round_trip_ms <= profile.max_round_trip_ms && response == profile.success_response {
+        RelayResistanceDecision::Passed
+    } else {
+        RelayResistanceDecision::Failed(profile.failure_outcome)
+    }
+}
+
 pub fn evaluate_contactless_limits(input: ContactlessLimitInput) -> ContactlessLimitDecision {
     if input.contactless_transaction_limit != 0
         && input.amount_authorised_minor > input.contactless_transaction_limit
@@ -230,6 +287,52 @@ pub fn outcome_from_limit_decision(
             &[],
             &[],
             AlternateInterface::Contact,
+        ),
+    }
+}
+
+pub fn outcome_from_relay_resistance_failure(
+    outcome: RelayResistanceFailureOutcome,
+) -> KernelResult<ContactlessOutcome> {
+    match outcome {
+        RelayResistanceFailureOutcome::TryAgain => ContactlessOutcome::new(
+            ContactlessOutcomeCode::TryAgain,
+            StartSignal::Prompt,
+            UiRequest {
+                message_id: 4,
+                status: UiStatus::TryAgain,
+                hold_time_ms: 0,
+            },
+            true,
+            &[],
+            &[],
+            AlternateInterface::None,
+        ),
+        RelayResistanceFailureOutcome::AlternateInterface => ContactlessOutcome::new(
+            ContactlessOutcomeCode::AlternateInterface,
+            StartSignal::Prompt,
+            UiRequest {
+                message_id: 3,
+                status: UiStatus::Error,
+                hold_time_ms: 0,
+            },
+            false,
+            &[],
+            &[],
+            AlternateInterface::Contact,
+        ),
+        RelayResistanceFailureOutcome::Terminate => ContactlessOutcome::new(
+            ContactlessOutcomeCode::Terminate,
+            StartSignal::None,
+            UiRequest {
+                message_id: 5,
+                status: UiStatus::Error,
+                hold_time_ms: 0,
+            },
+            false,
+            &[],
+            &[],
+            AlternateInterface::None,
         ),
     }
 }
@@ -335,6 +438,40 @@ mod tests {
                 ..base
             }),
             ContactlessLimitDecision::AlternateInterface
+        );
+    }
+
+    #[test]
+    fn relay_resistance_is_profile_gated_and_deterministic() {
+        let profile = RelayResistanceProfile::new(
+            vec![0x80, 0xCA, 0x9F, 0x7A, 0x00],
+            50,
+            vec![0x90, 0x00],
+            RelayResistanceFailureOutcome::TryAgain,
+        )
+        .unwrap();
+
+        assert_eq!(
+            evaluate_relay_resistance(&profile, &[0x90, 0x00], 50),
+            RelayResistanceDecision::Passed
+        );
+        assert_eq!(
+            evaluate_relay_resistance(&profile, &[0x90, 0x00], 51),
+            RelayResistanceDecision::Failed(RelayResistanceFailureOutcome::TryAgain)
+        );
+        assert_eq!(
+            evaluate_relay_resistance(&profile, &[0x69, 0x85], 1),
+            RelayResistanceDecision::Failed(RelayResistanceFailureOutcome::TryAgain)
+        );
+        assert_eq!(
+            RelayResistanceProfile::new(
+                Vec::new(),
+                50,
+                vec![0x90, 0x00],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
         );
     }
 }

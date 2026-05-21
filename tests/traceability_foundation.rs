@@ -4,9 +4,10 @@ use hyperion_emv::apdu::{
     CryptogramRequest, Interface,
 };
 use hyperion_emv::c8::{
-    evaluate_contactless_limits, outcome_from_limit_decision, AlternateInterface,
-    ContactlessLimitDecision, ContactlessLimitInput, ContactlessOutcome, ContactlessOutcomeCode,
-    StartSignal, UiRequest, UiStatus,
+    evaluate_contactless_limits, evaluate_relay_resistance, outcome_from_limit_decision,
+    outcome_from_relay_resistance_failure, AlternateInterface, ContactlessLimitDecision,
+    ContactlessLimitInput, ContactlessOutcome, ContactlessOutcomeCode, RelayResistanceDecision,
+    RelayResistanceFailureOutcome, RelayResistanceProfile, StartSignal, UiRequest, UiStatus,
 };
 use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::{
@@ -3167,6 +3168,45 @@ fn krn_cless_003_limits_are_signed_profile_inputs() {
         }),
         ContactlessLimitDecision::AlternateInterface
     );
+}
+
+#[test]
+fn krn_cless_005_relay_resistance_is_profile_required_and_traced() {
+    let profile = RelayResistanceProfile::new(
+        hex("80CA9F7A00"),
+        50,
+        hex("9000"),
+        RelayResistanceFailureOutcome::AlternateInterface,
+    )
+    .unwrap();
+    assert_eq!(
+        evaluate_relay_resistance(&profile, &hex("9000"), 50),
+        RelayResistanceDecision::Passed
+    );
+    assert_eq!(
+        evaluate_relay_resistance(&profile, &hex("9000"), 51),
+        RelayResistanceDecision::Failed(RelayResistanceFailureOutcome::AlternateInterface)
+    );
+    let failure_outcome =
+        outcome_from_relay_resistance_failure(RelayResistanceFailureOutcome::AlternateInterface)
+            .unwrap();
+    assert_eq!(
+        failure_outcome.outcome_code,
+        ContactlessOutcomeCode::AlternateInterface
+    );
+    assert_eq!(
+        failure_outcome.alternate_interface,
+        AlternateInterface::Contact
+    );
+    assert!(!SCHEME_PROFILES.contains("relay_resistance"));
+
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-CLESS-005").expect("RTM row exists");
+        assert!(!row.contains("pending implementation evidence"));
+        assert!(row.contains("relay_resistance_is_profile_gated_and_deterministic"));
+        assert!(row.contains("parses_profile_defined_relay_resistance_policy"));
+        assert!(row.contains("contactless_relay_resistance_is_profile_required"));
+    }
 }
 
 #[test]

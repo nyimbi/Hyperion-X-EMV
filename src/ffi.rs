@@ -1,9 +1,10 @@
 use crate::afl::{record_plan, AflEntry};
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest, Interface};
 use crate::c8::{
-    evaluate_contactless_limits, outcome_from_limit_decision, AlternateInterface,
-    ContactlessLimitDecision, ContactlessLimitInput, ContactlessOutcome, ContactlessOutcomeCode,
-    KrnContactlessOutcome, StartSignal, UiRequest, UiStatus,
+    evaluate_contactless_limits, evaluate_relay_resistance, outcome_from_limit_decision,
+    outcome_from_relay_resistance_failure, AlternateInterface, ContactlessLimitDecision,
+    ContactlessLimitInput, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
+    RelayResistanceDecision, RelayResistanceFailureOutcome, StartSignal, UiRequest, UiStatus,
 };
 use crate::cid::CryptogramType;
 use crate::config::{
@@ -52,6 +53,7 @@ use core::mem;
 use core::ptr;
 use std::ffi::c_void;
 use std::slice;
+use std::time::Instant;
 
 pub type KrnContactlessOutcomeCallback =
     unsafe extern "C" fn(outcome: *const KrnContactlessOutcome, user_data: *mut c_void);
@@ -2068,6 +2070,7 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
 
 fn run_contactless_limit_processing(
     ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
     profiles: &ProfileSet,
     params: &StoredTxnParams,
 ) -> Result<Option<KrnOutcome>, KernelError> {
@@ -2095,6 +2098,10 @@ fn run_contactless_limit_processing(
         .any(|interface| interface == "contactless")
     {
         return Err(KernelError::InvalidProfile);
+    }
+
+    if let Some(outcome) = run_required_relay_resistance(ctx, runtime, aid)? {
+        return Ok(Some(outcome));
     }
 
     let decision = evaluate_contactless_limits(ContactlessLimitInput {
@@ -2126,6 +2133,43 @@ fn run_contactless_limit_processing(
             ctx.final_outcome = Some(KrnOutcome::AlternateInterface);
             ctx.last_error = KernelError::Ok;
             Ok(Some(KrnOutcome::AlternateInterface))
+        }
+    }
+}
+
+fn run_required_relay_resistance(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+    aid: &AidProfile,
+) -> Result<Option<KrnOutcome>, KernelError> {
+    let Some(profile) = aid.relay_resistance.as_ref() else {
+        return Ok(None);
+    };
+
+    let started = Instant::now();
+    let response = transmit_apdu(
+        runtime,
+        &profile.command_apdu,
+        i32::from(profile.max_round_trip_ms),
+    )?;
+    let elapsed_ms = started.elapsed().as_millis().min(u128::from(u16::MAX)) as u16;
+    match evaluate_relay_resistance(profile, &response, elapsed_ms) {
+        RelayResistanceDecision::Passed => Ok(None),
+        RelayResistanceDecision::Failed(failure_outcome) => {
+            emit_contactless_outcome_value(
+                ctx,
+                &outcome_from_relay_resistance_failure(failure_outcome)?,
+            )?;
+            let outcome = match failure_outcome {
+                RelayResistanceFailureOutcome::TryAgain => KrnOutcome::TryAgain,
+                RelayResistanceFailureOutcome::AlternateInterface => KrnOutcome::AlternateInterface,
+                RelayResistanceFailureOutcome::Terminate => KrnOutcome::Terminated,
+            };
+            ctx.fsm_state = FsmState::S16;
+            ctx.state = KernelState::FinalOutcome;
+            ctx.final_outcome = Some(outcome);
+            ctx.last_error = KernelError::Ok;
+            Ok(Some(outcome))
         }
     }
 }
@@ -3048,7 +3092,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
         }
-        match run_contactless_limit_processing(ctx, &profiles, &params) {
+        match run_contactless_limit_processing(ctx, runtime, &profiles, &params) {
             Ok(Some(outcome)) => return outcome,
             Ok(None) => {}
             Err(err) => {
@@ -3308,6 +3352,7 @@ fn alternate_interface_from_u8(value: u8) -> Result<AlternateInterface, KernelEr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::c8::RelayResistanceProfile;
     use std::sync::{
         atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering},
         Mutex,
@@ -3324,6 +3369,8 @@ mod tests {
     static ISSUER_AUTH_SW2: AtomicU8 = AtomicU8::new(0x00);
     static SCRIPT_SW1: AtomicU8 = AtomicU8::new(0x90);
     static SCRIPT_SW2: AtomicU8 = AtomicU8::new(0x00);
+    static RELAY_SW1: AtomicU8 = AtomicU8::new(0x90);
+    static RELAY_SW2: AtomicU8 = AtomicU8::new(0x00);
     static SCRIPT_FOLLOWUP_MODE: AtomicU8 = AtomicU8::new(0);
     static FOLLOWUP_TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
     static FOLLOWUP_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
@@ -3986,6 +4033,32 @@ mod tests {
         KernelError::Ok.code()
     }
 
+    unsafe extern "C" fn capture_relay_resistance_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = [
+            RELAY_SW1.load(Ordering::SeqCst),
+            RELAY_SW2.load(Ordering::SeqCst),
+        ];
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
     fn pse_directory_response() -> Vec<u8> {
         vec![
             0x6f, 0x1b, 0xa5, 0x19, 0xbf, 0x0c, 0x16, 0x61, 0x09, 0x4f, 0x07, 0xa0, 0x00, 0x00,
@@ -4345,10 +4418,16 @@ mod tests {
             interface_preference: 2,
             merchant_name_location: Vec::new(),
         };
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_relay_resistance_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
 
         CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
         assert_eq!(
-            run_contactless_limit_processing(&mut ctx, &profiles, &params),
+            run_contactless_limit_processing(&mut ctx, runtime, &profiles, &params),
             Ok(Some(KrnOutcome::TryAgain))
         );
         assert_eq!(
@@ -4363,11 +4442,85 @@ mod tests {
         ctx.card_data.put(&[0x9f, 0x6c], &[0x10]).unwrap();
         CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
         assert_eq!(
-            run_contactless_limit_processing(&mut ctx, &profiles, &params),
+            run_contactless_limit_processing(&mut ctx, runtime, &profiles, &params),
             Ok(None)
         );
         assert_eq!(CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst), 0);
         assert_eq!(ctx.final_outcome, None);
+    }
+
+    #[test]
+    fn contactless_relay_resistance_is_profile_required_and_outcome_driven() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.contactless_outcome_callback = Some(capture_contactless_outcome);
+        ctx.contactless_outcome_user_data = ptr::null_mut();
+        ctx.card_data
+            .put(&[0x9f, 0x34], &[0x01, 0x00, 0x01])
+            .unwrap();
+        let mut profiles = ctx.profiles.clone().unwrap();
+        profiles.schemes[0].aids[0].relay_resistance = Some(
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f, 0x7a, 0x00],
+                50,
+                vec![0x90, 0x00],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap(),
+        );
+        let params = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 2,
+            merchant_name_location: Vec::new(),
+        };
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_relay_resistance_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+        RELAY_SW1.store(0x90, Ordering::SeqCst);
+        RELAY_SW2.store(0x00, Ordering::SeqCst);
+        assert_eq!(
+            run_contactless_limit_processing(&mut ctx, runtime, &profiles, &params),
+            Ok(None)
+        );
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 1);
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xca);
+        assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
+        assert_eq!(TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst), 50);
+        assert_eq!(CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst), 0);
+
+        ctx.fsm_state = FsmState::S8;
+        ctx.state = KernelState::TerminalRiskManagement;
+        ctx.final_outcome = None;
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        RELAY_SW1.store(0x69, Ordering::SeqCst);
+        RELAY_SW2.store(0x85, Ordering::SeqCst);
+        CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+        assert_eq!(
+            run_contactless_limit_processing(&mut ctx, runtime, &profiles, &params),
+            Ok(Some(KrnOutcome::TryAgain))
+        );
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst),
+            ContactlessOutcomeCode::TryAgain as u8
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::TryAgain));
+
+        RELAY_SW1.store(0x90, Ordering::SeqCst);
+        RELAY_SW2.store(0x00, Ordering::SeqCst);
     }
 
     #[test]
