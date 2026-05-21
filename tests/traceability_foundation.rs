@@ -162,6 +162,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SCR-003",
         "KRN-SCR-004",
         "KRN-SCR-005",
+        "KRN-SCR-006",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -242,6 +243,7 @@ fn corrected_spec_contains_gac_online_and_script_requirements() {
         "KRN-SCR-003",
         "KRN-SCR-004",
         "KRN-SCR-005",
+        "KRN-SCR-006",
     ] {
         assert!(
             CORRECTED_SPEC.contains(krn_id),
@@ -411,6 +413,14 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
     assert_eq!(
         profiles.schemes[0].aids[0].action_codes.online,
         [0xe0, 0xf8, 0xc8, 0x00, 0x00]
+    );
+    assert_eq!(
+        profiles.schemes[0].aids[0].critical_issuer_script_ins,
+        [0xe2]
+    );
+    assert_eq!(
+        profiles.schemes[1].aids[0].critical_issuer_script_ins,
+        [0xe2]
     );
     assert_eq!(
         profiles.schemes[0].aids[0]

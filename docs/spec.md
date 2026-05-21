@@ -255,7 +255,8 @@ SE,any,–,S0,Reset after error,KRN_OK
           "contactless_cvm_limit": 3000,
           "cdcvm_supported": true,
           "cda_supported": true,
-          "cda_request_encoding": "CDOL1_bit"   // profile-defined
+          "cda_request_encoding": "CDOL1_bit",  // profile-defined
+          "critical_issuer_script_ins": ["E2"]  // profile-defined
         }
       ],
       "capks": [ ... ]  // real values

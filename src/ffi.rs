@@ -5,7 +5,9 @@ use crate::c8::{
     StartSignal, UiRequest, UiStatus,
 };
 use crate::cid::CryptogramType;
-use crate::config::{load_profile_set, BuildMode, ConfigLoadPolicy, ProfileSet, SignatureStatus};
+use crate::config::{
+    load_profile_set, AidProfile, BuildMode, ConfigLoadPolicy, ProfileSet, SignatureStatus,
+};
 use crate::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface,
@@ -1693,12 +1695,15 @@ fn run_issuer_scripts_for_phase(
     for script in scripts {
         apply_transition(ctx, FsmEvent::ScriptAvailable)?;
         let mut script_results = Vec::with_capacity(script.commands.len());
+        let mut critical_failure = false;
         for command in &script.commands {
+            let critical = issuer_script_command_is_critical(ctx, command)?;
+            let script_context = ApduContext::IssuerScript { critical };
             let response = transmit_apdu_with_followups(
                 runtime,
                 command,
                 APDU_TRANSMIT_TIMEOUT_MS,
-                ApduContext::IssuerScript { critical: false },
+                script_context,
             )?;
             if response.len() < 2 {
                 return Err(KernelError::ParseError);
@@ -1710,9 +1715,15 @@ fn run_issuer_scripts_for_phase(
             };
             script_results.push(result);
             ctx.issuer_script_results.push(result);
-            match classify(ApduContext::IssuerScript { critical: false }, sw) {
+            match classify(script_context, sw) {
                 StatusAction::Success | StatusAction::ContinueAfterNonCriticalScriptFailure => {}
-                StatusAction::Fail { error } => return Err(error),
+                StatusAction::Fail { error } => {
+                    if error != KernelError::ScriptFailed {
+                        return Err(error);
+                    }
+                    critical_failure = true;
+                    break;
+                }
                 _ => return Err(KernelError::InvalidArgument),
             }
         }
@@ -1722,6 +1733,11 @@ fn run_issuer_scripts_for_phase(
         ctx.tsi = summary.tsi;
         ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
         ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
+        if critical_failure {
+            apply_transition(ctx, FsmEvent::ScriptCriticalFailure)?;
+            ctx.state = KernelState::Error;
+            return Err(KernelError::ScriptFailed);
+        }
         let all_success = script_results
             .iter()
             .all(|result| result.sw1 == 0x90 && result.sw2 == 0x00);
@@ -1738,6 +1754,29 @@ fn run_issuer_scripts_for_phase(
     apply_transition(ctx, FsmEvent::NoMoreScripts)?;
     ctx.state = state_after_script_phase(phase);
     Ok(())
+}
+
+fn selected_aid_profile(ctx: &KrnContext) -> Result<&AidProfile, KernelError> {
+    let selected = ctx
+        .selected_application
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let profiles = ctx.profiles.as_ref().ok_or(KernelError::InvalidProfile)?;
+    profiles
+        .schemes
+        .get(selected.scheme_index)
+        .and_then(|scheme| scheme.aids.get(selected.aid_index))
+        .ok_or(KernelError::InvalidProfile)
+}
+
+fn issuer_script_command_is_critical(
+    ctx: &KrnContext,
+    command: &[u8],
+) -> Result<bool, KernelError> {
+    let ins = command.get(1).ok_or(KernelError::ParseError)?;
+    Ok(selected_aid_profile(ctx)?
+        .critical_issuer_script_ins
+        .contains(ins))
 }
 
 fn state_after_script_phase(phase: ScriptPhase) -> KernelState {
@@ -2404,6 +2443,34 @@ mod tests {
     static FOLLOWUP_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
     static FOLLOWUP_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
 
+    fn install_profile_selection(ctx: &mut KrnContext) {
+        let evaluation_date = EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        };
+        let profiles = load_profile_set(
+            include_bytes!("../docs/scheme_profiles.cert.json"),
+            &ConfigLoadPolicy {
+                mode: BuildMode::Certification,
+                signature_status: SignatureStatus::Verified,
+                installed_version: 1,
+                candidate_version: 2,
+                evaluation_date,
+            },
+        )
+        .unwrap();
+        ctx.profiles = Some(profiles);
+        ctx.profile_evaluation_date = Some(evaluation_date);
+        ctx.selected_application = Some(SelectedApplication {
+            aid: vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10],
+            scheme_index: 0,
+            aid_index: 0,
+            aip: None,
+            afl: Vec::new(),
+        });
+    }
+
     unsafe extern "C" fn capture_contactless_outcome(
         outcome: *const KrnContactlessOutcome,
         _user_data: *mut c_void,
@@ -2874,6 +2941,7 @@ mod tests {
         let mut ctx = KrnContext::new();
         ctx.fsm_state = FsmState::S13;
         ctx.state = KernelState::IssuerScripts;
+        install_profile_selection(&mut ctx);
         ctx.host_response = Some(HostResponse {
             authorization_response_code: Some([b'0', b'0']),
             issuer_authentication_data: None,
@@ -2921,6 +2989,55 @@ mod tests {
         let mut ctx = KrnContext::new();
         ctx.fsm_state = FsmState::S15;
         ctx.state = KernelState::PostFinalIssuerScripts;
+        install_profile_selection(&mut ctx);
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: None,
+            scripts: vec![crate::issuer::IssuerScript {
+                phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
+                identifier: None,
+                commands: vec![vec![0x80, 0xda, 0x00, 0x00, 0x01, 0xbb]],
+            }],
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        SCRIPT_SW1.store(0x69, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x85, Ordering::SeqCst);
+        assert_eq!(run_post_final_issuer_scripts(&mut ctx, runtime), Ok(()));
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
+        assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(ctx.fsm_state, FsmState::S16);
+        assert_eq!(ctx.state, KernelState::FinalOutcome);
+        assert_eq!(
+            ctx.issuer_script_results,
+            vec![ScriptCommandResult {
+                sw1: 0x69,
+                sw2: 0x85
+            }]
+        );
+        assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
+        assert!(ctx
+            .tvr
+            .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC));
+        assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
+        assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
+        SCRIPT_SW1.store(0x90, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn critical_issuer_script_failure_records_results_and_enters_error() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S15;
+        ctx.state = KernelState::PostFinalIssuerScripts;
+        install_profile_selection(&mut ctx);
         ctx.host_response = Some(HostResponse {
             authorization_response_code: Some([b'0', b'0']),
             issuer_authentication_data: None,
@@ -2940,11 +3057,14 @@ mod tests {
         TRANSMIT_COUNT.store(8, Ordering::SeqCst);
         SCRIPT_SW1.store(0x69, Ordering::SeqCst);
         SCRIPT_SW2.store(0x85, Ordering::SeqCst);
-        assert_eq!(run_post_final_issuer_scripts(&mut ctx, runtime), Ok(()));
+        assert_eq!(
+            run_post_final_issuer_scripts(&mut ctx, runtime),
+            Err(KernelError::ScriptFailed)
+        );
         assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xe2);
         assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
-        assert_eq!(ctx.fsm_state, FsmState::S16);
-        assert_eq!(ctx.state, KernelState::FinalOutcome);
+        assert_eq!(ctx.fsm_state, FsmState::Se);
+        assert_eq!(ctx.state, KernelState::Error);
         assert_eq!(
             ctx.issuer_script_results,
             vec![ScriptCommandResult {
@@ -2969,6 +3089,7 @@ mod tests {
             let mut ctx = KrnContext::new();
             ctx.fsm_state = FsmState::S13;
             ctx.state = KernelState::IssuerScripts;
+            install_profile_selection(&mut ctx);
             ctx.host_response = Some(HostResponse {
                 authorization_response_code: Some([b'0', b'0']),
                 issuer_authentication_data: None,

@@ -61,6 +61,7 @@ pub struct AidProfile {
     pub cdcvm_supported: bool,
     pub cda_supported: bool,
     pub cda_request_encoding: Option<String>,
+    pub critical_issuer_script_ins: Vec<u8>,
 }
 
 impl AidProfile {
@@ -219,6 +220,7 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             .get("cda_request_encoding")
             .and_then(JsonValue::as_string_opt)
             .map(str::to_string),
+        critical_issuer_script_ins: optional_hex_byte_array(object, "critical_issuer_script_ins")?,
     })
 }
 
@@ -307,6 +309,27 @@ fn parse_hex_field(object: &BTreeMap<String, JsonValue>, key: &str) -> KernelRes
     let value = required_string(object, key)?;
     reject_placeholder(value)?;
     decode_hex(value)
+}
+
+fn optional_hex_byte_array(
+    object: &BTreeMap<String, JsonValue>,
+    key: &str,
+) -> KernelResult<Vec<u8>> {
+    let Some(value) = object.get(key) else {
+        return Ok(Vec::new());
+    };
+    value
+        .as_array()?
+        .iter()
+        .map(|item| {
+            let bytes = decode_hex(item.as_string()?)?;
+            if bytes.len() == 1 {
+                Ok(bytes[0])
+            } else {
+                Err(KernelError::InvalidProfile)
+            }
+        })
+        .collect()
 }
 
 pub fn decode_hex(input: &str) -> KernelResult<Vec<u8>> {
@@ -616,7 +639,8 @@ mod tests {
           "contactless_cvm_limit": 3000,
           "cdcvm_supported": true,
           "cda_supported": true,
-          "cda_request_encoding": "CDOL1_bit"
+          "cda_request_encoding": "CDOL1_bit",
+          "critical_issuer_script_ins": ["E2"]
         }],
         "capks": [{
           "key_index": 1,
@@ -654,6 +678,10 @@ mod tests {
         );
         assert_eq!(profiles.schemes[0].capks[0].key_index, 1);
         assert!(profiles.schemes[0].capks[0].modulus.len() >= 64);
+        assert_eq!(
+            profiles.schemes[0].aids[0].critical_issuer_script_ins,
+            [0xe2]
+        );
     }
 
     #[test]
@@ -696,6 +724,51 @@ mod tests {
         };
         assert_eq!(
             load_profile_set(VALID_PROFILE, &expired).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_critical_script_ins_policy() {
+        let invalid = br#"{
+          "scheme_profiles": [{
+            "scheme_name": "Visa",
+            "rid": "A000000003",
+            "kernel_type": "c8_contactless",
+            "taa_fallback_when_offline_unable_online": "AAC",
+            "taa_no_match_default_when_online_capable": "ARQC",
+            "taa_no_match_default_when_offline_only": "AAC",
+            "aids": [{
+              "aid": "A0000000031010",
+              "priority": 10,
+              "partial_selection": true,
+              "interfaces": ["contact", "contactless"],
+              "tac_online": "E0F8C80000",
+              "tac_denial": "0000000000",
+              "tac_default": "8000000000",
+              "iac_online": "0000000000",
+              "iac_denial": "0000000000",
+              "iac_default": "0000000000",
+              "floor_limit": 0,
+              "cvm_limit_contact": 5000,
+              "random_selection_percent": 5,
+              "contactless_transaction_limit": 5000,
+              "contactless_cvm_limit": 3000,
+              "cdcvm_supported": true,
+              "cda_supported": true,
+              "critical_issuer_script_ins": ["E200"]
+            }],
+            "capks": [{
+              "key_index": 1,
+              "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+              "exponent_hex": "010001",
+              "expiry": "2030-12-31",
+              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+            }]
+          }]
+        }"#;
+        assert_eq!(
+            load_profile_set(invalid, &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::InvalidProfile
         );
     }
