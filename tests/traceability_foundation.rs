@@ -226,6 +226,9 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-SCR-004",
         "KRN-SCR-005",
         "KRN-SCR-006",
+        "KRN-DPL-001",
+        "KRN-DPL-002",
+        "KRN-DPL-003",
         "KRN-DPL-004",
         "KRN-RNG-001",
         "KRN-RNG-002",
@@ -455,6 +458,9 @@ fn corrected_spec_contains_config_profile_and_capk_requirements() {
         "KRN-PROFILE-002",
         "KRN-CAPK-001",
         "KRN-CAPK-002",
+        "KRN-DPL-001",
+        "KRN-DPL-002",
+        "KRN-DPL-003",
         "KRN-DPL-004",
     ] {
         assert!(
@@ -782,6 +788,83 @@ fn profile_loader_rejects_rollback_placeholders_and_expired_capks() {
         load_profile_set(placeholder, &valid_policy).unwrap_err(),
         hyperion_emv::KernelError::InvalidProfile
     );
+}
+
+#[test]
+fn krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic() {
+    unsafe {
+        let ctx = krn_context_new();
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+
+        let mut version = 0u64;
+        assert_eq!(
+            krn_get_profile_version(ctx, &mut version),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(version, 2);
+
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                2,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::InvalidProfile.code()
+        );
+        assert_eq!(
+            krn_get_profile_version(ctx, &mut version),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(version, 2);
+
+        let malformed = br#"{"profile_class":"CERTIFICATION","scheme_profiles":[]}"#;
+        assert_eq!(
+            krn_load_profiles_verified(ctx, malformed.as_ptr(), malformed.len(), 2, 3, 26, 5, 21,),
+            hyperion_emv::KernelError::InvalidProfile.code()
+        );
+        assert_eq!(
+            krn_get_profile_version(ctx, &mut version),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(version, 2);
+
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                2,
+                3,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_get_profile_version(ctx, &mut version),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(version, 3);
+        krn_context_free(ctx);
+    }
 }
 
 #[test]

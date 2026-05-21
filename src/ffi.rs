@@ -391,8 +391,8 @@ pub unsafe extern "C" fn krn_set_transaction_params(
 /// This function does not perform cryptographic signature verification itself;
 /// the caller may only use it after the platform trust layer has verified the
 /// profile signature and rollback counter. Certification/production loading is
-/// still strict and rejects placeholders, expired CAPKs, rollback versions, and
-/// malformed hex material.
+/// still strict and rejects placeholders, expired CAPKs, rollback/replayed
+/// versions, and malformed hex material.
 ///
 /// # Safety
 ///

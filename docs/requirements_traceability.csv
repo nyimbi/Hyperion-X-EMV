@@ -59,6 +59,9 @@ KRN-LOG-001,Formal log policy,UT-LOG-001,IT-LOG-001,PCI-PTS-LOG-003,Log config a
 KRN-RNG-001,Obtain unpredictable numbers from approved platform RNG callback,UT-RNG-001,IT-RNG-001,N/A,RNG callback trace
 KRN-RNG-002,Reject all-zero or repeated unpredictable numbers,UT-RNG-002,IT-RNG-002,N/A,RNG failure injection
 KRN-ERR-001,Define every error code in a stable ABI table,UT-ERR-001,IT-ERR-001,N/A,ABI error table query
+KRN-DPL-001,Support signed configuration updates,UT-DPL-001,IT-DPL-001,N/A,Verified profile update trace
+KRN-DPL-002,Reject rollback or replayed configuration versions,UT-DPL-002,IT-DPL-002,N/A,Monotonic version check
+KRN-DPL-003,Apply configuration updates atomically,UT-DPL-003,IT-DPL-003,N/A,Failed update preservation test
 KRN-DPL-004,Retain versioned configuration identity in transaction logs,UT-DPL-004,IT-DPL-004,N/A,Trace identity metadata
 KRN-CERT-003,EMVCo L2 certification,N/A,N/A,All EMVCo L2 test plans,Lab submission + LoA
 KRN-CERT-004,Penetration test,UT-PEN-001,IT-PEN-001,N/A,Pen test report

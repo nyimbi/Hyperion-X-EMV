@@ -115,7 +115,7 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
     {
         return Err(KernelError::InvalidProfile);
     }
-    if policy.candidate_version < policy.installed_version {
+    if policy.candidate_version <= policy.installed_version {
         return Err(KernelError::InvalidProfile);
     }
 
@@ -870,7 +870,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unsigned_certification_profile_and_rollback() {
+    fn rejects_unsigned_certification_profile_rollback_and_replay() {
         assert_eq!(
             load_profile_set(VALID_PROFILE, &policy(SignatureStatus::NotPresent)).unwrap_err(),
             KernelError::InvalidProfile
@@ -883,6 +883,16 @@ mod tests {
         };
         assert_eq!(
             load_profile_set(VALID_PROFILE, &rollback).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let replay = ConfigLoadPolicy {
+            candidate_version: 2,
+            installed_version: 2,
+            ..policy(SignatureStatus::Verified)
+        };
+        assert_eq!(
+            load_profile_set(VALID_PROFILE, &replay).unwrap_err(),
             KernelError::InvalidProfile
         );
     }
