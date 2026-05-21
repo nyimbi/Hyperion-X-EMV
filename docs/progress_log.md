@@ -218,3 +218,18 @@ decision record, while this file tracks work toward certification readiness.
   interface-specific kernel mapping, and RTM guards.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:43:12Z
+
+- Increment completed: align the specification status with the controlled
+  pre-certification evidence package.
+- Code impact: `docs/spec.md` no longer labels v6.0 as final or a complete
+  certification baseline; the header now states that licensed external
+  standards and lab artifacts prevail and that final certification requires
+  signed profiles, lab-supplied vectors, conformance traces, and approval
+  artifacts.
+- Evidence updated: traceability coverage now rejects overclaiming phrases such
+  as `(Final)`, `complete artifact set`, and `complete controlled certification
+  baseline` in the active specification.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

@@ -1,11 +1,15 @@
-# EMV Level 2 Kernel Specification – Hyperion Kernel (Hyperion‑KRN) – v6.0 (Final)
+# EMV Level 2 Kernel Specification – Hyperion Kernel (Hyperion‑KRN) – v6.0
 
 **Version:** 6.0  
-**Status:** Normative implementation and certification baseline (complete artifact set)  
+**Status:** Engineering baseline pending licensed review and laboratory evidence
 **Target EMV Baseline:** EMV Contact Chip Specifications Book 3 v4.4 (and Books 1, 2, 4 where referenced)  
 **Contactless Baseline:** EMV Contactless Kernel Specification Book C‑8 v1.0  
 **PCI Baseline:** PCI PTS POI v7.0  
-**Document Control:** This specification, together with the included annexes (sections 18–23), forms the complete controlled certification baseline.
+**Document Control:** This specification, together with the executable annex
+files, forms a controlled pre-certification engineering baseline. Licensed
+EMVCo, scheme, acquirer, PCI PTS, and laboratory documents prevail on conflict,
+and final certification requires signed profiles, lab-supplied cryptographic
+vectors, conformance traces, and approval artifacts.
 
 ---
 

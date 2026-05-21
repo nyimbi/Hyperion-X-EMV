@@ -1354,9 +1354,16 @@ fn scheme_profile_annex_excludes_synthetic_c8_payment_profile() {
 fn spec_status_matches_non_certification_oda_fixture_gate() {
     let spec = include_str!("../docs/spec.md");
 
+    assert!(spec.contains("Engineering baseline pending licensed review and laboratory evidence"));
+    assert!(spec.contains("controlled pre-certification engineering baseline"));
+    assert!(spec.contains("Licensed"));
+    assert!(spec.contains("approval artifacts"));
     assert!(spec.contains("engineering baseline pending licensed review"));
     assert!(spec.contains("vector_class = \"CERTIFICATION\""));
     assert!(spec.contains("lab-supplied ODA vectors"));
+    assert!(!spec.contains("(Final)"));
+    assert!(!spec.contains("complete artifact set"));
+    assert!(!spec.contains("complete controlled certification baseline"));
     assert!(!spec.contains("fully correct, complete, and certifiable"));
     assert!(!spec.contains("ready for implementation and EMVCo Level"));
 }
