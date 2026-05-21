@@ -1596,6 +1596,64 @@ fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
 }
 
 #[test]
+fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in [
+            "KRN-GAC-001",
+            "KRN-GAC-002",
+            "KRN-GAC-003",
+            "KRN-GAC-004",
+            "KRN-GAC1-002",
+            "KRN-GAC1-003",
+            "KRN-GAC1-004",
+            "KRN-GAC1-005",
+        ] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete GAC evidence"
+            );
+        }
+
+        let cdol = csv_row_for_requirement(csv, "KRN-GAC-001").unwrap();
+        assert!(cdol.contains("krn_gac_001_gac1_002_cdol_data_matches_active_dol_definitions"));
+
+        let p1 = csv_row_for_requirement(csv, "KRN-GAC-002").unwrap();
+        assert!(p1.contains("encodes_generate_ac_type_bits_without_cda_collision"));
+        assert!(p1.contains("krn_gac_008_009_cda_control_never_changes_type_bits"));
+
+        let no_first_gac_flag = csv_row_for_requirement(csv, "KRN-GAC-003").unwrap();
+        assert!(no_first_gac_flag.contains("krn_gac_008_009_cda_control_never_changes_type_bits"));
+
+        let response = csv_row_for_requirement(csv, "KRN-GAC-004").unwrap();
+        assert!(response.contains("parses_generate_ac_format_1_template_80"));
+        assert!(response.contains("parses_generate_ac_format_2_template_77"));
+        assert!(response.contains("decodes_cryptogram_type_with_0xc0_mask"));
+
+        let cdol1 = csv_row_for_requirement(csv, "KRN-GAC1-002").unwrap();
+        assert!(cdol1.contains("krn_gac_001_gac1_002_cdol_data_matches_active_dol_definitions"));
+
+        let taa_request = csv_row_for_requirement(csv, "KRN-GAC1-003").unwrap();
+        assert!(taa_request.contains(
+            "krn_taa_001_002_003_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks"
+        ));
+
+        let format = csv_row_for_requirement(csv, "KRN-GAC1-004").unwrap();
+        assert!(format.contains("gac_parsing_uses_card_returned_cryptogram_for_online_handoff"));
+
+        let cda = csv_row_for_requirement(csv, "KRN-GAC1-005").unwrap();
+        assert!(cda.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
+        assert!(cda.contains("runtime_cda_failure_sets_tvr_without_falling_back_to_dda"));
+
+        let cdol_defaults = csv_row_for_requirement(csv, "KRN-GAC1-001").unwrap();
+        assert!(
+            cdol_defaults.contains("pending implementation evidence"),
+            "profile-defined CDOL1 default behavior still needs dedicated evidence"
+        );
+    }
+}
+
+#[test]
 fn rtm_promotes_api_abi_and_callback_validation_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-API-001", "KRN-API-002"] {
@@ -1911,6 +1969,60 @@ fn krn_gac_008_009_cda_control_never_changes_type_bits() {
         CdaRequestControl::P1LowBits(0x40),
     );
     assert!(invalid.is_err());
+}
+
+#[test]
+fn krn_gac_001_gac1_002_cdol_data_matches_active_dol_definitions() {
+    let cdol1 = parse_dol(&[
+        0x9f, 0x37, 0x04, 0x95, 0x05, 0x9f, 0x02, 0x06, 0x9a, 0x03, 0x9c, 0x01, 0x9f, 0x1a, 0x02,
+        0x9f, 0x34, 0x03,
+    ])
+    .unwrap();
+    let mut data = DataStore::new();
+    data.put(&[0x9f, 0x37], &[0x01, 0x02, 0x03, 0x04]).unwrap();
+    data.put(&[0x95], &[0x80, 0x00, 0x00, 0x00, 0x00]).unwrap();
+    data.put(&[0x9f, 0x02], &[0x00, 0x00, 0x00, 0x00, 0x01, 0x00])
+        .unwrap();
+    data.put(&[0x9a], &[0x26, 0x05, 0x21]).unwrap();
+    data.put(&[0x9c], &[0x00]).unwrap();
+    data.put(&[0x9f, 0x1a], &[0x08, 0x40]).unwrap();
+    data.put(&[0x9f, 0x34], &[0x01, 0x00, 0x02]).unwrap();
+
+    let cdol1_values =
+        build_dol_with_policy(&cdol1, &data, DolPaddingPolicy::RequireExactValues).unwrap();
+    assert_eq!(
+        cdol1_values,
+        hex("010203048000000000000000000100260521000840010002")
+    );
+    let first_gac = generate_ac(
+        CryptogramRequest::Arqc,
+        &cdol1_values,
+        CdaRequestControl::NotRequested,
+    )
+    .unwrap();
+    assert_eq!(first_gac.p1, 0x80);
+    assert_eq!(first_gac.data, cdol1_values);
+
+    let cdol2 = parse_dol(&[0x8a, 0x02, 0x91, 0x0a, 0x95, 0x05, 0x9b, 0x02]).unwrap();
+    data.put(&[0x8a], b"00").unwrap();
+    data.put(
+        &[0x91],
+        &[0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x02, 0x03, 0x04],
+    )
+    .unwrap();
+    data.put(&[0x9b], &[0xe8, 0x00]).unwrap();
+
+    let cdol2_values =
+        build_dol_with_policy(&cdol2, &data, DolPaddingPolicy::RequireExactValues).unwrap();
+    assert_eq!(cdol2_values, hex("3030AABBCCDDEEFF010203048000000000E800"));
+    let final_gac = generate_ac(
+        CryptogramRequest::Tc,
+        &cdol2_values,
+        CdaRequestControl::NotRequested,
+    )
+    .unwrap();
+    assert_eq!(final_gac.p1, 0x40);
+    assert_eq!(final_gac.data, cdol2_values);
 }
 
 #[test]
