@@ -108,6 +108,7 @@ pub enum KrnOutcome {
     SelectNext = 6,
     Terminated = 7,
     Error = 8,
+    OnlineRequired = 9,
 }
 
 impl KrnOutcome {
@@ -1911,6 +1912,37 @@ fn run_first_generate_ac(
     Ok(())
 }
 
+fn finish_offline_outcome_from_taa(ctx: &mut KrnContext) -> Result<KrnOutcome, KernelError> {
+    let outcome = match ctx
+        .requested_cryptogram
+        .ok_or(KernelError::InvalidArgument)?
+    {
+        CryptogramRequest::Tc => KrnOutcome::ApprovedOffline,
+        CryptogramRequest::Aac => KrnOutcome::DeclinedOffline,
+        CryptogramRequest::Arqc => return Err(KernelError::InvalidArgument),
+    };
+    ctx.final_outcome = Some(outcome);
+    ctx.last_error = KernelError::Ok;
+    Ok(outcome)
+}
+
+fn finish_offline_outcome_from_first_gac(ctx: &mut KrnContext) -> Result<KrnOutcome, KernelError> {
+    let response = ctx
+        .first_gac_response
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let outcome = match response.cid.cryptogram_type() {
+        CryptogramType::Tc => KrnOutcome::ApprovedOffline,
+        CryptogramType::Aac => KrnOutcome::DeclinedOffline,
+        CryptogramType::Arqc | CryptogramType::ApplicationAuthenticationReferral => {
+            return Err(KernelError::InvalidArgument);
+        }
+    };
+    ctx.final_outcome = Some(outcome);
+    ctx.last_error = KernelError::Ok;
+    Ok(outcome)
+}
+
 fn apply_host_response(ctx: &mut KrnContext, bytes: &[u8]) -> Result<(), KernelError> {
     if ctx.fsm_state != FsmState::S11 {
         return Err(KernelError::InvalidArgument);
@@ -2582,6 +2614,17 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
         }
+        if ctx.fsm_state == FsmState::S14 && ctx.state == KernelState::FinalOutcome {
+            return match finish_offline_outcome_from_taa(ctx) {
+                Ok(outcome) => outcome,
+                Err(err) => {
+                    ctx.last_error = err;
+                    ctx.state = KernelState::Error;
+                    ctx.fsm_state = FsmState::Se;
+                    KrnOutcome::Error
+                }
+            };
+        }
     }
     if ctx.fsm_state == FsmState::S10 {
         if let Err(err) = run_first_generate_ac(ctx, runtime) {
@@ -2589,6 +2632,24 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             ctx.state = KernelState::Error;
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
+        }
+        match ctx.fsm_state {
+            FsmState::S11 => {
+                ctx.last_error = KernelError::Ok;
+                return KrnOutcome::OnlineRequired;
+            }
+            FsmState::S14 if ctx.state == KernelState::FinalOutcome => {
+                return match finish_offline_outcome_from_first_gac(ctx) {
+                    Ok(outcome) => outcome,
+                    Err(err) => {
+                        ctx.last_error = err;
+                        ctx.state = KernelState::Error;
+                        ctx.fsm_state = FsmState::Se;
+                        KrnOutcome::Error
+                    }
+                };
+            }
+            _ => {}
         }
     }
 
@@ -2842,6 +2903,45 @@ mod tests {
             cda_request_control_for_first_gac(&ctx).unwrap_err(),
             KernelError::UnsupportedCdaRequest
         );
+    }
+
+    #[test]
+    fn offline_taa_and_first_gac_results_finish_with_real_outcomes() {
+        let mut ctx = KrnContext::new();
+        ctx.requested_cryptogram = Some(CryptogramRequest::Tc);
+        assert_eq!(
+            finish_offline_outcome_from_taa(&mut ctx),
+            Ok(KrnOutcome::ApprovedOffline)
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::ApprovedOffline));
+        assert_eq!(ctx.last_error, KernelError::Ok);
+
+        ctx.requested_cryptogram = Some(CryptogramRequest::Aac);
+        assert_eq!(
+            finish_offline_outcome_from_taa(&mut ctx),
+            Ok(KrnOutcome::DeclinedOffline)
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
+
+        ctx.first_gac_response = Some(GenerateAcResponse {
+            cid: crate::cid::Cid::new(0x40),
+            atc: [0x00, 0x01],
+            application_cryptogram: [0x11; 8],
+            issuer_application_data: Vec::new(),
+            icc_dynamic_number: None,
+        });
+        assert_eq!(
+            finish_offline_outcome_from_first_gac(&mut ctx),
+            Ok(KrnOutcome::ApprovedOffline)
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::ApprovedOffline));
+
+        ctx.first_gac_response.as_mut().unwrap().cid = crate::cid::Cid::new(0x00);
+        assert_eq!(
+            finish_offline_outcome_from_first_gac(&mut ctx),
+            Ok(KrnOutcome::DeclinedOffline)
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
     }
 
     unsafe extern "C" fn capture_contactless_outcome(
@@ -3301,7 +3401,7 @@ mod tests {
                 KernelError::Ok.code()
             );
             TRANSMIT_COUNT.store(0, Ordering::SeqCst);
-            assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
+            assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired.code());
             assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
             assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 5);
             assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 30);
@@ -3310,7 +3410,7 @@ mod tests {
                 APDU_TRANSMIT_TIMEOUT_MS
             );
             assert_eq!(krn_get_fsm_state(ctx), FsmState::S11.code());
-            assert_eq!(krn_get_last_error(ctx), KernelError::InvalidArgument.code());
+            assert_eq!(krn_get_last_error(ctx), KernelError::Ok.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(
                 ctx_ref.card_data.get(&[0x5a]),

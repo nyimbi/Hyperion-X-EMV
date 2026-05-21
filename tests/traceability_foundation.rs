@@ -1510,7 +1510,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         IT_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
-        assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
+        assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired as i32);
         assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
         assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 5);
         assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 30);
@@ -1518,7 +1518,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S11.code());
         assert_eq!(
             krn_get_last_error(ctx),
-            hyperion_emv::KernelError::InvalidArgument.code()
+            hyperion_emv::KernelError::Ok.code()
         );
         let mut auth_len = 0usize;
         assert_eq!(
@@ -1679,10 +1679,13 @@ fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
         let repeated_apdu_counter = AtomicUsize::new(0);
         let repeated_ctx = init_with_rng(it_fixed_unpredictable_number, &repeated_apdu_counter);
         set_params(repeated_ctx);
-        assert_eq!(krn_run_transaction(repeated_ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_run_transaction(repeated_ctx),
+            KrnOutcome::OnlineRequired as i32
+        );
         assert_eq!(
             krn_get_last_error(repeated_ctx),
-            hyperion_emv::KernelError::InvalidArgument.code()
+            hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!(
             krn_reset(repeated_ctx),
