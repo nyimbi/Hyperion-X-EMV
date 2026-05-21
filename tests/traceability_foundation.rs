@@ -1958,10 +1958,56 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
 }
 
 #[test]
-fn krn_cid_001_decodes_with_high_bit_mask_only() {
+fn krn_cid_001_002_decodes_type_and_preserves_non_type_bits() {
     assert_eq!(Cid::new(0x8f).cryptogram_type(), CryptogramType::Arqc);
     assert_eq!(Cid::new(0x47).cryptogram_type(), CryptogramType::Tc);
     assert_eq!(Cid::new(0x0f).cryptogram_type(), CryptogramType::Aac);
+
+    let cid = Cid::new(0x8f);
+    assert_eq!(cid.raw(), 0x8f);
+    assert_eq!(cid.cryptogram_type(), Cid::new(0x80).cryptogram_type());
+    assert!(cid.advice_required());
+    assert_eq!(cid.reason_advice_code(), 0x07);
+
+    let response = parse_generate_ac_response(&hex(
+        "771A9F27018F9F360200099F260811121314151617189F1003AABBCC",
+    ))
+    .unwrap();
+    assert_eq!(response.cid.raw(), 0x8f);
+    assert_eq!(response.cid.cryptogram_type(), CryptogramType::Arqc);
+
+    let package = build_online_authorization_package(&response, &DataStore::new());
+    let cid_object = package
+        .objects
+        .iter()
+        .find(|object| object.tag == hex("9F27"))
+        .expect("online package preserves CID object");
+    assert_eq!(cid_object.value, vec![0x8f]);
+}
+
+#[test]
+fn rtm_promotes_cid_decode_and_preservation_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-CID-001", "KRN-CID-002"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete CID evidence"
+            );
+            assert!(row.contains("krn_cid_001_002_decodes_type_and_preserves_non_type_bits"));
+        }
+
+        let decode = csv_row_for_requirement(csv, "KRN-CID-001").unwrap();
+        assert!(decode.contains("decodes_cryptogram_type_with_0xc0_mask"));
+
+        let preserve = csv_row_for_requirement(csv, "KRN-CID-002").unwrap();
+        assert!(
+            preserve.contains("preserves_non_type_bits_without_changing_cryptogram_classification")
+        );
+        assert!(
+            preserve.contains("builds_online_authorization_package_without_generating_cryptograms")
+        );
+    }
 }
 
 #[test]

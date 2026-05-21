@@ -52,4 +52,14 @@ mod tests {
             CryptogramType::ApplicationAuthenticationReferral
         );
     }
+
+    #[test]
+    fn preserves_non_type_bits_without_changing_cryptogram_classification() {
+        let cid = Cid::new(0x8f);
+        assert_eq!(cid.raw(), 0x8f);
+        assert_eq!(cid.cryptogram_type(), CryptogramType::Arqc);
+        assert_eq!(Cid::new(0x80).cryptogram_type(), CryptogramType::Arqc);
+        assert!(cid.advice_required());
+        assert_eq!(cid.reason_advice_code(), 0x07);
+    }
 }
