@@ -9,6 +9,9 @@ pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
 pub const MAX_ODA_REMAINDER_BYTES: usize = 248;
 const SHA1_DIGEST_BYTES: usize = 20;
+const RECOVERED_CERTIFICATE_HEADER: u8 = 0x6a;
+const RECOVERED_CERTIFICATE_TRAILER: u8 = 0xbc;
+const MIN_RECOVERED_CERTIFICATE_BYTES: usize = 35;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OdaMethod {
@@ -62,6 +65,21 @@ pub enum CapkIntegrity {
     Verified,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecoveredCertificateKind {
+    Issuer,
+    Icc,
+}
+
+impl RecoveredCertificateKind {
+    fn certificate_format(self) -> u8 {
+        match self {
+            Self::Issuer => 0x02,
+            Self::Icc => 0x04,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InternalAuthenticateResponse {
     pub signed_dynamic_application_data: Vec<u8>,
@@ -73,6 +91,19 @@ pub struct PublicKeyInput {
     pub certificate: Vec<u8>,
     pub remainder: Vec<u8>,
     pub exponent: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecoveredPublicKeyCertificate {
+    pub kind: RecoveredCertificateKind,
+    pub identifier: [u8; 10],
+    pub expiration_date: [u8; 2],
+    pub serial_number: [u8; 3],
+    pub hash_algorithm_indicator: u8,
+    pub public_key_algorithm_indicator: u8,
+    pub public_key: Vec<u8>,
+    pub exponent: Vec<u8>,
+    pub hash_result: [u8; SHA1_DIGEST_BYTES],
 }
 
 pub fn selection_input_from_aip(
@@ -220,6 +251,70 @@ pub fn validate_icc_public_key_inputs(data: &DataStore) -> KernelResult<PublicKe
     )
 }
 
+pub fn parse_recovered_public_key_certificate(
+    kind: RecoveredCertificateKind,
+    recovered: &[u8],
+    remainder: &[u8],
+    exponent: &[u8],
+) -> KernelResult<RecoveredPublicKeyCertificate> {
+    if recovered.len() < MIN_RECOVERED_CERTIFICATE_BYTES {
+        return Err(KernelError::ParseError);
+    }
+    if recovered[0] != RECOVERED_CERTIFICATE_HEADER
+        || recovered[1] != kind.certificate_format()
+        || *recovered.last().ok_or(KernelError::ParseError)? != RECOVERED_CERTIFICATE_TRAILER
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let mut cursor = 2usize;
+    let identifier = fixed_from_slice::<10>(recovered, &mut cursor)?;
+    let expiration_date = fixed_from_slice::<2>(recovered, &mut cursor)?;
+    let serial_number = fixed_from_slice::<3>(recovered, &mut cursor)?;
+    let hash_algorithm_indicator = next_recovered_byte(recovered, &mut cursor)?;
+    let public_key_algorithm_indicator = next_recovered_byte(recovered, &mut cursor)?;
+    let public_key_length = next_recovered_byte(recovered, &mut cursor)? as usize;
+    let exponent_length = next_recovered_byte(recovered, &mut cursor)? as usize;
+    if public_key_length == 0 || exponent_length == 0 || exponent.len() != exponent_length {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let fragment_end = recovered
+        .len()
+        .checked_sub(SHA1_DIGEST_BYTES + 1)
+        .ok_or(KernelError::ParseError)?;
+    if cursor >= fragment_end {
+        return Err(KernelError::ParseError);
+    }
+    let fragment = &recovered[cursor..fragment_end];
+    if fragment.is_empty() || all_zero_or_ff(fragment) {
+        return Err(KernelError::InvalidProfile);
+    }
+    let mut public_key = Vec::with_capacity(fragment.len() + remainder.len());
+    public_key.extend_from_slice(fragment);
+    public_key.extend_from_slice(remainder);
+    if public_key.len() != public_key_length {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let hash_result = fixed_from_range::<SHA1_DIGEST_BYTES>(recovered, fragment_end)?;
+    if all_zero_or_ff(&hash_result) {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    Ok(RecoveredPublicKeyCertificate {
+        kind,
+        identifier,
+        expiration_date,
+        serial_number,
+        hash_algorithm_indicator,
+        public_key_algorithm_indicator,
+        public_key,
+        exponent: exponent.to_vec(),
+        hash_result,
+    })
+}
+
 fn validate_public_key_inputs(
     certificate: Option<&[u8]>,
     remainder: Option<&[u8]>,
@@ -247,6 +342,27 @@ fn validate_public_key_inputs(
         remainder: remainder.to_vec(),
         exponent: exponent.to_vec(),
     })
+}
+
+fn next_recovered_byte(recovered: &[u8], cursor: &mut usize) -> KernelResult<u8> {
+    let value = *recovered.get(*cursor).ok_or(KernelError::ParseError)?;
+    *cursor += 1;
+    Ok(value)
+}
+
+fn fixed_from_slice<const N: usize>(recovered: &[u8], cursor: &mut usize) -> KernelResult<[u8; N]> {
+    let end = cursor.checked_add(N).ok_or(KernelError::LengthOverflow)?;
+    let value = fixed_from_range::<N>(recovered, *cursor)?;
+    *cursor = end;
+    Ok(value)
+}
+
+fn fixed_from_range<const N: usize>(recovered: &[u8], start: usize) -> KernelResult<[u8; N]> {
+    let end = start.checked_add(N).ok_or(KernelError::LengthOverflow)?;
+    let bytes = recovered.get(start..end).ok_or(KernelError::ParseError)?;
+    let mut out = [0u8; N];
+    out.copy_from_slice(bytes);
+    Ok(out)
 }
 
 pub fn validate_oda_vector_annex(json: &[u8], certification: bool) -> KernelResult<()> {
@@ -677,6 +793,65 @@ mod tests {
     }
 
     #[test]
+    fn parses_recovered_public_key_certificate_material_with_remainder() {
+        let recovered = decode_hex(
+            "6A02\
+             12345678901234567890\
+             3012\
+             010203\
+             01\
+             01\
+             09\
+             01\
+             A1A2A3A4A5A6\
+             11223344556677889900AABBCCDDEEFF00112233\
+             BC",
+        )
+        .unwrap();
+        let certificate = parse_recovered_public_key_certificate(
+            RecoveredCertificateKind::Issuer,
+            &recovered,
+            &[0xb1, 0xb2, 0xb3],
+            &[0x03],
+        )
+        .unwrap();
+
+        assert_eq!(certificate.kind, RecoveredCertificateKind::Issuer);
+        assert_eq!(certificate.identifier, hex10("12345678901234567890"));
+        assert_eq!(certificate.expiration_date, [0x30, 0x12]);
+        assert_eq!(certificate.serial_number, [0x01, 0x02, 0x03]);
+        assert_eq!(
+            certificate.public_key,
+            decode_hex("A1A2A3A4A5A6B1B2B3").unwrap()
+        );
+        assert_eq!(certificate.exponent, vec![0x03]);
+
+        let mut bad_format = recovered.clone();
+        bad_format[1] = 0x04;
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &bad_format,
+                &[0xb1, 0xb2, 0xb3],
+                &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &recovered,
+                &[0xb1],
+                &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
     fn validates_complete_vector_syntax_and_rejects_placeholders() {
         let complete = br#"{"test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
         validate_oda_vector_annex(complete, true).unwrap();
@@ -686,5 +861,12 @@ mod tests {
             validate_oda_vector_annex(placeholder, true).unwrap_err(),
             KernelError::InvalidProfile
         );
+    }
+
+    fn hex10(input: &str) -> [u8; 10] {
+        let bytes = decode_hex(input).unwrap();
+        let mut out = [0u8; 10];
+        out.copy_from_slice(&bytes);
+        out
     }
 }

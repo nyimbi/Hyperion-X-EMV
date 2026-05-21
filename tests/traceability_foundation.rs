@@ -39,9 +39,10 @@ use hyperion_emv::issuer::{
 };
 use hyperion_emv::oda::{
     apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
-    select_capk, select_oda_method, selection_input_from_aip, validate_icc_public_key_inputs,
-    validate_issuer_public_key_inputs, validate_oda_vector_annex, CapkIntegrity, OdaFailure,
-    OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput,
+    parse_recovered_public_key_certificate, select_capk, select_oda_method,
+    selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
+    validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
+    OdaSelectionInput, RecoveredCertificateKind,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -2130,6 +2131,75 @@ fn krn_oda_003_004_public_key_inputs_require_certificates_exponents_and_remainde
 }
 
 #[test]
+fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() {
+    let issuer_recovered = hex("6A02\
+         12345678901234567890\
+         3012\
+         010203\
+         01\
+         01\
+         09\
+         01\
+         A1A2A3A4A5A6\
+         11223344556677889900AABBCCDDEEFF00112233\
+         BC");
+    let issuer = parse_recovered_public_key_certificate(
+        RecoveredCertificateKind::Issuer,
+        &issuer_recovered,
+        &hex("B1B2B3"),
+        &hex("03"),
+    )
+    .unwrap();
+    assert_eq!(issuer.identifier, hex10("12345678901234567890"));
+    assert_eq!(issuer.expiration_date, [0x30, 0x12]);
+    assert_eq!(issuer.serial_number, [0x01, 0x02, 0x03]);
+    assert_eq!(issuer.public_key, hex("A1A2A3A4A5A6B1B2B3"));
+
+    let icc_recovered = hex("6A04\
+         12345678901234567890\
+         3012\
+         0A0B0C\
+         01\
+         01\
+         08\
+         03\
+         C1C2C3C4C5\
+         00112233445566778899AABBCCDDEEFF00112233\
+         BC");
+    let icc = parse_recovered_public_key_certificate(
+        RecoveredCertificateKind::Icc,
+        &icc_recovered,
+        &hex("D1D2D3"),
+        &hex("010001"),
+    )
+    .unwrap();
+    assert_eq!(icc.kind, RecoveredCertificateKind::Icc);
+    assert_eq!(icc.public_key, hex("C1C2C3C4C5D1D2D3"));
+    assert_eq!(icc.exponent, hex("010001"));
+
+    assert_eq!(
+        parse_recovered_public_key_certificate(
+            RecoveredCertificateKind::Issuer,
+            &issuer_recovered,
+            &hex("B1"),
+            &hex("03"),
+        )
+        .unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+    assert_eq!(
+        parse_recovered_public_key_certificate(
+            RecoveredCertificateKind::Issuer,
+            &issuer_recovered,
+            &hex("B1B2B3"),
+            &hex("010001"),
+        )
+        .unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+}
+
+#[test]
 fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
     let policy = ConfigLoadPolicy {
         mode: BuildMode::Certification,
@@ -2527,6 +2597,13 @@ fn hex(input: &str) -> Vec<u8> {
             (high << 4) | low
         })
         .collect()
+}
+
+fn hex10(input: &str) -> [u8; 10] {
+    let bytes = hex(input);
+    let mut out = [0u8; 10];
+    out.copy_from_slice(&bytes);
+    out
 }
 
 fn from_hex(byte: u8) -> u8 {
