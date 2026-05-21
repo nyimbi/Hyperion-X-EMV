@@ -25,6 +25,7 @@ pub enum ApduContext {
     ReadRecord,
     Verify,
     GenerateAc,
+    InternalAuthenticate,
     ExternalAuthenticate,
     IssuerScript { critical: bool },
 }
@@ -81,6 +82,9 @@ pub fn classify(context: ApduContext, sw: StatusWord) -> StatusAction {
         },
         (ApduContext::GenerateAc, _, _) => StatusAction::Fail {
             error: KernelError::CardRemoved,
+        },
+        (ApduContext::InternalAuthenticate, _, _) => StatusAction::Fail {
+            error: KernelError::InvalidProfile,
         },
         (ApduContext::ExternalAuthenticate, _, _) => StatusAction::Fail {
             error: KernelError::InvalidArgument,
