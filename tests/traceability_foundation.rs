@@ -19,18 +19,18 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::{parse_dol, DataStore};
 use hyperion_emv::ffi::{
-    krn_apply_host_response, krn_build_internal_authenticate, krn_build_select_environment,
-    krn_context_free, krn_context_new, krn_error_code_at, krn_error_description, krn_error_name,
-    krn_error_table_len, krn_get_conformance_statement_json, krn_get_final_outcome,
-    krn_get_fsm_state, krn_get_issuer_script_result, krn_get_issuer_script_result_count,
-    krn_get_last_error, krn_get_online_authorization_data, krn_get_profile_version, krn_init,
-    krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
-    krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
-    krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
-    krn_set_cvm_capabilities, krn_set_offline_pin_handle, krn_set_terminal_capabilities,
-    krn_set_terminal_transaction_qualifiers, krn_set_transaction_params, KrnOutcome, KrnRuntime,
-    KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
-    KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
+    krn_apply_host_response, krn_build_generate_ac, krn_build_internal_authenticate,
+    krn_build_select_environment, krn_context_free, krn_context_new, krn_error_code_at,
+    krn_error_description, krn_error_name, krn_error_table_len, krn_get_conformance_statement_json,
+    krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
+    krn_get_issuer_script_result_count, krn_get_last_error, krn_get_online_authorization_data,
+    krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_mask_apdu_command_json,
+    krn_mask_apdu_response_json, krn_process_final_generate_ac, krn_process_issuer_authentication,
+    krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
+    krn_run_transaction, krn_set_cvm_capabilities, krn_set_offline_pin_handle,
+    krn_set_terminal_capabilities, krn_set_terminal_transaction_qualifiers,
+    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
+    KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -481,6 +481,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-RNG-002",
         "KRN-ERR-001",
         "KRN-ERR-002",
+        "KRN-CERT-004",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -1888,6 +1889,67 @@ fn krn_api_005_caller_owned_output_buffers_are_probeable_and_not_partially_writt
             hyperion_emv::KernelError::InvalidArgument.code()
         );
 
+        krn_context_free(ctx);
+    }
+}
+
+#[test]
+fn krn_cert_004_penetration_rejects_apdu_injection_and_state_bypass() {
+    unsafe {
+        let mut ctx = ptr::null_mut();
+        let runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_transmit_apdu),
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &runtime, &mut ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S0.code());
+
+        let host_response = hex("8A023030");
+        assert_eq!(
+            krn_apply_host_response(ctx, host_response.as_ptr(), host_response.len()),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S0.code());
+
+        let cdol_values = [0x00u8; 8];
+        let mut out = [0u8; 32];
+        let mut out_len = out.len();
+        assert_eq!(
+            krn_build_generate_ac(
+                ctx,
+                2,
+                cdol_values.as_ptr(),
+                cdol_values.len(),
+                0x40,
+                out.as_mut_ptr(),
+                &mut out_len,
+            ),
+            hyperion_emv::KernelError::InvalidProfile.code()
+        );
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S0.code());
+
+        IT_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        for bypass in [
+            krn_process_issuer_authentication(ctx),
+            krn_process_issuer_scripts(ctx),
+            krn_process_final_generate_ac(ctx),
+            krn_process_post_final_issuer_scripts(ctx),
+        ] {
+            assert_eq!(bypass, hyperion_emv::KernelError::InvalidArgument.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S0.code());
+        }
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
         krn_context_free(ctx);
     }
 }
