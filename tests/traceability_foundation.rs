@@ -580,6 +580,20 @@ fn scheme_profile_annex_uses_certification_provenance() {
 }
 
 #[test]
+fn scheme_profile_annex_declares_capk_checksum_derivation() {
+    let algorithm = "\"checksum_algorithm\": \"sha1(rid || key_index || modulus || exponent)\"";
+    assert_eq!(SCHEME_PROFILES.matches(algorithm).count(), 2);
+    assert_eq!(
+        SCHEME_PROFILES
+            .matches(
+                "\"checksum_scope\": [\"rid\", \"key_index\", \"modulus_hex\", \"exponent_hex\"]"
+            )
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
     let unsigned_policy = ConfigLoadPolicy {
         mode: BuildMode::Certification,

@@ -47,6 +47,8 @@
           "exponent_hex": "03",
           "expiry": "2030-12-31",
           "checksum_hex": "20D213126955DE205ADC2FD2822BD22DE21CF9A8",
+          "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
+          "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"],
           "source": {
             "owner": "scheme_or_acquirer",
             "document": "signed_certification_capk_bundle",
@@ -95,6 +97,8 @@
           "exponent_hex": "03",
           "expiry": "2031-06-30",
           "checksum_hex": "EBFA0D5D06D8CE702DA3EAE890701D45E274C845",
+          "checksum_algorithm": "sha1(rid || key_index || modulus || exponent)",
+          "checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"],
           "source": {
             "owner": "scheme_or_acquirer",
             "document": "signed_certification_capk_bundle",
