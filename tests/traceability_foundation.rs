@@ -646,6 +646,17 @@ fn corrected_spec_requirement_ids_are_all_in_rtm_annexes() {
 #[test]
 fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-SEL-001", "KRN-SEL-002"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete PSE/PPSE evidence"
+            );
+            assert!(row.contains("builds_exact_contact_pse_and_contactless_ppse_selects"));
+            assert!(row.contains("krn_sel_001_exact_pse_ppse_apdus_are_stable"));
+            assert!(row.contains("ffi_builds_select_into_caller_buffer"));
+        }
+
         for id in ["KRN-APDU-002", "KRN-APDU-003", "KRN-SEL-003"] {
             let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
             assert!(
