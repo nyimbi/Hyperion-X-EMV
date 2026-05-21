@@ -1603,6 +1603,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
             "KRN-GAC-002",
             "KRN-GAC-003",
             "KRN-GAC-004",
+            "KRN-GAC1-001",
             "KRN-GAC1-002",
             "KRN-GAC1-003",
             "KRN-GAC1-004",
@@ -1633,6 +1634,10 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         let cdol1 = csv_row_for_requirement(csv, "KRN-GAC1-002").unwrap();
         assert!(cdol1.contains("krn_gac_001_gac1_002_cdol_data_matches_active_dol_definitions"));
 
+        let cdol_defaults = csv_row_for_requirement(csv, "KRN-GAC1-001").unwrap();
+        assert!(cdol_defaults.contains("first_gac_uses_profile_default_cdol1_when_card_omits_8c"));
+        assert!(cdol_defaults.contains("rejects_malformed_default_cdol1"));
+
         let taa_request = csv_row_for_requirement(csv, "KRN-GAC1-003").unwrap();
         assert!(taa_request.contains(
             "krn_taa_001_002_003_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks"
@@ -1644,12 +1649,6 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         let cda = csv_row_for_requirement(csv, "KRN-GAC1-005").unwrap();
         assert!(cda.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
         assert!(cda.contains("runtime_cda_failure_sets_tvr_without_falling_back_to_dda"));
-
-        let cdol_defaults = csv_row_for_requirement(csv, "KRN-GAC1-001").unwrap();
-        assert!(
-            cdol_defaults.contains("pending implementation evidence"),
-            "profile-defined CDOL1 default behavior still needs dedicated evidence"
-        );
     }
 }
 

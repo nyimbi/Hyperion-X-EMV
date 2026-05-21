@@ -1,4 +1,5 @@
 use crate::c8::{RelayResistanceFailureOutcome, RelayResistanceProfile};
+use crate::dol::parse_dol;
 use crate::error::{KernelError, KernelResult};
 use crate::restrictions::EmvDate;
 use crate::sha1::{Sha1, SHA1_DIGEST_BYTES};
@@ -82,6 +83,7 @@ pub struct AidProfile {
     pub cdcvm_supported: bool,
     pub cda_supported: bool,
     pub cda_request_encoding: Option<CdaRequestEncoding>,
+    pub default_cdol1: Option<Vec<u8>>,
     pub critical_issuer_script_ins: Vec<u8>,
     pub relay_resistance: Option<RelayResistanceProfile>,
 }
@@ -355,9 +357,21 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             .and_then(JsonValue::as_string_opt)
             .map(parse_cda_request_encoding)
             .transpose()?,
+        default_cdol1: parse_default_cdol1(object)?,
         critical_issuer_script_ins: optional_hex_byte_array(object, "critical_issuer_script_ins")?,
         relay_resistance: parse_relay_resistance_profile(object)?,
     })
+}
+
+fn parse_default_cdol1(object: &BTreeMap<String, JsonValue>) -> KernelResult<Option<Vec<u8>>> {
+    let Some(value) = object.get("default_cdol1") else {
+        return Ok(None);
+    };
+    let cdol = value.as_string()?;
+    reject_placeholder(cdol)?;
+    let bytes = decode_hex(cdol)?;
+    parse_dol(&bytes)?;
+    Ok(Some(bytes))
 }
 
 fn parse_relay_resistance_profile(
@@ -900,6 +914,7 @@ mod tests {
           "cdcvm_supported": true,
           "cda_supported": true,
           "cda_request_encoding": "CDOL1_bit",
+          "default_cdol1": "9F370495059F02069A039C019F1A029F3403",
           "critical_issuer_script_ins": ["E2"]
         }],
         "capks": [{
@@ -952,6 +967,15 @@ mod tests {
         assert_eq!(
             profiles.schemes[0].aids[0].action_codes.online,
             [0xe0, 0xf8, 0xc8, 0, 0]
+        );
+        assert_eq!(
+            profiles.schemes[0].aids[0].default_cdol1.as_deref(),
+            Some(
+                &[
+                    0x9f, 0x37, 0x04, 0x95, 0x05, 0x9f, 0x02, 0x06, 0x9a, 0x03, 0x9c, 0x01, 0x9f,
+                    0x1a, 0x02, 0x9f, 0x34, 0x03
+                ][..]
+            )
         );
         assert_eq!(profiles.schemes[0].capks[0].key_index, 1);
         assert!(profiles.schemes[0].capks[0].modulus.len() >= 64);
@@ -1182,6 +1206,18 @@ mod tests {
         assert_eq!(
             load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_default_cdol1() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap().replace(
+            r#""default_cdol1": "9F370495059F02069A039C019F1A029F3403""#,
+            r#""default_cdol1": "9F""#,
+        );
+        assert_eq!(
+            load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::ParseError
         );
     }
 

@@ -35,3 +35,15 @@ decision record, while this file tracks work toward certification readiness.
   to config, FFI, and traceability tests.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T22:29:45Z
+
+- Increment completed: implement explicit profile-defined CDOL1 fallback for
+  first GENERATE AC when the card omits tag `8C`.
+- Code impact: signed AID profiles now validate optional `default_cdol1` DOL
+  bytes; first GAC still prefers card-supplied `8C`, falls back only to the
+  selected signed profile default, and fails closed when neither source exists.
+- Evidence updated: KRN-GAC1-001 RTM rows now cite config, FFI, and traceability
+  tests instead of pending implementation text.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

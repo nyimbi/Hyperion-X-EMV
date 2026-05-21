@@ -45,6 +45,7 @@
           "cdcvm_supported": true,
           "cda_supported": true,
           "cda_request_encoding": "CDOL1_bit",
+          "default_cdol1": "9F370495059F02069A039C019F1A029F3403",
           "critical_issuer_script_ins": ["E2"]
         }
       ],
@@ -95,6 +96,7 @@
           "cdcvm_supported": true,
           "cda_supported": true,
           "cda_request_encoding": "P1_low_bits_0x10",
+          "default_cdol1": "9F370495059F02069A039C019F1A029F3403",
           "critical_issuer_script_ins": ["E2"]
         }
       ],

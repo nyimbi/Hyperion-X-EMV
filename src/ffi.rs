@@ -2351,11 +2351,7 @@ fn run_first_generate_ac(
     let request = ctx
         .requested_cryptogram
         .ok_or(KernelError::InvalidArgument)?;
-    let cdol = parse_dol(
-        ctx.card_data
-            .get(&[0x8c])
-            .ok_or(KernelError::MissingMandatoryTag)?,
-    )?;
+    let cdol = cdol1_definition_for_first_gac(ctx)?;
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
     let cdol_values = build_dol_with_policy(
@@ -2626,6 +2622,19 @@ fn run_issuer_scripts_for_phase(
     apply_transition(ctx, FsmEvent::NoMoreScripts)?;
     ctx.state = state_after_script_phase(phase);
     Ok(())
+}
+
+fn cdol1_definition_for_first_gac(
+    ctx: &KrnContext,
+) -> Result<Vec<crate::dol::DolEntry>, KernelError> {
+    if let Some(card_cdol1) = ctx.card_data.get(&[0x8c]) {
+        return parse_dol(card_cdol1);
+    }
+    let default_cdol1 = selected_aid_profile(ctx)?
+        .default_cdol1
+        .as_deref()
+        .ok_or(KernelError::MissingMandatoryTag)?;
+    parse_dol(default_cdol1)
 }
 
 fn selected_aid_profile(ctx: &KrnContext) -> Result<&AidProfile, KernelError> {
@@ -3433,6 +3442,7 @@ mod tests {
     static TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
     static TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
     static TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
+    static LAST_TRANSMITTED_COMMAND: Mutex<Vec<u8>> = Mutex::new(Vec::new());
     static TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
     static ISSUER_AUTH_SW1: AtomicU8 = AtomicU8::new(0x90);
     static ISSUER_AUTH_SW2: AtomicU8 = AtomicU8::new(0x00);
@@ -3965,6 +3975,7 @@ mod tests {
         TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
         TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
         TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
         let mut sdad = hex_bytes(
             "0000000000000000000000000000000000000000000000000000000000000001\
@@ -4025,6 +4036,57 @@ mod tests {
         assert_eq!(
             ctx.card_data.get(&[0x9f, 0x26]),
             Some(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88][..])
+        );
+    }
+
+    #[test]
+    fn first_gac_uses_profile_default_cdol1_when_card_omits_8c() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        assert!(ctx.card_data.get(&[0x8c]).is_none());
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        ctx.card_data
+            .put(&[0x9f, 0x37], &[0x11, 0x22, 0x33, 0x44])
+            .unwrap();
+        ctx.card_data
+            .put(&[0x9f, 0x02], &[0x00, 0x00, 0x00, 0x00, 0x10, 0x00])
+            .unwrap();
+        ctx.card_data.put(&[0x9a], &[0x26, 0x05, 0x21]).unwrap();
+        ctx.card_data.put(&[0x9c], &[0x00]).unwrap();
+        ctx.card_data.put(&[0x9f, 0x1a], &[0x08, 0x40]).unwrap();
+        ctx.card_data
+            .put(&[0x9f, 0x34], &[0x01, 0x00, 0x02])
+            .unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_generate_ac_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        assert_eq!(run_first_generate_ac(&mut ctx, runtime), Ok(()));
+
+        let command = LAST_TRANSMITTED_COMMAND.lock().unwrap().clone();
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 1);
+        assert_eq!(&command[..5], &[0x80, 0xae, 0x80, 0x00, 0x18]);
+        assert_eq!(
+            &command[5..29],
+            &hex_bytes("112233440000000000000000001000260521000840010002")
+        );
+        assert_eq!(command[29], 0x00);
+
+        let mut missing_default = KrnContext::new();
+        install_profile_selection(&mut missing_default);
+        missing_default.profiles.as_mut().unwrap().schemes[0].aids[0].default_cdol1 = None;
+        missing_default.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        assert_eq!(
+            cdol1_definition_for_first_gac(&missing_default),
+            Err(KernelError::MissingMandatoryTag)
         );
     }
 
