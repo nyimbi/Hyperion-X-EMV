@@ -16,7 +16,7 @@ use crate::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome, CvmPinHandles,
     Interface as CvmInterface, PedPinHandle,
 };
-use crate::dol::{build_dol, parse_dol, DataStore};
+use crate::dol::{build_dol_with_policy, parse_dol, DataStore, DolPaddingPolicy};
 use crate::error::{KernelError, ERROR_TABLE};
 use crate::fsm::{self, FsmEvent, FsmState};
 use crate::gac::{
@@ -1833,7 +1833,8 @@ fn perform_dynamic_data_authentication(
         Some(value) => parse_dol(value)?,
         None => parse_dol(&[0x9f, 0x37, 0x04])?,
     };
-    let ddol_values = build_dol(&ddol, card_data)?;
+    let ddol_values =
+        build_dol_with_policy(&ddol, card_data, DolPaddingPolicy::ZeroPadMissingAndShort)?;
     let command = apdu::internal_authenticate(&ddol_values)?.encode()?;
     let response = transmit_apdu_with_followups(
         runtime,
@@ -2303,7 +2304,11 @@ fn run_first_generate_ac(
     )?;
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
-    let cdol_values = build_dol(&cdol, &ctx.card_data)?;
+    let cdol_values = build_dol_with_policy(
+        &cdol,
+        &ctx.card_data,
+        DolPaddingPolicy::ZeroPadMissingAndShort,
+    )?;
     let cda_control = cda_request_control_for_first_gac(ctx)?;
     let command = apdu::generate_ac(request, &cdol_values, cda_control)?.encode()?;
     let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
@@ -2638,7 +2643,11 @@ fn run_final_generate_ac(
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
     let cdol = parse_dol(&cdol2)?;
-    let cdol_values = build_dol(&cdol, &ctx.card_data)?;
+    let cdol_values = build_dol_with_policy(
+        &cdol,
+        &ctx.card_data,
+        DolPaddingPolicy::ZeroPadMissingAndShort,
+    )?;
     let command =
         apdu::generate_ac(request, &cdol_values, CdaRequestControl::NotRequested)?.encode()?;
     let response = transmit_apdu_with_followups(

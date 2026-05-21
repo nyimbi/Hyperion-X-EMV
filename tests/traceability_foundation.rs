@@ -18,7 +18,7 @@ use hyperion_emv::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome, CvmPinHandles,
     Interface as CvmInterface, PedPinHandle,
 };
-use hyperion_emv::dol::{parse_dol, DataStore};
+use hyperion_emv::dol::{build_dol_with_policy, parse_dol, DataStore, DolPaddingPolicy};
 use hyperion_emv::ffi::{
     krn_apply_host_response, krn_build_generate_ac, krn_build_internal_authenticate,
     krn_build_select_environment, krn_context_free, krn_context_new, krn_error_code_at,
@@ -1539,6 +1539,31 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
 }
 
 #[test]
+fn rtm_promotes_dol_construction_policy_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-DOL-001", "KRN-DOL-002"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete DOL construction evidence"
+            );
+            assert!(row
+                .contains("krn_dol_001_002_builds_requested_lengths_with_explicit_padding_policy"));
+        }
+
+        let exact_lengths = csv_row_for_requirement(csv, "KRN-DOL-001").unwrap();
+        assert!(exact_lengths.contains("parses_and_builds_pdol_deterministically"));
+        assert!(exact_lengths.contains("builds_gpo_with_tag_83_pdol_values"));
+        assert!(exact_lengths.contains("builds_internal_authenticate_from_ddol_values"));
+
+        let padding_policy = csv_row_for_requirement(csv, "KRN-DOL-002").unwrap();
+        assert!(padding_policy.contains("zero_padding_policy_is_explicit_and_deterministic"));
+        assert!(padding_policy.contains("exact_value_policy_rejects_missing_or_short_dol_sources"));
+        assert!(padding_policy.contains("dol_output_cap_applies_before_padding_policy"));
+    }
+}
+
+#[test]
 fn rtm_promotes_api_abi_and_callback_validation_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-API-001", "KRN-API-002"] {
@@ -1789,6 +1814,41 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
         let row = rows.iter().find(|row| row[0] == tag).unwrap();
         assert_eq!(row[8], "cardholder-data");
     }
+}
+
+#[test]
+fn krn_dol_001_002_builds_requested_lengths_with_explicit_padding_policy() {
+    let entries = parse_dol(&[0x9f, 0x37, 0x04, 0x95, 0x05, 0x5f, 0x2a, 0x02]).unwrap();
+    let mut data = DataStore::new();
+    data.put(&[0x9f, 0x37], &[0xaa, 0xbb, 0xcc, 0xdd, 0xee])
+        .unwrap();
+    data.put(&[0x95], &[0x80, 0x00, 0x00]).unwrap();
+
+    assert_eq!(
+        build_dol_with_policy(&entries, &data, DolPaddingPolicy::ZeroPadMissingAndShort).unwrap(),
+        vec![0xaa, 0xbb, 0xcc, 0xdd, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,]
+    );
+    assert_eq!(
+        build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+
+    data.put(&[0x95], &[0x80, 0x00, 0x00, 0x00, 0x00]).unwrap();
+    data.put(&[0x5f, 0x2a], &[0x08, 0x40]).unwrap();
+    let exact =
+        build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues).unwrap();
+    assert_eq!(
+        exact,
+        vec![0xaa, 0xbb, 0xcc, 0xdd, 0x80, 0x00, 0x00, 0x00, 0x00, 0x08, 0x40]
+    );
+
+    let command = generate_ac(
+        CryptogramRequest::Arqc,
+        &exact,
+        CdaRequestControl::NotRequested,
+    )
+    .unwrap();
+    assert_eq!(command.data, exact);
 }
 
 #[test]

@@ -9,6 +9,12 @@ pub struct DolEntry {
     pub length: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DolPaddingPolicy {
+    ZeroPadMissingAndShort,
+    RequireExactValues,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DataStore {
     entries: Vec<(Vec<u8>, Vec<u8>)>,
@@ -62,6 +68,14 @@ pub fn parse_dol(input: &[u8]) -> KernelResult<Vec<DolEntry>> {
 }
 
 pub fn build_dol(entries: &[DolEntry], data: &DataStore) -> KernelResult<Vec<u8>> {
+    build_dol_with_policy(entries, data, DolPaddingPolicy::ZeroPadMissingAndShort)
+}
+
+pub fn build_dol_with_policy(
+    entries: &[DolEntry],
+    data: &DataStore,
+    padding_policy: DolPaddingPolicy,
+) -> KernelResult<Vec<u8>> {
     let total = entries.iter().try_fold(0usize, |acc, entry| {
         acc.checked_add(entry.length)
             .ok_or(KernelError::LengthOverflow)
@@ -77,13 +91,24 @@ pub fn build_dol(entries: &[DolEntry], data: &DataStore) -> KernelResult<Vec<u8>
                 out.extend_from_slice(&value[..entry.length]);
             }
             Some(value) => {
-                out.extend_from_slice(value);
-                out.resize(out.len() + entry.length - value.len(), 0);
+                if padding_policy == DolPaddingPolicy::RequireExactValues {
+                    return Err(KernelError::MissingMandatoryTag);
+                }
+                append_zero_padded(&mut out, value, entry.length);
+            }
+            None if entry.length == 0 => {}
+            None if padding_policy == DolPaddingPolicy::RequireExactValues => {
+                return Err(KernelError::MissingMandatoryTag);
             }
             None => out.resize(out.len() + entry.length, 0),
         }
     }
     Ok(out)
+}
+
+fn append_zero_padded(out: &mut Vec<u8>, value: &[u8], requested_len: usize) {
+    out.extend_from_slice(value);
+    out.resize(out.len() + requested_len - value.len(), 0);
 }
 
 fn read_dol_tag(input: &[u8], offset: &mut usize) -> KernelResult<()> {
@@ -135,6 +160,72 @@ mod tests {
         assert_eq!(
             build_dol(&entries, &data).unwrap(),
             vec![0xaa, 0xbb, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn zero_padding_policy_is_explicit_and_deterministic() {
+        let entries = parse_dol(&[0x9f, 0x37, 0x04, 0x5f, 0x2a, 0x02]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x37], &[0xaa, 0xbb]).unwrap();
+
+        assert_eq!(
+            build_dol_with_policy(&entries, &data, DolPaddingPolicy::ZeroPadMissingAndShort)
+                .unwrap(),
+            vec![0xaa, 0xbb, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn exact_value_policy_rejects_missing_or_short_dol_sources() {
+        let entries = parse_dol(&[0x9f, 0x37, 0x04, 0x5f, 0x2a, 0x02]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x37], &[0xaa, 0xbb]).unwrap();
+
+        assert_eq!(
+            build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues)
+                .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
+        data.put(&[0x9f, 0x37], &[0xaa, 0xbb, 0xcc, 0xdd]).unwrap();
+        assert_eq!(
+            build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues)
+                .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+    }
+
+    #[test]
+    fn exact_value_policy_truncates_long_values_to_requested_length() {
+        let entries = parse_dol(&[0x9f, 0x37, 0x04]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x37], &[0xaa, 0xbb, 0xcc, 0xdd, 0xee])
+            .unwrap();
+
+        assert_eq!(
+            build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues).unwrap(),
+            vec![0xaa, 0xbb, 0xcc, 0xdd]
+        );
+    }
+
+    #[test]
+    fn dol_output_cap_applies_before_padding_policy() {
+        let entries = vec![DolEntry {
+            tag: vec![0x9f, 0x37],
+            length: MAX_DOL_OUTPUT + 1,
+        }];
+        let data = DataStore::new();
+
+        assert_eq!(
+            build_dol_with_policy(&entries, &data, DolPaddingPolicy::ZeroPadMissingAndShort)
+                .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        assert_eq!(
+            build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues)
+                .unwrap_err(),
+            KernelError::LengthOverflow
         );
     }
 }

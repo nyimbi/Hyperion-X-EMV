@@ -1,4 +1,4 @@
-use crate::dol::{build_dol, DataStore, DolEntry};
+use crate::dol::{build_dol_with_policy, DataStore, DolEntry, DolPaddingPolicy};
 use crate::error::{KernelError, KernelResult};
 
 pub const CONTACT_PSE: &[u8] = b"1PAY.SYS.DDF01";
@@ -79,7 +79,7 @@ pub fn select_aid(aid: &[u8], p2: u8) -> KernelResult<CommandApdu> {
 }
 
 pub fn get_processing_options(pdol: &[DolEntry], data: &DataStore) -> KernelResult<CommandApdu> {
-    let pdol_values = build_dol(pdol, data)?;
+    let pdol_values = build_dol_with_policy(pdol, data, DolPaddingPolicy::ZeroPadMissingAndShort)?;
     if pdol_values.len() > 252 {
         return Err(KernelError::LengthOverflow);
     }
@@ -131,7 +131,7 @@ pub fn internal_authenticate_from_ddol(
     ddol: &[DolEntry],
     data: &DataStore,
 ) -> KernelResult<CommandApdu> {
-    let ddol_values = build_dol(ddol, data)?;
+    let ddol_values = build_dol_with_policy(ddol, data, DolPaddingPolicy::ZeroPadMissingAndShort)?;
     internal_authenticate(&ddol_values)
 }
 
