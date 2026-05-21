@@ -1142,6 +1142,9 @@ fn scheme_profile_annex_declares_bundled_and_lab_supplied_scope() {
         "\"bundled_scheme_profiles\": [\"Visa\", \"Mastercard\"]",
         "\"lab_supplied_scheme_profiles_required\": [\"Amex\", \"Discover\"]",
         "\"contactless_kernel_profile\": \"C-8 lab approval package\"",
+        "\"profile_material_status\": \"certification_format_fixture_pending_lab_signature\"",
+        "\"capk_material_status\": \"deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks\"",
+        "\"production_profile_bundle_required\": true",
     ] {
         assert!(
             SCHEME_PROFILES.contains(key),
