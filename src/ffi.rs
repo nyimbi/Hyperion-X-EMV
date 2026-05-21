@@ -27,9 +27,10 @@ use crate::issuer::{
     apply_script_results, parse_host_response, HostResponse, ScriptCommandResult, ScriptPhase,
 };
 use crate::oda::{
-    apply_oda_outcome, build_static_authentication_data, select_capk, select_oda_method,
+    apply_oda_outcome, recover_and_verify_public_key_certificate, select_capk, select_oda_method,
     selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
-    CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection, StaticAuthenticationRecord,
+    verify_static_data_authentication, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome,
+    OdaSelection, RecoveredCertificateKind, StaticAuthenticationRecord,
 };
 use crate::record::parse_read_record_body;
 use crate::restrictions::{
@@ -1530,45 +1531,70 @@ fn oda_outcome_for_method(
             failure: OdaFailure::MissingCapk,
         };
     };
-    if select_capk(
+    let capk = match select_capk(
         profiles,
         rid,
         key_index,
         evaluation_date,
         CapkIntegrity::Verified,
-    )
-    .is_err()
-    {
-        return OdaOutcome::Failed {
-            method,
-            failure: OdaFailure::MissingCapk,
-        };
-    }
+    ) {
+        Ok(capk) => capk,
+        Err(_) => {
+            return OdaOutcome::Failed {
+                method,
+                failure: OdaFailure::MissingCapk,
+            }
+        }
+    };
 
     match method {
         OdaMethod::Sda => {
-            if validate_issuer_public_key_inputs(card_data).is_err() {
+            let issuer_inputs = match validate_issuer_public_key_inputs(card_data) {
+                Ok(inputs) => inputs,
+                Err(_) => {
+                    return OdaOutcome::Failed {
+                        method,
+                        failure: OdaFailure::IssuerCertificateRecovery,
+                    };
+                }
+            };
+            let issuer_public_key = match recover_and_verify_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &issuer_inputs.certificate,
+                &capk.modulus,
+                &capk.exponent,
+                &issuer_inputs.remainder,
+                &issuer_inputs.exponent,
+                &[],
+            ) {
+                Ok(certificate) => certificate,
+                Err(_) => {
+                    return OdaOutcome::Failed {
+                        method,
+                        failure: OdaFailure::IssuerCertificateRecovery,
+                    };
+                }
+            };
+            let Some(signed_static_application_data) = card_data.get(&[0x93]) else {
                 return OdaOutcome::Failed {
                     method,
-                    failure: OdaFailure::IssuerCertificateRecovery,
+                    failure: OdaFailure::StaticSignature,
                 };
-            }
-            if build_static_authentication_data(offline_auth_records, card_data).is_err() {
+            };
+            if verify_static_data_authentication(
+                &issuer_public_key,
+                signed_static_application_data,
+                offline_auth_records,
+                card_data,
+            )
+            .is_err()
+            {
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::StaticSignature,
                 };
             }
-            if card_data.get(&[0x93]).is_none() {
-                return OdaOutcome::Failed {
-                    method,
-                    failure: OdaFailure::StaticSignature,
-                };
-            }
-            OdaOutcome::Failed {
-                method,
-                failure: OdaFailure::StaticSignature,
-            }
+            OdaOutcome::Passed(method)
         }
         OdaMethod::Dda => {
             if validate_issuer_public_key_inputs(card_data).is_err() {
@@ -3077,6 +3103,116 @@ mod tests {
         assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
     }
 
+    fn install_sda_success_fixture(ctx: &mut KrnContext) {
+        install_profile_selection(ctx);
+        let capk_modulus = hex_bytes(
+            "95FDEDCBA9876FEDCBA9876FCFEDFEFDFCFEFECFFC4FBD7F983A7659F2245302\
+             20AA7B861F2489891E003143C4C4AA9A82A3B1A8154D2AA6D553D0678981F7\
+             CD3B8CDFF9DE1A48FBB77C847D775F61CBF435FFDF53EF50F9DB45",
+        );
+        let capk_exponent = vec![0x03];
+        let source = ctx.profiles.as_ref().unwrap().schemes[0].capks[0]
+            .source
+            .clone();
+        let mut capk = crate::config::Capk {
+            rid: [0xa0, 0x00, 0x00, 0x00, 0x03],
+            key_index: 0x42,
+            modulus: capk_modulus,
+            exponent: capk_exponent,
+            expiry: EmvDate {
+                year: 30,
+                month: 12,
+                day: 31,
+            },
+            checksum: Vec::new(),
+            source,
+        };
+        capk.checksum = crate::oda::capk_checksum(&capk).to_vec();
+        ctx.profiles.as_mut().unwrap().schemes[0].capks = vec![capk];
+        ctx.selected_application.as_mut().unwrap().aip = Some([0x80, 0x00]);
+        ctx.card_data.put(&[0x8f], &[0x42]).unwrap();
+        ctx.card_data
+            .put(
+                &[0x90],
+                &hex_bytes(
+                    "000000000000000000000000000000000000000000000000000000000000\
+                     000000000000000000000000000000000000000000000000000000000001\
+                     000000000000000000000000000000000000000000000000000000000001",
+                ),
+            )
+            .unwrap();
+        ctx.card_data
+            .put(&[0x9f, 0x32], &[0x01, 0x00, 0x01])
+            .unwrap();
+        ctx.card_data
+            .put(
+                &[0x93],
+                &hex_bytes(
+                    "6D492A5DB481273D1127EF24D1059B5702AED358BB75A3AD004766DD75157DE9\
+                     9A517A830517EB821D22CD55E0FF2AE4",
+                ),
+            )
+            .unwrap();
+        ctx.card_data.put(&[0x9f, 0x4a], &[0x82]).unwrap();
+        ctx.card_data.put(&[0x82], &[0xcc]).unwrap();
+        ctx.offline_auth_records = vec![
+            StaticAuthenticationRecord {
+                sfi: 11,
+                record: 1,
+                body: vec![0xaa],
+            },
+            StaticAuthenticationRecord {
+                sfi: 12,
+                record: 1,
+                body: vec![0xbb],
+            },
+        ];
+    }
+
+    fn hex_bytes(input: &str) -> Vec<u8> {
+        let filtered: String = input.chars().filter(|ch| !ch.is_whitespace()).collect();
+        assert_eq!(filtered.len() % 2, 0);
+        filtered
+            .as_bytes()
+            .chunks(2)
+            .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn runtime_oda_executes_sda_signature_success() {
+        let mut ctx = KrnContext::new();
+        install_sda_success_fixture(&mut ctx);
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(run_offline_data_authentication(&mut ctx, &profiles), Ok(()));
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Sda));
+        assert_eq!(ctx.fsm_state, FsmState::S6);
+        assert_eq!(ctx.state, KernelState::ProcessingRestrictions);
+        assert!(ctx.tsi.is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+        assert!(!ctx.tvr.is_set(Tvr::B1_SDA_FAILED));
+        assert!(!ctx.tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+    }
+
+    #[test]
+    fn runtime_oda_maps_bad_sda_signature_to_tvr_failure() {
+        let mut ctx = KrnContext::new();
+        install_sda_success_fixture(&mut ctx);
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        ctx.card_data.put(&[0x82], &[0xdd]).unwrap();
+
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(run_offline_data_authentication(&mut ctx, &profiles), Ok(()));
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Sda));
+        assert_eq!(ctx.fsm_state, FsmState::S6);
+        assert!(ctx.tsi.is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
+        assert!(ctx.tvr.is_set(Tvr::B1_SDA_FAILED));
+        assert!(!ctx.tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+    }
+
     unsafe extern "C" fn capture_contactless_outcome(
         outcome: *const KrnContactlessOutcome,
         _user_data: *mut c_void,
@@ -3876,7 +4012,8 @@ mod tests {
         ctx.card_data.put(&[0x9f, 0x4a], &[0x82]).unwrap();
         ctx.card_data.put(&[0x82], &[0x80, 0x00]).unwrap();
         assert_eq!(
-            build_static_authentication_data(&ctx.offline_auth_records, &ctx.card_data).unwrap(),
+            crate::oda::build_static_authentication_data(&ctx.offline_auth_records, &ctx.card_data)
+                .unwrap(),
             vec![0x5a, 0x01, 0x99, 0x5f, 0x20, 0x00, 0x80, 0x00]
         );
     }
