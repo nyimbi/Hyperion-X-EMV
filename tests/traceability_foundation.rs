@@ -4088,7 +4088,7 @@ fn krn_tvr_003_tsi_001_state_bits_are_defined_and_rfu_safe() {
 }
 
 #[test]
-fn krn_taa_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks() {
+fn krn_taa_001_002_003_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks() {
     let mut tvr = Tvr::cleared();
     tvr.set(Tvr::B1_SDA_FAILED);
     let decision = decide(TaaInput {
@@ -4104,6 +4104,41 @@ fn krn_taa_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks() {
     });
     assert_eq!(decision.action, TerminalAction::Aac);
 
+    let mut tvr = Tvr::cleared();
+    tvr.set(Tvr::B4_FLOOR_LIMIT_EXCEEDED);
+    let iac_online = decide(TaaInput {
+        tvr,
+        tac: ActionCodes::zeroed(),
+        iac: ActionCodes {
+            denial: [0; 5],
+            online: [0, 0, 0, 0x80, 0],
+            default: [0; 5],
+        },
+        terminal_online_capable: true,
+        profile: TaaProfile::spec_defaults(),
+    });
+    assert_eq!(iac_online.action, TerminalAction::Arqc);
+
+    let mut tvr = Tvr::cleared();
+    tvr.set(Tvr::B1_ICC_DATA_MISSING);
+    let iac_default = decide(TaaInput {
+        tvr,
+        tac: ActionCodes::zeroed(),
+        iac: ActionCodes {
+            denial: [0; 5],
+            online: [0; 5],
+            default: [0x20, 0, 0, 0, 0],
+        },
+        terminal_online_capable: false,
+        profile: TaaProfile::new(
+            TerminalAction::Tc,
+            TerminalAction::Arqc,
+            TerminalAction::Aac,
+        )
+        .unwrap(),
+    });
+    assert_eq!(iac_default.action, TerminalAction::Tc);
+
     let no_match = decide(TaaInput {
         tvr: Tvr::cleared(),
         tac: ActionCodes::zeroed(),
@@ -4113,6 +4148,53 @@ fn krn_taa_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks() {
             .unwrap(),
     });
     assert_eq!(no_match.action, TerminalAction::Tc);
+
+    assert!(!include_str!("../src/taa.rs").contains("default_cryptogram"));
+}
+
+#[test]
+fn rtm_promotes_terminal_action_analysis_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in [
+            "KRN-TAA-001",
+            "KRN-TAA-002",
+            "KRN-TAA-003",
+            "KRN-TAA-004",
+            "KRN-TAA-005",
+            "KRN-TAA-006",
+            "KRN-TAA-007",
+        ] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete TAA evidence"
+            );
+            assert!(row.contains(
+                "krn_taa_001_002_003_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks"
+            ));
+        }
+
+        let denial = csv_row_for_requirement(csv, "KRN-TAA-001").unwrap();
+        assert!(denial.contains("denial_action_codes_take_precedence"));
+
+        let iac = csv_row_for_requirement(csv, "KRN-TAA-002").unwrap();
+        assert!(iac.contains("iac_values_participate_in_denial_online_and_default_decisions"));
+        assert!(iac.contains("taa_offline_final_state_finishes_from_s16"));
+
+        let unconstrained_default = csv_row_for_requirement(csv, "KRN-TAA-003").unwrap();
+        assert!(unconstrained_default.contains("invalid_profile_combinations_are_rejected"));
+        assert!(unconstrained_default.contains("no_match_defaults_are_profile_driven"));
+
+        let tac = csv_row_for_requirement(csv, "KRN-TAA-005").unwrap();
+        assert!(
+            tac.contains("profile_loader_requires_verified_signature_and_extracts_capk_tac_limits")
+        );
+        assert!(tac.contains("online_action_codes_request_arqc_when_online_capable"));
+
+        let fallback = csv_row_for_requirement(csv, "KRN-TAA-007").unwrap();
+        assert!(fallback.contains("scheme_profile_annex_contains_deterministic_taa_keys"));
+        assert!(fallback.contains("offline_unable_default_match_uses_profile_fallback"));
+    }
 }
 
 #[test]

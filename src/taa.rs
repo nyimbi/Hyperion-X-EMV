@@ -200,6 +200,35 @@ mod tests {
     }
 
     #[test]
+    fn iac_values_participate_in_denial_online_and_default_decisions() {
+        let mut tvr = Tvr::cleared();
+        tvr.set(Tvr::B1_SDA_FAILED);
+        let mut denial_input = input(tvr);
+        denial_input.iac.denial = [0x40, 0, 0, 0, 0];
+        denial_input.tac.online = [0x40, 0, 0, 0, 0];
+        assert_eq!(decide(denial_input).action, TerminalAction::Aac);
+
+        let mut tvr = Tvr::cleared();
+        tvr.set(Tvr::B4_FLOOR_LIMIT_EXCEEDED);
+        let mut online_input = input(tvr);
+        online_input.iac.online = [0, 0, 0, 0x80, 0];
+        assert_eq!(decide(online_input).action, TerminalAction::Arqc);
+
+        let mut tvr = Tvr::cleared();
+        tvr.set(Tvr::B1_ICC_DATA_MISSING);
+        let mut default_input = input(tvr);
+        default_input.terminal_online_capable = false;
+        default_input.iac.default = [0x20, 0, 0, 0, 0];
+        default_input.profile = TaaProfile::new(
+            TerminalAction::Tc,
+            TerminalAction::Arqc,
+            TerminalAction::Aac,
+        )
+        .unwrap();
+        assert_eq!(decide(default_input).action, TerminalAction::Tc);
+    }
+
+    #[test]
     fn no_match_defaults_are_profile_driven() {
         let mut input = input(Tvr::cleared());
         input.profile =
