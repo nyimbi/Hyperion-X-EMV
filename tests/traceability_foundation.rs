@@ -40,6 +40,7 @@ use hyperion_emv::oda::{
     validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
     OdaSelectionInput,
 };
+use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
@@ -68,6 +69,7 @@ const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
 const ODA_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
 const STATE_MACHINE_CSV: &str = include_str!("../docs/state_machine.csv");
+const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manifest.md");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -273,6 +275,97 @@ fn corrected_spec_contains_api_transaction_runner_requirements() {
             "corrected spec missing {krn_id}"
         );
     }
+}
+
+#[test]
+fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Reproducible build provenance"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_build_manifest"));
+
+    let manifest = build_provenance_manifest(
+        KRN_ABI_VERSION,
+        &[
+            Artifact {
+                name: "Cargo.lock",
+                bytes: include_bytes!("../Cargo.lock"),
+            },
+            Artifact {
+                name: "Cargo.toml",
+                bytes: include_bytes!("../Cargo.toml"),
+            },
+            Artifact {
+                name: "docs/lab_submission_manifest.md",
+                bytes: LAB_SUBMISSION_MANIFEST.as_bytes(),
+            },
+            Artifact {
+                name: "docs/oda_test_vectors.json",
+                bytes: ODA_VECTORS.as_bytes(),
+            },
+            Artifact {
+                name: "docs/requirements_traceability.csv",
+                bytes: include_bytes!("../docs/requirements_traceability.csv"),
+            },
+            Artifact {
+                name: "docs/scheme_profiles.cert.json",
+                bytes: SCHEME_PROFILES.as_bytes(),
+            },
+            Artifact {
+                name: "docs/spec.md",
+                bytes: include_bytes!("../docs/spec.md"),
+            },
+            Artifact {
+                name: "docs/state_machine.csv",
+                bytes: STATE_MACHINE_CSV.as_bytes(),
+            },
+            Artifact {
+                name: "docs/tlv_catalogue.csv",
+                bytes: TLV_CATALOGUE.as_bytes(),
+            },
+            Artifact {
+                name: "src/lib.rs",
+                bytes: include_bytes!("../src/lib.rs"),
+            },
+        ],
+    )
+    .unwrap();
+
+    let names = manifest
+        .artifacts
+        .iter()
+        .map(|artifact| artifact.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        vec![
+            "Cargo.lock",
+            "Cargo.toml",
+            "docs/lab_submission_manifest.md",
+            "docs/oda_test_vectors.json",
+            "docs/requirements_traceability.csv",
+            "docs/scheme_profiles.cert.json",
+            "docs/spec.md",
+            "docs/state_machine.csv",
+            "docs/tlv_catalogue.csv",
+            "src/lib.rs",
+        ]
+    );
+    let scheme_digest = manifest
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.name == "docs/scheme_profiles.cert.json")
+        .unwrap();
+    assert_eq!(
+        to_hex(&scheme_digest.sha256),
+        to_hex(&sha256(SCHEME_PROFILES.as_bytes()))
+    );
+
+    let json = manifest.canonical_json();
+    assert!(json.starts_with("{\"type\":\"build-provenance\""));
+    assert!(json.contains("\"kernel_name\":\"hyperion-emv\""));
+    assert!(json.contains("\"abi_version\":1"));
+    assert!(json.contains("\"name\":\"docs/scheme_profiles.cert.json\""));
+    assert!(json.contains("\"sha256\":\""));
+    assert!(!json.contains("placeholder"));
 }
 
 #[test]
