@@ -22,10 +22,11 @@ use hyperion_emv::ffi::{
     krn_error_code_at, krn_error_description, krn_error_name, krn_error_table_len,
     krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
     krn_get_issuer_script_result_count, krn_get_last_error, krn_get_online_authorization_data,
-    krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_process_final_generate_ac,
-    krn_process_issuer_authentication, krn_process_issuer_scripts,
-    krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
-    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
+    krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_mask_apdu_command_json,
+    krn_mask_apdu_response_json, krn_process_final_generate_ac, krn_process_issuer_authentication,
+    krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
+    krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
+    KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -1555,6 +1556,89 @@ fn krn_log_001_masks_sensitive_tlv_and_gac_trace_values() {
     assert!(json.contains("\"tag\":\"9f26\""));
     assert!(json.contains("transaction-cryptogram"));
     assert!(!json.contains("deadbeef00000001"));
+}
+
+#[test]
+fn krn_log_001_exposes_masked_apdu_trace_json_via_abi() {
+    unsafe {
+        let verify_pin = hex("0020008008241234FFFFFFFFFF");
+        let mut len = 0usize;
+        assert_eq!(
+            krn_mask_apdu_command_json(
+                verify_pin.as_ptr(),
+                verify_pin.len(),
+                true,
+                ptr::null_mut(),
+                &mut len
+            ),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut json = vec![0u8; len];
+        assert_eq!(
+            krn_mask_apdu_command_json(
+                verify_pin.as_ptr(),
+                verify_pin.len(),
+                true,
+                json.as_mut_ptr(),
+                &mut len,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let json = String::from_utf8(json).unwrap();
+        assert!(json.contains("\"direction\":\"command\""));
+        assert!(json.contains("\"ins\":\"20\""));
+        assert!(json.contains("pin-verify-data"));
+        assert!(!json.contains("241234"));
+
+        let gac = hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC");
+        let mut len = 0usize;
+        assert_eq!(
+            krn_mask_apdu_response_json(
+                1,
+                gac.as_ptr(),
+                gac.len(),
+                0x90,
+                0x00,
+                false,
+                ptr::null_mut(),
+                &mut len,
+            ),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut json = vec![0u8; len];
+        assert_eq!(
+            krn_mask_apdu_response_json(
+                1,
+                gac.as_ptr(),
+                gac.len(),
+                0x90,
+                0x00,
+                false,
+                json.as_mut_ptr(),
+                &mut len,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let json = String::from_utf8(json).unwrap();
+        assert!(json.contains("\"context\":\"generate-ac-response\""));
+        assert!(json.contains("\"tag\":\"9f26\""));
+        assert!(json.contains("transaction-cryptogram"));
+        assert!(!json.contains("1112131415161718"));
+
+        assert_eq!(
+            krn_mask_apdu_response_json(
+                9,
+                gac.as_ptr(),
+                gac.len(),
+                0x90,
+                0x00,
+                false,
+                ptr::null_mut(),
+                &mut len,
+            ),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+    }
 }
 
 #[test]

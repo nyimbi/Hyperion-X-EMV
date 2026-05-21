@@ -40,6 +40,7 @@ use crate::selection::{
 use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use crate::taa::{decide as decide_taa, ActionCodes, TaaInput, TerminalAction};
+use crate::trace::{mask_apdu_command, mask_apdu_response, ApduTraceContext, LogPolicy};
 use crate::trm::{evaluate as evaluate_trm, TrmInput};
 use core::mem;
 use core::ptr;
@@ -904,6 +905,69 @@ pub unsafe extern "C" fn krn_emit_contactless_outcome(
     ctx.set_result(result.map(|_| 0usize))
 }
 
+/// Masks a command APDU into canonical JSON for lab/support trace emission.
+///
+/// The returned JSON is always produced by the kernel log policy. Production
+/// mode suppresses APDU data, while certification support mode may include
+/// non-sensitive command data only after explicit support authorization. VERIFY
+/// command data is always suppressed.
+///
+/// # Safety
+///
+/// `command` must point to `command_len` readable bytes. `out_len` must point
+/// to writable `usize` storage. `out` may be null only for length probing.
+#[no_mangle]
+pub unsafe extern "C" fn krn_mask_apdu_command_json(
+    command: *const u8,
+    command_len: usize,
+    certification_support: bool,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let result = readable_slice(command, command_len).and_then(|bytes| {
+        let policy = trace_policy(certification_support);
+        let json = mask_apdu_command(0, bytes, policy)?.to_json();
+        write_output(json.as_bytes(), out, out_len)
+    });
+    result
+        .map(|_| KernelError::Ok.code())
+        .unwrap_or_else(|err| err.code())
+}
+
+/// Masks a response APDU into canonical JSON for lab/support trace emission.
+///
+/// `context` is `0` for generic BER-TLV responses and `1` for GENERATE AC
+/// responses. GENERATE AC cryptograms and issuer authentication data remain
+/// suppressed under production policy.
+///
+/// # Safety
+///
+/// `response_data` must point to `response_data_len` readable bytes. `out_len`
+/// must point to writable `usize` storage. `out` may be null only for length
+/// probing.
+#[no_mangle]
+pub unsafe extern "C" fn krn_mask_apdu_response_json(
+    context: u8,
+    response_data: *const u8,
+    response_data_len: usize,
+    sw1: u8,
+    sw2: u8,
+    certification_support: bool,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let result = trace_context(context).and_then(|trace_context| {
+        readable_slice(response_data, response_data_len).and_then(|bytes| {
+            let policy = trace_policy(certification_support);
+            let json = mask_apdu_response(0, trace_context, bytes, [sw1, sw2], policy)?.to_json();
+            write_output(json.as_bytes(), out, out_len)
+        })
+    });
+    result
+        .map(|_| KernelError::Ok.code())
+        .unwrap_or_else(|err| err.code())
+}
+
 #[no_mangle]
 pub extern "C" fn krn_abi_version() -> u32 {
     KRN_ABI_VERSION
@@ -974,6 +1038,22 @@ pub unsafe extern "C" fn krn_error_description(
 #[no_mangle]
 pub extern "C" fn krn_context_as_opaque(ctx: *mut KrnContext) -> *mut c_void {
     ctx.cast::<c_void>()
+}
+
+fn trace_policy(certification_support: bool) -> LogPolicy {
+    if certification_support {
+        LogPolicy::certification_support()
+    } else {
+        LogPolicy::production()
+    }
+}
+
+fn trace_context(context: u8) -> Result<ApduTraceContext, KernelError> {
+    match context {
+        0 => Ok(ApduTraceContext::Generic),
+        1 => Ok(ApduTraceContext::GenerateAcResponse),
+        _ => Err(KernelError::InvalidArgument),
+    }
 }
 
 unsafe fn write_output(
