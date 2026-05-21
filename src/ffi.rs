@@ -192,6 +192,7 @@ pub struct KrnContext {
     cvm_pin_handles: CvmPinHandles,
     cvm_capabilities: RuntimeCvmCapabilities,
     terminal_capabilities: Option<[u8; 3]>,
+    terminal_transaction_qualifiers: Option<[u8; 4]>,
     last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -224,6 +225,7 @@ impl KrnContext {
             cvm_pin_handles: CvmPinHandles::none(),
             cvm_capabilities: RuntimeCvmCapabilities::default(),
             terminal_capabilities: None,
+            terminal_transaction_qualifiers: None,
             last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
@@ -253,6 +255,7 @@ impl KrnContext {
         self.cvm_pin_handles = CvmPinHandles::none();
         self.cvm_capabilities = RuntimeCvmCapabilities::default();
         self.terminal_capabilities = None;
+        self.terminal_transaction_qualifiers = None;
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -410,6 +413,7 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.cvm_pin_handles = CvmPinHandles::none();
         ctx.cvm_capabilities = RuntimeCvmCapabilities::default();
         ctx.terminal_capabilities = None;
+        ctx.terminal_transaction_qualifiers = None;
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
         Ok(0usize)
@@ -440,6 +444,33 @@ pub unsafe extern "C" fn krn_set_terminal_capabilities(
         return KernelError::Busy.code();
     }
     ctx.terminal_capabilities = Some([byte1, byte2, byte3]);
+    ctx.set_result(Ok(0usize))
+}
+
+/// Registers EMV contactless tag 9F66 Terminal Transaction Qualifiers.
+///
+/// TTQ is cleared whenever new transaction parameters are set, so callers must
+/// set it after [`krn_set_transaction_params`] for contactless transactions
+/// whose PDOL/CDOL data requires terminal transaction qualifier bytes.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_terminal_transaction_qualifiers(
+    ctx: *mut KrnContext,
+    byte1: u8,
+    byte2: u8,
+    byte3: u8,
+    byte4: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    ctx.terminal_transaction_qualifiers = Some([byte1, byte2, byte3, byte4]);
     ctx.set_result(Ok(0usize))
 }
 
@@ -1359,6 +1390,7 @@ fn transaction_data_store(
     tvr: Tvr,
     tsi: Tsi,
     terminal_capabilities: Option<[u8; 3]>,
+    terminal_transaction_qualifiers: Option<[u8; 4]>,
 ) -> Result<DataStore, KernelError> {
     let mut data = DataStore::new();
     data.put(
@@ -1381,6 +1413,9 @@ fn transaction_data_store(
     data.put(&[0x9a], &emv_date_bcd(transaction_date))?;
     if let Some(terminal_capabilities) = terminal_capabilities {
         data.put(&[0x9f, 0x33], &terminal_capabilities)?;
+    }
+    if let Some(terminal_transaction_qualifiers) = terminal_transaction_qualifiers {
+        data.put(&[0x9f, 0x66], &terminal_transaction_qualifiers)?;
     }
     data.put(&[0x9f, 0x35], &[params.terminal_type])?;
     data.put(&[0x9f, 0x15], &params.merchant_category_code)?;
@@ -2846,6 +2881,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         ctx.tvr,
         ctx.tsi,
         ctx.terminal_capabilities,
+        ctx.terminal_transaction_qualifiers,
     ) {
         Ok(data) => data,
         Err(err) => {
