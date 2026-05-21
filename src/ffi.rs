@@ -160,6 +160,13 @@ struct SelectedApplication {
     afl: Vec<AflEntry>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct RuntimeCvmCapabilities {
+    online_pin_supported: bool,
+    signature_supported: bool,
+    cdcvm_performed: bool,
+}
+
 #[repr(C)]
 pub struct KrnContext {
     state: KernelState,
@@ -183,6 +190,7 @@ pub struct KrnContext {
     card_data: DataStore,
     offline_auth_records: Vec<StaticAuthenticationRecord>,
     cvm_pin_handles: CvmPinHandles,
+    cvm_capabilities: RuntimeCvmCapabilities,
     last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -213,6 +221,7 @@ impl KrnContext {
             card_data: DataStore::new(),
             offline_auth_records: Vec::new(),
             cvm_pin_handles: CvmPinHandles::none(),
+            cvm_capabilities: RuntimeCvmCapabilities::default(),
             last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
@@ -240,6 +249,7 @@ impl KrnContext {
         self.card_data = DataStore::new();
         self.offline_auth_records.clear();
         self.cvm_pin_handles = CvmPinHandles::none();
+        self.cvm_capabilities = RuntimeCvmCapabilities::default();
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -395,10 +405,47 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.host_response = None;
         ctx.card_data = DataStore::new();
         ctx.cvm_pin_handles = CvmPinHandles::none();
+        ctx.cvm_capabilities = RuntimeCvmCapabilities::default();
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
         Ok(0usize)
     });
+    ctx.set_result(result)
+}
+
+/// Registers terminal/PED CVM capabilities for the current transaction.
+///
+/// The flags are boolean bytes (`0` or `1`). Capabilities are cleared whenever
+/// new transaction parameters are set, so callers must set them after
+/// [`krn_set_transaction_params`] for each transaction that needs them.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_cvm_capabilities(
+    ctx: *mut KrnContext,
+    online_pin_supported: u8,
+    signature_supported: u8,
+    cdcvm_performed: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        let online_pin_supported = bool_flag(online_pin_supported)?;
+        let signature_supported = bool_flag(signature_supported)?;
+        let cdcvm_performed = bool_flag(cdcvm_performed)?;
+        ctx.cvm_capabilities = RuntimeCvmCapabilities {
+            online_pin_supported,
+            signature_supported,
+            cdcvm_performed,
+        };
+        Ok(0usize)
+    })();
     ctx.set_result(result)
 }
 
@@ -1267,6 +1314,14 @@ unsafe fn read_transaction_params(
     })
 }
 
+fn bool_flag(value: u8) -> Result<bool, KernelError> {
+    match value {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(KernelError::InvalidArgument),
+    }
+}
+
 fn transaction_data_store(
     params: &StoredTxnParams,
     unpredictable_number: [u8; 4],
@@ -1886,6 +1941,8 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
             .get(&[0x8e])
             .ok_or(KernelError::MissingMandatoryTag)?,
     )?;
+    let cdcvm_performed = ctx.cvm_capabilities.cdcvm_performed
+        || selected_aid_profile(ctx).is_ok_and(|aid| contactless_ctq_indicates_cdcvm(ctx, aid));
     let outcome = evaluate_cvm(
         &cvm_list,
         CvmContext {
@@ -1901,9 +1958,9 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
             },
             offline_pin_supported: ctx.cvm_pin_handles.offline_plaintext.is_some()
                 || ctx.cvm_pin_handles.offline_enciphered.is_some(),
-            online_pin_supported: false,
-            signature_supported: false,
-            cdcvm_performed: false,
+            online_pin_supported: ctx.cvm_capabilities.online_pin_supported,
+            signature_supported: ctx.cvm_capabilities.signature_supported,
+            cdcvm_performed,
         },
         ctx.cvm_pin_handles,
     );

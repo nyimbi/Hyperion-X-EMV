@@ -18,6 +18,7 @@ KRN-CID-001,CID decode with mask 0xC0,UT-CID-001,IT-CID-001,EMV-L2-CONTACT-VID-0
 KRN-CVM-001,CVM List parsing and limits,UT-CVM-001,IT-CVM-001,EMV-L2-CONTACT-VID-030,CVM trace
 KRN-CVM-002,TVR byte3 bits on CVM outcome,UT-CVM-002,IT-CVM-002,EMV-L2-CONTACT-MC-025,TVR after CVM
 KRN-CVM-003,Use certified CVM code table,UT-CVM-003,IT-CVM-003,EMV-L2-CONTACT-VID-031,Code review
+KRN-CVMCAP-001,Terminal and PED CVM capabilities supplied through stable ABI,UT-CVMCAP-001,IT-CVMCAP-001,EMV-L2-CONTACT-VID-033,CVM capability ABI test
 KRN-CVMRES-001,CVM Results stored as three-byte EMV object,UT-CVMRES-001,IT-CVMRES-001,EMV-L2-CONTACT-VID-032,9F34 transaction data
 KRN-PIN-001,Distinguish offline plaintext offline enciphered and online PIN methods,UT-PIN-001,IT-PIN-001,PCI-PTS-PIN-003,CVM method evidence
 KRN-PIN-002,No clear PIN values exposed to kernel memory,UT-PIN-002,IT-PIN-002,PCI-PTS-PIN-004,Opaque handle ABI test

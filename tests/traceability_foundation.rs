@@ -27,8 +27,9 @@ use hyperion_emv::ffi::{
     krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
     krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
     krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
-    krn_set_offline_pin_handle, krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
+    krn_set_cvm_capabilities, krn_set_offline_pin_handle, krn_set_transaction_params, KrnOutcome,
+    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
+    KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -88,6 +89,11 @@ static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
 static IT_TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
 static IT_TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
 
+struct CvmMethodScript {
+    counter: AtomicUsize,
+    cvm_code: u8,
+}
+
 unsafe extern "C" fn it_transmit_apdu(
     cmd: *const u8,
     cmd_len: usize,
@@ -133,6 +139,23 @@ unsafe extern "C" fn it_offline_pin_transmit_apdu(
     IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
     IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
     write_offline_pin_response(command, count, resp, resp_len)
+}
+
+unsafe extern "C" fn it_cvm_method_transmit_apdu(
+    cmd: *const u8,
+    cmd_len: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+    timeout_ms: i32,
+    user_data: *mut c_void,
+) -> i32 {
+    let command = std::slice::from_raw_parts(cmd, cmd_len);
+    let script = &*(user_data as *const CvmMethodScript);
+    let count = script.counter.fetch_add(1, Ordering::SeqCst);
+    IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+    IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+    IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    write_cvm_method_response(command, count, script.cvm_code, resp, resp_len)
 }
 
 unsafe extern "C" fn it_host_timeout_transmit_apdu(
@@ -208,6 +231,34 @@ unsafe fn write_offline_pin_response(
     hyperion_emv::KernelError::Ok.code()
 }
 
+unsafe fn write_cvm_method_response(
+    command: &[u8],
+    count: usize,
+    cvm_code: u8,
+    resp: *mut u8,
+    resp_len: *mut usize,
+) -> i32 {
+    let response = match (count, cvm_code) {
+        (3, 0x02) => hex(
+            "70675A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200018E0A000000000000000002009F0D0500000000009F0E0500000000009F0F0500000080008C129F02069F370495059A039C019F1A029F34038D088A02910895059B029000",
+        ),
+        (3, 0x06) => hex(
+            "70675A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200018E0A000000000000000006009F0D0500000000009F0E0500000000009F0F0500000080008C129F02069F370495059A039C019F1A029F34038D088A02910895059B029000",
+        ),
+        (3, 0x20) => hex(
+            "70675A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200018E0A000000000000000020009F0D0500000000009F0E0500000000009F0F0500000080008C129F02069F370495059A039C019F1A029F34038D088A02910895059B029000",
+        ),
+        _ => return write_scripted_response(command, count, resp, resp_len),
+    };
+    let capacity = *resp_len;
+    *resp_len = response.len();
+    if capacity < response.len() {
+        return hyperion_emv::KernelError::BufferTooSmall.code();
+    }
+    ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+    hyperion_emv::KernelError::Ok.code()
+}
+
 unsafe extern "C" fn it_unpredictable_number(
     out: *mut u8,
     out_len: usize,
@@ -255,6 +306,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-CVM-001",
         "KRN-CVM-002",
         "KRN-CVM-003",
+        "KRN-CVMCAP-001",
         "KRN-CVMRES-001",
         "KRN-SEC-002",
         "KRN-SEC-003",
@@ -379,6 +431,7 @@ fn both_rtms_cover_dynamic_oda_rows_independently() {
 fn both_rtms_cover_pin_and_cvm_results_rows_independently() {
     for krn_id in [
         "KRN-CVMRES-001",
+        "KRN-CVMCAP-001",
         "KRN-PIN-001",
         "KRN-PIN-002",
         "KRN-PIN-003",
@@ -1800,6 +1853,123 @@ fn krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles() {
                 cvm_results: [0x01, 0x00, 0x01],
                 tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
             }
+        );
+    }
+}
+
+unsafe fn run_cvm_capability_transaction(
+    cvm_code: u8,
+    online_pin_supported: u8,
+    signature_supported: u8,
+    cdcvm_performed: u8,
+    interface_preference: u8,
+) -> Vec<u8> {
+    let script = CvmMethodScript {
+        counter: AtomicUsize::new(0),
+        cvm_code,
+    };
+    let mut ctx = ptr::null_mut();
+    let runtime = KrnRuntime {
+        abi_version: KRN_ABI_VERSION,
+        struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+        transmit_apdu: Some(it_cvm_method_transmit_apdu),
+        get_unpredictable_number: Some(it_unpredictable_number),
+        contactless_outcome: None,
+        user_data: &script as *const CvmMethodScript as *mut c_void,
+    };
+    assert_eq!(
+        krn_init(ptr::null(), &runtime, &mut ctx),
+        hyperion_emv::KernelError::Ok.code()
+    );
+    assert_eq!(
+        krn_load_profiles_verified(
+            ctx,
+            SCHEME_PROFILES.as_ptr(),
+            SCHEME_PROFILES.len(),
+            1,
+            2,
+            26,
+            5,
+            21,
+        ),
+        hyperion_emv::KernelError::Ok.code()
+    );
+    let params = KrnTxnParams {
+        struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
+        amount_authorised_minor: 1_500,
+        amount_other_minor: 0,
+        currency_code: 840,
+        terminal_country_code: 840,
+        transaction_type: 0,
+        terminal_type: 0x22,
+        merchant_category_code: [0x53, 0x11],
+        interface_preference,
+        merchant_name_location: ptr::null(),
+        merchant_name_location_len: 0,
+    };
+    assert_eq!(
+        krn_set_transaction_params(ctx, &params),
+        hyperion_emv::KernelError::Ok.code()
+    );
+    assert_eq!(
+        krn_set_cvm_capabilities(ctx, 2, 0, 0),
+        hyperion_emv::KernelError::InvalidArgument.code()
+    );
+    assert_eq!(
+        krn_set_cvm_capabilities(
+            ctx,
+            online_pin_supported,
+            signature_supported,
+            cdcvm_performed,
+        ),
+        hyperion_emv::KernelError::Ok.code()
+    );
+    assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired as i32);
+
+    let mut auth_len = 0usize;
+    assert_eq!(
+        krn_get_online_authorization_data(ctx, ptr::null_mut(), &mut auth_len),
+        hyperion_emv::KernelError::BufferTooSmall.code()
+    );
+    let mut auth = vec![0u8; auth_len];
+    assert_eq!(
+        krn_get_online_authorization_data(ctx, auth.as_mut_ptr(), &mut auth_len),
+        hyperion_emv::KernelError::Ok.code()
+    );
+    auth.truncate(auth_len);
+    krn_context_free(ctx);
+    auth
+}
+
+#[test]
+fn krn_cvmcap_001_uses_terminal_cvm_capabilities_from_abi() {
+    unsafe {
+        assert_eq!(
+            krn_set_cvm_capabilities(ptr::null_mut(), 0, 0, 0),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+
+        let online_auth = run_cvm_capability_transaction(0x02, 1, 0, 0, 1);
+        let online_tlvs = tlv::parse_many(&online_auth).unwrap();
+        assert_eq!(
+            tlv::find_first(&online_tlvs, &[0x9f, 0x34]),
+            Some(&[0x02, 0x00, 0x02][..])
+        );
+        assert!(tlv::find_first(&online_tlvs, &[0x95])
+            .is_some_and(|tvr| tvr.len() == 5 && tvr[2] & 0x04 != 0));
+
+        let signature_auth = run_cvm_capability_transaction(0x06, 0, 1, 0, 1);
+        let signature_tlvs = tlv::parse_many(&signature_auth).unwrap();
+        assert_eq!(
+            tlv::find_first(&signature_tlvs, &[0x9f, 0x34]),
+            Some(&[0x06, 0x00, 0x02][..])
+        );
+
+        let cdcvm_auth = run_cvm_capability_transaction(0x20, 0, 0, 1, 2);
+        let cdcvm_tlvs = tlv::parse_many(&cdcvm_auth).unwrap();
+        assert_eq!(
+            tlv::find_first(&cdcvm_tlvs, &[0x9f, 0x34]),
+            Some(&[0x20, 0x00, 0x02][..])
         );
     }
 }
