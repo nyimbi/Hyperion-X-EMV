@@ -559,6 +559,28 @@ fn rtm_annexes_cover_the_same_requirement_ids_independently() {
 }
 
 #[test]
+fn spec_delegates_requirement_traceability_to_csv_annexes() {
+    let spec = include_str!("../docs/spec.md");
+    assert!(spec.contains("The executable RTM is `docs/requirements_traceability.csv`"));
+    assert!(spec.contains("compatibility copy is `docs/requirements-traceability-matrix.csv`"));
+    assert!(spec.contains("SHALL NOT carry a duplicated inline RTM row set"));
+    assert!(
+        krn_ids_from_spec(spec).is_empty(),
+        "spec.md must not carry stale inline RTM rows"
+    );
+
+    let current_ids = krn_ids_from_csv(CURRENT_RTM);
+    assert!(
+        current_ids.contains("KRN-GAC2-004"),
+        "canonical RTM missing final GAC requirement"
+    );
+    assert!(
+        current_ids.contains("KRN-SCR-006"),
+        "canonical RTM missing issuer script result reporting requirement"
+    );
+}
+
+#[test]
 fn rtm_annexes_are_six_column_csv() {
     fn column_count(line: &str) -> Option<usize> {
         let mut columns = 1;

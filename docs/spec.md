@@ -243,71 +243,17 @@ shall not invent a payment RID, AID, or CAPK for C-8.
 
 ### Annex G – Requirement‑to‑Test Traceability Matrix (`requirements_traceability.csv`)
 
-```csv
+The executable RTM is `docs/requirements_traceability.csv`; the legacy
+compatibility copy is `docs/requirements-traceability-matrix.csv`. Both CSV
+annexes SHALL contain the same KRN requirement IDs and exactly six columns:
+
+```text
 Requirement ID,Requirement Text,Unit Test ID,Integration Test ID,EMVCo Test Case Ref,Evidence Artifact
-KRN-REF-001,Comply with normative references,UT-REF-001,IT-REF-001,EMV-B1-001,Conformance statement
-KRN-SEC-001,No issuer master key in kernel,UT-SEC-001,IT-SEC-001,N/A,Code review
-KRN-SEC-002,Kernel does not generate ARQC/TC/AAC,UT-SEC-002,IT-SEC-002,EMV-L2-ARQC-001,APDU logs
-KRN-SEC-003,CAPKs public key integrity only,UT-SEC-003,IT-SEC-003,N/A,Config signature and CAPK checksum validation
-KRN-SEC-004,PED-owned VERIFY model,UT-SEC-004,IT-SEC-004,PCI-PTS-PIN-001,PED statement
-KRN-SEL-001,Correct PSE/PPSE selection,UT-SEL-001,IT-SEL-001,EMV-L2-SEL-001,APDU traces
-KRN-TVR-001,Symbolic constants for TVR,UT-TVR-001,IT-TVR-001,EMV-L2-TVR-001,Code review
-KRN-TVR-002,TVR cleared before each transaction,UT-TVR-002,IT-TVR-002,EMV-L2-TVR-002,Unit test log
-KRN-TVR-003,RFU bits not set,UT-TVR-003,IT-TVR-003,EMV-L2-TVR-003,TVR trace
-KRN-TSI-001,TSI bits set correctly,UT-TSI-001,IT-TSI-001,EMV-L2-TSI-001,TSI trace
-KRN-TERMCAP-001,Terminal Capabilities 9F33 supplied through stable ABI and included in DOL data,UT-TERMCAP-001,IT-TERMCAP-001,EMV-L2-TERM-001,PDOL and online handoff evidence
-KRN-TTQ-001,Terminal Transaction Qualifiers 9F66 supplied through stable ABI and included in contactless DOL data,UT-TTQ-001,IT-TTQ-001,EMV-C8-TTQ-001,Contactless PDOL and online handoff evidence
-KRN-CID-001,CID decode with mask 0xC0,UT-CID-001,IT-CID-001,EMV-L2-CID-001,CID logs
-KRN-CVM-001,CVM List parsing and limits,UT-CVM-001,IT-CVM-001,EMV-L2-CVM-001,CVM trace
-KRN-CVM-002,TVR byte3 bits on CVM outcome,UT-CVM-002,IT-CVM-002,EMV-L2-CVM-002,TVR after CVM
-KRN-CVM-003,Use certified CVM code table,UT-CVM-003,IT-CVM-003,EMV-L2-CVM-003,Code review
-KRN-CVMCAP-001,Terminal and PED CVM capabilities supplied through stable ABI,UT-CVMCAP-001,IT-CVMCAP-001,EMV-L2-CVM-005,CVM capability ABI test
-KRN-CVMRES-001,CVM Results stored as three-byte EMV object,UT-CVMRES-001,IT-CVMRES-001,EMV-L2-CVM-004,9F34 transaction data
-KRN-PIN-001,Distinguish offline plaintext offline enciphered and online PIN methods,UT-PIN-001,IT-PIN-001,PCI-PTS-PIN-003,CVM method evidence
-KRN-PIN-002,No clear PIN values exposed to kernel memory,UT-PIN-002,IT-PIN-002,PCI-PTS-PIN-004,Opaque handle ABI test
-KRN-PIN-003,Delegate PIN block construction to PED or secure PIN module,UT-PIN-003,IT-PIN-003,PCI-PTS-PIN-005,Opaque handle ABI test
-KRN-GAC-008,P1 encoding: 0x00/0x40/0x80,UT-GAC-001,IT-GAC-001,EMV-L2-GAC-001,APDU logs
-KRN-GAC-009,CDA request not colliding with type bits,UT-GAC-002,IT-GAC-002,EMV-L2-CDA-001,APDU + profile
-KRN-GAC-010,CDA request profile-defined,UT-GAC-003,IT-GAC-003,EMV-L2-CDA-002,Profile validation
-KRN-TAA-004,Fetch IACs from card,UT-TAA-001,IT-TAA-001,EMV-L2-TAA-001,IAC logs
-KRN-TAA-005,TACs from config,UT-TAA-002,IT-TAA-002,EMV-L2-TAA-002,Config manifest
-KRN-TAA-006,TAA decision order,UT-TAA-003,IT-TAA-003,EMV-L2-TAA-003,Decision trace
-KRN-TAA-007,Deterministic fallback from profile,UT-TAA-004,IT-TAA-004,EMV-L2-TAA-004,Profile + trace
-KRN-APDU-009,State-specific SW handling,UT-APDU-001,IT-APDU-001,EMV-L2-APDU-001,APDU + state
-KRN-APDU-010,No generic non-9000 error,UT-APDU-002,IT-APDU-002,EMV-L2-APDU-002,Error injection
-KRN-ODA-001,CAPK hash verification,UT-ODA-001,IT-ODA-001,EMV-L2-ODA-001,CAPK checksum validation evidence
-KRN-ODA-002,CAPK integrity not confidentiality,UT-ODA-002,IT-ODA-002,N/A,Config signature
-KRN-ODA-003,Issuer cert recovery failure TVR,UT-ODA-003,IT-ODA-003,EMV-L2-ODA-003,TVR after failure
-KRN-ODA-004,ICC cert recovery failure TVR,UT-ODA-004,IT-ODA-004,EMV-L2-ODA-004,TVR
-KRN-ODA-005,SDA failure TVR bit,UT-ODA-005,IT-ODA-005,EMV-L2-SDA-001,TVR
-KRN-ODA-006,DDA failure TVR bit,UT-ODA-006,IT-ODA-006,EMV-L2-DDA-001,TVR
-KRN-ODA-007,CDA failure TVR and no fallback,UT-ODA-007,IT-ODA-007,EMV-L2-CDA-002,TVR + fallback test
-KRN-ODA-008,CDA exact verification,UT-ODA-008,IT-ODA-008,EMV-L2-CDA-003,CDA vector
-KRN-DDA-001,INTERNAL AUTHENTICATE for DDA uses DDOL values,UT-DDA-001,IT-DDA-001,EMV-L2-DDA-002,INTERNAL AUTHENTICATE APDU trace
-KRN-DDA-002,DDA signed dynamic data verified with recovered ICC public key,UT-DDA-002,IT-DDA-002,EMV-L2-DDA-003,SDAD verification trace
-KRN-ODATV-001,Reject placeholder malformed or incomplete ODA certification vectors,UT-ODATV-001,IT-ODATV-001,N/A,ODA vector annex validation
-KRN-C8-001,C-8 kernel for contactless,UT-C8-001,IT-C8-001,EMV-C8-001,Outcome logs
-KRN-C8-002,Outcome parameters callback,UT-C8-002,IT-C8-002,EMV-C8-002,Callback trace
-KRN-C8-003,C-8 not contact kernel,UT-C8-003,IT-C8-003,N/A,Interface test
-KRN-CFG-004,Reject example-only profiles from certification or production loading,UT-CFG-004,IT-CFG-004,N/A,Signed profile class validation
-KRN-API-004,Non-re-entrant,UT-API-001,IT-API-001,N/A,Concurrency test
-KRN-API-005,Buffer ownership,UT-API-002,IT-API-002,N/A,Memory analysis
-KRN-API-006,Bounded callback timeouts,UT-API-003,IT-API-003,N/A,Callback timeout trace
-KRN-API-007,Stable error codes retrievable after terminal outcome,UT-API-004,IT-API-004,N/A,Last-error ABI query
-KRN-PINAPI-001,PED API returns status and secure handles only,UT-PINAPI-001,IT-PINAPI-001,PCI-PTS-PIN-006,Opaque handle ABI test
-KRN-PINAPI-002,Online PIN encrypted blocks are not copied into general kernel memory,UT-PINAPI-002,IT-PINAPI-002,PCI-PTS-PIN-007,ABI boundary review
-KRN-LOG-001,Formal log policy,UT-LOG-001,IT-LOG-001,PCI-PTS-LOG-001,Log config audit
-KRN-RNG-001,Obtain unpredictable numbers from approved platform RNG callback,UT-RNG-001,IT-RNG-001,N/A,RNG callback trace
-KRN-RNG-002,Reject all-zero or repeated unpredictable numbers,UT-RNG-002,IT-RNG-002,N/A,RNG failure injection
-KRN-ERR-001,Define every error code in a stable ABI table,UT-ERR-001,IT-ERR-001,N/A,ABI error table query
-KRN-ERR-002,Fail closed for unknown or unpermitted callback failures,UT-ERR-002,IT-ERR-002,N/A,Callback failure injection
-KRN-DPL-001,Support signed configuration updates,UT-DPL-001,IT-DPL-001,N/A,Verified profile update trace
-KRN-DPL-002,Reject rollback or replayed configuration versions,UT-DPL-002,IT-DPL-002,N/A,Monotonic version check
-KRN-DPL-003,Apply configuration updates atomically,UT-DPL-003,IT-DPL-003,N/A,Failed update preservation test
-KRN-DPL-004,Retain versioned configuration identity in transaction logs,UT-DPL-004,IT-DPL-004,N/A,Trace identity metadata
-KRN-CERT-003,EMVCo L2 certification,N/A,N/A,All EMVCo L2 tests,Lab submission + LoA
-KRN-CERT-004,Penetration test,UT-PEN-001,IT-PEN-001,N/A,Pen test report
 ```
+
+`docs/spec.md` SHALL NOT carry a duplicated inline RTM row set. Keeping the CSV
+annexes canonical prevents stale requirement coverage claims when lifecycle
+requirements, evidence references, or lab mappings change.
 
 ### Annex H – Lab Submission Manifest (`lab_submission_manifest.md`)
 
