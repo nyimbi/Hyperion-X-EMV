@@ -8,7 +8,9 @@ use hyperion_emv::c8::{
     StartSignal, UiRequest, UiStatus,
 };
 use hyperion_emv::cid::{Cid, CryptogramType};
-use hyperion_emv::config::{load_profile_set, BuildMode, ConfigLoadPolicy, SignatureStatus};
+use hyperion_emv::config::{
+    load_profile_set, BuildMode, ConfigLoadPolicy, ProfileClass, SignatureStatus,
+};
 use hyperion_emv::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome,
     Interface as CvmInterface, PedPinHandle,
@@ -193,6 +195,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-C8-001",
         "KRN-C8-002",
         "KRN-C8-003",
+        "KRN-CFG-004",
         "KRN-ODA-001",
         "KRN-ODA-005",
         "KRN-ODA-006",
@@ -490,6 +493,15 @@ fn profile_loader_requires_verified_signature_and_extracts_capk_tac_limits() {
         ..unsigned_policy
     };
     let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &verified_policy).unwrap();
+    assert_eq!(profiles.profile_class, ProfileClass::Certification);
+    assert_eq!(
+        profiles.profile_source.document,
+        "signed_certification_profile_bundle"
+    );
+    assert_eq!(
+        profiles.profile_source.verification,
+        "external_signature_required"
+    );
     assert_eq!(profiles.schemes.len(), 2);
     assert_eq!(profiles.schemes[0].rid, hex("A000000003").as_slice());
     assert_eq!(
@@ -581,6 +593,76 @@ fn profile_loader_rejects_rollback_placeholders_and_expired_capks() {
         load_profile_set(placeholder, &valid_policy).unwrap_err(),
         hyperion_emv::KernelError::InvalidProfile
     );
+}
+
+#[test]
+fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
+    let example_profile = br#"{
+      "profile_class": "EXAMPLE_ONLY",
+      "profile_source": {
+        "owner": "engineering",
+        "document": "example_profile",
+        "version": "1",
+        "verification": "test_only"
+      },
+      "scheme_profiles": [{
+        "scheme_name": "Visa",
+        "rid": "A000000003",
+        "kernel_type": "c8_contactless",
+        "taa_fallback_when_offline_unable_online": "AAC",
+        "taa_no_match_default_when_online_capable": "ARQC",
+        "taa_no_match_default_when_offline_only": "AAC",
+        "aids": [{
+          "aid": "A0000000031010",
+          "priority": 10,
+          "partial_selection": true,
+          "interfaces": ["contact"],
+          "tac_online": "E0F8C80000",
+          "tac_denial": "0000000000",
+          "tac_default": "8000000000",
+          "iac_online": "0000000000",
+          "iac_denial": "0000000000",
+          "iac_default": "0000000000",
+          "floor_limit": 0,
+          "cvm_limit_contact": 0,
+          "random_selection_percent": 0,
+          "contactless_transaction_limit": 0,
+          "contactless_cvm_limit": 0,
+          "cdcvm_supported": false,
+          "cda_supported": false
+        }],
+        "capks": [{
+          "key_index": 1,
+          "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+          "exponent_hex": "010001",
+          "expiry": "2030-12-31",
+          "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+        }]
+      }]
+    }"#;
+    let cert_policy = ConfigLoadPolicy {
+        mode: BuildMode::Certification,
+        signature_status: SignatureStatus::Verified,
+        installed_version: 1,
+        candidate_version: 2,
+        evaluation_date: EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        },
+    };
+    assert_eq!(
+        load_profile_set(example_profile, &cert_policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let test_policy = ConfigLoadPolicy {
+        mode: BuildMode::Test,
+        signature_status: SignatureStatus::NotPresent,
+        ..cert_policy
+    };
+    let profiles = load_profile_set(example_profile, &test_policy).unwrap();
+    assert_eq!(profiles.profile_class, ProfileClass::ExampleOnly);
 }
 
 #[test]

@@ -33,7 +33,23 @@ pub struct ConfigLoadPolicy {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProfileSet {
     pub version: u64,
+    pub profile_class: ProfileClass,
+    pub profile_source: ProfileSource,
     pub schemes: Vec<SchemeProfile>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProfileClass {
+    Certification,
+    ExampleOnly,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProfileSource {
+    pub owner: String,
+    pub document: String,
+    pub version: String,
+    pub verification: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -94,6 +110,8 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
 
     let root = JsonParser::new(json).parse()?;
     let object = root.as_object()?;
+    let profile_class = parse_profile_class(object, policy.mode)?;
+    let profile_source = parse_profile_source(object, profile_class, policy.mode)?;
     let schemes_value = object
         .get("scheme_profiles")
         .ok_or(KernelError::InvalidProfile)?;
@@ -108,7 +126,70 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
     }
     Ok(ProfileSet {
         version: policy.candidate_version,
+        profile_class,
+        profile_source,
         schemes,
+    })
+}
+
+fn parse_profile_class(
+    object: &BTreeMap<String, JsonValue>,
+    mode: BuildMode,
+) -> KernelResult<ProfileClass> {
+    let Some(value) = object.get("profile_class") else {
+        return match mode {
+            BuildMode::Test => Ok(ProfileClass::ExampleOnly),
+            BuildMode::Certification | BuildMode::Production => Err(KernelError::InvalidProfile),
+        };
+    };
+
+    match value.as_string()? {
+        "CERTIFICATION" => Ok(ProfileClass::Certification),
+        "EXAMPLE_ONLY" => match mode {
+            BuildMode::Test => Ok(ProfileClass::ExampleOnly),
+            BuildMode::Certification | BuildMode::Production => Err(KernelError::InvalidProfile),
+        },
+        _ => Err(KernelError::InvalidProfile),
+    }
+}
+
+fn parse_profile_source(
+    object: &BTreeMap<String, JsonValue>,
+    profile_class: ProfileClass,
+    mode: BuildMode,
+) -> KernelResult<ProfileSource> {
+    let Some(value) = object.get("profile_source") else {
+        return match (mode, profile_class) {
+            (BuildMode::Test, ProfileClass::ExampleOnly) => Ok(ProfileSource {
+                owner: "unspecified_test_profile".to_string(),
+                document: "inline_test_fixture".to_string(),
+                version: "0".to_string(),
+                verification: "test_only".to_string(),
+            }),
+            _ => Err(KernelError::InvalidProfile),
+        };
+    };
+    let source = value.as_object()?;
+    let owner = required_string(source, "owner")?;
+    let document = required_string(source, "document")?;
+    let version = required_string(source, "version")?;
+    let verification = required_string(source, "verification")?;
+
+    if profile_class == ProfileClass::Certification {
+        reject_placeholder(owner)?;
+        reject_placeholder(document)?;
+        reject_placeholder(version)?;
+        reject_placeholder(verification)?;
+        if verification != "external_signature_required" {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+
+    Ok(ProfileSource {
+        owner: owner.to_string(),
+        document: document.to_string(),
+        version: version.to_string(),
+        verification: verification.to_string(),
     })
 }
 
@@ -614,6 +695,13 @@ mod tests {
     use super::*;
 
     const VALID_PROFILE: &[u8] = br#"{
+      "profile_class": "CERTIFICATION",
+      "profile_source": {
+        "owner": "scheme_or_acquirer",
+        "document": "signed_certification_profile_bundle",
+        "version": "2",
+        "verification": "external_signature_required"
+      },
       "scheme_profiles": [{
         "scheme_name": "Visa",
         "rid": "A000000003",
@@ -671,6 +759,11 @@ mod tests {
         let profiles = load_profile_set(VALID_PROFILE, &policy(SignatureStatus::Verified)).unwrap();
 
         assert_eq!(profiles.schemes.len(), 1);
+        assert_eq!(profiles.profile_class, ProfileClass::Certification);
+        assert_eq!(
+            profiles.profile_source.document,
+            "signed_certification_profile_bundle"
+        );
         assert_eq!(profiles.schemes[0].rid, [0xa0, 0x00, 0x00, 0x00, 0x03]);
         assert_eq!(
             profiles.schemes[0].aids[0].action_codes.online,
@@ -713,6 +806,74 @@ mod tests {
     }
 
     #[test]
+    fn rejects_example_profile_in_certification_or_production_mode() {
+        let example = br#"{
+          "profile_class": "EXAMPLE_ONLY",
+          "profile_source": {
+            "owner": "engineering",
+            "document": "example_profile",
+            "version": "1",
+            "verification": "test_only"
+          },
+          "scheme_profiles": [{
+            "scheme_name": "Visa",
+            "rid": "A000000003",
+            "kernel_type": "c8_contactless",
+            "taa_fallback_when_offline_unable_online": "AAC",
+            "taa_no_match_default_when_online_capable": "ARQC",
+            "taa_no_match_default_when_offline_only": "AAC",
+            "aids": [{
+              "aid": "A0000000031010",
+              "priority": 10,
+              "partial_selection": true,
+              "interfaces": ["contact", "contactless"],
+              "tac_online": "E0F8C80000",
+              "tac_denial": "0000000000",
+              "tac_default": "8000000000",
+              "iac_online": "0000000000",
+              "iac_denial": "0000000000",
+              "iac_default": "0000000000",
+              "floor_limit": 0,
+              "cvm_limit_contact": 5000,
+              "random_selection_percent": 5,
+              "contactless_transaction_limit": 5000,
+              "contactless_cvm_limit": 3000,
+              "cdcvm_supported": true,
+              "cda_supported": true,
+              "critical_issuer_script_ins": ["E2"]
+            }],
+            "capks": [{
+              "key_index": 1,
+              "modulus_hex": "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+              "exponent_hex": "010001",
+              "expiry": "2030-12-31",
+              "checksum_hex": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"
+            }]
+          }]
+        }"#;
+
+        assert_eq!(
+            load_profile_set(example, &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let production = ConfigLoadPolicy {
+            mode: BuildMode::Production,
+            ..policy(SignatureStatus::Verified)
+        };
+        assert_eq!(
+            load_profile_set(example, &production).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let test = ConfigLoadPolicy {
+            mode: BuildMode::Test,
+            signature_status: SignatureStatus::NotPresent,
+            ..policy(SignatureStatus::Verified)
+        };
+        let profiles = load_profile_set(example, &test).unwrap();
+        assert_eq!(profiles.profile_class, ProfileClass::ExampleOnly);
+    }
+
+    #[test]
     fn rejects_expired_capk() {
         let expired = ConfigLoadPolicy {
             evaluation_date: EmvDate {
@@ -731,6 +892,13 @@ mod tests {
     #[test]
     fn rejects_invalid_critical_script_ins_policy() {
         let invalid = br#"{
+          "profile_class": "CERTIFICATION",
+          "profile_source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_profile_bundle",
+            "version": "2",
+            "verification": "external_signature_required"
+          },
           "scheme_profiles": [{
             "scheme_name": "Visa",
             "rid": "A000000003",
