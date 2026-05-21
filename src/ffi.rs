@@ -191,6 +191,7 @@ pub struct KrnContext {
     offline_auth_records: Vec<StaticAuthenticationRecord>,
     cvm_pin_handles: CvmPinHandles,
     cvm_capabilities: RuntimeCvmCapabilities,
+    terminal_capabilities: Option<[u8; 3]>,
     last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -222,6 +223,7 @@ impl KrnContext {
             offline_auth_records: Vec::new(),
             cvm_pin_handles: CvmPinHandles::none(),
             cvm_capabilities: RuntimeCvmCapabilities::default(),
+            terminal_capabilities: None,
             last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
@@ -250,6 +252,7 @@ impl KrnContext {
         self.offline_auth_records.clear();
         self.cvm_pin_handles = CvmPinHandles::none();
         self.cvm_capabilities = RuntimeCvmCapabilities::default();
+        self.terminal_capabilities = None;
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -406,11 +409,38 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.card_data = DataStore::new();
         ctx.cvm_pin_handles = CvmPinHandles::none();
         ctx.cvm_capabilities = RuntimeCvmCapabilities::default();
+        ctx.terminal_capabilities = None;
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
         Ok(0usize)
     });
     ctx.set_result(result)
+}
+
+/// Registers EMV tag 9F33 Terminal Capabilities for the current transaction.
+///
+/// Capabilities are cleared whenever new transaction parameters are set, so
+/// callers must set them after [`krn_set_transaction_params`] for each
+/// transaction that needs non-zero 9F33 data in PDOL/CDOL construction.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_terminal_capabilities(
+    ctx: *mut KrnContext,
+    byte1: u8,
+    byte2: u8,
+    byte3: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    ctx.terminal_capabilities = Some([byte1, byte2, byte3]);
+    ctx.set_result(Ok(0usize))
 }
 
 /// Registers terminal/PED CVM capabilities for the current transaction.
@@ -1328,6 +1358,7 @@ fn transaction_data_store(
     transaction_date: EmvDate,
     tvr: Tvr,
     tsi: Tsi,
+    terminal_capabilities: Option<[u8; 3]>,
 ) -> Result<DataStore, KernelError> {
     let mut data = DataStore::new();
     data.put(
@@ -1348,6 +1379,9 @@ fn transaction_data_store(
     )?;
     data.put(&[0x9c], &[params.transaction_type])?;
     data.put(&[0x9a], &emv_date_bcd(transaction_date))?;
+    if let Some(terminal_capabilities) = terminal_capabilities {
+        data.put(&[0x9f, 0x33], &terminal_capabilities)?;
+    }
     data.put(&[0x9f, 0x35], &[params.terminal_type])?;
     data.put(&[0x9f, 0x15], &params.merchant_category_code)?;
     if !params.merchant_name_location.is_empty() {
@@ -2811,6 +2845,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         transaction_date,
         ctx.tvr,
         ctx.tsi,
+        ctx.terminal_capabilities,
     ) {
         Ok(data) => data,
         Err(err) => {

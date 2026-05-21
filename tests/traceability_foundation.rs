@@ -27,9 +27,9 @@ use hyperion_emv::ffi::{
     krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
     krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
     krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
-    krn_set_cvm_capabilities, krn_set_offline_pin_handle, krn_set_transaction_params, KrnOutcome,
-    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
-    KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
+    krn_set_cvm_capabilities, krn_set_offline_pin_handle, krn_set_terminal_capabilities,
+    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
+    KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -70,6 +70,7 @@ use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 const LEGACY_RTM: &str = include_str!("../docs/requirements-traceability-matrix.csv");
 const CURRENT_RTM: &str = include_str!("../docs/requirements_traceability.csv");
@@ -92,6 +93,11 @@ static IT_TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
 struct CvmMethodScript {
     counter: AtomicUsize,
     cvm_code: u8,
+}
+
+struct TerminalCapabilitiesScript {
+    counter: AtomicUsize,
+    commands: Mutex<Vec<Vec<u8>>>,
 }
 
 unsafe extern "C" fn it_transmit_apdu(
@@ -156,6 +162,24 @@ unsafe extern "C" fn it_cvm_method_transmit_apdu(
     IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
     IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
     write_cvm_method_response(command, count, script.cvm_code, resp, resp_len)
+}
+
+unsafe extern "C" fn it_terminal_capabilities_transmit_apdu(
+    cmd: *const u8,
+    cmd_len: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+    timeout_ms: i32,
+    user_data: *mut c_void,
+) -> i32 {
+    let command = std::slice::from_raw_parts(cmd, cmd_len);
+    let script = &*(user_data as *const TerminalCapabilitiesScript);
+    let count = script.counter.fetch_add(1, Ordering::SeqCst);
+    script.commands.lock().unwrap().push(command.to_vec());
+    IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+    IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+    IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    write_terminal_capabilities_response(command, count, resp, resp_len)
 }
 
 unsafe extern "C" fn it_host_timeout_transmit_apdu(
@@ -259,6 +283,25 @@ unsafe fn write_cvm_method_response(
     hyperion_emv::KernelError::Ok.code()
 }
 
+unsafe fn write_terminal_capabilities_response(
+    command: &[u8],
+    count: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+) -> i32 {
+    let response = match count {
+        1 => hex("6F148407A0000000031010A5099F38069F33039F37049000"),
+        _ => return write_scripted_response(command, count, resp, resp_len),
+    };
+    let capacity = *resp_len;
+    *resp_len = response.len();
+    if capacity < response.len() {
+        return hyperion_emv::KernelError::BufferTooSmall.code();
+    }
+    ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+    hyperion_emv::KernelError::Ok.code()
+}
+
 unsafe extern "C" fn it_unpredictable_number(
     out: *mut u8,
     out_len: usize,
@@ -302,6 +345,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-TVR-002",
         "KRN-TVR-003",
         "KRN-TSI-001",
+        "KRN-TERMCAP-001",
         "KRN-CID-001",
         "KRN-CVM-001",
         "KRN-CVM-002",
@@ -441,6 +485,13 @@ fn both_rtms_cover_pin_and_cvm_results_rows_independently() {
         assert!(CURRENT_RTM.contains(krn_id), "current RTM missing {krn_id}");
         assert!(LEGACY_RTM.contains(krn_id), "legacy RTM missing {krn_id}");
     }
+}
+
+#[test]
+fn both_rtms_cover_terminal_capability_rows_independently() {
+    let krn_id = "KRN-TERMCAP-001";
+    assert!(CURRENT_RTM.contains(krn_id), "current RTM missing {krn_id}");
+    assert!(LEGACY_RTM.contains(krn_id), "legacy RTM missing {krn_id}");
 }
 
 #[test]
@@ -1971,6 +2022,99 @@ fn krn_cvmcap_001_uses_terminal_cvm_capabilities_from_abi() {
             tlv::find_first(&cdcvm_tlvs, &[0x9f, 0x34]),
             Some(&[0x20, 0x00, 0x02][..])
         );
+    }
+}
+
+#[test]
+fn krn_termcap_001_supplies_9f33_to_pdol_and_online_handoff() {
+    unsafe {
+        assert_eq!(
+            krn_set_terminal_capabilities(ptr::null_mut(), 0xe0, 0xb0, 0xc8),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+
+        let script = TerminalCapabilitiesScript {
+            counter: AtomicUsize::new(0),
+            commands: Mutex::new(Vec::new()),
+        };
+        let mut ctx = ptr::null_mut();
+        let runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_terminal_capabilities_transmit_apdu),
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: &script as *const TerminalCapabilitiesScript as *mut c_void,
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &runtime, &mut ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let params = KrnTxnParams {
+            struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_500,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 0,
+        };
+        assert_eq!(
+            krn_set_transaction_params(ctx, &params),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_set_terminal_capabilities(ctx, 0xe0, 0xb0, 0xc8),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired as i32);
+
+        let commands = script.commands.lock().unwrap();
+        assert!(
+            commands
+                .iter()
+                .any(|command| command == &hex("80A80000098307E0B0C80102030400")),
+            "GPO command did not include 9F33 PDOL bytes"
+        );
+        drop(commands);
+
+        let mut auth_len = 0usize;
+        assert_eq!(
+            krn_get_online_authorization_data(ctx, ptr::null_mut(), &mut auth_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut auth = vec![0u8; auth_len];
+        assert_eq!(
+            krn_get_online_authorization_data(ctx, auth.as_mut_ptr(), &mut auth_len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let auth_tlvs = tlv::parse_many(&auth).unwrap();
+        assert_eq!(
+            tlv::find_first(&auth_tlvs, &[0x9f, 0x33]),
+            Some(&[0xe0, 0xb0, 0xc8][..])
+        );
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        krn_context_free(ctx);
     }
 }
 

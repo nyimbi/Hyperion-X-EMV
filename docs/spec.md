@@ -295,6 +295,7 @@ KRN-TVR-001,Symbolic constants for TVR,UT-TVR-001,IT-TVR-001,EMV-L2-TVR-001,Code
 KRN-TVR-002,TVR cleared before each transaction,UT-TVR-002,IT-TVR-002,EMV-L2-TVR-002,Unit test log
 KRN-TVR-003,RFU bits not set,UT-TVR-003,IT-TVR-003,EMV-L2-TVR-003,TVR trace
 KRN-TSI-001,TSI bits set correctly,UT-TSI-001,IT-TSI-001,EMV-L2-TSI-001,TSI trace
+KRN-TERMCAP-001,Terminal Capabilities 9F33 supplied through stable ABI and included in DOL data,UT-TERMCAP-001,IT-TERMCAP-001,EMV-L2-TERM-001,PDOL and online handoff evidence
 KRN-CID-001,CID decode with mask 0xC0,UT-CID-001,IT-CID-001,EMV-L2-CID-001,CID logs
 KRN-CVM-001,CVM List parsing and limits,UT-CVM-001,IT-CVM-001,EMV-L2-CVM-001,CVM trace
 KRN-CVM-002,TVR byte3 bits on CVM outcome,UT-CVM-002,IT-CVM-002,EMV-L2-CVM-002,TVR after CVM

@@ -9,6 +9,7 @@ KRN-TVR-001,Kernel SHALL use symbolic constants for TVR bits; raw hex SHALL NOT 
 KRN-TVR-002,Kernel SHALL clear TVR before each transaction.,UT-TVR-002,IT-TVR-002,EMV-L2-TVR-002,Unit test log
 KRN-TVR-003,Kernel SHALL implement all RFU bits as reserved; SHALL NOT set them.,UT-TVR-003,IT-TVR-003,EMV-L2-TVR-003,TVR trace
 KRN-TSI-001,Kernel SHALL set TSI bits as defined.,UT-TSI-001,IT-TSI-001,EMV-L2-TSI-001,TSI trace
+KRN-TERMCAP-001,Kernel SHALL accept Terminal Capabilities tag 9F33 through a stable ABI and use it in DOL data.,UT-TERMCAP-001,IT-TERMCAP-001,EMV-L2-TERM-001,PDOL and online handoff evidence
 KRN-CID-001,Kernel SHALL decode CID using mask 0xC0 and mapping.,UT-CID-001,IT-CID-001,EMV-L2-CID-001,CID response logs
 KRN-CVM-001,"Kernel SHALL parse CVM List, evaluate condition codes, enforce amount limits.",UT-CVM-001,IT-CVM-001,EMV-L2-CVM-001,CVM trace
 KRN-CVM-002,Kernel SHALL set TVR byte 3 bits based on CVM outcome.,UT-CVM-002,IT-CVM-002,EMV-L2-CVM-002,TVR after CVM
