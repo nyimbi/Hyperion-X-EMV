@@ -15,7 +15,8 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
-    krn_apply_host_response, krn_context_free, krn_context_new, krn_get_final_outcome,
+    krn_apply_host_response, krn_context_free, krn_context_new, krn_error_code_at,
+    krn_error_description, krn_error_name, krn_error_table_len, krn_get_final_outcome,
     krn_get_fsm_state, krn_get_issuer_script_result, krn_get_issuer_script_result_count,
     krn_get_last_error, krn_get_online_authorization_data, krn_get_profile_version, krn_init,
     krn_load_profiles_verified, krn_process_final_generate_ac, krn_process_issuer_authentication,
@@ -213,6 +214,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-DPL-004",
         "KRN-RNG-001",
         "KRN-RNG-002",
+        "KRN-ERR-001",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -234,6 +236,7 @@ fn corrected_spec_contains_logging_and_replay_requirements() {
         "KRN-LOG-004",
         "KRN-RNG-001",
         "KRN-RNG-002",
+        "KRN-ERR-001",
     ] {
         assert!(
             CORRECTED_SPEC.contains(krn_id),
@@ -992,6 +995,57 @@ fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
         );
         assert_eq!(krn_get_fsm_state(repeated_ctx), FsmState::Se.code());
         krn_context_free(repeated_ctx);
+    }
+}
+
+#[test]
+fn krn_err_001_exposes_stable_abi_error_table() {
+    unsafe {
+        assert!(krn_error_table_len() >= 14);
+
+        let mut first_code = -1i32;
+        assert_eq!(
+            krn_error_code_at(0, &mut first_code),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(first_code, hyperion_emv::KernelError::Ok.code());
+
+        let mut rng_code = -1i32;
+        assert_eq!(
+            krn_error_code_at(13, &mut rng_code),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(rng_code, hyperion_emv::KernelError::RngFailure.code());
+
+        let mut len = 0usize;
+        assert_eq!(
+            krn_error_name(rng_code, ptr::null_mut(), &mut len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut name = vec![0u8; len];
+        assert_eq!(
+            krn_error_name(rng_code, name.as_mut_ptr(), &mut len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(&name, b"KRN_ERR_RNG_FAILURE");
+
+        let mut description_len = 0usize;
+        assert_eq!(
+            krn_error_description(rng_code, ptr::null_mut(), &mut description_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut description = vec![0u8; description_len];
+        assert_eq!(
+            krn_error_description(rng_code, description.as_mut_ptr(), &mut description_len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let description = core::str::from_utf8(&description).unwrap();
+        assert!(description.contains("RNG"));
+
+        assert_eq!(
+            krn_error_name(9_999, ptr::null_mut(), &mut len),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
     }
 }
 

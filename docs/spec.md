@@ -325,6 +325,7 @@ KRN-API-006,Required API functions,UT-API-003,IT-API-003,N/A,API coverage
 KRN-LOG-001,Formal log policy,UT-LOG-001,IT-LOG-001,PCI-PTS-LOG-001,Log config audit
 KRN-RNG-001,Obtain unpredictable numbers from approved platform RNG callback,UT-RNG-001,IT-RNG-001,N/A,RNG callback trace
 KRN-RNG-002,Reject all-zero or repeated unpredictable numbers,UT-RNG-002,IT-RNG-002,N/A,RNG failure injection
+KRN-ERR-001,Define every error code in a stable ABI table,UT-ERR-001,IT-ERR-001,N/A,ABI error table query
 KRN-DPL-004,Retain versioned configuration identity in transaction logs,UT-DPL-004,IT-DPL-004,N/A,Trace identity metadata
 KRN-CERT-003,EMVCo L2 certification,N/A,N/A,All EMVCo L2 tests,Lab submission + LoA
 KRN-CERT-004,Penetration test,UT-PEN-001,IT-PEN-001,N/A,Pen test report

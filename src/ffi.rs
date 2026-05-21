@@ -13,7 +13,7 @@ use crate::cvm::{
     Interface as CvmInterface,
 };
 use crate::dol::{build_dol, parse_dol, DataStore};
-use crate::error::KernelError;
+use crate::error::{KernelError, ERROR_TABLE};
 use crate::fsm::{self, FsmEvent, FsmState};
 use crate::gac::{
     build_online_authorization_package, parse_generate_ac_response, GenerateAcResponse,
@@ -866,6 +866,68 @@ pub unsafe extern "C" fn krn_emit_contactless_outcome(
 #[no_mangle]
 pub extern "C" fn krn_abi_version() -> u32 {
     KRN_ABI_VERSION
+}
+
+#[no_mangle]
+pub extern "C" fn krn_error_table_len() -> usize {
+    ERROR_TABLE.len()
+}
+
+/// Copies the stable error code at `index` in the ABI error table.
+///
+/// # Safety
+///
+/// `out_code` must point to writable `i32` storage.
+#[no_mangle]
+pub unsafe extern "C" fn krn_error_code_at(index: usize, out_code: *mut i32) -> i32 {
+    if out_code.is_null() {
+        return KernelError::InvalidArgument.code();
+    }
+    let Some(error) = ERROR_TABLE.get(index).copied() else {
+        return KernelError::InvalidArgument.code();
+    };
+    unsafe {
+        *out_code = error.code();
+    }
+    KernelError::Ok.code()
+}
+
+/// Copies the symbolic stable name for an ABI error code.
+///
+/// # Safety
+///
+/// `out_len` must point to writable `usize` storage. `out` may be null only for
+/// length probing; otherwise it must point to `*out_len` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn krn_error_name(error_code: i32, out: *mut u8, out_len: *mut usize) -> i32 {
+    let Some(error) = KernelError::from_code(error_code) else {
+        return KernelError::InvalidArgument.code();
+    };
+    match write_output(error.name().as_bytes(), out, out_len) {
+        Ok(_) => KernelError::Ok.code(),
+        Err(err) => err.code(),
+    }
+}
+
+/// Copies the stable human-readable description for an ABI error code.
+///
+/// # Safety
+///
+/// `out_len` must point to writable `usize` storage. `out` may be null only for
+/// length probing; otherwise it must point to `*out_len` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn krn_error_description(
+    error_code: i32,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(error) = KernelError::from_code(error_code) else {
+        return KernelError::InvalidArgument.code();
+    };
+    match write_output(error.description().as_bytes(), out, out_len) {
+        Ok(_) => KernelError::Ok.code(),
+        Err(err) => err.code(),
+    }
 }
 
 #[no_mangle]
@@ -2668,6 +2730,62 @@ mod tests {
             assert_eq!(len, 20);
             assert_eq!(krn_get_last_error(ctx), KernelError::BufferTooSmall.code());
             krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_exposes_stable_error_table() {
+        unsafe {
+            assert_eq!(krn_error_table_len(), ERROR_TABLE.len());
+
+            let mut script_failed_code = 0i32;
+            assert_eq!(
+                krn_error_code_at(11, &mut script_failed_code),
+                KernelError::Ok.code()
+            );
+            assert_eq!(script_failed_code, KernelError::ScriptFailed.code());
+            assert_eq!(
+                krn_error_code_at(ERROR_TABLE.len(), &mut script_failed_code),
+                KernelError::InvalidArgument.code()
+            );
+
+            let mut len = 0usize;
+            assert_eq!(
+                krn_error_name(KernelError::RngFailure.code(), ptr::null_mut(), &mut len),
+                KernelError::BufferTooSmall.code()
+            );
+            assert_eq!(len, "KRN_ERR_RNG_FAILURE".len());
+            let mut name = vec![0u8; len];
+            assert_eq!(
+                krn_error_name(KernelError::RngFailure.code(), name.as_mut_ptr(), &mut len),
+                KernelError::Ok.code()
+            );
+            assert_eq!(&name, b"KRN_ERR_RNG_FAILURE");
+
+            let mut description_len = 0usize;
+            assert_eq!(
+                krn_error_description(
+                    KernelError::RngFailure.code(),
+                    ptr::null_mut(),
+                    &mut description_len,
+                ),
+                KernelError::BufferTooSmall.code()
+            );
+            let mut description = vec![0u8; description_len];
+            assert_eq!(
+                krn_error_description(
+                    KernelError::RngFailure.code(),
+                    description.as_mut_ptr(),
+                    &mut description_len,
+                ),
+                KernelError::Ok.code()
+            );
+            let description = core::str::from_utf8(&description).unwrap();
+            assert!(description.contains("RNG"));
+            assert_eq!(
+                krn_error_name(9_999, ptr::null_mut(), &mut len),
+                KernelError::InvalidArgument.code()
+            );
         }
     }
 
