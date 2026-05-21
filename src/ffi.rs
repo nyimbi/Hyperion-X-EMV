@@ -1,8 +1,9 @@
 use crate::afl::{record_plan, AflEntry};
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest, Interface};
 use crate::c8::{
-    AlternateInterface, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
-    StartSignal, UiRequest, UiStatus,
+    evaluate_contactless_limits, outcome_from_limit_decision, AlternateInterface,
+    ContactlessLimitDecision, ContactlessLimitInput, ContactlessOutcome, ContactlessOutcomeCode,
+    KrnContactlessOutcome, StartSignal, UiRequest, UiStatus,
 };
 use crate::cid::CryptogramType;
 use crate::config::{
@@ -1743,6 +1744,91 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
     Ok(())
 }
 
+fn run_contactless_limit_processing(
+    ctx: &mut KrnContext,
+    profiles: &ProfileSet,
+    params: &StoredTxnParams,
+) -> Result<Option<KrnOutcome>, KernelError> {
+    if params.interface_preference != 2 {
+        return Ok(None);
+    }
+    let selected = ctx
+        .selected_application
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let scheme = profiles
+        .schemes
+        .get(selected.scheme_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    if scheme.kernel_type != "c8_contactless" {
+        return Ok(None);
+    }
+    let aid = scheme
+        .aids
+        .get(selected.aid_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    if !aid
+        .interfaces
+        .iter()
+        .any(|interface| interface == "contactless")
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let decision = evaluate_contactless_limits(ContactlessLimitInput {
+        amount_authorised_minor: params.amount_authorised_minor,
+        contactless_transaction_limit: aid.contactless_transaction_limit,
+        contactless_cvm_limit: aid.contactless_cvm_limit,
+        floor_limit: aid.floor_limit,
+        cvm_satisfied: contactless_cvm_satisfied(ctx, aid),
+    });
+
+    match decision {
+        ContactlessLimitDecision::Allowed => Ok(None),
+        ContactlessLimitDecision::OnlineRequired => {
+            emit_contactless_outcome_value(ctx, &outcome_from_limit_decision(decision)?)?;
+            Ok(None)
+        }
+        ContactlessLimitDecision::CvmRequired => {
+            emit_contactless_outcome_value(ctx, &outcome_from_limit_decision(decision)?)?;
+            ctx.fsm_state = FsmState::S16;
+            ctx.state = KernelState::FinalOutcome;
+            ctx.final_outcome = Some(KrnOutcome::TryAgain);
+            ctx.last_error = KernelError::Ok;
+            Ok(Some(KrnOutcome::TryAgain))
+        }
+        ContactlessLimitDecision::AlternateInterface => {
+            emit_contactless_outcome_value(ctx, &outcome_from_limit_decision(decision)?)?;
+            ctx.fsm_state = FsmState::S16;
+            ctx.state = KernelState::FinalOutcome;
+            ctx.final_outcome = Some(KrnOutcome::AlternateInterface);
+            ctx.last_error = KernelError::Ok;
+            Ok(Some(KrnOutcome::AlternateInterface))
+        }
+    }
+}
+
+fn is_final_outcome_state(ctx: &KrnContext) -> bool {
+    ctx.state == KernelState::FinalOutcome && matches!(ctx.fsm_state, FsmState::S14 | FsmState::S16)
+}
+
+fn contactless_cvm_satisfied(ctx: &KrnContext, aid: &AidProfile) -> bool {
+    let cvm_result_succeeded = ctx
+        .card_data
+        .get(&[0x9f, 0x34])
+        .is_some_and(|result| result.len() == 3 && result[2] == 0x02);
+    cvm_result_succeeded || contactless_ctq_indicates_cdcvm(ctx, aid)
+}
+
+fn contactless_ctq_indicates_cdcvm(ctx: &KrnContext, aid: &AidProfile) -> bool {
+    aid.cdcvm_supported
+        && ctx
+            .card_data
+            .get(&[0x9f, 0x6c])
+            .and_then(|ctq| ctq.first())
+            .is_some_and(|byte| byte & 0x10 != 0)
+}
+
 fn transaction_currency_matches_application(
     data: &DataStore,
     params: &StoredTxnParams,
@@ -2598,6 +2684,16 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
         }
+        match run_contactless_limit_processing(ctx, &profiles, &params) {
+            Ok(Some(outcome)) => return outcome,
+            Ok(None) => {}
+            Err(err) => {
+                ctx.last_error = err;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
+        }
     }
     if ctx.fsm_state == FsmState::S8 {
         if let Err(err) = run_terminal_risk_management(ctx, &profiles, &params) {
@@ -2614,7 +2710,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             ctx.fsm_state = FsmState::Se;
             return KrnOutcome::Error;
         }
-        if ctx.fsm_state == FsmState::S14 && ctx.state == KernelState::FinalOutcome {
+        if is_final_outcome_state(ctx) {
             return match finish_offline_outcome_from_taa(ctx) {
                 Ok(outcome) => outcome,
                 Err(err) => {
@@ -2638,7 +2734,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
                 ctx.last_error = KernelError::Ok;
                 return KrnOutcome::OnlineRequired;
             }
-            FsmState::S14 if ctx.state == KernelState::FinalOutcome => {
+            _ if is_final_outcome_state(ctx) => {
                 return match finish_offline_outcome_from_first_gac(ctx) {
                     Ok(outcome) => outcome,
                     Err(err) => {
@@ -2770,6 +2866,20 @@ unsafe fn emit_contactless_outcome(
     )?;
     let view = outcome.as_ffi();
     callback(&view, ctx.contactless_outcome_user_data);
+    Ok(())
+}
+
+fn emit_contactless_outcome_value(
+    ctx: &mut KrnContext,
+    outcome: &ContactlessOutcome,
+) -> Result<(), KernelError> {
+    let callback = ctx
+        .contactless_outcome_callback
+        .ok_or(KernelError::InvalidArgument)?;
+    let view = outcome.as_ffi();
+    unsafe {
+        callback(&view, ctx.contactless_outcome_user_data);
+    }
     Ok(())
 }
 
@@ -2939,6 +3049,29 @@ mod tests {
         ctx.first_gac_response.as_mut().unwrap().cid = crate::cid::Cid::new(0x00);
         assert_eq!(
             finish_offline_outcome_from_first_gac(&mut ctx),
+            Ok(KrnOutcome::DeclinedOffline)
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
+    }
+
+    #[test]
+    fn taa_offline_final_state_finishes_from_s16() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.fsm_state = FsmState::S9;
+        ctx.state = KernelState::TerminalActionAnalysis;
+        ctx.tvr.set(Tvr::B1_SDA_FAILED);
+        ctx.card_data
+            .put(&[0x9f, 0x0e], &[0x40, 0x00, 0x00, 0x00, 0x00])
+            .unwrap();
+
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(run_terminal_action_analysis(&mut ctx, &profiles), Ok(()));
+        assert!(is_final_outcome_state(&ctx));
+        assert_eq!(ctx.fsm_state, FsmState::S16);
+        assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Aac));
+        assert_eq!(
+            finish_offline_outcome_from_taa(&mut ctx),
             Ok(KrnOutcome::DeclinedOffline)
         );
         assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
@@ -3306,6 +3439,117 @@ mod tests {
                 ContactlessOutcomeCode::OnlineRequired as u8
             );
             assert_eq!(CALLBACK_DATA_RECORD_LEN.load(Ordering::SeqCst), 4);
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn contactless_limit_processing_uses_profile_limits_and_ctq_cdcvm() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.contactless_outcome_callback = Some(capture_contactless_outcome);
+        ctx.contactless_outcome_user_data = ptr::null_mut();
+        ctx.card_data
+            .put(&[0x9f, 0x34], &[0x01, 0x00, 0x01])
+            .unwrap();
+        let profiles = ctx.profiles.clone().unwrap();
+        let params = StoredTxnParams {
+            amount_authorised_minor: 4_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 2,
+            merchant_name_location: Vec::new(),
+        };
+
+        CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+        assert_eq!(
+            run_contactless_limit_processing(&mut ctx, &profiles, &params),
+            Ok(Some(KrnOutcome::TryAgain))
+        );
+        assert_eq!(
+            CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst),
+            ContactlessOutcomeCode::CvmRequired as u8
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::TryAgain));
+
+        ctx.fsm_state = FsmState::S8;
+        ctx.state = KernelState::TerminalRiskManagement;
+        ctx.final_outcome = None;
+        ctx.card_data.put(&[0x9f, 0x6c], &[0x10]).unwrap();
+        CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+        assert_eq!(
+            run_contactless_limit_processing(&mut ctx, &profiles, &params),
+            Ok(None)
+        );
+        assert_eq!(CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst), 0);
+        assert_eq!(ctx.final_outcome, None);
+    }
+
+    #[test]
+    fn contactless_run_emits_c8_alternate_interface_before_first_gac() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        unsafe {
+            CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+            CALLBACK_DATA_RECORD_LEN.store(usize::MAX, Ordering::SeqCst);
+            let mut ctx = ptr::null_mut();
+            let runtime = KrnRuntime {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnRuntime>() as u32,
+                transmit_apdu: Some(capture_select_apdu),
+                get_unpredictable_number: Some(fill_unpredictable_number),
+                contactless_outcome: Some(capture_contactless_outcome),
+                user_data: ptr::null_mut(),
+            };
+            assert_eq!(
+                krn_init(ptr::null(), &runtime, &mut ctx),
+                KernelError::Ok.code()
+            );
+            let profiles = include_bytes!("../docs/scheme_profiles.cert.json");
+            assert_eq!(
+                krn_load_profiles_verified(ctx, profiles.as_ptr(), profiles.len(), 1, 2, 26, 5, 21),
+                KernelError::Ok.code()
+            );
+
+            let params = KrnTxnParams {
+                struct_size: mem::size_of::<KrnTxnParams>() as u32,
+                amount_authorised_minor: 5_001,
+                amount_other_minor: 0,
+                currency_code: 840,
+                terminal_country_code: 840,
+                transaction_type: 0,
+                terminal_type: 0x22,
+                merchant_category_code: [0x53, 0x11],
+                interface_preference: 2,
+                merchant_name_location: ptr::null(),
+                merchant_name_location_len: 0,
+            };
+            assert_eq!(
+                krn_set_transaction_params(ctx, &params),
+                KernelError::Ok.code()
+            );
+            TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+            assert_eq!(
+                krn_run_transaction(ctx),
+                KrnOutcome::AlternateInterface.code()
+            );
+            assert_eq!(
+                CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst),
+                ContactlessOutcomeCode::AlternateInterface as u8
+            );
+            assert_eq!(CALLBACK_DATA_RECORD_LEN.load(Ordering::SeqCst), 0);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 4);
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xb2);
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S16.code());
+            assert_eq!(krn_get_last_error(ctx), KernelError::Ok.code());
+            assert_eq!(
+                ctx.as_ref().unwrap().final_outcome,
+                Some(KrnOutcome::AlternateInterface)
+            );
             krn_context_free(ctx);
         }
     }
