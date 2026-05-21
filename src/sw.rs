@@ -25,6 +25,7 @@ pub enum ApduContext {
     ReadRecord,
     Verify,
     GenerateAc,
+    ExternalAuthenticate,
     IssuerScript { critical: bool },
 }
 
@@ -80,6 +81,9 @@ pub fn classify(context: ApduContext, sw: StatusWord) -> StatusAction {
         },
         (ApduContext::GenerateAc, _, _) => StatusAction::Fail {
             error: KernelError::CardRemoved,
+        },
+        (ApduContext::ExternalAuthenticate, _, _) => StatusAction::Fail {
+            error: KernelError::InvalidArgument,
         },
         (ApduContext::IssuerScript { critical: false }, 0x63, _)
         | (ApduContext::IssuerScript { critical: false }, 0x6a, _)
@@ -161,6 +165,15 @@ mod tests {
             ),
             StatusAction::Fail {
                 error: KernelError::ScriptFailed
+            }
+        );
+        assert_eq!(
+            classify(
+                ApduContext::ExternalAuthenticate,
+                StatusWord::new(0x69, 0x85)
+            ),
+            StatusAction::Fail {
+                error: KernelError::InvalidArgument
             }
         );
     }

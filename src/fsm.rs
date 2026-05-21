@@ -96,6 +96,8 @@ pub enum FsmEvent {
     HostArpc,
     HostApprovalNoArpc,
     HostTimeout,
+    IssuerAuthenticationSuccess,
+    IssuerAuthenticationFailure,
     Gac2Tc,
     Gac2Aac,
     Gac2Failed,
@@ -303,14 +305,12 @@ pub fn transition(state: FsmState, event: FsmEvent) -> KernelResult<Transition> 
         (FsmState::S11, FsmEvent::HostTimeout) => {
             (FsmState::Se, FsmAction::Error, KernelError::HostTimeout)
         }
-        (FsmState::S12, FsmEvent::Gac2Tc) | (FsmState::S12, FsmEvent::Gac2Aac) => (
+        (FsmState::S12, FsmEvent::IssuerAuthenticationSuccess)
+        | (FsmState::S12, FsmEvent::IssuerAuthenticationFailure) => (
             FsmState::S13,
             FsmAction::ProcessIssuerScripts,
             KernelError::Ok,
         ),
-        (FsmState::S12, FsmEvent::Gac2Failed) => {
-            (FsmState::Se, FsmAction::Error, KernelError::CardRemoved)
-        }
         (FsmState::S13, FsmEvent::ScriptAvailable) => (
             FsmState::S13Script,
             FsmAction::ProcessIssuerScripts,
@@ -487,6 +487,23 @@ mod tests {
         let fatal = transition(FsmState::S3, FsmEvent::GpoFailed).unwrap();
         assert_eq!(fatal.to, FsmState::Se);
         assert_eq!(fatal.error, KernelError::MissingMandatoryTag);
+    }
+
+    #[test]
+    fn issuer_authentication_advances_to_script_processing_without_gac2_overload() {
+        for event in [
+            FsmEvent::IssuerAuthenticationSuccess,
+            FsmEvent::IssuerAuthenticationFailure,
+        ] {
+            let transition = transition(FsmState::S12, event).unwrap();
+            assert_eq!(transition.to, FsmState::S13);
+            assert_eq!(transition.action, FsmAction::ProcessIssuerScripts);
+            assert_eq!(transition.error, KernelError::Ok);
+        }
+        assert_eq!(
+            transition(FsmState::S12, FsmEvent::Gac2Tc).unwrap_err(),
+            KernelError::InvalidArgument
+        );
     }
 
     #[test]

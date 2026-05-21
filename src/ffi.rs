@@ -566,6 +566,37 @@ pub unsafe extern "C" fn krn_apply_host_response(
     ctx.set_result(result)
 }
 
+/// Processes S12 issuer authentication using host-provided tag `91`.
+///
+/// This sends EXTERNAL AUTHENTICATE with the issuer authentication data that
+/// was previously supplied through `krn_apply_host_response`. The kernel does
+/// not generate ARPC or hold issuer keys; it only forwards the host-provided
+/// value to the card and records TSI/TVR according to the card response.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. Calls for the same
+/// context must be serialized by the integration layer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_process_issuer_authentication(ctx: *mut KrnContext) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if ctx.busy {
+        ctx.last_error = KernelError::Busy;
+        return KernelError::Busy.code();
+    }
+    let Some(runtime) = ctx.runtime else {
+        ctx.last_error = KernelError::InvalidArgument;
+        return KernelError::InvalidArgument.code();
+    };
+
+    ctx.busy = true;
+    let result = run_issuer_authentication(ctx, runtime).map(|()| 0usize);
+    ctx.busy = false;
+    ctx.set_result(result)
+}
+
 /// Registers the contactless outcome callback used by C-8/contactless flows.
 ///
 /// # Safety
@@ -1421,6 +1452,39 @@ fn apply_host_response(ctx: &mut KrnContext, bytes: &[u8]) -> Result<(), KernelE
     Ok(())
 }
 
+fn run_issuer_authentication(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+) -> Result<(), KernelError> {
+    if ctx.fsm_state != FsmState::S12 {
+        return Err(KernelError::InvalidArgument);
+    }
+    let issuer_authentication_data = ctx
+        .host_response
+        .as_ref()
+        .and_then(|response| response.issuer_authentication_data.as_deref())
+        .ok_or(KernelError::InvalidArgument)?;
+    let command = apdu::external_authenticate(issuer_authentication_data)?.encode()?;
+    let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
+    if response.len() < 2 {
+        return Err(KernelError::ParseError);
+    }
+    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+
+    ctx.tsi.set(Tsi::ISSUER_AUTHENTICATION_PERFORMED);
+    let event = if sw.is_success() {
+        FsmEvent::IssuerAuthenticationSuccess
+    } else {
+        ctx.tvr.set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED);
+        FsmEvent::IssuerAuthenticationFailure
+    };
+    ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
+    ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
+    apply_transition(ctx, event)?;
+    ctx.state = KernelState::IssuerScripts;
+    Ok(())
+}
+
 fn issuer_action_codes(data: &DataStore) -> Result<ActionCodes, KernelError> {
     Ok(ActionCodes {
         denial: optional_fixed::<5>(data, &[0x9f, 0x0e])?.unwrap_or([0; 5]),
@@ -1936,6 +2000,8 @@ mod tests {
     static TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
     static TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
     static TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
+    static ISSUER_AUTH_SW1: AtomicU8 = AtomicU8::new(0x90);
+    static ISSUER_AUTH_SW2: AtomicU8 = AtomicU8::new(0x00);
 
     unsafe extern "C" fn capture_contactless_outcome(
         outcome: *const KrnContactlessOutcome,
@@ -1980,10 +2046,14 @@ mod tests {
                 0x00, 0x00, 0x00, 0x80, 0x00, 0x8c, 0x12, 0x9f, 0x02, 0x06, 0x9f, 0x37, 0x04, 0x95,
                 0x05, 0x9a, 0x03, 0x9c, 0x01, 0x9f, 0x1a, 0x02, 0x9f, 0x34, 0x03, 0x90, 0x00,
             ],
-            _ => vec![
+            4 => vec![
                 0x77, 0x1a, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
                 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x9f, 0x10, 0x03, 0xaa, 0xbb, 0xcc,
                 0x90, 0x00,
+            ],
+            _ => vec![
+                ISSUER_AUTH_SW1.load(Ordering::SeqCst),
+                ISSUER_AUTH_SW2.load(Ordering::SeqCst),
             ],
         };
         let capacity = *resp_len;
@@ -2231,6 +2301,14 @@ mod tests {
                 KernelError::Ok.code()
             );
             assert_eq!(krn_get_fsm_state(ctx), FsmState::S12.code());
+            assert_eq!(
+                krn_process_issuer_authentication(ctx),
+                KernelError::Ok.code()
+            );
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0x82);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 6);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S13.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(ctx_ref.card_data.get(&[0x8a]), Some(&[b'0', b'0'][..]));
             assert_eq!(
@@ -2238,7 +2316,50 @@ mod tests {
                 Some(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88][..])
             );
             assert_eq!(ctx_ref.host_response.as_ref().unwrap().scripts.len(), 1);
+            assert!(ctx_ref.tsi.is_set(Tsi::ISSUER_AUTHENTICATION_PERFORMED));
+            assert!(!ctx_ref.tvr.is_set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED));
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9b]),
+                Some(&ctx_ref.tsi.bytes()[..])
+            );
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x95]),
+                Some(&ctx_ref.tvr.bytes()[..])
+            );
             krn_context_free(ctx);
         }
+    }
+
+    #[test]
+    fn issuer_authentication_failure_sets_tvr_and_reaches_scripts() {
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S12;
+        ctx.state = KernelState::IssuerAuthentication;
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44]),
+            scripts: Vec::new(),
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(5, Ordering::SeqCst);
+        ISSUER_AUTH_SW1.store(0x69, Ordering::SeqCst);
+        ISSUER_AUTH_SW2.store(0x85, Ordering::SeqCst);
+        assert_eq!(run_issuer_authentication(&mut ctx, runtime), Ok(()));
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0x82);
+        assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 9);
+        assert_eq!(ctx.fsm_state, FsmState::S13);
+        assert_eq!(ctx.state, KernelState::IssuerScripts);
+        assert!(ctx.tsi.is_set(Tsi::ISSUER_AUTHENTICATION_PERFORMED));
+        assert!(ctx.tvr.is_set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED));
+        assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
+        assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
+        ISSUER_AUTH_SW1.store(0x90, Ordering::SeqCst);
+        ISSUER_AUTH_SW2.store(0x00, Ordering::SeqCst);
     }
 }

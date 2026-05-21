@@ -17,8 +17,8 @@ use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
     krn_apply_host_response, krn_context_free, krn_context_new, krn_get_fsm_state,
     krn_get_last_error, krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
-    krn_reset, krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime,
-    KrnTxnParams, KRN_ABI_VERSION,
+    krn_process_issuer_authentication, krn_reset, krn_run_transaction, krn_set_transaction_params,
+    KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -87,9 +87,10 @@ unsafe extern "C" fn it_transmit_apdu(
         3 => hex(
             "705D5A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200018E0A00000000000000001F009F0D0500000000009F0E0500000000009F0F0500000080008C129F02069F370495059A039C019F1A029F34039000",
         ),
-        _ => hex(
+        4 => hex(
             "771A9F2701809F360200099F260811121314151617189F1003AABBCC9000",
         ),
+        _ => hex("9000"),
     };
     let capacity = *resp_len;
     *resp_len = response.len();
@@ -146,6 +147,9 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-ODA-006",
         "KRN-ODA-007",
         "KRN-ODA-008",
+        "KRN-IAUTH-001",
+        "KRN-IAUTH-002",
+        "KRN-IAUTH-003",
     ] {
         assert!(
             RTM.contains(krn_id),
@@ -214,6 +218,9 @@ fn corrected_spec_contains_gac_online_and_script_requirements() {
         "KRN-GAC1-004",
         "KRN-ONL-001",
         "KRN-ONL-002",
+        "KRN-IAUTH-001",
+        "KRN-IAUTH-002",
+        "KRN-IAUTH-003",
         "KRN-GAC2-001",
         "KRN-SCR-001",
         "KRN-SCR-004",
@@ -320,6 +327,8 @@ fn state_machine_annex_contains_restrictions_and_trm_rows() {
         "Processing restrictions failed",
         "TRM ok",
         "TRM force online",
+        "EXTERNAL AUTHENTICATE returns 9000",
+        "Set issuer-authentication TSI and TVR failure bit",
     ] {
         assert!(
             state_machine.contains(fragment),
@@ -725,6 +734,14 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S12.code());
+        assert_eq!(
+            krn_process_issuer_authentication(ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0x82);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 6);
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S13.code());
         krn_context_free(ctx);
     }
 }
