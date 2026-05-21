@@ -39,11 +39,11 @@ use hyperion_emv::issuer::{
 };
 use hyperion_emv::oda::{
     apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
-    parse_recovered_public_key_certificate, recovered_public_key_certificate_hash_input,
-    recovered_public_key_certificate_hash_is_valid, select_capk, select_oda_method,
-    selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
-    validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
-    OdaSelectionInput, RecoveredCertificateKind,
+    parse_recovered_public_key_certificate, recover_rsa_public_block,
+    recovered_public_key_certificate_hash_input, recovered_public_key_certificate_hash_is_valid,
+    select_capk, select_oda_method, selection_input_from_aip, validate_icc_public_key_inputs,
+    validate_issuer_public_key_inputs, validate_oda_vector_annex, CapkIntegrity, OdaFailure,
+    OdaMethod, OdaOutcome, OdaSelection, OdaSelectionInput, RecoveredCertificateKind,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -2133,6 +2133,14 @@ fn krn_oda_003_004_public_key_inputs_require_certificates_exponents_and_remainde
 
 #[test]
 fn krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material() {
+    let recovered_block =
+        recover_rsa_public_block(&hex("08A7"), &hex("0CA1"), &hex("010001")).unwrap();
+    assert_eq!(recovered_block, hex("0042"));
+    assert_eq!(
+        recover_rsa_public_block(&hex("0CA1"), &hex("0CA1"), &hex("010001")).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
     let issuer_recovered = hex("6A02\
          12345678901234567890\
          3012\

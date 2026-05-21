@@ -8,6 +8,7 @@ use crate::tlv;
 pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
 pub const MAX_ODA_REMAINDER_BYTES: usize = 248;
+pub const MAX_ODA_RSA_MODULUS_BYTES: usize = 256;
 const SHA1_DIGEST_BYTES: usize = 20;
 const EMV_SHA1_HASH_ALGORITHM_INDICATOR: u8 = 0x01;
 const EMV_RSA_PUBLIC_KEY_ALGORITHM_INDICATOR: u8 = 0x01;
@@ -373,6 +374,32 @@ pub fn recovered_public_key_certificate_hash_is_valid(
     )
 }
 
+pub fn recover_rsa_public_block(
+    signature: &[u8],
+    modulus: &[u8],
+    exponent: &[u8],
+) -> KernelResult<Vec<u8>> {
+    let exponent = parse_rsa_public_exponent(exponent)?;
+    validate_rsa_public_components(signature, modulus)?;
+
+    let mut result = vec![0u8; modulus.len()];
+    *result.last_mut().ok_or(KernelError::InvalidProfile)? = 1;
+    let mut base = signature.to_vec();
+    let mut remaining_exponent = exponent;
+
+    while remaining_exponent > 0 {
+        if remaining_exponent & 1 == 1 {
+            result = mod_mul_be(&result, &base, modulus)?;
+        }
+        remaining_exponent >>= 1;
+        if remaining_exponent > 0 {
+            base = mod_mul_be(&base, &base, modulus)?;
+        }
+    }
+
+    Ok(result)
+}
+
 fn validate_public_key_inputs(
     certificate: Option<&[u8]>,
     remainder: Option<&[u8]>,
@@ -400,6 +427,103 @@ fn validate_public_key_inputs(
         remainder: remainder.to_vec(),
         exponent: exponent.to_vec(),
     })
+}
+
+fn parse_rsa_public_exponent(exponent: &[u8]) -> KernelResult<u32> {
+    if exponent.is_empty() || exponent.len() > 3 || all_zero_or_ff(exponent) {
+        return Err(KernelError::InvalidProfile);
+    }
+    let mut value = 0u32;
+    for byte in exponent {
+        value = (value << 8) | u32::from(*byte);
+    }
+    if value < 3 || value % 2 == 0 {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(value)
+}
+
+fn validate_rsa_public_components(signature: &[u8], modulus: &[u8]) -> KernelResult<()> {
+    if modulus.len() < 2
+        || modulus.len() > MAX_ODA_RSA_MODULUS_BYTES
+        || modulus[0] == 0
+        || modulus[modulus.len() - 1] % 2 == 0
+        || all_zero_or_ff(modulus)
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+    if signature.len() != modulus.len()
+        || all_zero_or_ff(signature)
+        || compare_be(signature, modulus) != core::cmp::Ordering::Less
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(())
+}
+
+fn mod_mul_be(a: &[u8], b: &[u8], modulus: &[u8]) -> KernelResult<Vec<u8>> {
+    if a.len() != modulus.len() || b.len() != modulus.len() {
+        return Err(KernelError::InvalidArgument);
+    }
+    let mut result = vec![0u8; modulus.len()];
+    let mut addend = a.to_vec();
+
+    for byte in b.iter().rev() {
+        for bit in 0..8 {
+            if byte & (1u8 << bit) != 0 {
+                result = mod_add_be(&result, &addend, modulus)?;
+            }
+            addend = mod_add_be(&addend, &addend, modulus)?;
+        }
+    }
+
+    Ok(result)
+}
+
+fn mod_add_be(a: &[u8], b: &[u8], modulus: &[u8]) -> KernelResult<Vec<u8>> {
+    if a.len() != modulus.len() || b.len() != modulus.len() {
+        return Err(KernelError::InvalidArgument);
+    }
+    let mut sum = vec![0u8; modulus.len() + 1];
+    let mut carry = 0u16;
+    for idx in (0..modulus.len()).rev() {
+        let total = u16::from(a[idx]) + u16::from(b[idx]) + carry;
+        sum[idx + 1] = total as u8;
+        carry = total >> 8;
+    }
+    sum[0] = carry as u8;
+
+    let mut padded_modulus = Vec::with_capacity(modulus.len() + 1);
+    padded_modulus.push(0);
+    padded_modulus.extend_from_slice(modulus);
+    if compare_be(&sum, &padded_modulus) != core::cmp::Ordering::Less {
+        sub_assign_be(&mut sum, &padded_modulus);
+    }
+    Ok(sum[1..].to_vec())
+}
+
+fn compare_be(a: &[u8], b: &[u8]) -> core::cmp::Ordering {
+    for (left, right) in a.iter().zip(b.iter()) {
+        match left.cmp(right) {
+            core::cmp::Ordering::Equal => {}
+            ordering => return ordering,
+        }
+    }
+    a.len().cmp(&b.len())
+}
+
+fn sub_assign_be(a: &mut [u8], b: &[u8]) {
+    let mut borrow = 0i16;
+    for idx in (0..a.len()).rev() {
+        let value = i16::from(a[idx]) - i16::from(b[idx]) - borrow;
+        if value < 0 {
+            a[idx] = (value + 256) as u8;
+            borrow = 1;
+        } else {
+            a[idx] = value as u8;
+            borrow = 0;
+        }
+    }
 }
 
 fn next_recovered_byte(recovered: &[u8], cursor: &mut usize) -> KernelResult<u8> {
@@ -919,6 +1043,56 @@ mod tests {
                 &recovered,
                 &[0xb1],
                 &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn recovers_rsa_public_blocks_with_bounded_modular_exponentiation() {
+        assert_eq!(
+            recover_rsa_public_block(
+                &decode_hex("08A7").unwrap(),
+                &decode_hex("0CA1").unwrap(),
+                &[0x11]
+            )
+            .unwrap(),
+            decode_hex("0042").unwrap()
+        );
+        assert_eq!(
+            recover_rsa_public_block(
+                &decode_hex("08A7").unwrap(),
+                &decode_hex("0CA1").unwrap(),
+                &decode_hex("010001").unwrap(),
+            )
+            .unwrap(),
+            decode_hex("0042").unwrap()
+        );
+        assert_eq!(
+            recover_rsa_public_block(
+                &decode_hex("04AD55").unwrap(),
+                &decode_hex("110011").unwrap(),
+                &[0x03],
+            )
+            .unwrap(),
+            decode_hex("003039").unwrap()
+        );
+
+        assert_eq!(
+            recover_rsa_public_block(
+                &decode_hex("0CA1").unwrap(),
+                &decode_hex("0CA1").unwrap(),
+                &[0x11]
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            recover_rsa_public_block(
+                &decode_hex("08A7").unwrap(),
+                &decode_hex("0CA1").unwrap(),
+                &[0x02]
             )
             .unwrap_err(),
             KernelError::InvalidProfile
