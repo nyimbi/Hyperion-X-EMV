@@ -61,6 +61,7 @@ pub struct SchemeProfile {
     pub scheme_name: String,
     pub rid: [u8; 5],
     pub kernel_type: String,
+    pub contact_kernel_type: Option<String>,
     pub taa: TaaProfile,
     pub aids: Vec<AidProfile>,
     pub capks: Vec<Capk>,
@@ -233,6 +234,7 @@ fn parse_scheme(
     let rid = fixed_vec::<5>(rid_vec)?;
     reject_dummy_bytes(&rid)?;
     let kernel_type = required_string(object, "kernel_type")?.to_string();
+    let contact_kernel_type = parse_contact_kernel_type(object)?;
 
     let taa = TaaProfile::new(
         parse_action(required_string(
@@ -279,10 +281,23 @@ fn parse_scheme(
         scheme_name: scheme_name.to_string(),
         rid,
         kernel_type,
+        contact_kernel_type,
         taa,
         aids,
         capks,
     })
+}
+
+fn parse_contact_kernel_type(object: &BTreeMap<String, JsonValue>) -> KernelResult<Option<String>> {
+    let Some(value) = object.get("contact_kernel_type") else {
+        return Ok(None);
+    };
+    let contact_kernel_type = value.as_string()?;
+    reject_placeholder(contact_kernel_type)?;
+    if contact_kernel_type.is_empty() || contact_kernel_type == "c8_contactless" {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(Some(contact_kernel_type.to_string()))
 }
 
 fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
@@ -862,6 +877,7 @@ mod tests {
         "scheme_name": "Visa",
         "rid": "A000000003",
         "kernel_type": "c8_contactless",
+        "contact_kernel_type": "legacy_visa",
         "taa_fallback_when_offline_unable_online": "AAC",
         "taa_no_match_default_when_online_capable": "ARQC",
         "taa_no_match_default_when_offline_only": "AAC",
@@ -929,6 +945,10 @@ mod tests {
             "signed_certification_profile_bundle"
         );
         assert_eq!(profiles.schemes[0].rid, [0xa0, 0x00, 0x00, 0x00, 0x03]);
+        assert_eq!(
+            profiles.schemes[0].contact_kernel_type.as_deref(),
+            Some("legacy_visa")
+        );
         assert_eq!(
             profiles.schemes[0].aids[0].action_codes.online,
             [0xe0, 0xf8, 0xc8, 0, 0]
@@ -1149,6 +1169,18 @@ mod tests {
         };
         assert_eq!(
             load_profile_set(VALID_PROFILE, &expired).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_contact_kernel_type_that_reuses_c8() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap().replace(
+            r#""contact_kernel_type": "legacy_visa""#,
+            r#""contact_kernel_type": "c8_contactless""#,
+        );
+        assert_eq!(
+            load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::InvalidProfile
         );
     }

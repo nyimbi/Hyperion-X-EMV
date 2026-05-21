@@ -22,3 +22,16 @@ decision record, while this file tracks work toward certification readiness.
 - Remaining risk: this only closes a narrow API/currency-data gap. Final
   certification still requires licensed EMV/scheme reconciliation, lab-supplied
   vectors and profiles, recognized-lab execution, and approval artifacts.
+
+## 2026-05-21T22:25:00Z
+
+- Increment completed: enforce interface-specific kernel/profile mapping for
+  selected AIDs.
+- Code impact: signed profiles now retain `contact_kernel_type`; profile loading
+  rejects `contact_kernel_type = c8_contactless`; runtime mapping validation
+  rejects contactless transactions without a C-8 mapping and contact
+  transactions without a distinct contact kernel mapping.
+- Evidence updated: KRN-INT-001, KRN-INT-002, and KRN-INT-004 RTM rows now point
+  to config, FFI, and traceability tests.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

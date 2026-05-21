@@ -2094,7 +2094,7 @@ fn run_contactless_limit_processing(
         .get(selected.scheme_index)
         .ok_or(KernelError::InvalidProfile)?;
     if scheme.kernel_type != "c8_contactless" {
-        return Ok(None);
+        return Err(KernelError::InvalidProfile);
     }
     let aid = scheme
         .aids
@@ -2142,6 +2142,53 @@ fn run_contactless_limit_processing(
             ctx.last_error = KernelError::Ok;
             Ok(Some(KrnOutcome::AlternateInterface))
         }
+    }
+}
+
+fn validate_selected_kernel_mapping(
+    ctx: &KrnContext,
+    params: &StoredTxnParams,
+    profiles: &ProfileSet,
+) -> Result<(), KernelError> {
+    let selected = ctx
+        .selected_application
+        .as_ref()
+        .ok_or(KernelError::InvalidArgument)?;
+    let scheme = profiles
+        .schemes
+        .get(selected.scheme_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    let aid = scheme
+        .aids
+        .get(selected.aid_index)
+        .ok_or(KernelError::InvalidProfile)?;
+
+    match params.interface_preference {
+        0 | 1 => {
+            if !aid
+                .interfaces
+                .iter()
+                .any(|interface| interface == "contact")
+            {
+                return Err(KernelError::InvalidProfile);
+            }
+            match scheme.contact_kernel_type.as_deref() {
+                Some(contact_kernel_type) if contact_kernel_type != "c8_contactless" => Ok(()),
+                _ => Err(KernelError::InvalidProfile),
+            }
+        }
+        2 => {
+            if scheme.kernel_type != "c8_contactless"
+                || !aid
+                    .interfaces
+                    .iter()
+                    .any(|interface| interface == "contactless")
+            {
+                return Err(KernelError::InvalidProfile);
+            }
+            Ok(())
+        }
+        _ => Err(KernelError::InvalidArgument),
     }
 }
 
@@ -3068,6 +3115,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         aip: Some(parsed_gpo.aip),
         afl: parsed_gpo.afl,
     });
+    if let Err(err) = validate_selected_kernel_mapping(ctx, params, &profiles) {
+        ctx.last_error = err;
+        ctx.state = KernelState::Error;
+        ctx.fsm_state = FsmState::Se;
+        return KrnOutcome::Error;
+    }
     if ctx.fsm_state == FsmState::S4 {
         if let Err(err) = read_application_records(ctx, runtime, &selected_afl) {
             ctx.last_error = err;
@@ -4519,6 +4572,56 @@ mod tests {
         );
         assert_eq!(CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst), 0);
         assert_eq!(ctx.final_outcome, None);
+    }
+
+    #[test]
+    fn selected_kernel_mapping_is_interface_specific() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        let mut profiles = ctx.profiles.clone().unwrap();
+        let contactless_params = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 2,
+            merchant_name_location: Vec::new(),
+        };
+        assert_eq!(
+            validate_selected_kernel_mapping(&ctx, &contactless_params, &profiles),
+            Ok(())
+        );
+
+        profiles.schemes[0].kernel_type = "legacy_visa".to_string();
+        assert_eq!(
+            validate_selected_kernel_mapping(&ctx, &contactless_params, &profiles),
+            Err(KernelError::InvalidProfile)
+        );
+
+        profiles.schemes[0].kernel_type = "c8_contactless".to_string();
+        let contact_params = StoredTxnParams {
+            interface_preference: 1,
+            ..contactless_params
+        };
+        assert_eq!(
+            validate_selected_kernel_mapping(&ctx, &contact_params, &profiles),
+            Ok(())
+        );
+
+        profiles.schemes[0].contact_kernel_type = None;
+        assert_eq!(
+            validate_selected_kernel_mapping(&ctx, &contact_params, &profiles),
+            Err(KernelError::InvalidProfile)
+        );
+        profiles.schemes[0].contact_kernel_type = Some("c8_contactless".to_string());
+        assert_eq!(
+            validate_selected_kernel_mapping(&ctx, &contact_params, &profiles),
+            Err(KernelError::InvalidProfile)
+        );
     }
 
     #[test]

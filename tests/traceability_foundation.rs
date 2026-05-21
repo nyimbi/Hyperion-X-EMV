@@ -3819,6 +3819,30 @@ fn rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence() {
 }
 
 #[test]
+fn rtm_promotes_interface_kernel_mapping_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-INT-001", "KRN-INT-002", "KRN-INT-004"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete interface/kernel mapping evidence"
+            );
+            assert!(row.contains("selected_kernel_mapping_is_interface_specific"));
+            assert!(row.contains("rtm_promotes_interface_kernel_mapping_evidence"));
+        }
+        assert!(csv_row_for_requirement(csv, "KRN-INT-001")
+            .unwrap()
+            .contains("loads_profile_annex_when_signature_is_verified"));
+        assert!(csv_row_for_requirement(csv, "KRN-INT-002")
+            .unwrap()
+            .contains("rejects_contact_kernel_type_that_reuses_c8"));
+        assert!(csv_row_for_requirement(csv, "KRN-INT-004")
+            .unwrap()
+            .contains("rejects_contact_kernel_type_that_reuses_c8"));
+    }
+}
+
+#[test]
 fn krn_cless_005_relay_resistance_is_profile_required_and_traced() {
     let profile = RelayResistanceProfile::new(
         hex("80CA9F7A00"),
