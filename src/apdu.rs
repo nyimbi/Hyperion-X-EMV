@@ -142,6 +142,17 @@ pub fn external_authenticate(issuer_authentication_data: &[u8]) -> KernelResult<
     })
 }
 
+pub fn get_response(length: u8) -> CommandApdu {
+    CommandApdu {
+        cla: 0x00,
+        ins: 0xc0,
+        p1: 0x00,
+        p2: 0x00,
+        data: Vec::new(),
+        le: Some(length),
+    }
+}
+
 pub fn generate_ac(
     request: CryptogramRequest,
     cdol_values: &[u8],
@@ -207,6 +218,14 @@ mod tests {
                 0x00, 0xa4, 0x04, 0x00, 0x0e, b'2', b'P', b'A', b'Y', b'.', b'S', b'Y', b'S', b'.',
                 b'D', b'D', b'F', b'0', b'1', 0x00
             ]
+        );
+    }
+
+    #[test]
+    fn builds_get_response_for_status_word_followup() {
+        assert_eq!(
+            get_response(0x1a).encode().unwrap(),
+            [0x00, 0xc0, 0x00, 0x00, 0x1a]
         );
     }
 

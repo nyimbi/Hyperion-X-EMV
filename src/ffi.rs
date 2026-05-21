@@ -60,6 +60,7 @@ pub const MAX_APDU_RESPONSE_LEN: usize = 258;
 pub const MAX_ONLINE_AUTH_DATA_LEN: usize = 1024;
 pub const MAX_HOST_RESPONSE_LEN: usize = 1024;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
+const MAX_APDU_FOLLOWUPS: usize = 4;
 
 #[repr(C)]
 pub struct KrnConfigBlob {
@@ -1584,7 +1585,12 @@ fn run_issuer_scripts(ctx: &mut KrnContext, runtime: RuntimeCallbacks) -> Result
         apply_transition(ctx, FsmEvent::ScriptAvailable)?;
         let mut script_results = Vec::with_capacity(script.commands.len());
         for command in &script.commands {
-            let response = transmit_apdu(runtime, command, APDU_TRANSMIT_TIMEOUT_MS)?;
+            let response = transmit_apdu_with_followups(
+                runtime,
+                command,
+                APDU_TRANSMIT_TIMEOUT_MS,
+                ApduContext::IssuerScript { critical: false },
+            )?;
             if response.len() < 2 {
                 return Err(KernelError::ParseError);
             }
@@ -2030,6 +2036,55 @@ fn transmit_apdu(
     Ok(response[..response_len].to_vec())
 }
 
+fn transmit_apdu_with_followups(
+    runtime: RuntimeCallbacks,
+    command: &[u8],
+    timeout_ms: i32,
+    context: ApduContext,
+) -> Result<Vec<u8>, KernelError> {
+    let mut current_command = command.to_vec();
+    for _ in 0..=MAX_APDU_FOLLOWUPS {
+        let response = transmit_apdu(runtime, &current_command, timeout_ms)?;
+        if response.len() < 2 {
+            return Err(KernelError::ParseError);
+        }
+        let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+        match classify(context, sw) {
+            StatusAction::GetResponse { length } => {
+                current_command = apdu::get_response(length).encode()?;
+            }
+            StatusAction::RetryWithLe { length } => {
+                current_command = retry_apdu_with_le(&current_command, length)?;
+            }
+            _ => return Ok(response),
+        }
+    }
+    Err(KernelError::LengthOverflow)
+}
+
+fn retry_apdu_with_le(command: &[u8], le: u8) -> Result<Vec<u8>, KernelError> {
+    if command.len() < 4 {
+        return Err(KernelError::InvalidArgument);
+    }
+    let mut out = command.to_vec();
+    match command.len() {
+        4 => out.push(le),
+        5 => out[4] = le,
+        len => {
+            let lc = usize::from(command[4]);
+            if len == 5 + lc {
+                out.push(le);
+            } else if len == 6 + lc {
+                let last = out.last_mut().ok_or(KernelError::InvalidArgument)?;
+                *last = le;
+            } else {
+                return Err(KernelError::InvalidArgument);
+            }
+        }
+    }
+    Ok(out)
+}
+
 struct RawContactlessOutcomeArgs {
     outcome_code: u8,
     start_signal: u8,
@@ -2144,6 +2199,10 @@ mod tests {
     static ISSUER_AUTH_SW2: AtomicU8 = AtomicU8::new(0x00);
     static SCRIPT_SW1: AtomicU8 = AtomicU8::new(0x90);
     static SCRIPT_SW2: AtomicU8 = AtomicU8::new(0x00);
+    static SCRIPT_FOLLOWUP_MODE: AtomicU8 = AtomicU8::new(0);
+    static FOLLOWUP_TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
+    static FOLLOWUP_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
+    static FOLLOWUP_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
 
     unsafe extern "C" fn capture_contactless_outcome(
         outcome: *const KrnContactlessOutcome,
@@ -2201,6 +2260,35 @@ mod tests {
                 SCRIPT_SW1.load(Ordering::SeqCst),
                 SCRIPT_SW2.load(Ordering::SeqCst),
             ],
+        };
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_script_followup_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        let count = FOLLOWUP_TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        FOLLOWUP_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        FOLLOWUP_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = match SCRIPT_FOLLOWUP_MODE.load(Ordering::SeqCst) {
+            1 if command[1] == 0xda => vec![0x61, 0x02],
+            1 if command[1] == 0xc0 => vec![0x90, 0x00],
+            2 if count == 0 => vec![0x6c, 0x02],
+            2 if command[1] == 0xda && command.last() == Some(&0x02) => vec![0x90, 0x00],
+            _ => vec![0x6a, 0x80],
         };
         let capacity = *resp_len;
         *resp_len = response.len();
@@ -2572,5 +2660,55 @@ mod tests {
         assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
         SCRIPT_SW1.store(0x90, Ordering::SeqCst);
         SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn issuer_script_apdus_resolve_get_response_and_retry_le() {
+        for (mode, expected_ins, expected_len) in [(1, 0xc0, 5usize), (2, 0xda, 7usize)] {
+            let mut ctx = KrnContext::new();
+            ctx.fsm_state = FsmState::S13;
+            ctx.state = KernelState::IssuerScripts;
+            ctx.host_response = Some(HostResponse {
+                authorization_response_code: Some([b'0', b'0']),
+                issuer_authentication_data: None,
+                scripts: vec![crate::issuer::IssuerScript {
+                    phase: crate::issuer::ScriptPhase::BeforeFinalGenerateAc,
+                    identifier: None,
+                    commands: vec![vec![0x00, 0xda, 0x00, 0x00, 0x01, 0xaa]],
+                }],
+            });
+            let runtime = RuntimeCallbacks {
+                transmit_apdu: capture_script_followup_apdu,
+                get_unpredictable_number: fill_unpredictable_number,
+                contactless_outcome: None,
+                user_data: ptr::null_mut(),
+            };
+
+            FOLLOWUP_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+            SCRIPT_FOLLOWUP_MODE.store(mode, Ordering::SeqCst);
+            assert_eq!(run_issuer_scripts(&mut ctx, runtime), Ok(()));
+            assert_eq!(FOLLOWUP_TRANSMIT_COUNT.load(Ordering::SeqCst), 2);
+            assert_eq!(
+                FOLLOWUP_TRANSMITTED_INS.load(Ordering::SeqCst),
+                expected_ins
+            );
+            assert_eq!(
+                FOLLOWUP_TRANSMITTED_LEN.load(Ordering::SeqCst),
+                expected_len
+            );
+            assert_eq!(ctx.issuer_script_results.len(), 1);
+            assert_eq!(
+                ctx.issuer_script_results[0],
+                ScriptCommandResult {
+                    sw1: 0x90,
+                    sw2: 0x00
+                }
+            );
+            assert_eq!(ctx.fsm_state, FsmState::S14);
+            assert!(!ctx
+                .tvr
+                .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC));
+        }
+        SCRIPT_FOLLOWUP_MODE.store(0, Ordering::SeqCst);
     }
 }
