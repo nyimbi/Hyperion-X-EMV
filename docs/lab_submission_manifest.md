@@ -16,7 +16,7 @@
 - [x] Specification document (v6.0, this file)
 - [x] TLV catalogue (`tlv_catalogue.csv`) – complete with 55 tags
 - [x] State machine table (`state_machine.csv`) – expanded to 85 rows, properly quoted
-- [x] ODA test vectors (`oda_test_vectors.json`) – syntactically correct, placeholders for lab-supplied crypto data
+- [x] ODA test vectors (`oda_test_vectors.json`) – syntactically validated with deterministic unit fixtures; lab-supplied SDA/DDA/CDA vectors still required for final certification
 - [x] Scheme profiles (`scheme_profiles.cert.json`) – structured with valid hex lengths, contains deterministic TAA keys; actual CAPK values to be replaced by lab
 - [x] Requirement traceability matrix (`requirements_traceability.csv`) – mapped to EMVCo test case categories
 - [x] Trace identity metadata – masked APDU logs retain ABI version and signed profile version
@@ -40,4 +40,4 @@
 - **Email:** [email to be filled]
 
 ## Declaration
-This document serves as a **certification baseline template**. All artifacts are structurally complete and syntactically correct. Actual cryptographic values, CAPKs, and test vectors must be supplied by the certification laboratory during the submission process. The kernel implementation has been developed in accordance with EMV Contact Chip Specifications v4.4 and EMV Contactless Kernel Specification Book C‑8 v1.0.
+This document serves as a **certification baseline template**. All artifacts are structurally complete and syntactically correct, with deterministic executable fixtures where bundled. Lab-supplied cryptographic values, CAPKs, and scheme certification vectors must be supplied during the submission process. The kernel implementation has been developed in accordance with EMV Contact Chip Specifications v4.4 and EMV Contactless Kernel Specification Book C‑8 v1.0.

@@ -69,6 +69,8 @@ use std::ffi::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering};
 
+const LEGACY_RTM: &str = include_str!("../docs/requirements-traceability-matrix.csv");
+const CURRENT_RTM: &str = include_str!("../docs/requirements_traceability.csv");
 const RTM: &str = concat!(
     include_str!("../docs/requirements-traceability-matrix.csv"),
     include_str!("../docs/requirements_traceability.csv")
@@ -222,6 +224,9 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-ODA-006",
         "KRN-ODA-007",
         "KRN-ODA-008",
+        "KRN-DDA-001",
+        "KRN-DDA-002",
+        "KRN-ODATV-001",
         "KRN-IAUTH-001",
         "KRN-IAUTH-002",
         "KRN-IAUTH-003",
@@ -247,6 +252,55 @@ fn rtm_contains_foundation_requirements_under_test() {
             RTM.contains(krn_id),
             "missing traceability row for {krn_id}"
         );
+    }
+}
+
+#[test]
+fn rtm_annexes_are_six_column_csv() {
+    fn column_count(line: &str) -> Option<usize> {
+        let mut columns = 1;
+        let mut in_quotes = false;
+        let mut chars = line.chars().peekable();
+        while let Some(ch) = chars.next() {
+            match ch {
+                '"' if in_quotes && chars.peek() == Some(&'"') => {
+                    chars.next();
+                }
+                '"' => in_quotes = !in_quotes,
+                ',' if !in_quotes => columns += 1,
+                _ => {}
+            }
+        }
+        (!in_quotes).then_some(columns)
+    }
+
+    for (name, csv) in [
+        ("requirements_traceability.csv", CURRENT_RTM),
+        ("requirements-traceability-matrix.csv", LEGACY_RTM),
+    ] {
+        for (index, line) in csv.lines().enumerate() {
+            assert_eq!(
+                column_count(line),
+                Some(6),
+                "{name}:{} is not six-column CSV",
+                index + 1
+            );
+        }
+    }
+}
+
+#[test]
+fn both_rtms_cover_dynamic_oda_rows_independently() {
+    for krn_id in [
+        "KRN-GAC-010",
+        "KRN-TAA-007",
+        "KRN-ODA-008",
+        "KRN-DDA-001",
+        "KRN-DDA-002",
+        "KRN-ODATV-001",
+    ] {
+        assert!(CURRENT_RTM.contains(krn_id), "current RTM missing {krn_id}");
+        assert!(LEGACY_RTM.contains(krn_id), "legacy RTM missing {krn_id}");
     }
 }
 

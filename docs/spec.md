@@ -316,6 +316,9 @@ KRN-ODA-005,SDA failure TVR bit,UT-ODA-005,IT-ODA-005,EMV-L2-SDA-001,TVR
 KRN-ODA-006,DDA failure TVR bit,UT-ODA-006,IT-ODA-006,EMV-L2-DDA-001,TVR
 KRN-ODA-007,CDA failure TVR and no fallback,UT-ODA-007,IT-ODA-007,EMV-L2-CDA-002,TVR + fallback test
 KRN-ODA-008,CDA exact verification,UT-ODA-008,IT-ODA-008,EMV-L2-CDA-003,CDA vector
+KRN-DDA-001,INTERNAL AUTHENTICATE for DDA uses DDOL values,UT-DDA-001,IT-DDA-001,EMV-L2-DDA-002,INTERNAL AUTHENTICATE APDU trace
+KRN-DDA-002,DDA signed dynamic data verified with recovered ICC public key,UT-DDA-002,IT-DDA-002,EMV-L2-DDA-003,SDAD verification trace
+KRN-ODATV-001,Reject placeholder malformed or incomplete ODA certification vectors,UT-ODATV-001,IT-ODATV-001,N/A,ODA vector annex validation
 KRN-C8-001,C-8 kernel for contactless,UT-C8-001,IT-C8-001,EMV-C8-001,Outcome logs
 KRN-C8-002,Outcome parameters callback,UT-C8-002,IT-C8-002,EMV-C8-002,Callback trace
 KRN-C8-003,C-8 not contact kernel,UT-C8-003,IT-C8-003,N/A,Interface test
