@@ -72,3 +72,15 @@ decision record, while this file tracks work toward certification readiness.
   remains pending because crash-dump exclusion still needs dedicated evidence.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T22:46:06Z
+
+- Increment completed: tighten APDU command construction evidence and SELECT
+  AID P2 validation.
+- Code impact: `select_aid` rejects unsupported P2 values; the APDU constructor
+  matrix now covers the kernel-built short APDU shapes used by SELECT AID, GPO,
+  READ RECORD, INTERNAL AUTHENTICATE, EXTERNAL AUTHENTICATE, and GENERATE AC.
+- Evidence updated: KRN-APDU-001 RTM rows now cite concrete constructor,
+  environment SELECT, READ RECORD validation, and traceability tests.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

@@ -72,7 +72,7 @@ pub fn select_environment(interface: Interface) -> CommandApdu {
 }
 
 pub fn select_aid(aid: &[u8], p2: u8) -> KernelResult<CommandApdu> {
-    if aid.is_empty() || aid.len() > 16 {
+    if aid.is_empty() || aid.len() > 16 || !matches!(p2, 0x00 | 0x02) {
         return Err(KernelError::InvalidArgument);
     }
     Ok(select_by_name(aid, p2))
@@ -234,6 +234,73 @@ mod tests {
         assert_eq!(
             get_response(0x1a).encode().unwrap(),
             [0x00, 0xc0, 0x00, 0x00, 0x1a]
+        );
+    }
+
+    #[test]
+    fn encodes_kernel_command_apdu_matrix() {
+        assert_eq!(
+            select_aid(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10], 0x00)
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [0x00, 0xa4, 0x04, 0x00, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0x00]
+        );
+        assert_eq!(
+            select_aid(&[0xa0, 0x00, 0x00, 0x00, 0x03], 0x02)
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [0x00, 0xa4, 0x04, 0x02, 0x05, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x00]
+        );
+        assert_eq!(
+            select_aid(&[0xa0, 0x00, 0x00, 0x00, 0x03], 0x04).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let pdol = parse_dol(&[0x9f, 0x66, 0x04, 0x9f, 0x37, 0x04]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x66], &[0x36, 0x00, 0x40, 0x00]).unwrap();
+        data.put(&[0x9f, 0x37], &[0x01, 0x02, 0x03, 0x04]).unwrap();
+        assert_eq!(
+            get_processing_options(&pdol, &data)
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [
+                0x80, 0xa8, 0x00, 0x00, 0x0a, 0x83, 0x08, 0x36, 0x00, 0x40, 0x00, 0x01, 0x02, 0x03,
+                0x04, 0x00
+            ]
+        );
+
+        assert_eq!(
+            read_record(1, 2).unwrap().encode().unwrap(),
+            [0x00, 0xb2, 0x01, 0x14, 0x00]
+        );
+        assert_eq!(
+            internal_authenticate(&[0x01, 0x02, 0x03, 0x04])
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [0x00, 0x88, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04, 0x00]
+        );
+        assert_eq!(
+            external_authenticate(&[0x11, 0x22, 0x33, 0x44])
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [0x00, 0x82, 0x00, 0x00, 0x04, 0x11, 0x22, 0x33, 0x44]
+        );
+        assert_eq!(
+            generate_ac(
+                CryptogramRequest::Tc,
+                &[0xaa, 0xbb, 0xcc],
+                CdaRequestControl::NotRequested
+            )
+            .unwrap()
+            .encode()
+            .unwrap(),
+            [0x80, 0xae, 0x40, 0x00, 0x03, 0xaa, 0xbb, 0xcc, 0x00]
         );
     }
 

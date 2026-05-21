@@ -674,6 +674,21 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
 }
 
 #[test]
+fn rtm_promotes_apdu_command_construction_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-APDU-001").expect("RTM row exists");
+        assert!(
+            !row.contains("pending implementation evidence"),
+            "KRN-APDU-001 should cite concrete APDU construction evidence"
+        );
+        assert!(row.contains("encodes_kernel_command_apdu_matrix"));
+        assert!(row.contains("builds_exact_contact_pse_and_contactless_ppse_selects"));
+        assert!(row.contains("validates_read_record_sfi"));
+        assert!(row.contains("rtm_promotes_apdu_command_construction_evidence"));
+    }
+}
+
+#[test]
 fn rtm_annexes_are_six_column_csv() {
     fn column_count(line: &str) -> Option<usize> {
         let mut columns = 1;
