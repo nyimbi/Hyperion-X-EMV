@@ -2570,17 +2570,17 @@ fn run_final_generate_ac(
     if ctx.fsm_state != FsmState::S14 {
         return Err(KernelError::InvalidArgument);
     }
-    let Some(cdol2) = ctx.card_data.get(&[0x8d]).map(|value| value.to_vec()) else {
-        apply_transition(ctx, FsmEvent::FinalGenerateAcSkipped)?;
-        ctx.final_outcome = Some(KrnOutcome::ApprovedOnline);
-        ctx.state = KernelState::PostFinalIssuerScripts;
-        return Ok(());
-    };
     let host_arc = ctx
         .host_response
         .as_ref()
         .and_then(|response| response.authorization_response_code)
         .ok_or(KernelError::MissingMandatoryTag)?;
+    let Some(cdol2) = ctx.card_data.get(&[0x8d]).map(|value| value.to_vec()) else {
+        apply_transition(ctx, FsmEvent::FinalGenerateAcSkipped)?;
+        ctx.final_outcome = Some(final_outcome_for_host_arc(host_arc));
+        ctx.state = KernelState::PostFinalIssuerScripts;
+        return Ok(());
+    };
     let request = if host_arc == [b'0', b'0'] {
         CryptogramRequest::Tc
     } else {
@@ -2641,6 +2641,14 @@ fn run_final_generate_ac(
     ctx.final_gac_response = Some(parsed);
     ctx.state = KernelState::PostFinalIssuerScripts;
     Ok(())
+}
+
+fn final_outcome_for_host_arc(host_arc: [u8; 2]) -> KrnOutcome {
+    if host_arc == [b'0', b'0'] {
+        KrnOutcome::ApprovedOnline
+    } else {
+        KrnOutcome::DeclinedOnline
+    }
 }
 
 fn issuer_action_codes(data: &DataStore) -> Result<ActionCodes, KernelError> {
@@ -4732,6 +4740,39 @@ mod tests {
         assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
         SCRIPT_SW1.store(0x90, Ordering::SeqCst);
         SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn krn_gac2_004_final_generate_ac_skipped_without_cdol2_honors_host_arc() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        for (arc, expected_outcome) in [
+            ([b'0', b'0'], KrnOutcome::ApprovedOnline),
+            ([b'0', b'5'], KrnOutcome::DeclinedOnline),
+        ] {
+            let mut ctx = KrnContext::new();
+            ctx.fsm_state = FsmState::S14;
+            ctx.state = KernelState::SecondGenerateAc;
+            ctx.host_response = Some(HostResponse {
+                authorization_response_code: Some(arc),
+                issuer_authentication_data: None,
+                scripts: Vec::new(),
+            });
+
+            TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+            assert_eq!(run_final_generate_ac(&mut ctx, runtime), Ok(()));
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 0);
+            assert_eq!(ctx.fsm_state, FsmState::S15);
+            assert_eq!(ctx.state, KernelState::PostFinalIssuerScripts);
+            assert_eq!(ctx.final_outcome, Some(expected_outcome));
+            assert!(ctx.final_gac_response.is_none());
+        }
     }
 
     #[test]
