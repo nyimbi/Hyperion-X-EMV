@@ -9,6 +9,7 @@ pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
 pub const MAX_ODA_REMAINDER_BYTES: usize = 248;
 pub const MAX_ODA_RSA_MODULUS_BYTES: usize = 256;
+pub const MAX_ODA_AUTHENTICATION_DATA_BYTES: usize = 65_535;
 const SHA1_DIGEST_BYTES: usize = 20;
 const EMV_SHA1_HASH_ALGORITHM_INDICATOR: u8 = 0x01;
 const EMV_RSA_PUBLIC_KEY_ALGORITHM_INDICATOR: u8 = 0x01;
@@ -20,6 +21,7 @@ const RECOVERED_SIGNED_DATA_TRAILER: u8 = 0xbc;
 const RECOVERED_SIGNED_STATIC_DATA_FORMAT: u8 = 0x03;
 const RECOVERED_SIGNED_DYNAMIC_DATA_FORMAT: u8 = 0x05;
 const RECOVERED_PADDING_BYTE: u8 = 0xbb;
+const MAX_STATIC_AUTH_TAG_LIST_TAGS: usize = 16;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OdaMethod {
@@ -114,6 +116,13 @@ pub struct PublicKeyInput {
     pub certificate: Vec<u8>,
     pub remainder: Vec<u8>,
     pub exponent: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StaticAuthenticationRecord {
+    pub sfi: u8,
+    pub record: u8,
+    pub body: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -282,6 +291,34 @@ pub fn validate_icc_public_key_inputs(data: &DataStore) -> KernelResult<PublicKe
         data.get(&[0x9f, 0x48]),
         data.get(&[0x9f, 0x47]),
     )
+}
+
+pub fn build_static_authentication_data(
+    records: &[StaticAuthenticationRecord],
+    data: &DataStore,
+) -> KernelResult<Vec<u8>> {
+    if records.is_empty() {
+        return Err(KernelError::MissingMandatoryTag);
+    }
+
+    let mut out = Vec::new();
+    for record in records {
+        if record.sfi == 0 || record.sfi > 30 || record.record == 0 || record.body.is_empty() {
+            return Err(KernelError::InvalidArgument);
+        }
+        let contribution = static_authentication_record_bytes(record)?;
+        append_authentication_data(&mut out, contribution)?;
+    }
+
+    if let Some(tag_list) = data.get(&[0x9f, 0x4a]) {
+        let tags = parse_static_authentication_tag_list(tag_list)?;
+        for tag in tags {
+            let value = data.get(&tag).ok_or(KernelError::MissingMandatoryTag)?;
+            append_authentication_data(&mut out, value)?;
+        }
+    }
+
+    Ok(out)
 }
 
 pub fn parse_recovered_public_key_certificate(
@@ -648,6 +685,67 @@ fn validate_public_key_inputs(
         remainder: remainder.to_vec(),
         exponent: exponent.to_vec(),
     })
+}
+
+fn static_authentication_record_bytes(record: &StaticAuthenticationRecord) -> KernelResult<&[u8]> {
+    if record.sfi <= 10 {
+        let tlvs = tlv::parse_many(&record.body)?;
+        if tlvs.len() != 1 || tlvs[0].tag != [0x70] || !tlvs[0].constructed {
+            return Err(KernelError::InvalidProfile);
+        }
+        Ok(tlvs[0].value)
+    } else {
+        Ok(&record.body)
+    }
+}
+
+fn append_authentication_data(out: &mut Vec<u8>, value: &[u8]) -> KernelResult<()> {
+    let next_len = out
+        .len()
+        .checked_add(value.len())
+        .ok_or(KernelError::LengthOverflow)?;
+    if next_len > MAX_ODA_AUTHENTICATION_DATA_BYTES {
+        return Err(KernelError::LengthOverflow);
+    }
+    out.extend_from_slice(value);
+    Ok(())
+}
+
+fn parse_static_authentication_tag_list(input: &[u8]) -> KernelResult<Vec<Vec<u8>>> {
+    if input.is_empty() {
+        return Err(KernelError::ParseError);
+    }
+    let mut offset = 0usize;
+    let mut tags = Vec::new();
+    while offset < input.len() {
+        if tags.len() >= MAX_STATIC_AUTH_TAG_LIST_TAGS {
+            return Err(KernelError::LengthOverflow);
+        }
+        let start = offset;
+        read_oda_tag(input, &mut offset)?;
+        tags.push(input[start..offset].to_vec());
+    }
+    Ok(tags)
+}
+
+fn read_oda_tag(input: &[u8], offset: &mut usize) -> KernelResult<()> {
+    let first = *input.get(*offset).ok_or(KernelError::ParseError)?;
+    *offset += 1;
+    if first & 0x1f == 0x1f {
+        let mut continuation_count = 0usize;
+        loop {
+            let byte = *input.get(*offset).ok_or(KernelError::ParseError)?;
+            *offset += 1;
+            continuation_count += 1;
+            if continuation_count > 3 {
+                return Err(KernelError::ParseError);
+            }
+            if byte & 0x80 == 0 {
+                break;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn parse_rsa_public_exponent(exponent: &[u8]) -> KernelResult<u32> {
@@ -1191,6 +1289,51 @@ mod tests {
         truncated.put(&[0x9f, 0x46], &[0x6a, 0x01, 0x02]).unwrap();
         assert_eq!(
             validate_icc_public_key_inputs(&truncated).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn builds_static_authentication_data_from_afl_records_and_tag_list() {
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x4a], &[0x82]).unwrap();
+        data.put(&[0x82], &[0x78, 0x00]).unwrap();
+
+        let records = [
+            StaticAuthenticationRecord {
+                sfi: 2,
+                record: 1,
+                body: decode_hex("700C5A04123456785F2403261231").unwrap(),
+            },
+            StaticAuthenticationRecord {
+                sfi: 11,
+                record: 1,
+                body: decode_hex("70035F2000").unwrap(),
+            },
+        ];
+
+        assert_eq!(
+            build_static_authentication_data(&records, &data).unwrap(),
+            decode_hex("5A04123456785F240326123170035F20007800").unwrap()
+        );
+
+        let mut missing_tag = DataStore::new();
+        missing_tag.put(&[0x9f, 0x4a], &[0x82]).unwrap();
+        assert_eq!(
+            build_static_authentication_data(&records, &missing_tag).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
+        assert_eq!(
+            build_static_authentication_data(
+                &[StaticAuthenticationRecord {
+                    sfi: 2,
+                    record: 1,
+                    body: decode_hex("5A0412345678").unwrap(),
+                }],
+                &data,
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
     }

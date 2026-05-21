@@ -38,14 +38,16 @@ use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
 };
 use hyperion_emv::oda::{
-    apply_oda_outcome, capk_checksum, capk_checksum_is_valid, parse_internal_authenticate_response,
-    parse_recovered_public_key_certificate, recover_and_verify_public_key_certificate,
-    recover_and_verify_signed_application_data, recover_rsa_public_block,
-    recovered_public_key_certificate_hash_input, recovered_public_key_certificate_hash_is_valid,
+    apply_oda_outcome, build_static_authentication_data, capk_checksum, capk_checksum_is_valid,
+    parse_internal_authenticate_response, parse_recovered_public_key_certificate,
+    recover_and_verify_public_key_certificate, recover_and_verify_signed_application_data,
+    recover_rsa_public_block, recovered_public_key_certificate_hash_input,
+    recovered_public_key_certificate_hash_is_valid,
     recovered_signed_application_data_hash_is_valid, select_capk, select_oda_method,
     selection_input_from_aip, validate_icc_public_key_inputs, validate_issuer_public_key_inputs,
     validate_oda_vector_annex, CapkIntegrity, OdaFailure, OdaMethod, OdaOutcome, OdaSelection,
     OdaSelectionInput, RecoveredCertificateKind, RecoveredSignedDataKind,
+    StaticAuthenticationRecord,
 };
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::record::parse_read_record_body;
@@ -2130,6 +2132,38 @@ fn krn_oda_003_004_public_key_inputs_require_certificates_exponents_and_remainde
     assert_eq!(
         validate_icc_public_key_inputs(&truncated_icc_certificate).unwrap_err(),
         hyperion_emv::KernelError::InvalidProfile
+    );
+}
+
+#[test]
+fn krn_oda_005_static_authentication_data_uses_afl_order_and_tag_list() {
+    let mut data = DataStore::new();
+    data.put(&[0x9f, 0x4a], &hex("82")).unwrap();
+    data.put(&[0x82], &hex("7800")).unwrap();
+
+    let records = [
+        StaticAuthenticationRecord {
+            sfi: 2,
+            record: 1,
+            body: hex("700C5A04123456785F2403261231"),
+        },
+        StaticAuthenticationRecord {
+            sfi: 11,
+            record: 1,
+            body: hex("70035F2000"),
+        },
+    ];
+
+    assert_eq!(
+        build_static_authentication_data(&records, &data).unwrap(),
+        hex("5A04123456785F240326123170035F20007800")
+    );
+
+    let mut missing_tag = DataStore::new();
+    missing_tag.put(&[0x9f, 0x4a], &hex("82")).unwrap();
+    assert_eq!(
+        build_static_authentication_data(&records, &missing_tag).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
     );
 }
 
