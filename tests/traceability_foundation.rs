@@ -15,11 +15,12 @@ use hyperion_emv::cvm::{
 };
 use hyperion_emv::dol::DataStore;
 use hyperion_emv::ffi::{
-    krn_apply_host_response, krn_context_free, krn_context_new, krn_get_fsm_state,
-    krn_get_issuer_script_result, krn_get_issuer_script_result_count, krn_get_last_error,
-    krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
-    krn_process_issuer_authentication, krn_process_issuer_scripts, krn_reset, krn_run_transaction,
-    krn_set_transaction_params, KrnOutcome, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
+    krn_apply_host_response, krn_context_free, krn_context_new, krn_get_final_outcome,
+    krn_get_fsm_state, krn_get_issuer_script_result, krn_get_issuer_script_result_count,
+    krn_get_last_error, krn_get_online_authorization_data, krn_init, krn_load_profiles_verified,
+    krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
+    krn_reset, krn_run_transaction, krn_set_transaction_params, KrnOutcome, KrnRuntime,
+    KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -86,11 +87,12 @@ unsafe extern "C" fn it_transmit_apdu(
         1 => hex("6F118407A0000000031010A5069F38039F37049000"),
         2 => hex("770A820280009404100101009000"),
         3 => hex(
-            "705D5A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200018E0A00000000000000001F009F0D0500000000009F0E0500000000009F0F0500000080008C129F02069F370495059A039C019F1A029F34039000",
+            "70675A08123456789012345F5F24033012315F25032501015F280208409F0702FF809F090200018E0A00000000000000001F009F0D0500000000009F0E0500000000009F0F0500000080008C129F02069F370495059A039C019F1A029F34038D088A02910895059B029000",
         ),
         4 => hex(
             "771A9F2701809F360200099F260811121314151617189F1003AABBCC9000",
         ),
+        _ if command[1] == 0xae => hex("77149F2701409F3602000A9F260821222324252627289000"),
         _ => hex("9000"),
     };
     let capacity = *resp_len;
@@ -151,6 +153,10 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-IAUTH-001",
         "KRN-IAUTH-002",
         "KRN-IAUTH-003",
+        "KRN-GAC2-001",
+        "KRN-GAC2-002",
+        "KRN-GAC2-003",
+        "KRN-GAC2-004",
         "KRN-SCR-001",
         "KRN-SCR-002",
         "KRN-SCR-003",
@@ -228,6 +234,9 @@ fn corrected_spec_contains_gac_online_and_script_requirements() {
         "KRN-IAUTH-002",
         "KRN-IAUTH-003",
         "KRN-GAC2-001",
+        "KRN-GAC2-002",
+        "KRN-GAC2-003",
+        "KRN-GAC2-004",
         "KRN-SCR-001",
         "KRN-SCR-002",
         "KRN-SCR-003",
@@ -775,6 +784,18 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!((sw1, sw2), (0x90, 0x00));
+        assert_eq!(
+            krn_process_final_generate_ac(ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(IT_TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+        assert_eq!(IT_TRANSMITTED_LEN.load(Ordering::SeqCst), 23);
+        assert_eq!(IT_TRANSMIT_COUNT.load(Ordering::SeqCst), 8);
+        assert_eq!(krn_get_fsm_state(ctx), FsmState::S16.code());
+        assert_eq!(
+            krn_get_final_outcome(ctx),
+            KrnOutcome::ApprovedOnline as i32
+        );
         krn_context_free(ctx);
     }
 }
@@ -1018,7 +1039,7 @@ fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
         select_capk(
             &profiles,
             &rid,
-            1,
+            8,
             policy.evaluation_date,
             CapkIntegrity::Unverified,
         )
@@ -1028,13 +1049,13 @@ fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
     let capk = select_capk(
         &profiles,
         &rid,
-        1,
+        8,
         policy.evaluation_date,
         CapkIntegrity::Verified,
     )
     .unwrap();
     assert_eq!(capk.rid, rid);
-    assert_eq!(capk.key_index, 1);
+    assert_eq!(capk.key_index, 8);
 }
 
 #[test]

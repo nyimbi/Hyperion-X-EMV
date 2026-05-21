@@ -38,6 +38,10 @@ KRN-ODA-008,CDA exact verification,UT-ODA-008,IT-ODA-008,EMV-L2-CONTACT-MC-047,C
 KRN-IAUTH-001,Process tag 91 issuer authentication data,UT-IAUTH-001,IT-IAUTH-001,EMV-L2-CONTACT-VID-080,EXTERNAL AUTHENTICATE APDU trace
 KRN-IAUTH-002,Set TSI only when issuer authentication is attempted,UT-IAUTH-002,IT-IAUTH-002,EMV-L2-CONTACT-VID-081,TSI after issuer authentication
 KRN-IAUTH-003,Set TVR issuer authentication failed on card failure,UT-IAUTH-003,IT-IAUTH-003,EMV-L2-CONTACT-MC-080,TVR after failed EXTERNAL AUTHENTICATE
+KRN-GAC2-001,Construct CDOL2 from card/profile data and host response data,UT-GAC2-001,IT-GAC2-001,EMV-L2-CONTACT-VID-100,Final GENERATE AC APDU trace
+KRN-GAC2-002,Include issuer authentication or authorization response data where required by CDOL2,UT-GAC2-002,IT-GAC2-002,EMV-L2-CONTACT-VID-101,CDOL2 DOL construction evidence
+KRN-GAC2-003,Issue second GENERATE AC where required after online authorization,UT-GAC2-003,IT-GAC2-003,EMV-L2-CONTACT-VID-102,Final GAC callback trace
+KRN-GAC2-004,Treat final TC as approval and final AAC as decline,UT-GAC2-004,IT-GAC2-004,EMV-L2-CONTACT-MC-100,Final outcome assertion
 KRN-SCR-001,Validate issuer script template structure,UT-SCR-001,IT-SCR-001,EMV-L2-CONTACT-VID-090,Host response parser rejects malformed templates
 KRN-SCR-002,Execute issuer script commands in order,UT-SCR-002,IT-SCR-002,EMV-L2-CONTACT-VID-091,Issuer script APDU trace
 KRN-SCR-003,Capture issuer script command SW1/SW2,UT-SCR-003,IT-SCR-003,EMV-L2-CONTACT-VID-092,Stored script command results

@@ -16,6 +16,7 @@ pub enum KernelState {
     OnlineAuthorization,
     IssuerAuthentication,
     IssuerScripts,
+    SecondGenerateAc,
     FinalOutcome,
     Error,
 }

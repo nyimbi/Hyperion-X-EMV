@@ -159,6 +159,8 @@ pub struct KrnContext {
     selected_application: Option<SelectedApplication>,
     requested_cryptogram: Option<CryptogramRequest>,
     first_gac_response: Option<GenerateAcResponse>,
+    final_gac_response: Option<GenerateAcResponse>,
+    final_outcome: Option<KrnOutcome>,
     online_authorization_data: Option<Vec<u8>>,
     host_response: Option<HostResponse>,
     issuer_script_results: Vec<ScriptCommandResult>,
@@ -183,6 +185,8 @@ impl KrnContext {
             selected_application: None,
             requested_cryptogram: None,
             first_gac_response: None,
+            final_gac_response: None,
+            final_outcome: None,
             online_authorization_data: None,
             host_response: None,
             issuer_script_results: Vec::new(),
@@ -204,6 +208,8 @@ impl KrnContext {
         self.selected_application = None;
         self.requested_cryptogram = None;
         self.first_gac_response = None;
+        self.final_gac_response = None;
+        self.final_outcome = None;
         self.online_authorization_data = None;
         self.host_response = None;
         self.issuer_script_results.clear();
@@ -605,8 +611,8 @@ pub unsafe extern "C" fn krn_process_issuer_authentication(ctx: *mut KrnContext)
 ///
 /// Scripts are executed in host-provided order. SW1/SW2 for each command is
 /// retained in the context, non-critical failures update TVR/TSI according to
-/// the script template phase, and the FSM advances to final outcome when all
-/// scripts have been consumed.
+/// the script template phase, and the FSM advances to second GENERATE AC when
+/// all scripts have been consumed.
 ///
 /// # Safety
 ///
@@ -628,6 +634,36 @@ pub unsafe extern "C" fn krn_process_issuer_scripts(ctx: *mut KrnContext) -> i32
 
     ctx.busy = true;
     let result = run_issuer_scripts(ctx, runtime).map(|()| 0usize);
+    ctx.busy = false;
+    ctx.set_result(result)
+}
+
+/// Issues second GENERATE AC from CDOL2 after online authorization.
+///
+/// The request type is derived from the host authorization response code: `00`
+/// requests TC and other response codes request AAC. Cryptograms remain
+/// card-generated; the kernel only constructs CDOL2 and parses the response.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. Calls for the same
+/// context must be serialized by the integration layer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_process_final_generate_ac(ctx: *mut KrnContext) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if ctx.busy {
+        ctx.last_error = KernelError::Busy;
+        return KernelError::Busy.code();
+    }
+    let Some(runtime) = ctx.runtime else {
+        ctx.last_error = KernelError::InvalidArgument;
+        return KernelError::InvalidArgument.code();
+    };
+
+    ctx.busy = true;
+    let result = run_final_generate_ac(ctx, runtime).map(|()| 0usize);
     ctx.busy = false;
     ctx.set_result(result)
 }
@@ -676,6 +712,20 @@ pub unsafe extern "C" fn krn_get_issuer_script_result(
         Ok(0usize)
     })();
     ctx.set_result(result)
+}
+
+/// Returns the last final transaction outcome recorded by the kernel.
+///
+/// # Safety
+///
+/// `ctx` must be either null or a valid context pointer. Null returns
+/// `KrnOutcome::Error`.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_final_outcome(ctx: *const KrnContext) -> i32 {
+    let Some(ctx) = ctx.as_ref() else {
+        return KrnOutcome::Error.code();
+    };
+    ctx.final_outcome.unwrap_or(KrnOutcome::Error).code()
 }
 
 /// Registers the contactless outcome callback used by C-8/contactless flows.
@@ -1577,7 +1627,7 @@ fn run_issuer_scripts(ctx: &mut KrnContext, runtime: RuntimeCallbacks) -> Result
         .ok_or(KernelError::InvalidArgument)?;
     if scripts.is_empty() {
         apply_transition(ctx, FsmEvent::NoMoreScripts)?;
-        ctx.state = KernelState::FinalOutcome;
+        ctx.state = KernelState::SecondGenerateAc;
         return Ok(());
     }
 
@@ -1627,6 +1677,86 @@ fn run_issuer_scripts(ctx: &mut KrnContext, runtime: RuntimeCallbacks) -> Result
     }
 
     apply_transition(ctx, FsmEvent::NoMoreScripts)?;
+    ctx.state = KernelState::SecondGenerateAc;
+    Ok(())
+}
+
+fn run_final_generate_ac(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+) -> Result<(), KernelError> {
+    if ctx.fsm_state != FsmState::S14 {
+        return Err(KernelError::InvalidArgument);
+    }
+    let Some(cdol2) = ctx.card_data.get(&[0x8d]).map(|value| value.to_vec()) else {
+        apply_transition(ctx, FsmEvent::FinalGenerateAcSkipped)?;
+        ctx.final_outcome = Some(KrnOutcome::ApprovedOnline);
+        ctx.state = KernelState::FinalOutcome;
+        return Ok(());
+    };
+    let host_arc = ctx
+        .host_response
+        .as_ref()
+        .and_then(|response| response.authorization_response_code)
+        .ok_or(KernelError::MissingMandatoryTag)?;
+    let request = if host_arc == [b'0', b'0'] {
+        CryptogramRequest::Tc
+    } else {
+        CryptogramRequest::Aac
+    };
+    ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
+    ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
+    let cdol = parse_dol(&cdol2)?;
+    let cdol_values = build_dol(&cdol, &ctx.card_data)?;
+    let command =
+        apdu::generate_ac(request, &cdol_values, CdaRequestControl::NotRequested)?.encode()?;
+    let response = transmit_apdu_with_followups(
+        runtime,
+        &command,
+        APDU_TRANSMIT_TIMEOUT_MS,
+        ApduContext::GenerateAc,
+    )?;
+    if response.len() < 2 {
+        return Err(KernelError::ParseError);
+    }
+    let body = &response[..response.len() - 2];
+    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+    match classify(ApduContext::GenerateAc, sw) {
+        StatusAction::Success => {}
+        StatusAction::Fail { error } => {
+            let _ = apply_transition(ctx, FsmEvent::Gac2Failed);
+            return Err(error);
+        }
+        _ => return Err(KernelError::InvalidArgument),
+    }
+    let parsed = parse_generate_ac_response(body)?;
+    ctx.card_data.put(&[0x9f, 0x27], &[parsed.cid.raw()])?;
+    ctx.card_data
+        .put(&[0x9f, 0x26], &parsed.application_cryptogram)?;
+    ctx.card_data.put(&[0x9f, 0x36], &parsed.atc)?;
+    if !parsed.issuer_application_data.is_empty() {
+        ctx.card_data
+            .put(&[0x9f, 0x10], &parsed.issuer_application_data)?;
+    }
+    if let Some(dynamic_number) = parsed.icc_dynamic_number.as_ref() {
+        ctx.card_data.put(&[0x9f, 0x4c], dynamic_number)?;
+    }
+
+    match parsed.cid.cryptogram_type() {
+        CryptogramType::Tc => {
+            ctx.final_outcome = Some(KrnOutcome::ApprovedOnline);
+            apply_transition(ctx, FsmEvent::Gac2Tc)?;
+        }
+        CryptogramType::Aac => {
+            ctx.final_outcome = Some(KrnOutcome::DeclinedOnline);
+            apply_transition(ctx, FsmEvent::Gac2Aac)?;
+        }
+        CryptogramType::Arqc | CryptogramType::ApplicationAuthenticationReferral => {
+            let _ = apply_transition(ctx, FsmEvent::Gac2Failed);
+            return Err(KernelError::InvalidArgument);
+        }
+    }
+    ctx.final_gac_response = Some(parsed);
     ctx.state = KernelState::FinalOutcome;
     Ok(())
 }
@@ -2187,8 +2317,12 @@ fn alternate_interface_from_u8(value: u8) -> Result<AlternateInterface, KernelEr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering};
+    use std::sync::{
+        atomic::{AtomicI32, AtomicU8, AtomicUsize, Ordering},
+        Mutex,
+    };
 
+    static FFI_TEST_LOCK: Mutex<()> = Mutex::new(());
     static CALLBACK_OUTCOME_CODE: AtomicU8 = AtomicU8::new(0);
     static CALLBACK_DATA_RECORD_LEN: AtomicUsize = AtomicUsize::new(0);
     static TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -2239,13 +2373,14 @@ mod tests {
                 0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
             ],
             3 => vec![
-                0x70, 0x5d, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
+                0x70, 0x67, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x5f, 0x24,
                 0x03, 0x30, 0x12, 0x31, 0x5f, 0x25, 0x03, 0x25, 0x01, 0x01, 0x5f, 0x28, 0x02, 0x08,
                 0x40, 0x9f, 0x07, 0x02, 0xff, 0x80, 0x9f, 0x09, 0x02, 0x00, 0x01, 0x8e, 0x0a, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x9f, 0x0d, 0x05, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x9f, 0x0e, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9f, 0x0f, 0x05,
                 0x00, 0x00, 0x00, 0x80, 0x00, 0x8c, 0x12, 0x9f, 0x02, 0x06, 0x9f, 0x37, 0x04, 0x95,
-                0x05, 0x9a, 0x03, 0x9c, 0x01, 0x9f, 0x1a, 0x02, 0x9f, 0x34, 0x03, 0x90, 0x00,
+                0x05, 0x9a, 0x03, 0x9c, 0x01, 0x9f, 0x1a, 0x02, 0x9f, 0x34, 0x03, 0x8d, 0x08, 0x8a,
+                0x02, 0x91, 0x08, 0x95, 0x05, 0x9b, 0x02, 0x90, 0x00,
             ],
             4 => vec![
                 0x77, 0x1a, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
@@ -2255,6 +2390,10 @@ mod tests {
             _ if command[1] == 0x82 => vec![
                 ISSUER_AUTH_SW1.load(Ordering::SeqCst),
                 ISSUER_AUTH_SW2.load(Ordering::SeqCst),
+            ],
+            _ if command[1] == 0xae => vec![
+                0x77, 0x14, 0x9f, 0x27, 0x01, 0x40, 0x9f, 0x36, 0x02, 0x00, 0x0a, 0x9f, 0x26, 0x08,
+                0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x90, 0x00,
             ],
             _ => vec![
                 SCRIPT_SW1.load(Ordering::SeqCst),
@@ -2345,6 +2484,7 @@ mod tests {
 
     #[test]
     fn ffi_emits_structured_contactless_outcome_callback() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
         unsafe {
             CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
             CALLBACK_DATA_RECORD_LEN.store(0, Ordering::SeqCst);
@@ -2386,6 +2526,7 @@ mod tests {
 
     #[test]
     fn ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
         unsafe {
             let mut ctx = ptr::null_mut();
             let bad_runtime = KrnRuntime {
@@ -2579,12 +2720,35 @@ mod tests {
             assert!(!ctx_ref
                 .tvr
                 .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC));
+            let _ = ctx_ref;
+            assert_eq!(krn_process_final_generate_ac(ctx), KernelError::Ok.code());
+            assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+            assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 8);
+            assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 23);
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S16.code());
+            assert_eq!(
+                krn_get_final_outcome(ctx),
+                KrnOutcome::ApprovedOnline.code()
+            );
+            let ctx_ref = ctx.as_ref().unwrap();
+            assert!(ctx_ref.final_gac_response.is_some());
+            assert_eq!(ctx_ref.final_outcome, Some(KrnOutcome::ApprovedOnline));
+            assert_eq!(ctx_ref.card_data.get(&[0x9f, 0x27]), Some(&[0x40][..]));
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9f, 0x26]),
+                Some(&[0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28][..])
+            );
+            assert_eq!(
+                ctx_ref.card_data.get(&[0x9f, 0x36]),
+                Some(&[0x00, 0x0a][..])
+            );
             krn_context_free(ctx);
         }
     }
 
     #[test]
     fn issuer_authentication_failure_sets_tvr_and_reaches_scripts() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
         let mut ctx = KrnContext::new();
         ctx.fsm_state = FsmState::S12;
         ctx.state = KernelState::IssuerAuthentication;
@@ -2618,6 +2782,7 @@ mod tests {
 
     #[test]
     fn issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
         let mut ctx = KrnContext::new();
         ctx.fsm_state = FsmState::S13;
         ctx.state = KernelState::IssuerScripts;
@@ -2644,7 +2809,7 @@ mod tests {
         assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
         assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
         assert_eq!(ctx.fsm_state, FsmState::S14);
-        assert_eq!(ctx.state, KernelState::FinalOutcome);
+        assert_eq!(ctx.state, KernelState::SecondGenerateAc);
         assert_eq!(
             ctx.issuer_script_results,
             vec![ScriptCommandResult {
@@ -2664,6 +2829,7 @@ mod tests {
 
     #[test]
     fn issuer_script_apdus_resolve_get_response_and_retry_le() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
         for (mode, expected_ins, expected_len) in [(1, 0xc0, 5usize), (2, 0xda, 7usize)] {
             let mut ctx = KrnContext::new();
             ctx.fsm_state = FsmState::S13;
