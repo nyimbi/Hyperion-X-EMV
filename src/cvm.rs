@@ -1,5 +1,6 @@
 use crate::error::{KernelError, KernelResult};
 use crate::state::Tvr;
+use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 
 pub const MAX_CVM_RULES: usize = 64;
 
@@ -157,6 +158,13 @@ pub enum CvmOutcome {
     },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OfflinePinVerifyOutcome {
+    pub cvm_results: [u8; 3],
+    pub tries_remaining: Option<u8>,
+    pub tvr_bit: Option<(usize, u8)>,
+}
+
 pub fn parse_cvm_list(input: &[u8]) -> KernelResult<CvmList> {
     if input.len() < 8 || (input.len() - 8) % 2 != 0 {
         return Err(KernelError::ParseError);
@@ -183,6 +191,40 @@ pub fn parse_cvm_list(input: &[u8]) -> KernelResult<CvmList> {
         amount_y,
         rules,
     })
+}
+
+pub fn apply_offline_pin_verify_status(
+    rule: CvmRule,
+    sw: StatusWord,
+) -> KernelResult<OfflinePinVerifyOutcome> {
+    if !rule.method.requires_offline_pin() {
+        return Err(KernelError::InvalidArgument);
+    }
+
+    match classify(ApduContext::Verify, sw) {
+        StatusAction::Success => Ok(OfflinePinVerifyOutcome {
+            cvm_results: cvm_results(rule, 0x02),
+            tries_remaining: None,
+            tvr_bit: None,
+        }),
+        StatusAction::PinFailed { tries_remaining } => Ok(OfflinePinVerifyOutcome {
+            cvm_results: cvm_results(rule, 0x01),
+            tries_remaining: Some(tries_remaining),
+            tvr_bit: Some(if tries_remaining == 0 {
+                Tvr::B3_PIN_TRY_LIMIT_EXCEEDED
+            } else {
+                Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
+            }),
+        }),
+        StatusAction::Fail { error } => Err(error),
+        StatusAction::GetResponse { .. }
+        | StatusAction::RetryWithLe { .. }
+        | StatusAction::FallbackToDirectAid
+        | StatusAction::TryNextAid
+        | StatusAction::EndOfRecords
+        | StatusAction::ContinueWithTvr { .. }
+        | StatusAction::ContinueAfterNonCriticalScriptFailure => Err(KernelError::InvalidArgument),
+    }
 }
 
 pub fn evaluate(list: &CvmList, context: CvmContext, pin_handles: CvmPinHandles) -> CvmOutcome {
@@ -344,6 +386,50 @@ mod tests {
                 cvm_results: [0x01, 0x00, 0x01],
                 tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
             }
+        );
+    }
+
+    #[test]
+    fn offline_pin_verify_status_updates_cvm_results_and_tvr_bits() {
+        let rule = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x00])
+            .unwrap()
+            .rules[0];
+
+        assert_eq!(
+            apply_offline_pin_verify_status(rule, StatusWord::new(0x90, 0x00)).unwrap(),
+            OfflinePinVerifyOutcome {
+                cvm_results: [0x01, 0x00, 0x02],
+                tries_remaining: None,
+                tvr_bit: None,
+            }
+        );
+        assert_eq!(
+            apply_offline_pin_verify_status(rule, StatusWord::new(0x63, 0xc2)).unwrap(),
+            OfflinePinVerifyOutcome {
+                cvm_results: [0x01, 0x00, 0x01],
+                tries_remaining: Some(2),
+                tvr_bit: Some(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL),
+            }
+        );
+        assert_eq!(
+            apply_offline_pin_verify_status(rule, StatusWord::new(0x63, 0xc0)).unwrap(),
+            OfflinePinVerifyOutcome {
+                cvm_results: [0x01, 0x00, 0x01],
+                tries_remaining: Some(0),
+                tvr_bit: Some(Tvr::B3_PIN_TRY_LIMIT_EXCEEDED),
+            }
+        );
+        assert_eq!(
+            apply_offline_pin_verify_status(rule, StatusWord::new(0x69, 0x85)).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let no_cvm_rule = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x1f, 0x00])
+            .unwrap()
+            .rules[0];
+        assert_eq!(
+            apply_offline_pin_verify_status(no_cvm_rule, StatusWord::new(0x90, 0x00)).unwrap_err(),
+            KernelError::InvalidArgument
         );
     }
 

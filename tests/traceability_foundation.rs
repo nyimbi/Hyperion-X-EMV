@@ -15,8 +15,8 @@ use hyperion_emv::config::{
     SignatureStatus,
 };
 use hyperion_emv::cvm::{
-    evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome, CvmPinHandles,
-    Interface as CvmInterface, PedPinHandle,
+    apply_offline_pin_verify_status, evaluate as evaluate_cvm, parse_cvm_list, CvmAction,
+    CvmContext, CvmOutcome, CvmPinHandles, Interface as CvmInterface, PedPinHandle,
 };
 use hyperion_emv::dol::{build_dol_with_policy, parse_dol, DataStore, DolPaddingPolicy};
 use hyperion_emv::ffi::{
@@ -1782,6 +1782,21 @@ fn rtm_promotes_processing_restriction_evidence() {
 }
 
 #[test]
+fn rtm_promotes_pin_verify_warning_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-PIN-004").expect("RTM row exists");
+        assert!(
+            !row.contains("pending implementation evidence"),
+            "KRN-PIN-004 should cite concrete VERIFY warning evidence"
+        );
+        assert!(row.contains("verify_and_script_status_words_keep_their_own_meaning"));
+        assert!(row.contains("offline_pin_verify_status_updates_cvm_results_and_tvr_bits"));
+        assert!(row.contains("krn_pin_004_verify_63cx_updates_try_counter_tvr_and_cvm_results"));
+        assert!(row.contains("rtm_promotes_pin_verify_warning_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_api_abi_and_callback_validation_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-API-001", "KRN-API-002"] {
@@ -3006,6 +3021,36 @@ fn krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles() {
             }
         );
     }
+}
+
+#[test]
+fn krn_pin_004_verify_63cx_updates_try_counter_tvr_and_cvm_results() {
+    let rule = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x00])
+        .unwrap()
+        .rules[0];
+
+    let warning = apply_offline_pin_verify_status(rule, StatusWord::new(0x63, 0xc2)).unwrap();
+    assert_eq!(warning.cvm_results, [0x01, 0x00, 0x01]);
+    assert_eq!(warning.tries_remaining, Some(2));
+    assert_eq!(
+        warning.tvr_bit,
+        Some(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL)
+    );
+
+    let exhausted = apply_offline_pin_verify_status(rule, StatusWord::new(0x63, 0xc0)).unwrap();
+    assert_eq!(exhausted.cvm_results, [0x01, 0x00, 0x01]);
+    assert_eq!(exhausted.tries_remaining, Some(0));
+    assert_eq!(exhausted.tvr_bit, Some(Tvr::B3_PIN_TRY_LIMIT_EXCEEDED));
+
+    let success = apply_offline_pin_verify_status(rule, StatusWord::new(0x90, 0x00)).unwrap();
+    assert_eq!(success.cvm_results, [0x01, 0x00, 0x02]);
+    assert_eq!(success.tries_remaining, None);
+    assert_eq!(success.tvr_bit, None);
+
+    assert_eq!(
+        classify(ApduContext::Verify, StatusWord::new(0x63, 0xc3)),
+        StatusAction::PinFailed { tries_remaining: 3 }
+    );
 }
 
 unsafe fn run_cvm_capability_transaction(

@@ -123,3 +123,15 @@ decision record, while this file tracks work toward certification readiness.
   guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:04:24Z
+
+- Increment completed: promote VERIFY `63 Cx` offline PIN warning evidence for
+  KRN-PIN-004.
+- Code impact: CVM now has a deterministic offline PIN VERIFY status interpreter
+  that converts `90 00` and `63 Cx` into CVM result bytes, tries-remaining
+  evidence, and TVR updates without accepting PIN data into kernel memory.
+- Evidence updated: KRN-PIN-004 RTM rows now cite status-word classification,
+  CVM VERIFY-status mapping, traceability coverage, and the RTM guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
