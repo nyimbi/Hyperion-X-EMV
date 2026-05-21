@@ -96,3 +96,16 @@ decision record, while this file tracks work toward certification readiness.
   authentication, and issuer scripts.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T22:53:36Z
+
+- Increment completed: promote processing-restriction order and TVR-bit
+  evidence for KRN-REST-001 and KRN-REST-002.
+- Code impact: processing restrictions now use an explicit internal check
+  sequence for application version, expiration, effective date, AUC service
+  permission, and new-card handling; tests lock the order to standard TVR byte 2
+  bits only.
+- Evidence updated: KRN-REST-001 and KRN-REST-002 RTM rows now cite the order
+  regression, existing restriction TVR tests, and the traceability guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

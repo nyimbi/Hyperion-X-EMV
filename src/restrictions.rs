@@ -79,42 +79,62 @@ pub struct RestrictionResult {
     pub failed: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RestrictionCheck {
+    ApplicationVersion,
+    ExpirationDate,
+    EffectiveDate,
+    ApplicationUsageControl,
+    NewCard,
+}
+
+const RESTRICTION_CHECK_ORDER: [RestrictionCheck; 5] = [
+    RestrictionCheck::ApplicationVersion,
+    RestrictionCheck::ExpirationDate,
+    RestrictionCheck::EffectiveDate,
+    RestrictionCheck::ApplicationUsageControl,
+    RestrictionCheck::NewCard,
+];
+
 pub fn evaluate(input: RestrictionInput, mut tvr: Tvr) -> RestrictionResult {
     let mut failed = false;
 
-    if let (Some(card), Some(terminal)) = (
-        input.card_application_version,
-        input.terminal_application_version,
-    ) {
-        if card != terminal {
-            tvr.set(Tvr::B2_DIFFERENT_APPLICATION_VERSIONS);
+    for check in RESTRICTION_CHECK_ORDER {
+        if let Some(bit) = check.tvr_bit(&input) {
+            tvr.set(bit);
             failed = true;
         }
-    }
-
-    if input.transaction_date > input.application_expiration_date {
-        tvr.set(Tvr::B2_EXPIRED_APPLICATION);
-        failed = true;
-    }
-
-    if let Some(effective_date) = input.application_effective_date {
-        if input.transaction_date < effective_date {
-            tvr.set(Tvr::B2_APPLICATION_NOT_YET_EFFECTIVE);
-            failed = true;
-        }
-    }
-
-    if !input.auc.allows(input.region, input.service) {
-        tvr.set(Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED);
-        failed = true;
-    }
-
-    if input.new_card {
-        tvr.set(Tvr::B2_NEW_CARD);
-        failed = true;
     }
 
     RestrictionResult { tvr, failed }
+}
+
+impl RestrictionCheck {
+    fn tvr_bit(self, input: &RestrictionInput) -> Option<(usize, u8)> {
+        match self {
+            RestrictionCheck::ApplicationVersion => {
+                let (Some(card), Some(terminal)) = (
+                    input.card_application_version,
+                    input.terminal_application_version,
+                ) else {
+                    return None;
+                };
+                (card != terminal).then_some(Tvr::B2_DIFFERENT_APPLICATION_VERSIONS)
+            }
+            RestrictionCheck::ExpirationDate => (input.transaction_date
+                > input.application_expiration_date)
+                .then_some(Tvr::B2_EXPIRED_APPLICATION),
+            RestrictionCheck::EffectiveDate => input
+                .application_effective_date
+                .filter(|effective_date| input.transaction_date < *effective_date)
+                .map(|_| Tvr::B2_APPLICATION_NOT_YET_EFFECTIVE),
+            RestrictionCheck::ApplicationUsageControl => {
+                (!input.auc.allows(input.region, input.service))
+                    .then_some(Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED)
+            }
+            RestrictionCheck::NewCard => input.new_card.then_some(Tvr::B2_NEW_CARD),
+        }
+    }
 }
 
 fn bcd(byte: u8) -> KernelResult<u8> {
@@ -180,6 +200,46 @@ mod tests {
         assert!(result.tvr.is_set(Tvr::B2_APPLICATION_NOT_YET_EFFECTIVE));
         assert!(result.tvr.is_set(Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED));
         assert!(result.tvr.is_set(Tvr::B2_NEW_CARD));
+    }
+
+    #[test]
+    fn restriction_checks_follow_emv_order_and_use_standard_tvr_bits() {
+        let mut input = base_input();
+        input.transaction_date = EmvDate::from_bcd([0x31, 0x01, 0x01]).unwrap();
+        input.application_effective_date = Some(EmvDate::from_bcd([0x32, 0x01, 0x01]).unwrap());
+        input.card_application_version = Some([0x00, 0x02]);
+        input.auc = ApplicationUsageControl::new([0x00, 0x00]);
+        input.new_card = true;
+
+        assert_eq!(
+            RESTRICTION_CHECK_ORDER,
+            [
+                RestrictionCheck::ApplicationVersion,
+                RestrictionCheck::ExpirationDate,
+                RestrictionCheck::EffectiveDate,
+                RestrictionCheck::ApplicationUsageControl,
+                RestrictionCheck::NewCard,
+            ]
+        );
+
+        let bits = RESTRICTION_CHECK_ORDER
+            .iter()
+            .filter_map(|check| check.tvr_bit(&input))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            bits,
+            vec![
+                Tvr::B2_DIFFERENT_APPLICATION_VERSIONS,
+                Tvr::B2_EXPIRED_APPLICATION,
+                Tvr::B2_APPLICATION_NOT_YET_EFFECTIVE,
+                Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED,
+                Tvr::B2_NEW_CARD,
+            ]
+        );
+        assert_eq!(
+            evaluate(input, Tvr::cleared()).tvr.bytes(),
+            [0x00, 0xf8, 0x00, 0x00, 0x00]
+        );
     }
 
     #[test]

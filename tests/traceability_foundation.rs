@@ -1744,6 +1744,28 @@ fn rtm_promotes_tsi_phase_gating_evidence() {
 }
 
 #[test]
+fn rtm_promotes_processing_restriction_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-REST-001", "KRN-REST-002"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete processing-restriction evidence"
+            );
+            assert!(row.contains("restriction_checks_follow_emv_order_and_use_standard_tvr_bits"));
+            assert!(row.contains("processing_restrictions_mutate_only_defined_tvr_bits"));
+            assert!(row.contains("rtm_promotes_processing_restriction_evidence"));
+        }
+
+        let order = csv_row_for_requirement(csv, "KRN-REST-001").unwrap();
+        assert!(order.contains("evaluates_version_dates_auc_and_new_card_bits"));
+
+        let non_standard = csv_row_for_requirement(csv, "KRN-REST-002").unwrap();
+        assert!(non_standard.contains("does_not_set_non_standard_bits_for_allowed_transaction"));
+    }
+}
+
+#[test]
 fn rtm_promotes_api_abi_and_callback_validation_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-API-001", "KRN-API-002"] {
