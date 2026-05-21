@@ -1564,6 +1564,38 @@ fn rtm_promotes_dol_construction_policy_evidence() {
 }
 
 #[test]
+fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-FSM-001", "KRN-FSM-002", "KRN-FSM-003", "KRN-FSM-004"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete FSM evidence"
+            );
+        }
+
+        let annex = csv_row_for_requirement(csv, "KRN-FSM-001").unwrap();
+        assert!(annex.contains("validates_machine_readable_state_annex"));
+        assert!(annex.contains("krn_fsm_001_002_004_validates_annex_and_error_transitions"));
+
+        let fatal_vs_risk = csv_row_for_requirement(csv, "KRN-FSM-002").unwrap();
+        assert!(
+            fatal_vs_risk.contains("distinguishes_fatal_errors_from_tvr_mediated_risk_conditions")
+        );
+        assert!(fatal_vs_risk.contains("processing_restrictions_mutate_only_defined_tvr_bits"));
+
+        let replay = csv_row_for_requirement(csv, "KRN-FSM-003").unwrap();
+        assert!(replay.contains("replay_is_exact_order_and_evidence_is_masked"));
+        assert!(replay.contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl"));
+
+        let async_failures = csv_row_for_requirement(csv, "KRN-FSM-004").unwrap();
+        assert!(async_failures.contains("asynchronous_failures_are_explicit_error_transitions"));
+        assert!(async_failures
+            .contains("krn_api_007_err_002_preserves_callback_error_codes_fail_closed"));
+    }
+}
+
+#[test]
 fn rtm_promotes_api_abi_and_callback_validation_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-API-001", "KRN-API-002"] {
