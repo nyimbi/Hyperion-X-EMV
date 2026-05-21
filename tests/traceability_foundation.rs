@@ -28,10 +28,11 @@ use hyperion_emv::ffi::{
     krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_mask_apdu_command_json,
     krn_mask_apdu_response_json, krn_process_final_generate_ac, krn_process_issuer_authentication,
     krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
-    krn_run_transaction, krn_set_cvm_capabilities, krn_set_offline_pin_handle,
-    krn_set_terminal_capabilities, krn_set_terminal_transaction_qualifiers,
-    krn_set_transaction_params, KrnConfigBlob, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
+    krn_run_transaction, krn_set_cvm_capabilities, krn_set_nonvolatile_offline_counter,
+    krn_set_offline_pin_handle, krn_set_terminal_capabilities,
+    krn_set_terminal_transaction_qualifiers, krn_set_transaction_params, KrnConfigBlob, KrnOutcome,
+    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
+    KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -68,7 +69,7 @@ use hyperion_emv::trace::{
     mask_apdu_response, mask_tlv_value, ApduTraceContext, LogPolicy, MaskedValue, ReplayExchange,
     ReplayScript, TraceIdentity,
 };
-use hyperion_emv::trm::{evaluate as evaluate_trm, TrmInput, TrmProfile};
+use hyperion_emv::trm::{evaluate as evaluate_trm, OfflineCounter, TrmInput, TrmProfile};
 use std::collections::BTreeSet;
 use std::ffi::c_void;
 use std::fs;
@@ -1732,12 +1733,22 @@ fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
 
         let tsi = csv_row_for_requirement(csv, "KRN-TRM-004").unwrap();
         assert!(tsi.contains("evaluates_floor_exception_velocity_random_and_merchant_bits"));
+    }
+}
 
-        let counters = csv_row_for_requirement(csv, "KRN-TRM-003").unwrap();
+#[test]
+fn rtm_promotes_nonvolatile_offline_counter_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let counters = csv_row_for_requirement(csv, "KRN-TRM-003").expect("RTM row exists");
         assert!(
-            counters.contains("pending implementation evidence"),
-            "offline counter persistence needs dedicated non-volatile storage evidence"
+            !counters.contains("pending implementation evidence"),
+            "KRN-TRM-003 should cite concrete non-volatile counter evidence"
         );
+        assert!(counters
+            .contains("requires_nonvolatile_offline_counter_when_velocity_limits_are_active"));
+        assert!(counters.contains("trm_003_requires_nonvolatile_counter_for_velocity_limits"));
+        assert!(counters.contains("krn_set_nonvolatile_offline_counter"));
+        assert!(counters.contains("rtm_promotes_nonvolatile_offline_counter_evidence"));
     }
 }
 
@@ -4850,17 +4861,65 @@ fn trm_sets_floor_random_velocity_exception_and_tsi_bits() {
             amount_authorized: 6_000,
             exception_file_match: true,
             merchant_forced_online: true,
-            consecutive_offline_count: Some(5),
+            offline_counter: Some(OfflineCounter::non_volatile(5)),
             random_sample_basis_points: Some(499),
             profile: TrmProfile::new(5_000, 5, Some(2), Some(4)).unwrap(),
         },
         Tvr::cleared(),
         hyperion_emv::state::Tsi::cleared(),
-    );
+    )
+    .unwrap();
 
     assert!(result.force_online);
     assert_eq!(result.tvr.bytes(), [0x10, 0x00, 0x00, 0xf8, 0x00]);
     assert_eq!(result.tsi.bytes(), [0x08, 0x00]);
+}
+
+#[test]
+fn trm_003_requires_nonvolatile_counter_for_velocity_limits() {
+    unsafe {
+        assert_eq!(
+            krn_set_nonvolatile_offline_counter(ptr::null_mut(), 0),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+    }
+
+    let profile = TrmProfile::new(5_000, 0, Some(2), Some(4)).unwrap();
+    let input = |offline_counter| TrmInput {
+        amount_authorized: 100,
+        exception_file_match: false,
+        merchant_forced_online: false,
+        offline_counter,
+        random_sample_basis_points: None,
+        profile,
+    };
+
+    assert_eq!(
+        evaluate_trm(input(None), Tvr::cleared(), Tsi::cleared()).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+    assert_eq!(
+        evaluate_trm(
+            input(Some(OfflineCounter::volatile(5))),
+            Tvr::cleared(),
+            Tsi::cleared()
+        )
+        .unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
+
+    let result = evaluate_trm(
+        input(Some(OfflineCounter::non_volatile(5))),
+        Tvr::cleared(),
+        Tsi::cleared(),
+    )
+    .unwrap();
+    assert!(result
+        .tvr
+        .is_set(Tvr::B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED));
+    assert!(result
+        .tvr
+        .is_set(Tvr::B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED));
 }
 
 #[test]
@@ -4901,13 +4960,14 @@ fn tsi_bits_are_set_only_after_corresponding_processing() {
             amount_authorized: 100,
             exception_file_match: false,
             merchant_forced_online: false,
-            consecutive_offline_count: Some(0),
+            offline_counter: None,
             random_sample_basis_points: Some(9_999),
             profile: TrmProfile::new(5_000, 0, None, None).unwrap(),
         },
         Tvr::cleared(),
         Tsi::cleared(),
-    );
+    )
+    .unwrap();
     assert_eq!(trm.tsi.bytes(), [0x08, 0x00]);
 }
 

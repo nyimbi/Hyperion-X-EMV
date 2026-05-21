@@ -135,3 +135,17 @@ decision record, while this file tracks work toward certification readiness.
   CVM VERIFY-status mapping, traceability coverage, and the RTM guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:14:48Z
+
+- Increment completed: enforce non-volatile offline counter provenance for
+  KRN-TRM-003.
+- Code impact: TRM profiles can declare consecutive-offline limits; TRM
+  evaluation fails closed when those limits are active and the supplied counter
+  is missing or marked volatile; the FFI exposes
+  `krn_set_nonvolatile_offline_counter` for Level 3 counter input without adding
+  kernel-owned volatile counter state.
+- Evidence updated: KRN-TRM-003 RTM rows now cite TRM provenance checks, the
+  FFI boundary, and a traceability guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

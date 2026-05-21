@@ -78,6 +78,8 @@ pub struct AidProfile {
     pub floor_limit: u64,
     pub cvm_limit_contact: u64,
     pub random_selection_percent: u8,
+    pub lower_consecutive_offline_limit: Option<u16>,
+    pub upper_consecutive_offline_limit: Option<u16>,
     pub contactless_transaction_limit: u64,
     pub contactless_cvm_limit: u64,
     pub cdcvm_supported: bool,
@@ -90,7 +92,12 @@ pub struct AidProfile {
 
 impl AidProfile {
     pub fn trm_profile(&self) -> Option<TrmProfile> {
-        TrmProfile::new(self.floor_limit, self.random_selection_percent, None, None)
+        TrmProfile::new(
+            self.floor_limit,
+            self.random_selection_percent,
+            self.lower_consecutive_offline_limit,
+            self.upper_consecutive_offline_limit,
+        )
     }
 
     pub fn cda_allowed_by_profile(&self) -> bool {
@@ -367,6 +374,8 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             "floor_limit",
             "cvm_limit_contact",
             "random_selection_percent",
+            "lower_consecutive_offline_limit",
+            "upper_consecutive_offline_limit",
             "contactless_transaction_limit",
             "contactless_cvm_limit",
             "cdcvm_supported",
@@ -408,6 +417,17 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         return Err(KernelError::InvalidProfile);
     }
 
+    let lower_consecutive_offline_limit = optional_u16(object, "lower_consecutive_offline_limit")?;
+    let upper_consecutive_offline_limit = optional_u16(object, "upper_consecutive_offline_limit")?;
+    if let (Some(lower), Some(upper)) = (
+        lower_consecutive_offline_limit,
+        upper_consecutive_offline_limit,
+    ) {
+        if lower > upper {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+
     Ok(AidProfile {
         aid,
         priority: priority as u8,
@@ -421,6 +441,8 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         floor_limit: required_u64(object, "floor_limit")?,
         cvm_limit_contact: required_u64(object, "cvm_limit_contact")?,
         random_selection_percent: random_selection_percent as u8,
+        lower_consecutive_offline_limit,
+        upper_consecutive_offline_limit,
         contactless_transaction_limit: required_u64(object, "contactless_transaction_limit")?,
         contactless_cvm_limit: required_u64(object, "contactless_cvm_limit")?,
         cdcvm_supported: required_bool(object, "cdcvm_supported")?,
@@ -658,6 +680,17 @@ fn required_string<'a>(
 
 fn required_u64(object: &BTreeMap<String, JsonValue>, key: &str) -> KernelResult<u64> {
     object.get(key).ok_or(KernelError::InvalidProfile)?.as_u64()
+}
+
+fn optional_u16(object: &BTreeMap<String, JsonValue>, key: &str) -> KernelResult<Option<u16>> {
+    let Some(value) = object.get(key) else {
+        return Ok(None);
+    };
+    let value = value.as_u64()?;
+    if value > u16::MAX as u64 {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(Some(value as u16))
 }
 
 fn required_bool(object: &BTreeMap<String, JsonValue>, key: &str) -> KernelResult<bool> {
@@ -1264,6 +1297,21 @@ mod tests {
             load_profile_set(invalid_hex.as_bytes(), &policy(SignatureStatus::Verified))
                 .unwrap_err(),
             KernelError::ParseError
+        );
+
+        let invalid_offline_limits = profile.replace(
+            r#""random_selection_percent": 5,"#,
+            r#""random_selection_percent": 5,
+          "lower_consecutive_offline_limit": 5,
+          "upper_consecutive_offline_limit": 2,"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                invalid_offline_limits.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
         );
 
         let non_hex_key_material =

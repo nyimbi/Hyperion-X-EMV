@@ -48,7 +48,7 @@ use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use crate::taa::{decide as decide_taa, ActionCodes, TaaInput, TerminalAction};
 use crate::trace::{mask_apdu_command, mask_apdu_response, ApduTraceContext, LogPolicy};
-use crate::trm::{evaluate as evaluate_trm, TrmInput};
+use crate::trm::{evaluate as evaluate_trm, OfflineCounter, TrmInput};
 use core::mem;
 use core::ptr;
 use std::ffi::c_void;
@@ -197,6 +197,7 @@ pub struct KrnContext {
     cvm_capabilities: RuntimeCvmCapabilities,
     terminal_capabilities: Option<[u8; 3]>,
     terminal_transaction_qualifiers: Option<[u8; 4]>,
+    offline_counter: Option<OfflineCounter>,
     last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -230,6 +231,7 @@ impl KrnContext {
             cvm_capabilities: RuntimeCvmCapabilities::default(),
             terminal_capabilities: None,
             terminal_transaction_qualifiers: None,
+            offline_counter: None,
             last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
@@ -260,6 +262,7 @@ impl KrnContext {
         self.cvm_capabilities = RuntimeCvmCapabilities::default();
         self.terminal_capabilities = None;
         self.terminal_transaction_qualifiers = None;
+        self.offline_counter = None;
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -418,6 +421,7 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.cvm_capabilities = RuntimeCvmCapabilities::default();
         ctx.terminal_capabilities = None;
         ctx.terminal_transaction_qualifiers = None;
+        ctx.offline_counter = None;
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
         Ok(0usize)
@@ -475,6 +479,32 @@ pub unsafe extern "C" fn krn_set_terminal_transaction_qualifiers(
         return KernelError::Busy.code();
     }
     ctx.terminal_transaction_qualifiers = Some([byte1, byte2, byte3, byte4]);
+    ctx.set_result(Ok(0usize))
+}
+
+/// Registers a transaction offline counter loaded from non-volatile storage.
+///
+/// The kernel does not maintain terminal velocity counters in volatile memory.
+/// When an active signed profile enables consecutive-offline limits, Level 3
+/// must supply a counter value whose persistence is owned by the terminal's
+/// non-volatile storage boundary. The value is cleared whenever new transaction
+/// parameters are set.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_nonvolatile_offline_counter(
+    ctx: *mut KrnContext,
+    consecutive_offline_count: u16,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    ctx.offline_counter = Some(OfflineCounter::non_volatile(consecutive_offline_count));
     ctx.set_result(Ok(0usize))
 }
 
@@ -2282,13 +2312,13 @@ fn run_terminal_risk_management(
             amount_authorized: params.amount_authorised_minor,
             exception_file_match: false,
             merchant_forced_online: false,
-            consecutive_offline_count: None,
+            offline_counter: ctx.offline_counter,
             random_sample_basis_points: None,
             profile,
         },
         ctx.tvr,
         ctx.tsi,
-    );
+    )?;
     ctx.tvr = result.tvr;
     ctx.tsi = result.tsi;
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;

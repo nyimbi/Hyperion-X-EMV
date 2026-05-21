@@ -1,3 +1,4 @@
+use crate::error::{KernelError, KernelResult};
 use crate::state::{Tsi, Tvr};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,12 +19,53 @@ impl TrmProfile {
         if random_selection_percent > 100 {
             return None;
         }
+        if let (Some(lower), Some(upper)) = (
+            lower_consecutive_offline_limit,
+            upper_consecutive_offline_limit,
+        ) {
+            if lower > upper {
+                return None;
+            }
+        }
         Some(Self {
             floor_limit,
             random_selection_percent,
             lower_consecutive_offline_limit,
             upper_consecutive_offline_limit,
         })
+    }
+
+    pub fn requires_terminal_offline_counter(self) -> bool {
+        self.lower_consecutive_offline_limit.is_some()
+            || self.upper_consecutive_offline_limit.is_some()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OfflineCounterSource {
+    NonVolatile,
+    Volatile,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OfflineCounter {
+    pub count: u16,
+    pub source: OfflineCounterSource,
+}
+
+impl OfflineCounter {
+    pub fn non_volatile(count: u16) -> Self {
+        Self {
+            count,
+            source: OfflineCounterSource::NonVolatile,
+        }
+    }
+
+    pub fn volatile(count: u16) -> Self {
+        Self {
+            count,
+            source: OfflineCounterSource::Volatile,
+        }
     }
 }
 
@@ -32,7 +74,7 @@ pub struct TrmInput {
     pub amount_authorized: u64,
     pub exception_file_match: bool,
     pub merchant_forced_online: bool,
-    pub consecutive_offline_count: Option<u16>,
+    pub offline_counter: Option<OfflineCounter>,
     /// Deterministic certified-profile sample in basis points, 0..=9999.
     pub random_sample_basis_points: Option<u16>,
     pub profile: TrmProfile,
@@ -45,7 +87,8 @@ pub struct TrmResult {
     pub force_online: bool,
 }
 
-pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> TrmResult {
+pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> KernelResult<TrmResult> {
+    let offline_count = offline_count_for_profile(input.profile, input.offline_counter)?;
     let mut force_online = false;
 
     if input.exception_file_match {
@@ -58,20 +101,18 @@ pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> TrmResult {
         force_online = true;
     }
 
-    if let (Some(count), Some(limit)) = (
-        input.consecutive_offline_count,
-        input.profile.lower_consecutive_offline_limit,
-    ) {
+    if let (Some(count), Some(limit)) =
+        (offline_count, input.profile.lower_consecutive_offline_limit)
+    {
         if count > limit {
             tvr.set(Tvr::B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED);
             force_online = true;
         }
     }
 
-    if let (Some(count), Some(limit)) = (
-        input.consecutive_offline_count,
-        input.profile.upper_consecutive_offline_limit,
-    ) {
+    if let (Some(count), Some(limit)) =
+        (offline_count, input.profile.upper_consecutive_offline_limit)
+    {
         if count > limit {
             tvr.set(Tvr::B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED);
             force_online = true;
@@ -93,11 +134,25 @@ pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> TrmResult {
 
     tsi.set(Tsi::TERMINAL_RISK_MANAGEMENT_PERFORMED);
 
-    TrmResult {
+    Ok(TrmResult {
         tvr,
         tsi,
         force_online,
+    })
+}
+
+fn offline_count_for_profile(
+    profile: TrmProfile,
+    offline_counter: Option<OfflineCounter>,
+) -> KernelResult<Option<u16>> {
+    if !profile.requires_terminal_offline_counter() {
+        return Ok(None);
     }
+    let counter = offline_counter.ok_or(KernelError::InvalidProfile)?;
+    if counter.source != OfflineCounterSource::NonVolatile {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(Some(counter.count))
 }
 
 fn random_selection_triggered(percent: u8, sample_basis_points: Option<u16>) -> bool {
@@ -126,13 +181,14 @@ mod tests {
                 amount_authorized: 6_000,
                 exception_file_match: true,
                 merchant_forced_online: true,
-                consecutive_offline_count: Some(5),
+                offline_counter: Some(OfflineCounter::non_volatile(5)),
                 random_sample_basis_points: Some(10),
                 profile: profile(),
             },
             Tvr::cleared(),
             Tsi::cleared(),
-        );
+        )
+        .unwrap();
 
         assert!(result.force_online);
         assert!(result.tvr.is_set(Tvr::B1_CARD_ON_EXCEPTION_FILE));
@@ -160,13 +216,14 @@ mod tests {
                 amount_authorized: 1,
                 exception_file_match: false,
                 merchant_forced_online: false,
-                consecutive_offline_count: None,
+                offline_counter: None,
                 random_sample_basis_points: Some(499),
                 profile,
             },
             Tvr::cleared(),
             Tsi::cleared(),
-        );
+        )
+        .unwrap();
         let not_selected = evaluate(
             TrmInput {
                 random_sample_basis_points: Some(500),
@@ -174,14 +231,15 @@ mod tests {
                     amount_authorized: 1,
                     exception_file_match: false,
                     merchant_forced_online: false,
-                    consecutive_offline_count: None,
+                    offline_counter: None,
                     random_sample_basis_points: Some(499),
                     profile,
                 }
             },
             Tvr::cleared(),
             Tsi::cleared(),
-        );
+        )
+        .unwrap();
 
         assert!(selected
             .tvr
@@ -194,5 +252,43 @@ mod tests {
     #[test]
     fn rejects_invalid_profile_percent() {
         assert!(TrmProfile::new(0, 101, None, None).is_none());
+        assert!(TrmProfile::new(0, 0, Some(3), Some(2)).is_none());
+    }
+
+    #[test]
+    fn requires_nonvolatile_offline_counter_when_velocity_limits_are_active() {
+        let profile = TrmProfile::new(10_000, 0, Some(2), None).unwrap();
+        let input = |offline_counter| TrmInput {
+            amount_authorized: 1,
+            exception_file_match: false,
+            merchant_forced_online: false,
+            offline_counter,
+            random_sample_basis_points: None,
+            profile,
+        };
+
+        assert_eq!(
+            evaluate(input(None), Tvr::cleared(), Tsi::cleared()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            evaluate(
+                input(Some(OfflineCounter::volatile(3))),
+                Tvr::cleared(),
+                Tsi::cleared()
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let result = evaluate(
+            input(Some(OfflineCounter::non_volatile(3))),
+            Tvr::cleared(),
+            Tsi::cleared(),
+        )
+        .unwrap();
+        assert!(result
+            .tvr
+            .is_set(Tvr::B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED));
     }
 }
