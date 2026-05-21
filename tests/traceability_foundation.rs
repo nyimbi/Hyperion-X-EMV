@@ -724,6 +724,22 @@ fn rtm_annexes_are_six_column_csv() {
 }
 
 #[test]
+fn rtm_promotes_state_machine_annex_validation_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-ANNEX-001", "KRN-ANNEX-002"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete state-machine annex validation evidence"
+            );
+            assert!(row.contains("validates_machine_readable_state_annex"));
+            assert!(row.contains("rejects_state_machine_annex_schema_and_semantic_drift"));
+            assert!(row.contains("rtm_promotes_state_machine_annex_validation_evidence"));
+        }
+    }
+}
+
+#[test]
 fn both_rtms_cover_dynamic_oda_rows_independently() {
     for krn_id in [
         "KRN-GAC-010",

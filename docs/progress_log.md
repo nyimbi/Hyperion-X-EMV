@@ -149,3 +149,16 @@ decision record, while this file tracks work toward certification readiness.
   FFI boundary, and a traceability guard.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T23:19:56Z
+
+- Increment completed: promote executable state-machine annex validation for
+  KRN-ANNEX-001 and KRN-ANNEX-002.
+- Code impact: `validate_state_machine_annex` now verifies the exact CSV schema,
+  parses each documented event/action/error, and rejects annex rows whose
+  next-state, action, or error semantics drift from the executable FSM
+  transition table.
+- Evidence updated: KRN-ANNEX-001 and KRN-ANNEX-002 RTM rows now cite FSM
+  schema validation, semantic-drift rejection, and a traceability guard.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

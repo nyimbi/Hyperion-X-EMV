@@ -390,7 +390,16 @@ pub fn transition(state: FsmState, event: FsmEvent) -> KernelResult<Transition> 
 pub fn validate_state_machine_annex(csv: &str) -> KernelResult<usize> {
     let mut rows = csv.lines();
     let header = rows.next().ok_or(KernelError::ParseError)?;
-    if split_csv_record(header)?.len() != 6 {
+    if split_csv_record(header)?
+        != [
+            "Current State",
+            "Event",
+            "Guard",
+            "Next State",
+            "Action",
+            "Error Code",
+        ]
+    {
         return Err(KernelError::ParseError);
     }
 
@@ -403,9 +412,18 @@ pub fn validate_state_machine_annex(csv: &str) -> KernelResult<usize> {
         if fields.len() != 6 {
             return Err(KernelError::ParseError);
         }
-        parse_state(fields[0])?;
-        parse_state(fields[3])?;
-        parse_error_code(fields[5])?;
+        if fields.iter().any(|field| field.is_empty()) {
+            return Err(KernelError::ParseError);
+        }
+        let from = parse_state(fields[0])?;
+        let event = parse_event(fields[1])?;
+        let to = parse_state(fields[3])?;
+        let action = parse_action(from, event, fields[4])?;
+        let error = parse_error_code(fields[5])?;
+        let expected = transition(from, event).map_err(|_| KernelError::ParseError)?;
+        if expected.to != to || expected.action != action || expected.error != error {
+            return Err(KernelError::ParseError);
+        }
         count += 1;
     }
 
@@ -441,6 +459,121 @@ fn trim_csv_field(field: &str) -> &str {
     field.trim().trim_matches('"')
 }
 
+fn parse_event(value: &str) -> KernelResult<FsmEvent> {
+    match value {
+        "krn_set_transaction_params()" => Ok(FsmEvent::SetTransactionParams),
+        "card_detected()" => Ok(FsmEvent::CardDetected),
+        "card_detected() timeout" => Ok(FsmEvent::CardDetectionTimeout),
+        "SELECT PSE returns 9000 with FCI" => Ok(FsmEvent::PseSelected),
+        "SELECT PSE returns 6A82" => Ok(FsmEvent::PseNotFound),
+        "candidate AID available" => Ok(FsmEvent::CandidateAidAvailable),
+        "no candidate left" => Ok(FsmEvent::NoCandidateLeft),
+        "SELECT returns 9000" => Ok(FsmEvent::AidSelected),
+        "SELECT returns 6A82" => Ok(FsmEvent::AidNotSupported),
+        "GPO returns 9000 with 77 template" => Ok(FsmEvent::GpoTemplate77),
+        "GPO returns 9000 with 80 template" => Ok(FsmEvent::GpoTemplate80),
+        "GPO fails (SW != 9000)" => Ok(FsmEvent::GpoFailed),
+        "READ RECORD returns 9000" => Ok(FsmEvent::RecordRead),
+        "READ RECORD returns 6A83" => Ok(FsmEvent::EndOfRecords),
+        "READ RECORD fails (other SW)" => Ok(FsmEvent::RecordReadFailed),
+        "more AFL entries" => Ok(FsmEvent::MoreAflEntries),
+        "AFL complete" => Ok(FsmEvent::AflComplete),
+        "ODA success" => Ok(FsmEvent::OdaSuccess),
+        "ODA failure (SDA/DDA/CDA)" => Ok(FsmEvent::OdaFailure),
+        "Processing restrictions ok" | "Processing restrictions failed" => {
+            Ok(FsmEvent::RestrictionsEvaluated)
+        }
+        "CVM success" => Ok(FsmEvent::CvmSuccess),
+        "CVM failure (retry possible)" => Ok(FsmEvent::CvmRetryPossible),
+        "CVM failure (no retry)" => Ok(FsmEvent::CvmFailureNoRetry),
+        "retry count < max" => Ok(FsmEvent::CvmRetryAvailable),
+        "retry count exceeded" => Ok(FsmEvent::CvmRetryExceeded),
+        "TRM ok" | "TRM force online (floor limit/random)" => Ok(FsmEvent::TrmEvaluated),
+        "TAA decision = ARQC" => Ok(FsmEvent::TaaArqc),
+        "TAA decision = TC" => Ok(FsmEvent::TaaTc),
+        "TAA decision = AAC" => Ok(FsmEvent::TaaAac),
+        "GENERATE AC returns 9000 with ARQC" => Ok(FsmEvent::GacArqc),
+        "GENERATE AC returns 9000 with TC" => Ok(FsmEvent::GacTc),
+        "GENERATE AC returns 9000 with AAC" => Ok(FsmEvent::GacAac),
+        "GENERATE AC returns 9000 with CDA response" => Ok(FsmEvent::GacCda),
+        "GENERATE AC fails (SW != 9000)" => Ok(FsmEvent::GacFailed),
+        "CDA verification success" => Ok(FsmEvent::CdaSuccess),
+        "CDA verification failure" => Ok(FsmEvent::CdaFailure),
+        "host_response received with tag 91 issuer authentication data" => Ok(FsmEvent::HostArpc),
+        "host_response received with approval (no ARPC)" => Ok(FsmEvent::HostApprovalNoArpc),
+        "host_response timeout" => Ok(FsmEvent::HostTimeout),
+        "EXTERNAL AUTHENTICATE returns 9000" => Ok(FsmEvent::IssuerAuthenticationSuccess),
+        "EXTERNAL AUTHENTICATE fails" => Ok(FsmEvent::IssuerAuthenticationFailure),
+        "issuer script available" => Ok(FsmEvent::ScriptAvailable),
+        "no more scripts" | "no more post-final scripts" => Ok(FsmEvent::NoMoreScripts),
+        "script APDU returns 9000" => Ok(FsmEvent::ScriptSuccess),
+        "script APDU returns 63xx or 6xxx" => Ok(FsmEvent::ScriptNonCriticalFailure),
+        "critical script failure (scheme rule)" => Ok(FsmEvent::ScriptCriticalFailure),
+        "GENERATE AC second returns 9000 with TC" => Ok(FsmEvent::Gac2Tc),
+        "GENERATE AC second returns 9000 with AAC" => Ok(FsmEvent::Gac2Aac),
+        "second GENERATE AC skipped" => Ok(FsmEvent::FinalGenerateAcSkipped),
+        "GENERATE AC second fails" => Ok(FsmEvent::Gac2Failed),
+        "final outcome complete" => Ok(FsmEvent::FinalOutcomeComplete),
+        "any" => Ok(FsmEvent::ErrorReset),
+        _ => Err(KernelError::ParseError),
+    }
+}
+
+fn parse_action(from: FsmState, event: FsmEvent, value: &str) -> KernelResult<FsmAction> {
+    match value {
+        "Store amount/currency" => Ok(FsmAction::StoreTransactionParams),
+        "Start PSE/PPSE selection" => Ok(FsmAction::StartSelection),
+        "Retry detection" => Ok(FsmAction::RetryDetection),
+        "Parse FCI, build candidate list" | "Use direct AID list" | "Try next candidate" => {
+            Ok(FsmAction::BuildCandidateList)
+        }
+        "SELECT next AID" => Ok(FsmAction::SelectNextAid),
+        "Set error" if from == FsmState::S2AidList && event == FsmEvent::NoCandidateLeft => {
+            Ok(FsmAction::SetNoCommonAid)
+        }
+        "Set error" => Ok(FsmAction::Error),
+        "Build PDOL send GPO" => Ok(FsmAction::BuildGpo),
+        "Parse AIP/AFL, start reading" | "Read next record" => Ok(FsmAction::ReadRecords),
+        "Use default records" | "All records processed" | "Start ODA" => Ok(FsmAction::StartOda),
+        "Store record, continue AFL loop" => Ok(FsmAction::ContinueAfl),
+        "Set TVR_ICC_DATA_MISSING, continue" => Ok(FsmAction::SetIccDataMissing),
+        "Clear ODA failure bits, set TSI" | "Set corresponding TVR bits"
+            if from == FsmState::S5 =>
+        {
+            Ok(FsmAction::RecordOdaResult)
+        }
+        "Continue processing restrictions" | "Set TVR_CDA_FAILED" => Ok(FsmAction::RecordOdaResult),
+        "Proceed to CVM" | "Set TVR bits, continue" | "Retry CVM" => Ok(FsmAction::EvaluateCvm),
+        "Proceed to TRM" | "Set CVM failure bits" => Ok(FsmAction::EvaluateTrm),
+        "Increment retry counter" => Ok(FsmAction::RetryCvm),
+        "Proceed to TAA" | "Set corresponding TVR bits" => Ok(FsmAction::RunTaa),
+        "Request ARQC" => Ok(FsmAction::RequestFirstGenerateAc),
+        "Offline approve" => Ok(FsmAction::OfflineApprove),
+        "Offline decline" => Ok(FsmAction::OfflineDecline),
+        "Build host request" => Ok(FsmAction::BuildHostRequest),
+        "Verify CDA signature" => Ok(FsmAction::VerifyCda),
+        "Process issuer authentication" => Ok(FsmAction::ProcessArpc),
+        "Skip second GENERATE AC, go to scripts"
+        | "Set issuer-authentication TSI"
+        | "Set issuer-authentication TSI and TVR failure bit"
+        | "Execute next script"
+        | "Continue to next script"
+        | "Log script failure, continue (non-critical)" => Ok(FsmAction::ProcessIssuerScripts),
+        "Issue second GENERATE AC" => Ok(FsmAction::RequestFinalGenerateAc),
+        "Process post-final issuer scripts before online approve"
+        | "Process post-final issuer scripts before online decline"
+        | "Process post-final issuer scripts without card-generated final cryptogram"
+        | "Execute next post-final script"
+        | "Continue to next post-final script"
+        | "Log post-final script failure, continue (non-critical)" => {
+            Ok(FsmAction::ProcessPostFinalIssuerScripts)
+        }
+        "Final outcome" => Ok(FsmAction::FinalOutcome),
+        "Reset kernel" | "Reset after error" => Ok(FsmAction::Reset),
+        _ => Err(KernelError::ParseError),
+    }
+}
+
 fn parse_state(value: &str) -> KernelResult<FsmState> {
     match value {
         "S0" => Ok(FsmState::S0),
@@ -472,14 +605,14 @@ fn parse_state(value: &str) -> KernelResult<FsmState> {
     }
 }
 
-fn parse_error_code(value: &str) -> KernelResult<()> {
+fn parse_error_code(value: &str) -> KernelResult<KernelError> {
     match value {
-        "KRN_OK"
-        | "KRN_ERR_NO_COMMON_AID"
-        | "KRN_ERR_MISSING_MANDATORY_TAG"
-        | "KRN_ERR_CARD_REMOVED"
-        | "KRN_ERR_HOST_TIMEOUT"
-        | "KRN_ERR_SCRIPT_FAILED" => Ok(()),
+        "KRN_OK" => Ok(KernelError::Ok),
+        "KRN_ERR_NO_COMMON_AID" => Ok(KernelError::NoCommonAid),
+        "KRN_ERR_MISSING_MANDATORY_TAG" => Ok(KernelError::MissingMandatoryTag),
+        "KRN_ERR_CARD_REMOVED" => Ok(KernelError::CardRemoved),
+        "KRN_ERR_HOST_TIMEOUT" => Ok(KernelError::HostTimeout),
+        "KRN_ERR_SCRIPT_FAILED" => Ok(KernelError::ScriptFailed),
         _ => Err(KernelError::ParseError),
     }
 }
@@ -493,6 +626,36 @@ mod tests {
     #[test]
     fn validates_machine_readable_state_annex() {
         assert!(validate_state_machine_annex(STATE_MACHINE).unwrap() >= 45);
+    }
+
+    #[test]
+    fn rejects_state_machine_annex_schema_and_semantic_drift() {
+        let bad_header = STATE_MACHINE.replace(
+            "\"Current State\",\"Event\",\"Guard\",\"Next State\",\"Action\",\"Error Code\"",
+            "\"Current State\",\"Event\",\"Next State\",\"Action\",\"Error Code\"",
+        );
+        assert_eq!(
+            validate_state_machine_annex(&bad_header).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let wrong_next_state = STATE_MACHINE.replace(
+            "\"S8\",\"TRM ok\",\"-\",\"S9\",\"Proceed to TAA\",\"KRN_OK\"",
+            "\"S8\",\"TRM ok\",\"-\",\"SE\",\"Proceed to TAA\",\"KRN_OK\"",
+        );
+        assert_eq!(
+            validate_state_machine_annex(&wrong_next_state).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let wrong_action = STATE_MACHINE.replace(
+            "\"S8\",\"TRM ok\",\"-\",\"S9\",\"Proceed to TAA\",\"KRN_OK\"",
+            "\"S8\",\"TRM ok\",\"-\",\"S9\",\"Set error\",\"KRN_OK\"",
+        );
+        assert_eq!(
+            validate_state_machine_annex(&wrong_action).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]
