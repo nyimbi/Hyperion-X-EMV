@@ -4,6 +4,8 @@ use crate::tlv;
 
 pub const MAX_SCRIPT_COMMANDS: usize = 32;
 pub const MAX_SCRIPT_COMMAND_LEN: usize = 261;
+const ISSUER_AUTHENTICATION_DATA_MIN_LEN: usize = 8;
+const ISSUER_AUTHENTICATION_DATA_MAX_LEN: usize = 16;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScriptPhase {
@@ -45,7 +47,16 @@ pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
         Some(_) => return Err(KernelError::ParseError),
         None => None,
     };
-    let issuer_authentication_data = tlv::find_first(&tlvs, &[0x91]).map(|value| value.to_vec());
+    let issuer_authentication_data = match tlv::find_first(&tlvs, &[0x91]) {
+        Some(value)
+            if (ISSUER_AUTHENTICATION_DATA_MIN_LEN..=ISSUER_AUTHENTICATION_DATA_MAX_LEN)
+                .contains(&value.len()) =>
+        {
+            Some(value.to_vec())
+        }
+        Some(_) => return Err(KernelError::ParseError),
+        None => None,
+    };
     let mut scripts = Vec::new();
     collect_scripts(&tlvs, &mut scripts)?;
 
@@ -198,6 +209,23 @@ mod tests {
     fn rejects_script_templates_without_commands() {
         assert_eq!(
             parse_host_response(&[0x71, 0x06, 0x9f, 0x18, 0x03, 0x01, 0x02, 0x03]).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_issuer_authentication_data() {
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b'0', b'0', 0x91, 0x07, 1, 2, 3, 4, 5, 6, 7])
+                .unwrap_err(),
+            KernelError::ParseError
+        );
+        let too_long = [
+            0x8a, 0x02, b'0', b'0', 0x91, 0x11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+            16, 17,
+        ];
+        assert_eq!(
+            parse_host_response(&too_long).unwrap_err(),
             KernelError::ParseError
         );
     }

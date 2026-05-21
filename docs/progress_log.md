@@ -47,3 +47,15 @@ decision record, while this file tracks work toward certification readiness.
   tests instead of pending implementation text.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-21T22:37:14Z
+
+- Increment completed: harden the online authorization boundary between the
+  kernel and Level 3 integration.
+- Code impact: host response parsing now rejects malformed issuer
+  authentication data length for tag `91`; online authorization handoff remains
+  kernel-packaged TLV data without host/acquirer role behavior.
+- Evidence updated: KRN-ONL-001 and KRN-ONL-002 RTM rows now cite GAC package,
+  FFI runtime, issuer parser, and traceability evidence.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

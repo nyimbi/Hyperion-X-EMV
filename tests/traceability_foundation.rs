@@ -2254,6 +2254,32 @@ fn rtm_promotes_cid_decode_and_preservation_evidence() {
 }
 
 #[test]
+fn rtm_promotes_online_boundary_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-ONL-001", "KRN-ONL-002"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete online boundary evidence"
+            );
+            assert!(row.contains("rtm_promotes_online_boundary_evidence"));
+        }
+
+        let handoff = csv_row_for_requirement(csv, "KRN-ONL-001").unwrap();
+        assert!(
+            handoff.contains("builds_online_authorization_package_without_generating_cryptograms")
+        );
+        assert!(handoff
+            .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
+
+        let host = csv_row_for_requirement(csv, "KRN-ONL-002").unwrap();
+        assert!(host.contains("parses_arpc_arc_and_issuer_scripts"));
+        assert!(host.contains("rejects_malformed_issuer_authentication_data"));
+        assert!(host.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
+    }
+}
+
+#[test]
 fn krn_fsm_001_002_004_validates_annex_and_error_transitions() {
     assert!(validate_state_machine_annex(STATE_MACHINE_CSV).unwrap() >= 45);
 
