@@ -320,9 +320,9 @@ Do not borrow:
 
 The following are adaptation candidates, ordered by near-term value:
 
-1. Add a `krn_emv_decode` example or small CLI that decodes TLV, DOL, tag lists,
-   TVR, TSI, CVM results, SW1/SW2, and APDU envelopes using Hyperion parsers and
-   default masking.
+1. Maintain and extend the `krn_emv_decode` example so lab-trace triage stays
+   parser-backed, masked by default, and eventually covers any remaining
+   operator-facing decodes that are useful before formal test-tool execution.
 2. Expand `docs/prelab_apdu_trace_pack.jsonl` from a small replay fixture into a
    scenario pack with expected FSM events/actions, terminal outcome, and
    sensitive-field masking assertions.

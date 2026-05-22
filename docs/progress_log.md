@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T12:21:30Z
+
+- Increment completed: adapt the open-source reference review's tool-first
+  validation idea without copying external code by adding a Hyperion-owned
+  pre-lab decoder for local trace triage.
+- Code impact: `examples/krn_emv_decode.rs` decodes TLV, DOL, CVM-list, TVR,
+  TSI, SW1/SW2, and short APDU-envelope inputs using existing Hyperion parsers
+  and symbolic constants where available. Payload bytes remain suppressed by
+  default.
+- Evidence update: added the decoder to reproducible build provenance, the lab
+  submission manifest, and traceability assertions; the open-source review
+  backlog now treats the decoder as an artifact to maintain and extend.
+- Verification: `cargo test --example krn_emv_decode`, `cargo run --quiet
+  --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json
+  -`, `cargo test lab_manifest_and_provenance_cover_reproducible_build_artifacts`,
+  `cargo test prelab_quality_gates_are_reproducible_and_do_not_close_external_reports`,
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T12:14:48Z
 
 - Increment completed: review adjacent open-source/source-available EMV projects

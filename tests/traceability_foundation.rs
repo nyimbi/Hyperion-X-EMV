@@ -1383,8 +1383,10 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_quality_gates.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
 
     let mut input_paths = vec![
@@ -1407,6 +1409,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/tlv_catalogue.csv".to_string(),
         "examples/krn_abi_conformance_statement.rs".to_string(),
         "examples/krn_build_manifest.rs".to_string(),
+        "examples/krn_emv_decode.rs".to_string(),
         "examples/krn_prelab_quality_gates.rs".to_string(),
         "examples/krn_prelab_trace_pack.rs".to_string(),
     ];
@@ -1458,6 +1461,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/tlv_catalogue.csv",
         "examples/krn_abi_conformance_statement.rs",
         "examples/krn_build_manifest.rs",
+        "examples/krn_emv_decode.rs",
         "examples/krn_prelab_quality_gates.rs",
         "examples/krn_prelab_trace_pack.rs",
     ] {
@@ -5509,7 +5513,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_abi_conformance_statement | diff -u docs/abi_conformance_statement.json -",
         "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -5541,6 +5545,8 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab quality gate manifest"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_quality_gates"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("payload suppression"));
     assert!(LAB_SUBMISSION_MANIFEST.contains(
         "formal coverage, integration, static-analysis, and fuzzing reports remain pending"
     ));
