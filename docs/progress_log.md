@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:08:29Z
+
+- Increment completed: extend the pre-lab decoder's CVM-list output with
+  method requirement flags for PIN and signature triage.
+- Code impact: `krn_emv_decode cvm-list` now reports whether each rule requires
+  offline PIN and signature while continuing to suppress PED handles and other
+  sensitive values.
+- Evidence update: both RTM annexes now cite the decoder regression for CVM
+  list parsing/evaluation evidence, and the traceability guard requires the
+  decoder citation.
+- Verification: `cargo test --example krn_emv_decode
+  cvm_list_output_names_rules_without_handles`, `cargo test
+  rtm_promotes_cvm_outcome_evidence`, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T14:04:45Z
 
 - Increment completed: preserve PIN-and-signature CVM methods as composite

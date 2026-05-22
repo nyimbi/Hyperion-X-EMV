@@ -1123,6 +1123,7 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(parsing.contains("cvm_transaction_type_uses_terminal_and_transaction_tags"));
         assert!(parsing.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(parsing.contains("offline_pin_and_signature_selects_composite_actions"));
+        assert!(parsing.contains("cvm_list_output_names_rules_without_handles"));
         assert!(parsing.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(parsing.contains("rtm_promotes_cvm_outcome_evidence"));
 

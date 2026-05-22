@@ -101,11 +101,13 @@ fn decode_cvm_list(bytes: Vec<u8>) -> Result<String, String> {
     for (idx, rule) in list.rules.iter().enumerate() {
         let _ = writeln!(
             out,
-            "rule={} method={} continue_on_failure={} condition=0x{:02X}",
+            "rule={} method={} continue_on_failure={} condition=0x{:02X} offline_pin_required={} signature_required={}",
             idx,
             cvm_method_name(rule.method),
             rule.continue_on_failure(),
-            rule.condition_code
+            rule.condition_code,
+            rule.method.requires_offline_pin(),
+            rule.method.requires_signature()
         );
     }
     Ok(out)
@@ -538,8 +540,13 @@ mod tests {
         assert!(out.contains("amount_y=1000"));
         assert!(out.contains("rule=0 method=offline-plaintext-pin-and-signature"));
         assert!(out.contains("continue_on_failure=true"));
+        assert!(out.contains("offline_pin_required=true signature_required=true"));
         assert!(out.contains("rule=1 method=online-pin"));
+        assert!(out.contains("offline_pin_required=false signature_required=false"));
         assert!(out.contains("rule=2 method=no-cvm-required"));
+        assert!(!out.contains("ped_handle"));
+        assert!(!out.contains("feed"));
+        assert!(!out.contains("beef"));
     }
 
     #[test]
