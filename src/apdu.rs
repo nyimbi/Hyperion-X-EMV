@@ -1,5 +1,6 @@
 use crate::dol::{build_dol_with_policy, DataStore, DolEntry, DolPaddingPolicy};
 use crate::error::{KernelError, KernelResult};
+use core::fmt;
 
 pub const CONTACT_PSE: &[u8] = b"1PAY.SYS.DDF01";
 pub const CONTACTLESS_PPSE: &[u8] = b"2PAY.SYS.DDF01";
@@ -10,7 +11,7 @@ pub enum Interface {
     Contactless,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct CommandApdu {
     pub cla: u8,
     pub ins: u8,
@@ -18,6 +19,23 @@ pub struct CommandApdu {
     pub p2: u8,
     pub data: Vec<u8>,
     pub le: Option<u8>,
+}
+
+impl fmt::Debug for CommandApdu {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CommandApdu")
+            .field("cla", &self.cla)
+            .field("ins", &self.ins)
+            .field("p1", &self.p1)
+            .field("p2", &self.p2)
+            .field("data_len", &self.data.len())
+            .field("le", &self.le)
+            .field(
+                "data_policy",
+                &"APDU command data redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 impl CommandApdu {
@@ -302,6 +320,24 @@ mod tests {
             .unwrap(),
             [0x80, 0xae, 0x40, 0x00, 0x03, 0xaa, 0xbb, 0xcc, 0x00]
         );
+    }
+
+    #[test]
+    fn command_apdu_debug_redacts_payload_bytes() {
+        let command = generate_ac(
+            CryptogramRequest::Arqc,
+            &[0xde, 0xad, 0xbe, 0xef, 0xaa, 0xbb, 0xcc, 0xdd],
+            CdaRequestControl::NotRequested,
+        )
+        .unwrap();
+
+        let debug = format!("{command:?}");
+        assert!(debug.contains("CommandApdu"));
+        assert!(debug.contains("data_len"));
+        assert!(debug.contains("redacted for crash safety"));
+        for raw_byte in ["222", "173", "190", "239", "170", "187", "204", "221"] {
+            assert!(!debug.contains(raw_byte));
+        }
     }
 
     #[test]
