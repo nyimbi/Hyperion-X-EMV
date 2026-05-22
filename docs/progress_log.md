@@ -2308,3 +2308,23 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_oda_capk_tvr_cda_evidence`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T10:47:07Z
+
+- Increment completed: reject nested issuer script templates instead of
+  silently treating malformed host script data as absent.
+- Research note: `KRN-SCR-001` requires issuer script template structure to be
+  validated. A host response that wraps `71` or `72` under another TLV must not
+  parse successfully and drop the script, because that can skip issuer script
+  execution while preserving an apparently successful host-response parse.
+- Code impact: the host-response structural rejection pass now rejects nested
+  issuer script templates (`71` and `72`) in the same recursive pass that
+  already rejects nested authorization response code and issuer authentication
+  objects.
+- Evidence updated: `issuer::tests::rejects_nested_or_duplicate_issuer_script_objects`
+  now proves nested pre-final and post-final script templates fail closed, and
+  existing RTM guards keep that evidence attached to `KRN-SCR-001`.
+- Verification: `cargo test rejects_nested_or_duplicate_issuer_script_objects`,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

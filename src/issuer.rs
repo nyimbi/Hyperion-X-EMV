@@ -162,17 +162,17 @@ fn collect_scripts(tlvs: &[tlv::Tlv<'_>], scripts: &mut Vec<IssuerScript>) -> Ke
 
 fn reject_nested_host_response_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
     for item in tlvs {
-        reject_nested_auth_objects(&item.children)?;
+        reject_nested_response_objects(&item.children)?;
     }
     Ok(())
 }
 
-fn reject_nested_auth_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
+fn reject_nested_response_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
     for item in tlvs {
-        if matches!(item.tag, [0x8a] | [0x91]) {
+        if matches!(item.tag, [0x8a] | [0x91] | [0x71] | [0x72]) {
             return Err(KernelError::ParseError);
         }
-        reject_nested_auth_objects(&item.children)?;
+        reject_nested_response_objects(&item.children)?;
     }
     Ok(())
 }
@@ -387,11 +387,20 @@ mod tests {
             KernelError::ParseError
         );
 
-        let nested = parse_host_response(&[
-            0x70, 0x0a, 0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
-        ])
-        .unwrap();
-        assert!(nested.scripts.is_empty());
+        assert_eq!(
+            parse_host_response(&[
+                0x70, 0x0a, 0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x70, 0x0a, 0x72, 0x08, 0x86, 0x06, 0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]
