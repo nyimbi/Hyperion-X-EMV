@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T18:45:29Z
+
+- Increment completed: refresh the public contactless standards-watch boundary
+  for May 2026 EMVCo bulletin drift and make the repository guard require the
+  updated open-evidence framing.
+- Research note: EMVCo public listings now show May 21, 2026 contactless-suite
+  signals for SB 326, SB 327, and DSB 331. These are tracked as licensed/lab
+  reconciliation inputs only; they do not become Hyperion implementation
+  authority unless the accepted profile and lab package select that behavior.
+- Documentation impact: `standards_watch.md`, `lab_submission_manifest.md`, and
+  `certification_open_issues.md` now keep C-8 v1.0 as the engineering target
+  while requiring the lab package to accept, exclude, or defer the public Book
+  A/Book B and Kernel 2 RRP bulletin signals.
+- Evidence update: `certification_open_issues_register_tracks_external_blockers`
+  now requires the manifest, open-issues register, and standards watch to
+  mention SB 326, SB 327, and DSB 331 without closing the C-8 external blocker.
+- Verification: `cargo test
+  certification_open_issues_register_tracks_external_blockers`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T18:34:19Z
 
 - Increment completed: prove that TAA default action-code masks are ignored

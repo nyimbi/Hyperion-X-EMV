@@ -1655,6 +1655,7 @@ fn certification_open_issues_register_tracks_external_blockers() {
         "Lab-supplied SDA, DDA, and CDA cryptographic vectors",
         "C-8 approval package",
         "licensed v1.0/v1.1 and SB 325 reconciliation",
+        "SB 326, SB 327, DSB 331",
         "Target terminal, contact interface, contactless reader",
         "PCI PTS POI integration statement",
         "Penetration test report",
@@ -1684,9 +1685,16 @@ fn certification_open_issues_register_tracks_external_blockers() {
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab fixture does not close"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("Full lab trace pack is attached"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("lab-selected C-8 version/bulletin set"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("accepted or excluded Book A/Book B"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("C-8 v1.1 / SB 325"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("SB 326, SB 327, DSB 331"));
     assert!(STANDARDS_WATCH.contains("Book C-8 Kernel Specification v1.1"));
     assert!(STANDARDS_WATCH.contains("SB 325"));
+    assert!(STANDARDS_WATCH.contains("SB 326"));
+    assert!(STANDARDS_WATCH.contains("SB 327"));
+    assert!(STANDARDS_WATCH.contains("DSB 331"));
+    assert!(STANDARDS_WATCH.contains("2026-05-21"));
+    assert!(STANDARDS_WATCH.contains("not as direct Hyperion code changes"));
     assert!(STANDARDS_WATCH.contains("Public Approval-Process Check"));
     assert!(STANDARDS_WATCH.contains("approval can be pursued as one element"));
     assert!(STANDARDS_WATCH.contains("full contactless acceptance"));

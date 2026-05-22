@@ -12,13 +12,23 @@ instructions prevail on conflict.
   Books 1, 2, and 4 where referenced by `docs/spec.md`.
 - Contactless baseline in `docs/spec.md`: EMV Contactless Kernel Specification
   Book C-8 v1.0.
-- Public drift to reconcile before any C-8 certification claim: EMVCo public
-  materials list Book C-8 Kernel Specification v1.1 and SB 325, "Updates to
-  Book C-8 v1.0", published 2026-05-07.
+- Public C-8 drift to reconcile before any C-8 certification claim: EMVCo
+  public materials list Book C-8 Kernel Specification v1.1 and SB 325,
+  "Updates to Book C-8 v1.0", published 2026-05-07.
+- Public contactless-suite drift to track with the licensed review: EMVCo
+  public materials list SB 326, "Updates to Book A", SB 327, "Updates to Book
+  B", and DSB 331, "RRP Requirements for Kernel 2", all published
+  2026-05-21. These are not repository-controlled implementation authority,
+  but they are current public signals that the lab-selected contactless
+  version, bulletin set, and scheme acceptance package must explicitly accept,
+  exclude, or defer.
 - Repository action: keep C-8 v1.0 as the current engineering target until
   licensed review, scheme profile data, lab test package selection, and target
   device evidence confirm whether the submission target must move to v1.1 or
-  incorporate SB 325 behavior.
+  incorporate SB 325 behavior. Treat SB 326, SB 327, and DSB 331 as
+  contactless-suite reconciliation inputs, not as direct Hyperion code changes,
+  unless the licensed profile/lab package selects their behavior for the
+  submitted binary.
 
 ## 2026-05-22 Public Approval-Process Check
 
@@ -72,9 +82,13 @@ submission package includes a licensed C-8 reconciliation note that states:
   versions accepted by the laboratory;
 - the approved test-tool package and version;
 - any scheme/acquirer profile constraints that select or exclude C-8 v1.1 or
-  SB 325 behavior; and
+  SB 325 behavior;
+- any common contactless Book A/Book B bulletin constraints, including SB 326
+  and SB 327, that affect the target device or entry-point evidence;
+- any Kernel 2 relay-resistance or RRP constraints, including DSB 331, that are
+  accepted, excluded, or declared out of scope for the claimed C-8 package; and
 - the laboratory test reports and Letter of Approval or equivalent scheme/lab
-  approval artifact; and
+  approval artifact;
 - the masked APDU/outcome traces for the accepted profile and device set.
 
 Do not close `CERT-OPEN-007` or claim PCI PTS POI alignment until the lab or
