@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:44:54Z
+
+- Increment completed: extend DOL source-precedence coverage to generated
+  unpredictable numbers used in first GENERATE AC.
+- Code impact: added an FFI regression proving a card-originated record that
+  attempts to write tag `9F37` is rejected without partial store mutation and
+  that first GAC CDOL construction still carries the generated unpredictable
+  number value.
+- Evidence update: both RTM annexes now cite the generated-UN precedence
+  regression for DOL construction, first-GAC CDOL data, and card-originated TLV
+  admission; traceability guards assert those citations, and the open-source
+  adaptation backlog now records generated `9F37` as maintained coverage.
+- Verification: `cargo test
+  first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags`,
+  `cargo test rtm_promotes_tlv_catalogue_and_dol_classification_evidence`,
+  `cargo test rtm_promotes_dol_construction_policy_evidence`, `cargo test
+  rtm_promotes_gac_cdol_encoding_and_response_evidence`, `cargo test`, `cargo
+  fmt --check`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T13:38:25Z
 
 - Increment completed: expand the repository-controlled pre-lab APDU trace pack

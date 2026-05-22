@@ -2506,6 +2506,9 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         assert!(admission.contains("rejects_terminal_owned_record_data_without_partial_store"));
         assert!(admission
             .contains("first_gac_preserves_terminal_dol_sources_after_rejected_record_tags"));
+        assert!(admission.contains(
+            "first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags"
+        ));
 
         let malformed = csv_row_for_requirement(csv, "KRN-TLV-003").unwrap();
         assert!(malformed.contains("rejects_indefinite_lengths_for_fuzzability"));
@@ -2544,6 +2547,9 @@ fn rtm_promotes_dol_construction_policy_evidence() {
         assert!(exact_lengths.contains("builds_internal_authenticate_from_ddol_values"));
         assert!(exact_lengths
             .contains("first_gac_preserves_terminal_dol_sources_after_rejected_record_tags"));
+        assert!(exact_lengths.contains(
+            "first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags"
+        ));
 
         let padding_policy = csv_row_for_requirement(csv, "KRN-DOL-002").unwrap();
         assert!(padding_policy.contains("zero_padding_policy_is_explicit_and_deterministic"));
@@ -2816,6 +2822,9 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         assert!(
             cdol1.contains("first_gac_preserves_terminal_dol_sources_after_rejected_record_tags")
         );
+        assert!(cdol1.contains(
+            "first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags"
+        ));
 
         let cdol_defaults = csv_row_for_requirement(csv, "KRN-GAC1-001").unwrap();
         assert!(cdol_defaults.contains("first_gac_uses_profile_default_cdol1_when_card_omits_8c"));

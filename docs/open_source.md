@@ -338,7 +338,8 @@ The following are adaptation candidates, ordered by near-term value:
    update rules as licensed profiles define those boundaries.
 6. Maintain and extend the DOL source-precedence tests across transaction
    params, terminal data, ICC data, generated unpredictable numbers, and profile
-   defaults.
+   defaults; current coverage includes rejected card attempts to overwrite
+   terminal amount data and generated `9F37` values before first GAC.
 7. Keep public-reference review out of the lab evidence closure path: update
    open issues only when licensed/lab evidence arrives, not when an open-source
    reference demonstrates similar behavior.

@@ -4633,6 +4633,73 @@ mod tests {
     }
 
     #[test]
+    fn first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        let params = StoredTxnParams {
+            amount_authorised_minor: 2_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        };
+        ctx.card_data = transaction_data_store(
+            &params,
+            [0xaa, 0xbb, 0xcc, 0xdd],
+            EmvDate {
+                year: 26,
+                month: 5,
+                day: 21,
+            },
+            Tvr::cleared(),
+            Tsi::cleared(),
+            None,
+            None,
+        )
+        .unwrap();
+        let record_with_card_and_un = [
+            0x70, 0x0a, 0x5a, 0x01, 0x12, 0x9f, 0x37, 0x04, 0x99, 0x99, 0x99, 0x99,
+        ];
+        assert_eq!(
+            parse_read_record_body(&record_with_card_and_un, &mut ctx.card_data).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(ctx.card_data.get(&[0x5a]).is_none());
+        assert_eq!(
+            ctx.card_data.get(&[0x9f, 0x37]),
+            Some(&[0xaa, 0xbb, 0xcc, 0xdd][..])
+        );
+        ctx.card_data
+            .put(&[0x8c], &[0x9f, 0x37, 0x04, 0x9f, 0x02, 0x06])
+            .unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_generate_ac_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        assert_eq!(run_first_generate_ac(&mut ctx, runtime), Ok(()));
+
+        let command = LAST_TRANSMITTED_COMMAND.lock().unwrap().clone();
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 1);
+        assert_eq!(&command[..5], &[0x80, 0xae, 0x80, 0x00, 0x0a]);
+        assert_eq!(&command[5..15], &hex_bytes("aabbccdd000000002000"));
+        assert_eq!(command[15], 0x00);
+    }
+
+    #[test]
     fn runtime_cda_failure_sets_tvr_without_falling_back_to_dda() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
         let mut ctx = KrnContext::new();
