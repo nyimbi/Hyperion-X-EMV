@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:03:13Z
+
+- Increment completed: preserve signed-profile provenance retrieval dates in
+  the loaded profile model and generated review dictionary.
+- Code impact: `ProfileSource` now carries the optional `retrieved` date,
+  validates it as an ISO date when present, rejects blank/placeholder retrieval
+  metadata, and renders bundle/CAPK retrieval dates in
+  `docs/scheme_profile_dictionary.md`.
+- Evidence updated:
+  `config::tests::preserves_and_validates_profile_source_retrieval_dates` covers
+  retained and rejected provenance dates, `krn_scheme_profile_dictionary`
+  asserts the rendered retrieval fields without exposing raw CAPK/CDOL material,
+  and both RTM CSVs cite the retrieval-date regression under `KRN-CFG-002`.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T22:52:51Z
 
 - Increment completed: fail closed on certification/production profile bundles

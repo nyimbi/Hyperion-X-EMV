@@ -11,6 +11,7 @@ This is a repository-controlled review aid. It does not replace lab, scheme, acq
 - Source owner: Hyperion-X Certification
 - Source document: signed_certification_profile_bundle
 - Source verification: external_signature_required
+- Source retrieved: 2026-05-21
 - Scheme count: 2
 
 ## Visa
@@ -55,6 +56,7 @@ This is a repository-controlled review aid. It does not replace lab, scheme, acq
   - Source owner: Visa
   - Source document: signed_certification_capk_bundle
   - Source verification: external_signature_required
+  - Source retrieved: 2026-05-21
 
 ## Mastercard
 
@@ -98,3 +100,4 @@ This is a repository-controlled review aid. It does not replace lab, scheme, acq
   - Source owner: Mastercard
   - Source document: signed_certification_capk_bundle
   - Source verification: external_signature_required
+  - Source retrieved: 2026-05-21

@@ -81,6 +81,7 @@ pub struct ProfileSource {
     pub owner: String,
     pub document: String,
     pub version: String,
+    pub retrieved: Option<EmvDate>,
     pub verification: String,
 }
 
@@ -326,6 +327,7 @@ fn parse_profile_source(
                 owner: "unspecified_test_profile".to_string(),
                 document: "inline_test_fixture".to_string(),
                 version: "0".to_string(),
+                retrieved: None,
                 verification: "test_only".to_string(),
             }),
             _ => Err(KernelError::InvalidProfile),
@@ -345,6 +347,7 @@ fn parse_source_object(
     let owner = required_string(source, "owner")?;
     let document = required_string(source, "document")?;
     let version = required_string(source, "version")?;
+    let retrieved = optional_retrieved_date(source)?;
     let verification = required_string(source, "verification")?;
 
     if profile_class == ProfileClass::Certification {
@@ -364,6 +367,7 @@ fn parse_source_object(
         owner: owner.to_string(),
         document: document.to_string(),
         version: version.to_string(),
+        retrieved,
         verification: verification.to_string(),
     })
 }
@@ -864,6 +868,7 @@ fn parse_capk(
                 owner: "unspecified_test_capk".to_string(),
                 document: "inline_test_fixture".to_string(),
                 version: "0".to_string(),
+                retrieved: None,
                 verification: "test_only".to_string(),
             },
             _ => return Err(KernelError::InvalidProfile),
@@ -1007,6 +1012,18 @@ fn optional_u16(object: &BTreeMap<String, JsonValue>, key: &str) -> KernelResult
         return Err(KernelError::InvalidProfile);
     }
     Ok(Some(value as u16))
+}
+
+fn optional_retrieved_date(object: &BTreeMap<String, JsonValue>) -> KernelResult<Option<EmvDate>> {
+    let Some(value) = object.get("retrieved") else {
+        return Ok(None);
+    };
+    let retrieved = value.as_string()?;
+    reject_placeholder(retrieved)?;
+    if retrieved.trim().is_empty() {
+        return Err(KernelError::InvalidProfile);
+    }
+    parse_iso_date(retrieved).map(Some)
 }
 
 fn required_bool(object: &BTreeMap<String, JsonValue>, key: &str) -> KernelResult<bool> {
@@ -1392,6 +1409,7 @@ mod tests {
         "owner": "scheme_or_acquirer",
         "document": "signed_certification_profile_bundle",
         "version": "2",
+        "retrieved": "2026-05-21",
         "verification": "external_signature_required"
       },
       "certification_scope": {
@@ -2124,6 +2142,40 @@ mod tests {
             )
             .unwrap_err(),
             KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn preserves_and_validates_profile_source_retrieval_dates() {
+        let profiles = load_profile_set(VALID_PROFILE, &policy(SignatureStatus::Verified)).unwrap();
+        assert_eq!(
+            profiles.profile_source.retrieved,
+            Some(EmvDate {
+                year: 26,
+                month: 5,
+                day: 21
+            })
+        );
+
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let bad_retrieved = profile.replace(r#""retrieved": "2026-05-21""#, r#""retrieved": """#);
+        assert_eq!(
+            load_profile_set(bad_retrieved.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let malformed_retrieved = profile.replace(
+            r#""retrieved": "2026-05-21""#,
+            r#""retrieved": "2026-13-21""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                malformed_retrieved.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::ParseError
         );
     }
 

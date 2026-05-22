@@ -66,6 +66,15 @@ fn render_dictionary(profile_set: &ProfileSet) -> String {
         "- Source verification: {}",
         profile_set.profile_source.verification
     );
+    let _ = writeln!(
+        out,
+        "- Source retrieved: {}",
+        profile_set
+            .profile_source
+            .retrieved
+            .map(format_emv_date)
+            .unwrap_or("not recorded".to_string())
+    );
     let _ = writeln!(out, "- Scheme count: {}", profile_set.schemes.len());
     out.push('\n');
 
@@ -160,6 +169,14 @@ fn render_dictionary(profile_set: &ProfileSet) -> String {
             let _ = writeln!(out, "  - Source owner: {}", capk.source.owner);
             let _ = writeln!(out, "  - Source document: {}", capk.source.document);
             let _ = writeln!(out, "  - Source verification: {}", capk.source.verification);
+            let _ = writeln!(
+                out,
+                "  - Source retrieved: {}",
+                capk.source
+                    .retrieved
+                    .map(format_emv_date)
+                    .unwrap_or("not recorded".to_string())
+            );
         }
         if scheme_idx + 1 < profile_set.schemes.len() {
             out.push('\n');
@@ -245,6 +262,8 @@ mod tests {
         );
         assert!(markdown.contains("- Modulus length: 248 bytes"));
         assert!(markdown.contains("- Source verification: external_signature_required"));
+        assert!(markdown.contains("- Source retrieved: 2026-05-21"));
+        assert!(markdown.contains("  - Source retrieved: 2026-05-21"));
     }
 
     #[test]
