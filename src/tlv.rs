@@ -294,6 +294,28 @@ mod tests {
     }
 
     #[test]
+    fn rejects_tlv_node_limit_overflow() {
+        let mut bytes = Vec::new();
+        for _ in 0..=MAX_TLV_NODES {
+            bytes.extend_from_slice(&[0x5a, 0x00]);
+        }
+
+        assert_eq!(parse_many(&bytes).unwrap_err(), KernelError::LengthOverflow);
+    }
+
+    #[test]
+    fn rejects_tlv_depth_limit_overflow() {
+        let mut bytes = vec![0x5a, 0x00];
+        for _ in 0..=MAX_TLV_DEPTH {
+            let mut parent = vec![0xe0, bytes.len() as u8];
+            parent.extend_from_slice(&bytes);
+            bytes = parent;
+        }
+
+        assert_eq!(parse_many(&bytes).unwrap_err(), KernelError::ParseError);
+    }
+
+    #[test]
     fn rejects_truncated_values_without_panicking() {
         let err = parse_many(&[0x9f, 0x02, 0x06, 0x00]).unwrap_err();
         assert_eq!(err, KernelError::LengthOverflow);

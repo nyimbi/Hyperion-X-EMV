@@ -1852,3 +1852,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:43:33Z
+
+- Increment completed: make TLV parser depth and node-count bounds explicit
+  and traceable.
+- Research note: invalid nested-template and parser resource-limit cases are
+  repository-controllable even while external scheme/lab TLV vector packs remain
+  certification evidence blockers.
+- Code impact: `parse_many` now has regressions proving more than
+  `MAX_TLV_NODES` parsed objects fails with `KRN_ERR_LENGTH_OVERFLOW` and
+  nesting deeper than `MAX_TLV_DEPTH` fails closed as malformed TLV structure.
+- Evidence updated: current and compatibility RTM annexes cite both TLV
+  resource-limit regressions for `KRN-TLV-003`.
+- Verification: `cargo test rejects_tlv_node_limit_overflow`,
+  `cargo test rejects_tlv_depth_limit_overflow`,
+  `cargo test rtm_promotes_tlv_catalogue_and_dol_classification_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
