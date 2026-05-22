@@ -2551,6 +2551,7 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
 
         let malformed = csv_row_for_requirement(csv, "KRN-TLV-003").unwrap();
         assert!(malformed.contains("rejects_indefinite_lengths_for_fuzzability"));
+        assert!(malformed.contains("rejects_non_minimal_long_form_lengths"));
         assert!(malformed.contains("tlv::tests::rejects_invalid_tag_field_bytes"));
         assert!(malformed.contains("dol::tests::rejects_invalid_tag_field_bytes"));
         assert!(malformed.contains("tlv::tests::rejects_zero_prefixed_high_tag_numbers"));

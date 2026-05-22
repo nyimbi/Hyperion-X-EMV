@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:28:44Z
+
+- Increment completed: reject non-minimal BER-TLV long-form length encodings
+  while preserving valid definite long-form lengths at the 128-byte boundary.
+- Code impact: TLV length parsing now fails closed on long-form encodings that
+  should have used short form or fewer length octets, reducing malformed card
+  response variants before module-specific parsers consume TLV data.
+- Evidence update: both RTM annexes cite
+  `tlv::tests::rejects_non_minimal_long_form_lengths` under KRN-TLV-003.
+- Verification: `cargo test rejects_non_minimal_long_form_lengths`, `cargo test
+  rtm_promotes_tlv_catalogue_and_dol_classification_evidence`, `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T15:22:42Z
 
 - Increment completed: reject signed profile contactless limit configurations

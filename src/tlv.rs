@@ -192,6 +192,9 @@ fn read_length(input: &[u8], offset: &mut usize) -> KernelResult<usize> {
         *offset += 1;
         length = (length << 8) | byte as usize;
     }
+    if length < 0x80 || (length <= 0xff && octets > 1) || (length <= 0xffff && octets > 2) {
+        return Err(KernelError::ParseError);
+    }
     if length > MAX_TLV_VALUE_LENGTH {
         return Err(KernelError::LengthOverflow);
     }
@@ -262,6 +265,25 @@ mod tests {
     fn rejects_indefinite_lengths_for_fuzzability() {
         let err = parse_many(&[0x5a, 0x80, 0x00, 0x00]).unwrap_err();
         assert_eq!(err, KernelError::ParseError);
+    }
+
+    #[test]
+    fn rejects_non_minimal_long_form_lengths() {
+        assert_eq!(
+            parse_many(&[0x5a, 0x81, 0x01, 0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut valid_128 = vec![0x5a, 0x81, 0x80];
+        valid_128.resize(3 + 128, 0x00);
+        assert_eq!(parse_many(&valid_128).unwrap()[0].value.len(), 128);
+
+        let mut non_minimal_128 = vec![0x5a, 0x82, 0x00, 0x80];
+        non_minimal_128.resize(4 + 128, 0x00);
+        assert_eq!(
+            parse_many(&non_minimal_128).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]
