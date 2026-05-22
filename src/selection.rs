@@ -33,12 +33,9 @@ pub fn parse_fci_candidate_aids(fci: &[u8]) -> KernelResult<Vec<Vec<u8>>> {
                 if directory_entry.tag != [0x61] || !directory_entry.constructed {
                     continue;
                 }
-                let aid = directory_entry
-                    .children
-                    .iter()
-                    .find(|item| item.tag == [0x4f])
+                let aid = tlv::find_unique_direct(&directory_entry.children, &[0x4f])?
                     .ok_or(KernelError::MissingMandatoryTag)?;
-                push_unique_aid(&mut candidates, aid.value)?;
+                push_unique_aid(&mut candidates, aid)?;
             }
         }
     }
@@ -215,6 +212,18 @@ mod tests {
                 vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10],
                 vec![0xa0, 0x00, 0x00, 0x00, 0x04, 0x10, 0x10],
             ]
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_adf_names_in_directory_entries() {
+        let fci = [
+            0x6f, 0x17, 0xa5, 0x15, 0xbf, 0x0c, 0x12, 0x61, 0x10, 0x4f, 0x07, 0xa0, 0x00, 0x00,
+            0x00, 0x03, 0x10, 0x10, 0x4f, 0x05, 0xa0, 0x00, 0x00, 0x00, 0x03,
+        ];
+        assert_eq!(
+            parse_fci_candidate_aids(&fci).unwrap_err(),
+            KernelError::ParseError
         );
     }
 

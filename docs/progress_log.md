@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:31:58Z
+
+- Increment completed: reject ambiguous duplicate ADF names inside a single
+  PSE/PPSE directory entry before producing the candidate AID list.
+- Research note: the existing selection parser intentionally limits candidate
+  extraction to `61` directory entries under the FCI proprietary template and
+  treats tag `4F` as the selectable ADF name. Multiple direct `4F` objects in
+  one directory entry are ambiguous because the kernel must bind selection to a
+  single card-declared application name.
+- Code impact: `parse_fci_candidate_aids` now uses duplicate-detecting
+  direct-child TLV lookup for directory-entry `4F` values, preserving existing
+  nested-template exclusion and candidate de-duplication behavior.
+- Evidence updated: selection unit tests, selection traceability guards, and
+  both RTM annexes now cite duplicate ADF-name rejection coverage.
+- Verification: `cargo test rejects_duplicate_adf_names_in_directory_entries`,
+  `cargo test extracts_candidate_aids_from_directory_fci`,
+  `cargo test krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles`,
+  `cargo test rtm_promotes_runtime_apdu_selection_status_policy_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed. `cargo fmt` was applied before the final format check.
+
 ## 2026-05-22T04:26:39Z
 
 - Increment completed: reject duplicate primitive data objects in a single READ
