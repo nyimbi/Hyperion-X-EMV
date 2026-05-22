@@ -1663,6 +1663,15 @@ fn certification_open_issues_register_tracks_external_blockers() {
     assert!(STANDARDS_WATCH.contains("Do not close `CERT-OPEN-005`"));
     assert!(STANDARDS_WATCH.contains("exact Contactless Kernel 8 approval path"));
     assert!(STANDARDS_WATCH.contains("laboratory test reports"));
+    assert!(STANDARDS_WATCH.contains("Public PCI PTS / PED Check"));
+    assert!(STANDARDS_WATCH.contains("PCI PIN Transaction Security (PTS) Point of"));
+    assert!(STANDARDS_WATCH.contains("Modular Security Requirements v7.0"));
+    assert!(STANDARDS_WATCH.contains("PCI-recognized laboratories"));
+    assert!(STANDARDS_WATCH.contains("approved-device listings"));
+    assert!(STANDARDS_WATCH.contains("opaque PED"));
+    assert!(STANDARDS_WATCH.contains("handles, VERIFY status"));
+    assert!(STANDARDS_WATCH.contains("Do not close `CERT-OPEN-007`"));
+    assert!(STANDARDS_WATCH.contains("no clear-PIN kernel memory"));
 }
 
 #[test]

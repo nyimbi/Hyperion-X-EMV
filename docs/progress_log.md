@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:49:56Z
+
+- Increment completed: refresh public PCI PTS/PED standards-watch evidence for
+  the secure PIN boundary.
+- Research note: checked PCI SSC public PTS POI standards, document library,
+  PTS POI v7.0 publication note, and approved PTS device listing pages. The
+  repository keeps PCI PTS POI v7.0 as the public alignment target while
+  preserving `CERT-OPEN-007` for the actual PED integration statement, approved
+  device evidence, and device security review.
+- Evidence update: `docs/standards_watch.md` now records the PCI PTS/PED public
+  check and a `CERT-OPEN-007` gating rule; traceability assertions require the
+  watch to preserve the approved-device, PCI-recognized laboratory, opaque PED
+  handle, and no-clear-PIN boundary signals.
+- Verification: `cargo test
+  certification_open_issues_register_tracks_external_blockers`, `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T13:44:54Z
 
 - Increment completed: extend DOL source-precedence coverage to generated

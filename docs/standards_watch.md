@@ -42,6 +42,24 @@ instructions prevail on conflict.
   sufficient conformance is demonstrated. Do not replace this with repository
   ABI JSON or pre-lab trace fixtures.
 
+## 2026-05-22 Public PCI PTS / PED Check
+
+- Public source checked: PCI SSC PTS POI standards, PCI SSC document library,
+  PCI SSC PTS POI v7.0 publication note, and PCI SSC approved PTS device
+  listing.
+- PCI baseline retained: PCI PIN Transaction Security (PTS) Point of
+  Interaction (POI) Modular Security Requirements v7.0 as the public alignment
+  target for PED and secure PIN-entry integration.
+- Public PCI signal: PCI SSC describes PTS POI as requirements for devices that
+  protect PINs, account data, and other sensitive payment data at the point of
+  interaction; PCI-recognized laboratories validate approved PTS devices and
+  PCI SSC publishes approved-device listings.
+- Repository action: keep Hyperion's kernel boundary limited to opaque PED
+  handles, VERIFY status, and no clear-PIN custody. Do not claim PCI PTS
+  alignment or close `CERT-OPEN-007` until the target POI/PED integration
+  statement, device approval listing, and security review are attached to the
+  lab/acquirer package.
+
 ## Gating Rule
 
 Do not close `CERT-OPEN-005` or claim final C-8 approval until the lab
@@ -58,3 +76,15 @@ submission package includes a licensed C-8 reconciliation note that states:
 - the laboratory test reports and Letter of Approval or equivalent scheme/lab
   approval artifact; and
 - the masked APDU/outcome traces for the accepted profile and device set.
+
+Do not close `CERT-OPEN-007` or claim PCI PTS POI alignment until the lab or
+acquirer package includes:
+
+- the exact PCI PTS POI requirements version accepted for the target product;
+- the target device or PED approval listing/reference;
+- the PED integration statement covering offline PIN VERIFY status, online PIN
+  block custody, secure handles, and no clear-PIN kernel memory;
+- device security review evidence for tamper and point-of-interaction
+  controls; and
+- any acquirer or scheme acceptance notes tying the approved device/PED boundary
+  to the submitted Hyperion binary and profile set.
