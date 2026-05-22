@@ -8,6 +8,7 @@ pub const MAX_SCRIPT_COMMAND_LEN: usize = 261;
 const ISSUER_SCRIPT_IDENTIFIER_LEN: usize = 4;
 const ISSUER_AUTHENTICATION_DATA_MIN_LEN: usize = 8;
 const ISSUER_AUTHENTICATION_DATA_MAX_LEN: usize = 16;
+const AUTHORIZATION_CODE_LEN: usize = 6;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScriptPhase {
@@ -41,6 +42,7 @@ impl fmt::Debug for IssuerScript {
 #[derive(Clone, Eq, PartialEq)]
 pub struct HostResponse {
     pub authorization_response_code: [u8; 2],
+    pub authorization_code: Option<[u8; AUTHORIZATION_CODE_LEN]>,
     pub issuer_authentication_data: Option<Vec<u8>>,
     pub scripts: Vec<IssuerScript>,
 }
@@ -51,6 +53,10 @@ impl fmt::Debug for HostResponse {
             .field(
                 "authorization_response_code",
                 &self.authorization_response_code,
+            )
+            .field(
+                "authorization_code_present",
+                &self.authorization_code.is_some(),
             )
             .field(
                 "issuer_authentication_data_len",
@@ -81,10 +87,14 @@ pub struct ScriptExecutionSummary {
 
 pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
     let tlvs = tlv::parse_many(input)?;
-    reject_nested_host_response_objects(&tlvs)?;
+    reject_unsupported_host_response_objects(&tlvs)?;
 
     let authorization_response_code = match tlv::find_unique_direct(&tlvs, &[0x8a])? {
         Some(value) => Some(parse_authorization_response_code(value)?),
+        None => None,
+    };
+    let authorization_code = match tlv::find_unique_direct(&tlvs, &[0x89])? {
+        Some(value) => Some(parse_authorization_code(value)?),
         None => None,
     };
     let issuer_authentication_data = match tlv::find_unique_direct(&tlvs, &[0x91])? {
@@ -104,6 +114,7 @@ pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
 
     Ok(HostResponse {
         authorization_response_code,
+        authorization_code,
         issuer_authentication_data,
         scripts,
     })
@@ -113,13 +124,25 @@ fn parse_authorization_response_code(value: &[u8]) -> KernelResult<[u8; 2]> {
     if value.len() != 2 {
         return Err(KernelError::ParseError);
     }
-    if !value
-        .iter()
-        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b' ')
-    {
+    if !authorization_text_is_valid(value) {
         return Err(KernelError::ParseError);
     }
     Ok([value[0], value[1]])
+}
+
+fn parse_authorization_code(value: &[u8]) -> KernelResult<[u8; AUTHORIZATION_CODE_LEN]> {
+    if value.len() != AUTHORIZATION_CODE_LEN || !authorization_text_is_valid(value) {
+        return Err(KernelError::ParseError);
+    }
+    let mut authorization_code = [0u8; AUTHORIZATION_CODE_LEN];
+    authorization_code.copy_from_slice(value);
+    Ok(authorization_code)
+}
+
+fn authorization_text_is_valid(value: &[u8]) -> bool {
+    value
+        .iter()
+        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b' ')
 }
 
 pub fn apply_script_results(
@@ -174,8 +197,11 @@ fn collect_scripts(tlvs: &[tlv::Tlv<'_>], scripts: &mut Vec<IssuerScript>) -> Ke
     Ok(())
 }
 
-fn reject_nested_host_response_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
+fn reject_unsupported_host_response_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
     for item in tlvs {
+        if !matches!(item.tag, [0x8a] | [0x89] | [0x91] | [0x71] | [0x72]) {
+            return Err(KernelError::ParseError);
+        }
         reject_nested_response_objects(&item.children)?;
     }
     Ok(())
@@ -183,7 +209,7 @@ fn reject_nested_host_response_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()
 
 fn reject_nested_response_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
     for item in tlvs {
-        if matches!(item.tag, [0x8a] | [0x91] | [0x71] | [0x72]) {
+        if matches!(item.tag, [0x8a] | [0x89] | [0x91] | [0x71] | [0x72]) {
             return Err(KernelError::ParseError);
         }
         reject_nested_response_objects(&item.children)?;
@@ -264,12 +290,14 @@ mod tests {
     fn parses_arpc_arc_and_issuer_scripts() {
         let response = parse_host_response(&[
             0x8a, 0x02, b'0', b'0', 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-            0x71, 0x0f, 0x9f, 0x18, 0x04, 0xde, 0xad, 0xbe, 0xef, 0x86, 0x06, 0x00, 0xda, 0x00,
-            0x00, 0x01, 0xaa, 0x72, 0x08, 0x86, 0x06, 0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb,
+            0x89, 0x06, b'A', b'P', b'P', b'R', b'0', b'1', 0x71, 0x0f, 0x9f, 0x18, 0x04, 0xde,
+            0xad, 0xbe, 0xef, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa, 0x72, 0x08, 0x86,
+            0x06, 0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb,
         ])
         .unwrap();
 
         assert_eq!(response.authorization_response_code, [b'0', b'0']);
+        assert_eq!(response.authorization_code, Some(*b"APPR01"));
         assert_eq!(
             response.issuer_authentication_data,
             Some(vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
@@ -453,6 +481,24 @@ mod tests {
     }
 
     #[test]
+    fn rejects_malformed_authorization_codes() {
+        assert_eq!(
+            parse_host_response(&[
+                0x8a, 0x02, b'0', b'0', 0x89, 0x05, b'A', b'P', b'P', b'0', b'1'
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x8a, 0x02, b'0', b'0', 0x89, 0x06, b'A', b'P', b'P', 0x00, b'0', b'1',
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
     fn rejects_host_response_without_authorization_response_code() {
         assert_eq!(
             parse_host_response(&[0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
@@ -485,10 +531,30 @@ mod tests {
         );
         assert_eq!(
             parse_host_response(&[
+                0x8a, 0x02, b'0', b'0', 0x89, 0x06, b'A', b'P', b'P', b'R', b'0', b'1', 0x89, 0x06,
+                b'A', b'P', b'P', b'R', b'0', b'2',
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
                 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x91, 0x08, 0x21, 0x22,
                 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
             ])
             .unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_host_response_objects() {
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b'0', b'0', 0x95, 0x05, 0, 0, 0, 0, 0]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b'0', b'0', 0xa5, 0x00]).unwrap_err(),
             KernelError::ParseError
         );
     }

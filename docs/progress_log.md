@@ -4,6 +4,32 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T17:37:52Z
+
+- Increment completed: make tag `89` Authorization Code an explicit
+  host-response object instead of silently ignoring issuer-supplied approval
+  code data.
+- Research note: public standards drift was rechecked against the current
+  `standards_watch.md` boundary; the open-source reference review still points
+  to explicit host-response contracts and fixture-backed parser validation, so
+  this slice adapts that shape without copying external implementation code.
+- Code impact: `parse_host_response` now validates six-byte alphanumeric
+  Authorization Code values, rejects duplicate or unsupported top-level
+  host-response objects, and `krn_apply_host_response` admits validated `89`
+  into the shared data store for downstream CDOL2 construction.
+- Evidence update: the executable TLV catalogue now includes tag `89`; both RTM
+  annexes cite malformed authorization-code and unsupported-host-object
+  regressions under KRN-ONL-002; the lab manifest TLV count is derived at 62
+  tags.
+- Verification: `cargo test issuer::tests`, `cargo test
+  ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac`,
+  `cargo test tlv_catalogue_contains_required_foundation_tags`, `cargo test
+  rtm_promotes_online_boundary_evidence`, `cargo test
+  tlv_catalogue_uses_required_schema_and_profile_defined_markers`, `cargo test
+  lab_manifest_leaves_unattached_external_reports_unchecked`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T17:29:43Z
 
 - Increment completed: bound and validate the shared EMV data store before

@@ -3374,7 +3374,8 @@ fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
 #[test]
 fn tlv_catalogue_contains_required_foundation_tags() {
     for row_prefix in [
-        "5F36,", "84,", "86,", "94,", "95,", "9B,", "9F18,", "9F26,", "9F27,", "9F37,", "9F5B,",
+        "5F36,", "84,", "86,", "89,", "94,", "95,", "9B,", "9F18,", "9F26,", "9F27,", "9F37,",
+        "9F5B,",
     ] {
         assert!(
             TLV_CATALOGUE
@@ -3391,6 +3392,13 @@ fn tlv_catalogue_contains_required_foundation_tags() {
     assert!(script_command.contains("Issuer Script Command"));
     assert!(script_command.contains("0-261 bytes"));
     assert!(script_command.contains("issuer-script-data"));
+
+    let authorization_code = TLV_CATALOGUE
+        .lines()
+        .find(|line| line.starts_with("89,"))
+        .unwrap();
+    assert!(authorization_code.contains("Authorization Code"));
+    assert!(authorization_code.contains("Host via L3"));
 
     let script_results = TLV_CATALOGUE
         .lines()
@@ -3541,7 +3549,7 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
     let rows = lines
         .map(|line| line.split(',').collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 61);
+    assert_eq!(rows.len(), 62);
     for row in &rows {
         assert_eq!(row.len(), expected_header.len(), "invalid TLV row {row:?}");
         assert!(row[0].chars().all(|ch| ch.is_ascii_hexdigit()));
@@ -3963,7 +3971,9 @@ fn rtm_promotes_online_boundary_evidence() {
         assert!(host.contains("rejects_host_response_without_authorization_response_code"));
         assert!(host.contains("rejects_malformed_issuer_authentication_data"));
         assert!(host.contains("rejects_non_alphanumeric_authorization_response_codes"));
+        assert!(host.contains("rejects_malformed_authorization_codes"));
         assert!(host.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
+        assert!(host.contains("rejects_unsupported_host_response_objects"));
         assert!(host.contains("apply_host_response_rejects_empty_or_oversize_payload"));
         assert!(host.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
     }

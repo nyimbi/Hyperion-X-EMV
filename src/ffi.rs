@@ -2567,6 +2567,9 @@ fn apply_host_response(ctx: &mut KrnContext, bytes: &[u8]) -> Result<(), KernelE
     let response = parse_host_response(bytes)?;
     ctx.card_data
         .put(&[0x8a], &response.authorization_response_code)?;
+    if let Some(authorization_code) = response.authorization_code.as_ref() {
+        ctx.card_data.put(&[0x89], authorization_code)?;
+    }
     if let Some(issuer_authentication_data) = response.issuer_authentication_data.as_ref() {
         ctx.card_data.put(&[0x91], issuer_authentication_data)?;
     }
@@ -6002,8 +6005,8 @@ mod tests {
             assert!(crate::tlv::find_first(&auth_tlvs, &[0x9f, 0x37]).is_some());
             let host = [
                 0x8a, 0x02, b'0', b'0', 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-                0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa, 0x72, 0x08, 0x86, 0x06,
-                0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb,
+                0x89, 0x06, b'A', b'P', b'P', b'R', b'0', b'1', 0x71, 0x08, 0x86, 0x06, 0x00, 0xda,
+                0x00, 0x00, 0x01, 0xaa, 0x72, 0x08, 0x86, 0x06, 0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb,
             ];
             assert_eq!(
                 krn_apply_host_response(ctx, host.as_ptr(), host.len()),
@@ -6020,6 +6023,7 @@ mod tests {
             assert_eq!(krn_get_fsm_state(ctx), FsmState::S13.code());
             let ctx_ref = ctx.as_ref().unwrap();
             assert_eq!(ctx_ref.card_data.get(&[0x8a]), Some(&[b'0', b'0'][..]));
+            assert_eq!(ctx_ref.card_data.get(&[0x89]), Some(&b"APPR01"[..]));
             assert_eq!(
                 ctx_ref.card_data.get(&[0x91]),
                 Some(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88][..])
@@ -6161,6 +6165,7 @@ mod tests {
         ctx.state = KernelState::IssuerAuthentication;
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44]),
             scripts: Vec::new(),
         });
@@ -6195,6 +6200,7 @@ mod tests {
         ctx.state = KernelState::IssuerAuthentication;
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44]),
             scripts: Vec::new(),
         });
@@ -6226,6 +6232,7 @@ mod tests {
         install_profile_selection(&mut ctx);
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: None,
             scripts: vec![crate::issuer::IssuerScript {
                 phase: crate::issuer::ScriptPhase::BeforeFinalGenerateAc,
@@ -6289,6 +6296,7 @@ mod tests {
             ctx.state = KernelState::SecondGenerateAc;
             ctx.host_response = Some(HostResponse {
                 authorization_response_code: arc,
+                authorization_code: None,
                 issuer_authentication_data: None,
                 scripts: Vec::new(),
             });
@@ -6313,6 +6321,7 @@ mod tests {
         let issuer_authentication_data = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88];
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: Some(issuer_authentication_data.to_vec()),
             scripts: Vec::new(),
         });
@@ -6359,6 +6368,7 @@ mod tests {
         ctx.state = KernelState::SecondGenerateAc;
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: None,
             scripts: Vec::new(),
         });
@@ -6390,6 +6400,7 @@ mod tests {
         install_profile_selection(&mut ctx);
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: None,
             scripts: vec![crate::issuer::IssuerScript {
                 phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
@@ -6443,6 +6454,7 @@ mod tests {
         install_profile_selection(&mut ctx);
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: None,
             scripts: vec![crate::issuer::IssuerScript {
                 phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
@@ -6505,6 +6517,7 @@ mod tests {
         install_profile_selection(&mut ctx);
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: None,
             scripts: vec![crate::issuer::IssuerScript {
                 phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
@@ -6561,6 +6574,7 @@ mod tests {
         install_profile_selection(&mut ctx);
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
             issuer_authentication_data: None,
             scripts: vec![crate::issuer::IssuerScript {
                 phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
@@ -6620,6 +6634,7 @@ mod tests {
             install_profile_selection(&mut ctx);
             ctx.host_response = Some(HostResponse {
                 authorization_response_code: [b'0', b'0'],
+                authorization_code: None,
                 issuer_authentication_data: None,
                 scripts: vec![crate::issuer::IssuerScript {
                     phase: crate::issuer::ScriptPhase::BeforeFinalGenerateAc,

@@ -17,6 +17,7 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 82,Application Interchange Profile (AIP),Primitive,2 bytes,EMV Book 3,contact and contactless,all,Mandatory after GPO,non-sensitive,UT-TLV-004
 84,DF Name (PPSE),Primitive,variable,EMV Contactless,contactless,all,Contactless,public,UT-TLV-004
 86,Issuer Script Command,Primitive,0-261 bytes,EMV Book 3,contact and contactless,all,Inside 71 or 72,issuer-script-data,UT-TLV-004; UT-SCR-001
+89,Authorization Code,Primitive,6 bytes,EMV Book 3,contact and contactless,all,Host via L3,non-sensitive,UT-TLV-004; UT-ONL-TRACE
 8C,CDOL1,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
 8D,CDOL2,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
 8E,CVM List,Constructed,variable,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
