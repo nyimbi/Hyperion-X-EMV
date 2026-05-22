@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:54:19Z
+
+- Increment completed: reject malformed Static Data Authentication Tag List
+  values before appending extra SDA authentication data.
+- Research note: public EMV tag references describe `9F4A` as the Static Data
+  Authentication Tag List used by SDA. Constructed or repeated tags in this
+  tag-only value would make authentication-data assembly ambiguous.
+- Code impact: `parse_static_authentication_tag_list` now accepts only unique
+  primitive tags before `build_static_authentication_data` appends their values.
+- Evidence updated: ODA unit tests, SDA traceability guards, and both RTM
+  annexes now cite malformed SDA tag-list rejection coverage.
+- Verification: `cargo test rejects_malformed_static_authentication_tag_list`,
+  `cargo test builds_static_authentication_data_from_afl_records_and_tag_list`,
+  `cargo test krn_oda_005_static_authentication_data_uses_afl_order_and_tag_list`,
+  `cargo test rtm_promotes_oda_capk_tvr_cda_evidence`, `cargo test`,
+  `cargo test --examples`, and
+  `cargo clippy --all-targets --all-features`, `cargo fmt --check`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T04:47:42Z
 
 - Increment completed: reject duplicate AFL-derived record locators before

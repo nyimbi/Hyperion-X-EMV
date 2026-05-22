@@ -837,15 +837,20 @@ fn parse_static_authentication_tag_list(input: &[u8]) -> KernelResult<Vec<Vec<u8
             return Err(KernelError::LengthOverflow);
         }
         let start = offset;
-        read_oda_tag(input, &mut offset)?;
-        tags.push(input[start..offset].to_vec());
+        let constructed = read_oda_tag(input, &mut offset)?;
+        let tag = input[start..offset].to_vec();
+        if constructed || tags.iter().any(|existing| existing == &tag) {
+            return Err(KernelError::ParseError);
+        }
+        tags.push(tag);
     }
     Ok(tags)
 }
 
-fn read_oda_tag(input: &[u8], offset: &mut usize) -> KernelResult<()> {
+fn read_oda_tag(input: &[u8], offset: &mut usize) -> KernelResult<bool> {
     let first = *input.get(*offset).ok_or(KernelError::ParseError)?;
     *offset += 1;
+    let constructed = first & 0x20 != 0;
     if first & 0x1f == 0x1f {
         let mut continuation_count = 0usize;
         loop {
@@ -860,7 +865,7 @@ fn read_oda_tag(input: &[u8], offset: &mut usize) -> KernelResult<()> {
             }
         }
     }
-    Ok(())
+    Ok(constructed)
 }
 
 fn parse_rsa_public_exponent(exponent: &[u8]) -> KernelResult<u32> {
@@ -1530,6 +1535,30 @@ mod tests {
             )
             .unwrap_err(),
             KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_static_authentication_tag_list() {
+        let records = [StaticAuthenticationRecord {
+            sfi: 2,
+            record: 1,
+            body: decode_hex("700C5A04123456785F2403261231").unwrap(),
+        }];
+
+        let mut duplicate_tag = DataStore::new();
+        duplicate_tag.put(&[0x9f, 0x4a], &[0x82, 0x82]).unwrap();
+        duplicate_tag.put(&[0x82], &[0x78, 0x00]).unwrap();
+        assert_eq!(
+            build_static_authentication_data(&records, &duplicate_tag).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut constructed_tag = DataStore::new();
+        constructed_tag.put(&[0x9f, 0x4a], &[0xa5]).unwrap();
+        assert_eq!(
+            build_static_authentication_data(&records, &constructed_tag).unwrap_err(),
+            KernelError::ParseError
         );
     }
 

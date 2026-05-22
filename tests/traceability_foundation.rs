@@ -2522,6 +2522,7 @@ fn rtm_promotes_oda_capk_tvr_cda_evidence() {
         assert!(sda.contains(
             "krn_oda_001_005_006_007_selects_method_and_sets_tvr_tsi_without_cda_fallback"
         ));
+        assert!(sda.contains("rejects_malformed_static_authentication_tag_list"));
         assert!(sda.contains("krn_oda_005_static_authentication_data_uses_afl_order_and_tag_list"));
         assert!(sda.contains("krn_oda_005_006_007_recovers_and_verifies_signed_application_data"));
 
@@ -5740,6 +5741,24 @@ fn krn_oda_005_static_authentication_data_uses_afl_order_and_tag_list() {
     assert_eq!(
         build_static_authentication_data(&records, &missing_tag).unwrap_err(),
         hyperion_emv::KernelError::MissingMandatoryTag
+    );
+
+    let mut duplicate_static_tag = data.clone();
+    duplicate_static_tag
+        .put(&[0x9f, 0x4a], &hex("8282"))
+        .unwrap();
+    assert_eq!(
+        build_static_authentication_data(&records, &duplicate_static_tag).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+
+    let mut constructed_static_tag = data.clone();
+    constructed_static_tag
+        .put(&[0x9f, 0x4a], &hex("A5"))
+        .unwrap();
+    assert_eq!(
+        build_static_authentication_data(&records, &constructed_static_tag).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
     );
 
     let mut wrong_authentication_data = sda_data;
