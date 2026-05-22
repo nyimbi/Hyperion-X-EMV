@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T22:04:41Z
+
+- Increment completed: bring CDA dynamic-authentication trace handling into the
+  controlled logging and TLV catalogue evidence.
+- Code impact: production trace masking now suppresses GENERATE AC Signed
+  Dynamic Application Data (`9F4B`) and ICC Dynamic Number (`9F4C`) rather than
+  emitting dynamic authentication bytes in pre-lab JSON.
+- Documentation impact: `docs/spec.md` and `docs/tlv_catalogue.csv` now name
+  `9F4B` as Signed Dynamic Application Data, while the lab manifest records the
+  new pre-lab masking evidence without closing the full lab trace-pack blocker.
+- Evidence updated: the generated pre-lab APDU trace pack now includes a
+  CDA-shaped GENERATE AC response with masked `9F4B`/`9F4C`, and both RTM CSVs
+  cite the new dynamic-authentication suppression regression under logging
+  policy and crash-safety requirements.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T21:48:26Z
 
 - Increment completed: bring the open-source reference review into the

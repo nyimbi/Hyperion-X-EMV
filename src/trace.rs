@@ -372,6 +372,10 @@ pub fn mask_tlv_value(tag: &[u8], value: &[u8], policy: LogPolicy) -> MaskedFiel
         } else {
             MaskedValue::Suppressed("issuer-application-data")
         }
+    } else if tag == [0x9f, 0x4b] {
+        MaskedValue::Suppressed("signed-dynamic-application-data")
+    } else if tag == [0x9f, 0x4c] {
+        MaskedValue::Suppressed("icc-dynamic-number")
     } else if tag == [0x86] {
         MaskedValue::Suppressed("issuer-script-command-data")
     } else if tag == [0x9f, 0x18] {
@@ -581,6 +585,13 @@ fn push_gac_fields(
     }
     if let Some(dynamic_number) = &response.icc_dynamic_number {
         fields.push(mask_tlv_value(&[0x9f, 0x4c], dynamic_number, policy));
+    }
+    if let Some(signed_dynamic_application_data) = &response.signed_dynamic_application_data {
+        fields.push(mask_tlv_value(
+            &[0x9f, 0x4b],
+            signed_dynamic_application_data,
+            policy,
+        ));
     }
 }
 
@@ -887,6 +898,51 @@ mod tests {
         assert!(json.contains("\"tag\":\"9f10\""));
         assert!(json.contains("issuer-application-data"));
         assert!(!json.contains("aabbcc"));
+    }
+
+    #[test]
+    fn production_suppresses_dynamic_authentication_data() {
+        let signed_dynamic_application_data = mask_tlv_value(
+            &[0x9f, 0x4b],
+            &[0xa1; 8],
+            LogPolicy::certification_support(),
+        );
+        assert_eq!(
+            signed_dynamic_application_data.value,
+            MaskedValue::Suppressed("signed-dynamic-application-data")
+        );
+
+        let icc_dynamic_number = mask_tlv_value(
+            &[0x9f, 0x4c],
+            &[0x01, 0x02, 0x03, 0x04],
+            LogPolicy::production(),
+        );
+        assert_eq!(
+            icc_dynamic_number.value,
+            MaskedValue::Suppressed("icc-dynamic-number")
+        );
+
+        let response = [
+            0x77, 0x2c, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x9f, 0x10, 0x03, 0xaa, 0xbb, 0xcc,
+            0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0x9f, 0x4c, 0x04,
+            0x01, 0x02, 0x03, 0x04,
+        ];
+        let event = mask_apdu_response(
+            9,
+            ApduTraceContext::GenerateAcResponse,
+            &response,
+            [0x90, 0x00],
+            LogPolicy::production(),
+        )
+        .unwrap();
+        let json = event.to_json();
+        assert!(json.contains("\"tag\":\"9f4b\""));
+        assert!(json.contains("signed-dynamic-application-data"));
+        assert!(json.contains("\"tag\":\"9f4c\""));
+        assert!(json.contains("icc-dynamic-number"));
+        assert!(!json.contains("a1a2a3a4a5a6a7a8"));
+        assert!(!json.contains("01020304"));
     }
 
     #[test]

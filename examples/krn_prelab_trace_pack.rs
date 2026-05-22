@@ -42,6 +42,8 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
                 "pan-last-four-only",
                 "transaction-cryptogram-suppressed",
                 "issuer-application-data-suppressed",
+                "signed-dynamic-application-data-suppressed",
+                "icc-dynamic-number-suppressed",
             ],
             masked_tlv_streams: &[],
         },
@@ -274,7 +276,9 @@ fn generate_ac_masking_script() -> KernelResult<ReplayScript> {
     )?;
     let first_gac = ReplayExchange::new(
         &decode_hex("80AE80000301020300")?,
-        &decode_hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC")?,
+        &decode_hex(
+            "772C9F2701809F360200099F260811121314151617189F1003AABBCC9F4B08A1A2A3A4A5A6A7A89F4C0401020304",
+        )?,
         [0x90, 0x00],
         ApduTraceContext::GenerateAcResponse,
     )?;

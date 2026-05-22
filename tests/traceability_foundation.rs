@@ -1863,6 +1863,7 @@ fn rtm_promotes_reference_config_log_evidence() {
         assert!(
             log_policy.contains("production_suppresses_profile_defined_issuer_application_data")
         );
+        assert!(log_policy.contains("production_suppresses_dynamic_authentication_data"));
         assert!(log_policy
             .contains("production_policy_never_emits_full_apdu_data_even_if_misconfigured"));
         assert!(log_policy.contains("rtm_promotes_logging_policy_evidence"));
@@ -2909,6 +2910,7 @@ fn rtm_promotes_logging_policy_evidence() {
         );
         assert!(crash_dump.contains("oda_debug_redacts_recovered_authentication_material"));
         assert!(crash_dump.contains("tlv_debug_redacts_parsed_values"));
+        assert!(crash_dump.contains("production_suppresses_dynamic_authentication_data"));
         assert!(crash_dump.contains("production_suppresses_issuer_script_command_data"));
         assert!(crash_dump.contains("mask_tlv_stream_rejects_trace_field_overflow"));
         assert!(crash_dump.contains("apdu_trace_debug_redacts_masked_payloads_for_crash_safety"));
@@ -3647,7 +3649,7 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
     let rows = lines
         .map(|line| line.split(',').collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 63);
+    assert_eq!(rows.len(), 64);
     for row in &rows {
         assert_eq!(row.len(), expected_header.len(), "invalid TLV row {row:?}");
         assert!(row[0].chars().all(|ch| ch.is_ascii_hexdigit()));
@@ -3667,6 +3669,10 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
         assert_eq!(row[6], "PROFILE-DEFINED");
         assert_ne!(row[8], "non-sensitive");
     }
+
+    let sdad = rows.iter().find(|row| row[0] == "9F4B").unwrap();
+    assert_eq!(sdad[1], "Signed Dynamic Application Data");
+    assert_eq!(sdad[8], "cryptographic");
 
     for tag in ["57", "5A", "5F20", "5F34"] {
         let row = rows.iter().find(|row| row[0] == tag).unwrap();
@@ -5527,6 +5533,23 @@ fn krn_log_001_masks_sensitive_tlv_and_gac_trace_values() {
         MaskedValue::Suppressed("issuer-application-data")
     );
 
+    let sdad = mask_tlv_value(
+        &[0x9f, 0x4b],
+        &hex("A1A2A3A4A5A6A7A8"),
+        LogPolicy::production(),
+    );
+    assert_eq!(
+        sdad.value,
+        MaskedValue::Suppressed("signed-dynamic-application-data")
+    );
+
+    let icc_dynamic_number =
+        mask_tlv_value(&[0x9f, 0x4c], &hex("01020304"), LogPolicy::production());
+    assert_eq!(
+        icc_dynamic_number.value,
+        MaskedValue::Suppressed("icc-dynamic-number")
+    );
+
     let issuer_auth = mask_tlv_value(&[0x91], &hex("1122334455667788"), LogPolicy::production());
     assert_eq!(
         issuer_auth.value,
@@ -5559,6 +5582,25 @@ fn krn_log_001_masks_sensitive_tlv_and_gac_trace_values() {
     assert!(json.contains("\"tag\":\"9f26\""));
     assert!(json.contains("transaction-cryptogram"));
     assert!(!json.contains("deadbeef00000001"));
+
+    let cda_response = hex(
+        "772C9F2701809F360200099F260811121314151617189F1003AABBCC9F4B08A1A2A3A4A5A6A7A89F4C0401020304",
+    );
+    let cda_event = mask_apdu_response(
+        2,
+        ApduTraceContext::GenerateAcResponse,
+        &cda_response,
+        [0x90, 0x00],
+        LogPolicy::production(),
+    )
+    .unwrap();
+    let cda_json = cda_event.to_json();
+    assert!(cda_json.contains("\"tag\":\"9f4b\""));
+    assert!(cda_json.contains("signed-dynamic-application-data"));
+    assert!(cda_json.contains("\"tag\":\"9f4c\""));
+    assert!(cda_json.contains("icc-dynamic-number"));
+    assert!(!cda_json.contains("a1a2a3a4a5a6a7a8"));
+    assert!(!cda_json.contains("01020304"));
 }
 
 #[test]
@@ -5593,7 +5635,9 @@ fn krn_log_001_exposes_masked_apdu_trace_json_via_abi() {
         assert!(json.contains("pin-verify-data"));
         assert!(!json.contains("241234"));
 
-        let gac = hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC");
+        let gac = hex(
+            "772C9F2701809F360200099F260811121314151617189F1003AABBCC9F4B08A1A2A3A4A5A6A7A89F4C0401020304",
+        );
         let mut len = 0usize;
         assert_eq!(
             krn_mask_apdu_response_json(
@@ -5628,8 +5672,14 @@ fn krn_log_001_exposes_masked_apdu_trace_json_via_abi() {
         assert!(json.contains("transaction-cryptogram"));
         assert!(json.contains("\"tag\":\"9f10\""));
         assert!(json.contains("issuer-application-data"));
+        assert!(json.contains("\"tag\":\"9f4b\""));
+        assert!(json.contains("signed-dynamic-application-data"));
+        assert!(json.contains("\"tag\":\"9f4c\""));
+        assert!(json.contains("icc-dynamic-number"));
         assert!(!json.contains("1112131415161718"));
         assert!(!json.contains("aabbcc"));
+        assert!(!json.contains("a1a2a3a4a5a6a7a8"));
+        assert!(!json.contains("01020304"));
 
         assert_eq!(
             krn_mask_apdu_response_json(
@@ -5711,7 +5761,9 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     .unwrap();
     let first_gac = ReplayExchange::new(
         &hex("80AE80000301020300"),
-        &hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC"),
+        &hex(
+            "772C9F2701809F360200099F260811121314151617189F1003AABBCC9F4B08A1A2A3A4A5A6A7A89F4C0401020304",
+        ),
         [0x90, 0x00],
         ApduTraceContext::GenerateAcResponse,
     )
@@ -5830,7 +5882,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         generated.push_str("\",\"does_not_close\":\"CERT-OPEN-012\"}\n");
         generated.push_str(match case_id {
             "prelab.masking.generate-ac" => {
-                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.generate-ac\",\"expected_step_count\":3,\"expected_fsm_events\":[\"AidSelected\",\"RecordRead\",\"GacArqc\"],\"expected_fsm_actions\":[\"SelectNextAid\",\"ReadRecords\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"],\"expected_status_actions\":[],\"expected_command_flow\":[\"select-aid\",\"read-record\",\"generate-ac\"],\"expected_response_shapes\":[\"fci-template-6f\",\"record-template-70\",\"gac-template-77\"],\"expected_terminal_outcome\":\"online-authorization-request\",\"expected_tlv_stream_count\":0,\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\",\"issuer-application-data-suppressed\"]}\n"
+                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.generate-ac\",\"expected_step_count\":3,\"expected_fsm_events\":[\"AidSelected\",\"RecordRead\",\"GacArqc\"],\"expected_fsm_actions\":[\"SelectNextAid\",\"ReadRecords\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"],\"expected_status_actions\":[],\"expected_command_flow\":[\"select-aid\",\"read-record\",\"generate-ac\"],\"expected_response_shapes\":[\"fci-template-6f\",\"record-template-70\",\"gac-template-77\"],\"expected_terminal_outcome\":\"online-authorization-request\",\"expected_tlv_stream_count\":0,\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\",\"issuer-application-data-suppressed\",\"signed-dynamic-application-data-suppressed\",\"icc-dynamic-number-suppressed\"]}\n"
             }
             "prelab.masking.issuer-auth-script" => {
                 "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.issuer-auth-script\",\"expected_step_count\":2,\"expected_fsm_events\":[\"IssuerAuthenticationSuccess\",\"ScriptNonCriticalFailure\"],\"expected_fsm_actions\":[\"ProcessArpc\",\"ProcessIssuerScripts\",\"RequestFinalGenerateAc\"],\"expected_status_actions\":[],\"expected_command_flow\":[\"external-authenticate\",\"issuer-script-command\"],\"expected_response_shapes\":[\"status-only-success\",\"status-only-warning\"],\"expected_terminal_outcome\":\"continue-to-final-generate-ac\",\"expected_tlv_stream_count\":1,\"masking_assertions\":[\"full-apdu-disabled\",\"issuer-authentication-data-suppressed\",\"issuer-script-command-data-suppressed\"]}\n"
@@ -5929,7 +5981,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         .contains("\"expected_terminal_outcome\":\"issuer-script-warning-recorded\""));
     assert!(PRELAB_APDU_TRACE_PACK
         .contains("\"expected_terminal_outcome\":\"generate-ac-status-failure\""));
-    assert!(PRELAB_APDU_TRACE_PACK.contains("\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\",\"issuer-application-data-suppressed\"]"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\",\"issuer-application-data-suppressed\",\"signed-dynamic-application-data-suppressed\",\"icc-dynamic-number-suppressed\"]"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"profile_version\":2"));
@@ -5944,6 +5996,10 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"transaction-cryptogram\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f10\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"issuer-application-data\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f4b\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"signed-dynamic-application-data\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f4c\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"icc-dynamic-number\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"tlv-stream\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"context\":\"host-response\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"91\""));
@@ -5966,6 +6022,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012D251"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("25122012345678"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("010203"));
+    assert!(!PRELAB_APDU_TRACE_PACK.contains("a1a2a3a4a5a6a7a8"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("1122334455667788"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("00da000001aa"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("deadbeef"));
