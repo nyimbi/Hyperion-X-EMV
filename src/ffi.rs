@@ -6437,6 +6437,64 @@ mod tests {
     }
 
     #[test]
+    fn critical_issuer_script_failure_stops_remaining_commands() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S15;
+        ctx.state = KernelState::PostFinalIssuerScripts;
+        install_profile_selection(&mut ctx);
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: None,
+            scripts: vec![crate::issuer::IssuerScript {
+                phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
+                identifier: None,
+                commands: vec![
+                    vec![0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb],
+                    vec![0x80, 0xe2, 0x00, 0x00, 0x01, 0xcc],
+                ],
+            }],
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        SCRIPT_SW1.store(0x69, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x85, Ordering::SeqCst);
+        assert_eq!(
+            run_post_final_issuer_scripts(&mut ctx, runtime),
+            Err(KernelError::ScriptFailed)
+        );
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 9);
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb]
+        );
+        assert_eq!(ctx.fsm_state, FsmState::Se);
+        assert_eq!(ctx.state, KernelState::Error);
+        assert_eq!(
+            ctx.issuer_script_results,
+            vec![ScriptCommandResult {
+                sw1: 0x69,
+                sw2: 0x85
+            }]
+        );
+        assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
+        assert!(ctx
+            .tvr
+            .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC));
+        assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
+        assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
+        SCRIPT_SW1.store(0x90, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
     fn issuer_script_apdus_resolve_get_response_and_retry_le() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
         for (mode, expected_ins, expected_len) in [(1, 0xc0, 5usize), (2, 0xda, 7usize)] {

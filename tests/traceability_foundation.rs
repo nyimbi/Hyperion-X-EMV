@@ -6679,6 +6679,7 @@ fn rtm_promotes_issuer_script_evidence() {
         assert!(execution
             .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
         assert!(execution.contains("critical_issuer_script_warning_continues_and_reports_results"));
+        assert!(execution.contains("critical_issuer_script_failure_stops_remaining_commands"));
         assert!(execution.contains("issuer_script_apdus_resolve_get_response_and_retry_le"));
 
         let results = csv_row_for_requirement(csv, "KRN-SCR-003").unwrap();
@@ -6690,6 +6691,7 @@ fn rtm_promotes_issuer_script_evidence() {
         );
         assert!(results.contains("critical_issuer_script_warning_continues_and_reports_results"));
         assert!(results.contains("critical_issuer_script_failure_records_results_and_enters_error"));
+        assert!(results.contains("critical_issuer_script_failure_stops_remaining_commands"));
 
         let before_final_tvr = csv_row_for_requirement(csv, "KRN-SCR-004").unwrap();
         assert!(before_final_tvr.contains("script_results_set_phase_specific_tvr_bits_and_tsi"));
@@ -6704,6 +6706,7 @@ fn rtm_promotes_issuer_script_evidence() {
             .contains("critical_issuer_script_warning_continues_and_reports_results"));
         assert!(after_final_tvr
             .contains("critical_issuer_script_failure_records_results_and_enters_error"));
+        assert!(after_final_tvr.contains("critical_issuer_script_failure_stops_remaining_commands"));
 
         let reporting = csv_row_for_requirement(csv, "KRN-SCR-006").unwrap();
         assert!(reporting
@@ -6713,6 +6716,7 @@ fn rtm_promotes_issuer_script_evidence() {
         assert!(reporting
             .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
         assert!(reporting.contains("critical_issuer_script_warning_continues_and_reports_results"));
+        assert!(reporting.contains("critical_issuer_script_failure_stops_remaining_commands"));
     }
 }
 

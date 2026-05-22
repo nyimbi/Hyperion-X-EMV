@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:58:14Z
+
+- Increment completed: lock critical issuer-script failure handling so a failed
+  critical command stops remaining commands in that script.
+- Code impact: added an FFI regression that drives a post-final Template `72`
+  script with two critical commands, forces the first command to fail, and
+  verifies that only the failed command is transmitted and reported while the
+  FSM enters error with the after-final script-failure TVR bit and script TSI
+  persisted.
+- Evidence update: both RTM annexes now cite the regression for issuer-script
+  ordering, SW capture/reporting, and after-final-GAC failure evidence, and the
+  traceability guard requires those citations.
+- Verification: `cargo test critical_issuer_script_failure_stops_remaining_commands`,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T13:53:45Z
 
 - Increment completed: align the lab manifest with the expanded standards-watch
