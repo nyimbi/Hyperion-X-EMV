@@ -1110,7 +1110,9 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(outcome.contains("offline_pin_requires_ped_owned_opaque_handle"));
         assert!(outcome.contains("offline_pin_verify_status_updates_cvm_results_and_tvr_bits"));
         assert!(outcome.contains("unrecognized_cvm_sets_tvr_even_when_next_rule_succeeds"));
+        assert!(outcome.contains("pin_cvm_unavailable_sets_specific_tvr_bits"));
         assert!(outcome.contains("cvm_processing_persists_unrecognized_tvr_on_later_success"));
+        assert!(outcome.contains("cvm_processing_persists_missing_pin_pad_tvr_on_later_success"));
         assert!(outcome.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(outcome.contains("rtm_promotes_cvm_outcome_evidence"));
     }
@@ -4481,7 +4483,7 @@ fn krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles() {
             evaluate_cvm(&cvm_list, context, enciphered_only),
             CvmOutcome::Failed {
                 cvm_results: [0x01, 0x00, 0x01],
-                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
+                tvr_bit: Tvr::B3_PIN_NOT_ENTERED
             }
         );
     }
@@ -6668,7 +6670,7 @@ fn krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin() {
         evaluate_cvm(&cvm_list, context, CvmPinHandles::none()),
         CvmOutcome::Failed {
             cvm_results: [0x01, 0x00, 0x01],
-            tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
+            tvr_bit: Tvr::B3_PIN_NOT_ENTERED
         }
     );
 

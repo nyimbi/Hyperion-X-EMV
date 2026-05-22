@@ -330,13 +330,13 @@ pub fn evaluate(list: &CvmList, context: CvmContext, pin_handles: CvmPinHandles)
         }
 
         let Some(action) = action_for_method(rule.method, context, pin_handles) else {
-            if let Some(tvr_bit) = unrecognized_cvm_bit(rule.method) {
+            if let Some(tvr_bit) = cvm_unavailable_bit(rule.method, context, pin_handles) {
                 selected_tvr_bit = Some(tvr_bit);
             }
             if rule.continue_on_failure() {
                 continue;
             }
-            return cvm_failed(*rule, selected_tvr_bit);
+            return cvm_failed(*rule, context, pin_handles, selected_tvr_bit);
         };
 
         return CvmOutcome::Selected {
@@ -391,11 +391,16 @@ fn action_for_method(
     }
 }
 
-fn cvm_failed(rule: CvmRule, observed_tvr_bit: Option<(usize, u8)>) -> CvmOutcome {
+fn cvm_failed(
+    rule: CvmRule,
+    context: CvmContext,
+    pin_handles: CvmPinHandles,
+    observed_tvr_bit: Option<(usize, u8)>,
+) -> CvmOutcome {
     CvmOutcome::Failed {
         cvm_results: cvm_results(rule, 0x01),
         tvr_bit: observed_tvr_bit
-            .or_else(|| unrecognized_cvm_bit(rule.method))
+            .or_else(|| cvm_unavailable_bit(rule.method, context, pin_handles))
             .unwrap_or(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL),
     }
 }
@@ -404,8 +409,37 @@ fn cvm_results(rule: CvmRule, result: u8) -> [u8; 3] {
     [rule.raw_code & 0x3f, rule.condition_code, result]
 }
 
-fn unrecognized_cvm_bit(method: CvmMethod) -> Option<(usize, u8)> {
-    matches!(method, CvmMethod::Unknown(_)).then_some(Tvr::B3_UNRECOGNIZED_CVM)
+fn cvm_unavailable_bit(
+    method: CvmMethod,
+    context: CvmContext,
+    pin_handles: CvmPinHandles,
+) -> Option<(usize, u8)> {
+    match method {
+        CvmMethod::Unknown(_) => Some(Tvr::B3_UNRECOGNIZED_CVM),
+        CvmMethod::OfflinePlaintextPin | CvmMethod::OfflinePlaintextPinAndSignature => {
+            pin_cvm_unavailable_bit(context.offline_pin_supported, pin_handles.offline_plaintext)
+        }
+        CvmMethod::OfflineEncipheredPin | CvmMethod::OfflineEncipheredPinAndSignature => {
+            pin_cvm_unavailable_bit(
+                context.offline_pin_supported,
+                pin_handles.offline_enciphered,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn pin_cvm_unavailable_bit(
+    offline_pin_supported: bool,
+    handle: Option<PedPinHandle>,
+) -> Option<(usize, u8)> {
+    if !offline_pin_supported {
+        Some(Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING)
+    } else if handle.is_none() {
+        Some(Tvr::B3_PIN_NOT_ENTERED)
+    } else {
+        None
+    }
 }
 
 fn condition_matches(rule: CvmRule, list: &CvmList, context: CvmContext) -> bool {
@@ -528,7 +562,7 @@ mod tests {
             failed,
             CvmOutcome::Failed {
                 cvm_results: [0x01, 0x00, 0x01],
-                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
+                tvr_bit: Tvr::B3_PIN_NOT_ENTERED
             }
         );
 
@@ -551,7 +585,7 @@ mod tests {
             evaluate(&list, context(), enciphered_only),
             CvmOutcome::Failed {
                 cvm_results: [0x01, 0x00, 0x01],
-                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
+                tvr_bit: Tvr::B3_PIN_NOT_ENTERED
             }
         );
     }
@@ -747,7 +781,29 @@ mod tests {
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
                 cvm_results: [0x02, 0x00, 0x02],
-                tvr_bit: None
+                tvr_bit: Some(Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING)
+            }
+        );
+    }
+
+    #[test]
+    fn pin_cvm_unavailable_sets_specific_tvr_bits() {
+        let list = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x00]).unwrap();
+        let mut no_pin_pad = context();
+        no_pin_pad.offline_pin_supported = false;
+        assert_eq!(
+            evaluate(&list, no_pin_pad, CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x01, 0x00, 0x01],
+                tvr_bit: Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING
+            }
+        );
+
+        assert_eq!(
+            evaluate(&list, context(), CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x01, 0x00, 0x01],
+                tvr_bit: Tvr::B3_PIN_NOT_ENTERED
             }
         );
     }

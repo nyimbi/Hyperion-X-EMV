@@ -2418,3 +2418,27 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T11:34:45Z
+
+- Increment completed: preserve specific PIN-CVM TVR evidence when PIN CVMs
+  cannot execute.
+- Research note: public TVR references identify separate byte-3 bits for PIN
+  pad unavailable and PIN required but not entered. Collapsing those paths into
+  generic cardholder-verification failure weakens the TAA evidence model.
+- Code impact: CVM evaluation now reports `B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING`
+  when an offline PIN rule matches but no offline PIN facility is available,
+  and `B3_PIN_NOT_ENTERED` when the facility is available but no PED-owned PIN
+  handle is supplied. Continue-on-failure preserves the specific PIN TVR bit
+  for a later successful CVM.
+- Evidence updated: `cvm::tests::pin_cvm_unavailable_sets_specific_tvr_bits`
+  covers direct evaluator failures for both PIN cases, and
+  `ffi::tests::cvm_processing_persists_missing_pin_pad_tvr_on_later_success`
+  proves runtime tag `95` preserves PIN-pad evidence alongside a later online
+  PIN success. Both RTM CSVs cite the evidence under `KRN-CVM-002`.
+- Verification: `cargo test pin_cvm_unavailable_sets_specific_tvr_bits`,
+  `cargo test cvm_processing_persists_missing_pin_pad_tvr_on_later_success`,
+  `cargo test continue_on_failure_skips_to_next_matching_cvm_rule`,
+  `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
