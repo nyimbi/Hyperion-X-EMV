@@ -20,7 +20,7 @@
 - [x] State machine table (`state_machine.csv`) – expanded to 85 rows, properly quoted
 - [x] ODA test vectors (`oda_test_vectors.json`) – syntactically validated with deterministic unit fixtures; lab-supplied SDA/DDA/CDA vectors still required for final certification
 - [x] Scheme profiles (`scheme_profiles.cert.json`) – structured with valid hex lengths, contains deterministic TAA keys; actual CAPK values to be replaced by lab
-- [x] Requirement traceability matrix (`requirements_traceability.csv`) – mapped to EMVCo test case categories
+- [x] Requirement traceability matrices (`requirements_traceability.csv`, `requirements-traceability-matrix.csv`) – mapped to EMVCo test case categories with the compatibility copy retained in provenance
 - [x] Certification open-issues register (`certification_open_issues.md`) – controlled list of external evidence blockers and closure criteria
 - [x] Public standards watch (`standards_watch.md`) – records public EMVCo C-8 v1.1 / SB 325 drift to reconcile before final C-8 certification claim
 - [x] Trace identity metadata – masked APDU logs retain ABI version and signed profile version

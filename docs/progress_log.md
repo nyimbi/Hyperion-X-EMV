@@ -1640,3 +1640,23 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_fsm_annex_replay_and_error_transition_evidence`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-22T07:28:18Z
+
+- Increment completed: include the legacy RTM compatibility copy in the
+  pre-lab build-provenance gate.
+- Research note: the active specification and ABI conformance statement treat
+  both RTM CSVs as controlled annexes, so reproducible provenance must hash both
+  the current RTM and the compatibility copy.
+- Code impact: `prelab_quality_gates_json()` now emits a build-provenance
+  command that includes `docs/requirements-traceability-matrix.csv`, and the
+  checked-in manifest was regenerated to match.
+- Evidence updated: traceability coverage now requires the compatibility RTM in
+  the lab manifest, provenance input set, required artifact list, and pre-lab
+  gate command.
+- Verification: `cargo test lab_manifest_and_provenance_cover_reproducible_build_artifacts`,
+  `cargo test prelab_quality_gates_are_reproducible_and_do_not_close_external_reports`,
+  `cargo run --quiet --example krn_prelab_quality_gates`, the exact
+  `cargo run --quiet --example krn_build_manifest -- ...` pre-lab provenance
+  command, `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
