@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:03:12Z
+
+- Increment completed: validate signed-profile `schema_version` values when
+  present instead of merely allowing the root field name.
+- Code impact: `load_profile_set` now rejects unsupported profile schema
+  versions and malformed non-string schema versions before parsing scheme
+  content.
+- Evidence updated:
+  `config::tests::rejects_invalid_profile_schema_version` covers the new
+  fail-closed path, and both RTM CSV annexes plus the traceability guard cite it
+  under `KRN-CFG-002`.
+- Remaining external blockers: certification still needs signed lab/scheme
+  profile authority, production CAPKs, device integration evidence, official
+  vectors, and lab reports.
+
 ## 2026-05-22T20:52:18Z
 
 - Increment completed: refresh public standards drift tracking with adjacent

@@ -2525,6 +2525,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
             "KRN-CFG-002 should cite concrete configuration rejection evidence"
         );
         assert!(row.contains("rejects_cfg_002_profile_schema_and_field_failures"));
+        assert!(row.contains("rejects_invalid_profile_schema_version"));
         assert!(row.contains("rejects_profile_json_depth_limit_overflow"));
         assert!(row.contains("rejects_profile_json_node_limit_overflow"));
         assert!(row.contains("rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces"));

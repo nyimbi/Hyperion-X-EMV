@@ -14,6 +14,7 @@ const MAX_CAPK_RSA_MODULUS_BYTES: usize = 256;
 const MAX_CAPK_RSA_EXPONENT_BYTES: usize = 3;
 const CAPK_CHECKSUM_ALGORITHM: &str = "sha1(rid || key_index || modulus || exponent)";
 const CAPK_CHECKSUM_SCOPE: [&str; 4] = ["rid", "key_index", "modulus_hex", "exponent_hex"];
+const PROFILE_SCHEMA_VERSION: &str = "1.0";
 const PROFILE_MATERIAL_STATUSES: [&str; 2] = [
     "certification_format_fixture_pending_lab_signature",
     "lab_signed_certification_profile",
@@ -237,6 +238,7 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
             "scheme_profiles",
         ],
     )?;
+    validate_profile_schema_version(object)?;
     let profile_class = parse_profile_class(object, policy.mode)?;
     parse_certification_scope(object.get("certification_scope"), profile_class)?;
     let profile_source = parse_profile_source(object, profile_class, policy.mode)?;
@@ -273,6 +275,17 @@ fn reject_duplicate_scheme_rids(schemes: &[SchemeProfile]) -> KernelResult<()> {
         }
     }
     Ok(())
+}
+
+fn validate_profile_schema_version(object: &BTreeMap<String, JsonValue>) -> KernelResult<()> {
+    let Some(value) = object.get("schema_version") else {
+        return Ok(());
+    };
+    if value.as_string()? == PROFILE_SCHEMA_VERSION {
+        Ok(())
+    } else {
+        Err(KernelError::InvalidProfile)
+    }
 }
 
 fn parse_profile_class(
@@ -2049,6 +2062,31 @@ mod tests {
         assert_eq!(
             load_profile_set(json.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_profile_schema_version() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let unsupported = profile.replace(
+            r#""profile_class": "CERTIFICATION","#,
+            r#""schema_version": "2.0",
+      "profile_class": "CERTIFICATION","#,
+        );
+        assert_eq!(
+            load_profile_set(unsupported.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let malformed = profile.replace(
+            r#""profile_class": "CERTIFICATION","#,
+            r#""schema_version": 1,
+      "profile_class": "CERTIFICATION","#,
+        );
+        assert_eq!(
+            load_profile_set(malformed.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::ParseError
         );
     }
 
