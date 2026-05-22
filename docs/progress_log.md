@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:57:33Z
+
+- Increment completed: reject impossible card-supplied BCD dates used by
+  processing restrictions, and share the same YY/MM/DD validation with profile
+  date parsing.
+- Code impact: `EmvDate::new` now owns month/day validation for the kernel's
+  two-digit date model; `EmvDate::from_bcd` and certification profile ISO date
+  parsing both reject day zero, month zero, and impossible month/day pairs.
+- Evidence update: both RTM annexes cite
+  `restrictions::tests::parses_valid_bcd_dates_and_rejects_invalid_values`
+  under KRN-REST-001.
+- Verification: `cargo test
+  parses_valid_bcd_dates_and_rejects_invalid_values`, `cargo test
+  rejects_invalid_capk_expiry_calendar_dates`, `cargo test
+  rtm_promotes_processing_restriction_evidence`, `cargo fmt --check`, `cargo
+  test`, `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  and `git diff --check` passed.
+
 ## 2026-05-22T15:53:15Z
 
 - Increment completed: validate host authorization response code (`8A`)

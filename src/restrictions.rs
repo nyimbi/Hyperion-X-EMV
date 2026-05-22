@@ -9,14 +9,24 @@ pub struct EmvDate {
 }
 
 impl EmvDate {
+    pub fn new(year: u8, month: u8, day: u8) -> KernelResult<Self> {
+        let max_day = match month {
+            1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+            4 | 6 | 9 | 11 => 30,
+            2 => 29,
+            _ => return Err(KernelError::ParseError),
+        };
+        if day == 0 || day > max_day {
+            return Err(KernelError::ParseError);
+        }
+        Ok(Self { year, month, day })
+    }
+
     pub fn from_bcd(bytes: [u8; 3]) -> KernelResult<Self> {
         let year = bcd(bytes[0])?;
         let month = bcd(bytes[1])?;
         let day = bcd(bytes[2])?;
-        if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
-            return Err(KernelError::ParseError);
-        }
-        Ok(Self { year, month, day })
+        Self::new(year, month, day)
     }
 }
 
@@ -176,6 +186,18 @@ mod tests {
         );
         assert_eq!(
             EmvDate::from_bcd([0x26, 0x13, 0x01]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            EmvDate::from_bcd([0x26, 0x02, 0x30]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            EmvDate::from_bcd([0x26, 0x04, 0x31]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            EmvDate::from_bcd([0x26, 0x00, 0x15]).unwrap_err(),
             KernelError::ParseError
         );
         assert_eq!(

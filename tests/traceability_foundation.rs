@@ -2972,6 +2972,7 @@ fn rtm_promotes_processing_restriction_evidence() {
         }
 
         let order = csv_row_for_requirement(csv, "KRN-REST-001").unwrap();
+        assert!(order.contains("parses_valid_bcd_dates_and_rejects_invalid_values"));
         assert!(order.contains("evaluates_version_dates_auc_and_new_card_bits"));
 
         let non_standard = csv_row_for_requirement(csv, "KRN-REST-002").unwrap();

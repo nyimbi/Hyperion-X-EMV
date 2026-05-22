@@ -831,16 +831,7 @@ fn parse_iso_date(input: &str) -> KernelResult<EmvDate> {
     let year = decimal_pair(bytes[2], bytes[3])?;
     let month = decimal_pair(bytes[5], bytes[6])?;
     let day = decimal_pair(bytes[8], bytes[9])?;
-    let max_day = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 => 29,
-        _ => return Err(KernelError::ParseError),
-    };
-    if day == 0 || day > max_day {
-        return Err(KernelError::ParseError);
-    }
-    Ok(EmvDate { year, month, day })
+    EmvDate::new(year, month, day)
 }
 
 fn decimal_pair(high: u8, low: u8) -> KernelResult<u8> {
