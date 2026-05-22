@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:18:46Z
+
+- Increment completed: make EMV Level 2 approval evidence boundary explicit.
+- Research note: KRN-CERT-001 should cite executable conformance-statement
+  evidence only for repository-controlled preparation work; actual approval
+  still requires an external EMV Level 2 approval and signed LoA.
+- Code impact: no runtime behavior changed; traceability guards now reject any
+  remaining generic pending implementation evidence in the RTM annexes.
+- Evidence updated: KRN-CERT-001 now points at deterministic conformance
+  statement coverage and the explicit external approval/LoA requirement.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:16:05Z
 
 - Increment completed: promote ODA vector-annex boundary evidence.

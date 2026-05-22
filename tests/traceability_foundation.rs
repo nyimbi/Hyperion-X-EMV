@@ -712,8 +712,8 @@ fn corrected_spec_requirement_ids_are_all_in_rtm_annexes() {
     );
 
     assert!(
-        CURRENT_RTM.contains("pending implementation evidence"),
-        "newly traced requirements should not overstate certification evidence"
+        !CURRENT_RTM.contains("pending implementation evidence"),
+        "RTM rows should cite concrete executable evidence or explicit external certification gates"
     );
     assert!(
         include_str!("../docs/spec.md").contains("engineering baseline pending licensed review")
@@ -721,7 +721,7 @@ fn corrected_spec_requirement_ids_are_all_in_rtm_annexes() {
 }
 
 #[test]
-fn rtm_pending_evidence_is_limited_to_external_lab_gates() {
+fn rtm_external_lab_gates_are_explicit() {
     for (name, csv) in [
         ("requirements_traceability.csv", CURRENT_RTM),
         ("requirements-traceability-matrix.csv", LEGACY_RTM),
@@ -734,7 +734,7 @@ fn rtm_pending_evidence_is_limited_to_external_lab_gates() {
             .collect::<Vec<_>>();
         assert_eq!(
             pending,
-            vec!["KRN-CERT-001"],
+            Vec::<&str>::new(),
             "{name} has unexpected pending evidence rows"
         );
 
@@ -750,7 +750,10 @@ fn rtm_pending_evidence_is_limited_to_external_lab_gates() {
 
         let approval = csv_row_for_requirement(csv, "KRN-CERT-001").unwrap();
         assert!(approval.contains("EMV Level 2 approval"));
-        assert!(approval.contains("pending implementation evidence"));
+        assert!(!approval.contains("pending implementation evidence"));
+        assert!(approval.contains("conformance_statement_json_is_deterministic_and_scoped"));
+        assert!(approval.contains("krn_ref_001_conformance_statement_declares_normative_hierarchy"));
+        assert!(approval.contains("external EMV Level 2 approval and signed LoA required"));
     }
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("lab-supplied SDA/DDA/CDA vectors"));
