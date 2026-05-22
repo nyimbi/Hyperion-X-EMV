@@ -2858,6 +2858,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         let response = csv_row_for_requirement(csv, "KRN-GAC-004").unwrap();
         assert!(response.contains("parses_generate_ac_format_1_template_80"));
         assert!(response.contains("parses_generate_ac_format_2_template_77"));
+        assert!(response.contains("rejects_generate_ac_issuer_application_data_above_emv_bound"));
         assert!(response.contains("rejects_generate_ac_without_single_supported_response_template"));
         assert!(response.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
         assert!(response.contains("rejects_malformed_dynamic_authentication_data_in_gac_response"));
@@ -2884,6 +2885,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
 
         let format = csv_row_for_requirement(csv, "KRN-GAC1-004").unwrap();
         assert!(format.contains("gac_parsing_uses_card_returned_cryptogram_for_online_handoff"));
+        assert!(format.contains("rejects_generate_ac_issuer_application_data_above_emv_bound"));
         assert!(format.contains("rejects_generate_ac_without_single_supported_response_template"));
         assert!(format.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
         assert!(format.contains("rejects_malformed_dynamic_authentication_data_in_gac_response"));

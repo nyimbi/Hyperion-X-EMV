@@ -5,6 +5,8 @@ use crate::oda::MIN_ODA_SIGNATURE_BYTES;
 use crate::tlv;
 use core::fmt;
 
+pub const MAX_ISSUER_APPLICATION_DATA_LEN: usize = 32;
+
 #[derive(Clone, Eq, PartialEq)]
 pub struct GenerateAcResponse {
     pub cid: Cid,
@@ -137,7 +139,7 @@ pub fn build_online_authorization_package(
 }
 
 fn parse_format_1(value: &[u8]) -> KernelResult<GenerateAcResponse> {
-    if value.len() < 11 {
+    if !(11..=11 + MAX_ISSUER_APPLICATION_DATA_LEN).contains(&value.len()) {
         return Err(KernelError::ParseError);
     }
 
@@ -147,7 +149,7 @@ fn parse_format_1(value: &[u8]) -> KernelResult<GenerateAcResponse> {
         cid: Cid::new(value[0]),
         atc: [value[1], value[2]],
         application_cryptogram,
-        issuer_application_data: value[11..].to_vec(),
+        issuer_application_data: issuer_application_data(&value[11..])?,
         icc_dynamic_number: None,
         signed_dynamic_application_data: None,
     })
@@ -159,7 +161,7 @@ fn parse_format_2(children: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse>
     let application_cryptogram = fixed::<8>(children, &[0x9f, 0x26])?;
     let atc = fixed::<2>(children, &[0x9f, 0x36])?;
     let issuer_application_data = tlv::find_unique_direct(children, &[0x9f, 0x10])?
-        .map_or_else(Vec::new, |value| value.to_vec());
+        .map_or_else(|| Ok(Vec::new()), issuer_application_data)?;
     let icc_dynamic_number = optional_non_empty(children, &[0x9f, 0x4c])?;
     let signed_dynamic_application_data =
         optional_signed_dynamic_application_data(children, &[0x9f, 0x4b])?;
@@ -172,6 +174,13 @@ fn parse_format_2(children: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse>
         icc_dynamic_number,
         signed_dynamic_application_data,
     })
+}
+
+fn issuer_application_data(value: &[u8]) -> KernelResult<Vec<u8>> {
+    if value.len() > MAX_ISSUER_APPLICATION_DATA_LEN {
+        return Err(KernelError::ParseError);
+    }
+    Ok(value.to_vec())
 }
 
 fn reject_constructed_format_2_children(children: &[tlv::Tlv<'_>]) -> KernelResult<()> {
@@ -264,6 +273,53 @@ mod tests {
             ])
             .unwrap_err(),
             KernelError::MissingMandatoryTag
+        );
+    }
+
+    #[test]
+    fn rejects_generate_ac_issuer_application_data_above_emv_bound() {
+        let mut max_format_1 = vec![
+            0x80, 0x2b, 0x80, 0x00, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+        ];
+        max_format_1.extend_from_slice(&[0xaa; MAX_ISSUER_APPLICATION_DATA_LEN]);
+        assert_eq!(
+            parse_generate_ac_response(&max_format_1)
+                .unwrap()
+                .issuer_application_data
+                .len(),
+            MAX_ISSUER_APPLICATION_DATA_LEN
+        );
+
+        let mut format_1 = vec![
+            0x80, 0x2c, 0x80, 0x00, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+        ];
+        format_1.extend_from_slice(&[0xaa; MAX_ISSUER_APPLICATION_DATA_LEN + 1]);
+        assert_eq!(
+            parse_generate_ac_response(&format_1).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut max_format_2 = vec![
+            0x77, 0x37, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+            0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x10, 0x20,
+        ];
+        max_format_2.extend_from_slice(&[0xbb; MAX_ISSUER_APPLICATION_DATA_LEN]);
+        assert_eq!(
+            parse_generate_ac_response(&max_format_2)
+                .unwrap()
+                .issuer_application_data
+                .len(),
+            MAX_ISSUER_APPLICATION_DATA_LEN
+        );
+
+        let mut format_2 = vec![
+            0x77, 0x38, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+            0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x10, 0x21,
+        ];
+        format_2.extend_from_slice(&[0xbb; MAX_ISSUER_APPLICATION_DATA_LEN + 1]);
+        assert_eq!(
+            parse_generate_ac_response(&format_2).unwrap_err(),
+            KernelError::ParseError
         );
     }
 

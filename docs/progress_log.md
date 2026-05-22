@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:16:40Z
+
+- Increment completed: bound GENERATE AC Issuer Application Data (`9F10`)
+  parsing to the EMV response-template shape.
+- Research note: public reference review found `emv-utils` validating
+  GENERATE AC format-1 length as `1 + 2 + 8 + 32`, `dcemv` rejecting format-1
+  responses above 43 bytes, and MohamedHassanNasr/emv metadata declaring
+  `9F10` as 0..32 bytes; Hyperion is adapting the validation rule, not copying
+  implementation code.
+- Code impact: `parse_generate_ac_response` now accepts `9F10` only up to 32
+  bytes in both response template `80` and template `77`, preserving the
+  minimum 11-byte format-1 body while rejecting overlong issuer data.
+- Evidence update: both RTM annexes cite
+  `gac::tests::rejects_generate_ac_issuer_application_data_above_emv_bound`
+  under KRN-GAC-004 and KRN-GAC1-004.
+- Verification: `cargo test
+  rejects_generate_ac_issuer_application_data_above_emv_bound`, `cargo test
+  rtm_promotes_gac_cdol_encoding_and_response_evidence`, `cargo test`, `cargo
+  test --examples`, `cargo clippy --all-targets --all-features`, `cargo fmt
+  --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:07:58Z
 
 - Increment completed: align Application Usage Control (`9F07`) service checks
