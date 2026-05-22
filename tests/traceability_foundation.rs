@@ -799,6 +799,63 @@ fn rtm_promotes_apdu_command_construction_evidence() {
 }
 
 #[test]
+fn rtm_promotes_gpo_and_read_record_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let gpo_valid = csv_row_for_requirement(csv, "KRN-GPO-001").expect("RTM row exists");
+        assert!(
+            !gpo_valid.contains("GPO response parser evidence"),
+            "KRN-GPO-001 should cite executable GPO parser evidence"
+        );
+        assert!(gpo_valid.contains("parses_gpo_template_77_with_aip_and_afl"));
+        assert!(gpo_valid.contains("parses_gpo_template_80_without_afl"));
+        assert!(gpo_valid.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
+        assert!(gpo_valid.contains("rtm_promotes_gpo_and_read_record_evidence"));
+
+        let gpo_missing = csv_row_for_requirement(csv, "KRN-GPO-002").expect("RTM row exists");
+        assert!(
+            !gpo_missing.contains("GPO state transition evidence"),
+            "KRN-GPO-002 should cite executable missing-mandatory GPO evidence"
+        );
+        assert!(gpo_missing.contains("rejects_gpo_without_mandatory_aip_afl"));
+        assert!(gpo_missing.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
+        assert!(gpo_missing.contains("rtm_promotes_gpo_and_read_record_evidence"));
+
+        let sfi = csv_row_for_requirement(csv, "KRN-RR-001").expect("RTM row exists");
+        assert!(
+            !sfi.contains("READ RECORD APDU evidence"),
+            "KRN-RR-001 should cite executable SFI and AFL validation evidence"
+        );
+        assert!(sfi.contains("validates_read_record_sfi"));
+        assert!(sfi.contains("rejects_malformed_afl_entries"));
+        assert!(sfi.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data"));
+        assert!(sfi.contains("rtm_promotes_gpo_and_read_record_evidence"));
+
+        let p2 = csv_row_for_requirement(csv, "KRN-RR-002").expect("RTM row exists");
+        assert!(
+            !p2.contains("READ RECORD APDU evidence"),
+            "KRN-RR-002 should cite executable READ RECORD encoding evidence"
+        );
+        assert!(p2.contains("validates_read_record_sfi"));
+        assert!(p2.contains("builds_read_record_commands_from_afl_order"));
+        assert!(p2.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data"));
+        assert!(p2.contains("rtm_promotes_gpo_and_read_record_evidence"));
+
+        let record = csv_row_for_requirement(csv, "KRN-RR-003").expect("RTM row exists");
+        assert!(
+            !record.contains("Record parser and masked logging evidence"),
+            "KRN-RR-003 should cite executable record parsing and masking evidence"
+        );
+        assert!(record.contains("parses_record_template_into_card_data_store"));
+        assert!(record.contains("rejects_empty_or_malformed_record_templates"));
+        assert!(record.contains("apdu_trace_debug_redacts_masked_payloads_for_crash_safety"));
+        assert!(
+            record.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data")
+        );
+        assert!(record.contains("rtm_promotes_gpo_and_read_record_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_apdu_status_word_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         let state_specific = csv_row_for_requirement(csv, "KRN-APDU-009").expect("RTM row exists");

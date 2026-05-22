@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:41:55Z
+
+- Increment completed: promote GPO and READ RECORD evidence.
+- Research note: early transaction-flow claims should cite executable parser,
+  APDU-construction, AFL-order, record-storage, and masking regressions rather
+  than generic parser or log labels.
+- Code impact: no runtime behavior changed; existing GPO, READ RECORD, AFL,
+  record parser, and APDU masking tests are now first-class RTM evidence for
+  the older GPO/RR rows.
+- Evidence updated: KRN-GPO-001/002 and KRN-RR-001/002/003 now cite concrete
+  parser, APDU, AFL, record, traceability, and RTM guard regressions in both
+  RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:38:17Z
 
 - Increment completed: promote TVR clearing, RFU masking, and TSI bit evidence.
