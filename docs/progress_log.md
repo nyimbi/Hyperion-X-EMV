@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T22:52:51Z
+
+- Increment completed: fail closed on certification/production profile bundles
+  that omit the schema marker or carry blank signed-provenance fields.
+- Research note: public EMVCo and PCI SSC pages were refreshed before this
+  slice. `docs/standards_watch.md` already records the current public C-8,
+  contactless bulletin, approval-process, and PCI PTS signals, so the
+  repository-controlled action stayed focused on signed-profile gate hardening.
+- Code impact: `load_profile_set` now requires `schema_version = "1.0"` outside
+  test mode and rejects blank certification profile/CAPK source metadata before
+  accepting a profile for use.
+- Evidence updated:
+  `config::tests::rejects_invalid_profile_schema_version` now covers missing,
+  unsupported, and malformed schema markers, and
+  `config::tests::rejects_blank_certification_profile_source_metadata` covers
+  blank profile and CAPK provenance. Both RTM CSVs cite the provenance
+  regression under `KRN-CFG-002`.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T22:42:41Z
 
 - Increment completed: keep issuer-script result status words and execution

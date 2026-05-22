@@ -238,7 +238,7 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
             "scheme_profiles",
         ],
     )?;
-    validate_profile_schema_version(object)?;
+    validate_profile_schema_version(object, policy.mode)?;
     let profile_class = parse_profile_class(object, policy.mode)?;
     parse_certification_scope(object.get("certification_scope"), profile_class)?;
     let profile_source = parse_profile_source(object, profile_class, policy.mode)?;
@@ -277,9 +277,15 @@ fn reject_duplicate_scheme_rids(schemes: &[SchemeProfile]) -> KernelResult<()> {
     Ok(())
 }
 
-fn validate_profile_schema_version(object: &BTreeMap<String, JsonValue>) -> KernelResult<()> {
+fn validate_profile_schema_version(
+    object: &BTreeMap<String, JsonValue>,
+    mode: BuildMode,
+) -> KernelResult<()> {
     let Some(value) = object.get("schema_version") else {
-        return Ok(());
+        return match mode {
+            BuildMode::Test => Ok(()),
+            BuildMode::Certification | BuildMode::Production => Err(KernelError::InvalidProfile),
+        };
     };
     if value.as_string()? == PROFILE_SCHEMA_VERSION {
         Ok(())
@@ -346,6 +352,9 @@ fn parse_source_object(
         reject_placeholder(document)?;
         reject_placeholder(version)?;
         reject_placeholder(verification)?;
+        if owner.trim().is_empty() || document.trim().is_empty() || version.trim().is_empty() {
+            return Err(KernelError::InvalidProfile);
+        }
         if verification != "external_signature_required" {
             return Err(KernelError::InvalidProfile);
         }
@@ -1377,6 +1386,7 @@ mod tests {
     use crate::trm::MAX_TRANSACTION_TYPE_FLOOR_LIMITS;
 
     const VALID_PROFILE: &[u8] = br#"{
+      "schema_version": "1.0",
       "profile_class": "CERTIFICATION",
       "profile_source": {
         "owner": "scheme_or_acquirer",
@@ -2068,25 +2078,52 @@ mod tests {
     #[test]
     fn rejects_invalid_profile_schema_version() {
         let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
-        let unsupported = profile.replace(
-            r#""profile_class": "CERTIFICATION","#,
-            r#""schema_version": "2.0",
-      "profile_class": "CERTIFICATION","#,
+        let missing = profile.replace(
+            r#"      "schema_version": "1.0",
+"#,
+            "",
         );
+        assert_eq!(
+            load_profile_set(missing.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let unsupported =
+            profile.replace(r#""schema_version": "1.0","#, r#""schema_version": "2.0","#);
         assert_eq!(
             load_profile_set(unsupported.as_bytes(), &policy(SignatureStatus::Verified))
                 .unwrap_err(),
             KernelError::InvalidProfile
         );
 
-        let malformed = profile.replace(
-            r#""profile_class": "CERTIFICATION","#,
-            r#""schema_version": 1,
-      "profile_class": "CERTIFICATION","#,
-        );
+        let malformed = profile.replace(r#""schema_version": "1.0","#, r#""schema_version": 1,"#);
         assert_eq!(
             load_profile_set(malformed.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_blank_certification_profile_source_metadata() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let blank_owner = profile.replace(r#""owner": "scheme_or_acquirer""#, r#""owner": "   ""#);
+        assert_eq!(
+            load_profile_set(blank_owner.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let blank_capk_document = profile.replace(
+            r#""document": "signed_certification_capk_bundle""#,
+            r#""document": """#,
+        );
+        assert_eq!(
+            load_profile_set(
+                blank_capk_document.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
         );
     }
 

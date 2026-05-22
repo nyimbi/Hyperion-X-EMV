@@ -206,10 +206,10 @@ SE,any,–,S0,Reset after error,KRN_OK
 ### Annex F – Scheme Profiles (`scheme_profiles.cert.json`)
 
 The executable certification profile is `docs/scheme_profiles.cert.json`.
-It SHALL be valid JSON, declare `profile_class = "CERTIFICATION"`, carry
-signed-profile provenance, and include complete AID, TAC/IAC, limit, CDA-control,
-issuer-script, CAPK, checksum, expiry, and CAPK-source fields for each bundled
-scheme profile.
+It SHALL be valid JSON, declare `schema_version = "1.0"` and
+`profile_class = "CERTIFICATION"`, carry nonblank signed-profile provenance,
+and include complete AID, TAC/IAC, limit, CDA-control, issuer-script, CAPK,
+checksum, expiry, and CAPK-source fields for each bundled scheme profile.
 
 C-8 contactless behavior is certified through the contactless kernel approval
 package and lab-supplied profile data. The certification scheme profile annex
