@@ -23,6 +23,14 @@ const TERMINAL_OR_KERNEL_RECORD_TAGS: &[&[u8]] = &[
     &[0x9f, 0x66], // TTQ
 ];
 
+const HOST_OR_ISSUER_RESPONSE_RECORD_TAGS: &[&[u8]] = &[
+    &[0x89],       // Authorization Code
+    &[0x8a],       // Authorization Response Code
+    &[0x86],       // Issuer Script Command
+    &[0x91],       // Issuer Authentication Data
+    &[0x9f, 0x18], // Issuer Script Identifier
+];
+
 pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult<usize> {
     let parsed = tlv::parse_many(body)?;
     if parsed.len() != 1 || parsed[0].tag != [0x70] || !parsed[0].constructed {
@@ -34,7 +42,7 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
         if item.constructed {
             return Err(KernelError::ParseError);
         }
-        if is_terminal_or_kernel_record_tag(item.tag) {
+        if is_non_card_record_tag(item.tag) {
             return Err(KernelError::ParseError);
         }
         if entries
@@ -56,8 +64,9 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
     Ok(entries.len())
 }
 
-fn is_terminal_or_kernel_record_tag(tag: &[u8]) -> bool {
+fn is_non_card_record_tag(tag: &[u8]) -> bool {
     TERMINAL_OR_KERNEL_RECORD_TAGS.contains(&tag)
+        || HOST_OR_ISSUER_RESPONSE_RECORD_TAGS.contains(&tag)
 }
 
 fn validate_cardholder_data_consistency(
@@ -303,6 +312,33 @@ mod tests {
                 data.get(forbidden_tag),
                 Some(&[0xa5][..]),
                 "forbidden tag {forbidden_tag:02x?} must not overwrite existing terminal data"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_host_response_record_tags_atomically() {
+        for forbidden_tag in HOST_OR_ISSUER_RESPONSE_RECORD_TAGS {
+            let mut data = DataStore::new();
+            data.put(forbidden_tag, &[0xa5]).unwrap();
+
+            let mut record = vec![0x70, (3 + forbidden_tag.len() + 2) as u8, 0x5a, 0x01, 0x12];
+            record.extend_from_slice(forbidden_tag);
+            record.extend_from_slice(&[0x01, 0x99]);
+
+            assert_eq!(
+                parse_read_record_body(&record, &mut data).unwrap_err(),
+                KernelError::ParseError,
+                "host-response tag {forbidden_tag:02x?} should reject the record"
+            );
+            assert!(
+                data.get(&[0x5a]).is_none(),
+                "card data before host-response tag must not be partially stored"
+            );
+            assert_eq!(
+                data.get(forbidden_tag),
+                Some(&[0xa5][..]),
+                "host-response tag {forbidden_tag:02x?} must not overwrite existing host data"
             );
         }
     }

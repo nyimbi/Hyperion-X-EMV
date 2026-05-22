@@ -4,6 +4,33 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T19:01:04Z
+
+- Increment completed: prevent AFL record data from pre-seeding host-response
+  and issuer-script objects that must arrive through the Level 3 online
+  response boundary.
+- Research note: CDOL2 construction legitimately consumes host-response tags
+  such as ARC (`8A`), Authorization Code (`89`), and issuer-authentication data
+  (`91`) after `krn_apply_host_response`. The local gap was that READ RECORD
+  admission denied terminal/kernel-owned data but did not explicitly reserve
+  those host/issuer-response tags against card-record injection.
+- Code impact: `parse_read_record_body` now rejects host/issuer-response-owned
+  tags `89`, `8A`, `86`, `91`, and `9F18` from card-originated Template 70
+  records. The new
+  `record::tests::rejects_host_response_record_tags_atomically` proves the
+  rejection is atomic and does not overwrite existing host-owned values.
+- Evidence update: KRN-TLV-006 now describes and cites host-response-owned tag
+  rejection; KRN-ONL-002 and KRN-GAC2-001/002 now cite the same regression to
+  prove host-response CDOL2 data comes from the Level 3 path rather than AFL
+  records.
+- Verification: `cargo test
+  record::tests::rejects_host_response_record_tags_atomically`, `cargo test
+  rtm_promotes_online_boundary_evidence`, `cargo test
+  rtm_promotes_tlv_catalogue_and_dol_classification_evidence`, `cargo test
+  rtm_promotes_issuer_authentication_and_final_gac_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T18:51:53Z
 
 - Increment completed: make the AFL record-admission boundary executable for
