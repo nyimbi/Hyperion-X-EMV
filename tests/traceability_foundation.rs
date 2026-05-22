@@ -6352,6 +6352,7 @@ fn rtm_promotes_issuer_script_evidence() {
         assert!(parser.contains("rejects_malformed_issuer_script_identifier_lengths"));
         assert!(parser.contains("rejects_malformed_issuer_script_command_apdus"));
         assert!(parser.contains("rejects_nested_or_duplicate_issuer_script_objects"));
+        assert!(parser.contains("rejects_cumulative_issuer_script_command_overflow"));
         assert!(parser.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
 
         let execution = csv_row_for_requirement(csv, "KRN-SCR-002").unwrap();

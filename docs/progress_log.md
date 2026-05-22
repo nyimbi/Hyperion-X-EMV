@@ -1796,3 +1796,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:27:34Z
+
+- Increment completed: enforce a host-response-wide issuer script command cap
+  instead of limiting only each individual Template 71/72 object.
+- Research note: lab issuer-script case packs remain external certification
+  evidence, but repository-controlled parsing can still fail closed on bounded
+  script structure before any APDU command reaches the card.
+- Code impact: `collect_scripts` now counts parsed script APDUs across the
+  complete host response and rejects cumulative overflow with
+  `KRN_ERR_LENGTH_OVERFLOW`; the regression proves that splitting commands
+  across multiple valid templates cannot bypass `MAX_SCRIPT_COMMANDS`.
+- Evidence updated: current and compatibility RTM annexes cite the cumulative
+  overflow regression for `KRN-SCR-001`.
+- Verification: `cargo test rejects_cumulative_issuer_script_command_overflow`,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

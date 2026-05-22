@@ -138,18 +138,24 @@ pub fn apply_script_results(
 }
 
 fn collect_scripts(tlvs: &[tlv::Tlv<'_>], scripts: &mut Vec<IssuerScript>) -> KernelResult<()> {
+    let mut total_commands = 0usize;
     for item in tlvs {
-        match item.tag {
-            [0x71] => scripts.push(parse_script_template(
-                item,
-                ScriptPhase::BeforeFinalGenerateAc,
-            )?),
-            [0x72] => scripts.push(parse_script_template(
-                item,
-                ScriptPhase::AfterFinalGenerateAc,
-            )?),
-            _ => {}
+        let phase = match item.tag {
+            [0x71] => Some(ScriptPhase::BeforeFinalGenerateAc),
+            [0x72] => Some(ScriptPhase::AfterFinalGenerateAc),
+            _ => None,
+        };
+        let Some(phase) = phase else {
+            continue;
+        };
+        let script = parse_script_template(item, phase)?;
+        total_commands = total_commands
+            .checked_add(script.commands.len())
+            .ok_or(KernelError::LengthOverflow)?;
+        if total_commands > MAX_SCRIPT_COMMANDS {
+            return Err(KernelError::LengthOverflow);
         }
+        scripts.push(script);
     }
     Ok(())
 }
@@ -404,6 +410,27 @@ mod tests {
             ])
             .unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_cumulative_issuer_script_command_overflow() {
+        fn push_script_template(host: &mut Vec<u8>, command_count: u8) {
+            let value_len = command_count as usize * 6;
+            host.push(0x71);
+            host.push(value_len as u8);
+            for sequence in 0..command_count {
+                host.extend_from_slice(&[0x86, 0x04, 0x00, 0xda, 0x00, sequence]);
+            }
+        }
+
+        let mut host = Vec::new();
+        push_script_template(&mut host, 16);
+        push_script_template(&mut host, 17);
+
+        assert_eq!(
+            parse_host_response(&host).unwrap_err(),
+            KernelError::LengthOverflow
         );
     }
 
