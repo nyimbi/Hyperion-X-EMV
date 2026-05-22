@@ -281,6 +281,33 @@ mod tests {
     }
 
     #[test]
+    fn rejects_all_terminal_or_kernel_record_tags_atomically() {
+        for forbidden_tag in TERMINAL_OR_KERNEL_RECORD_TAGS {
+            let mut data = DataStore::new();
+            data.put(forbidden_tag, &[0xa5]).unwrap();
+
+            let mut record = vec![0x70, (3 + forbidden_tag.len() + 2) as u8, 0x5a, 0x01, 0x12];
+            record.extend_from_slice(forbidden_tag);
+            record.extend_from_slice(&[0x01, 0x99]);
+
+            assert_eq!(
+                parse_read_record_body(&record, &mut data).unwrap_err(),
+                KernelError::ParseError,
+                "forbidden tag {forbidden_tag:02x?} should reject the record"
+            );
+            assert!(
+                data.get(&[0x5a]).is_none(),
+                "card data before forbidden tag must not be partially stored"
+            );
+            assert_eq!(
+                data.get(forbidden_tag),
+                Some(&[0xa5][..]),
+                "forbidden tag {forbidden_tag:02x?} must not overwrite existing terminal data"
+            );
+        }
+    }
+
+    #[test]
     fn accepts_matching_pan_and_track2_without_unmasked_logging_dependency() {
         let mut data = DataStore::new();
         assert_eq!(

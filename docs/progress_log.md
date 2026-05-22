@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T18:51:53Z
+
+- Increment completed: make the AFL record-admission boundary executable for
+  every terminal-owned or kernel-owned tag currently denied from card-originated
+  Template 70 records.
+- Research note: the open-source reference review called out card-originated
+  TLV admission as a useful clean-room hardening target. Hyperion already
+  rejected terminal/kernel-owned record tags, but evidence directly covered
+  only selected examples rather than the complete denylist.
+- Code impact: added
+  `record::tests::rejects_all_terminal_or_kernel_record_tags_atomically`, which
+  iterates the full denylist, verifies the record is rejected, proves prior
+  card data is not partially stored, and proves existing terminal/kernel data is
+  not overwritten.
+- Evidence update: KRN-TLV-006 in both RTM annexes now cites the denylist-wide
+  record-admission regression, and the RTM promotion guard requires it.
+- Verification: `cargo test
+  record::tests::rejects_all_terminal_or_kernel_record_tags_atomically`, `cargo
+  test rtm_promotes_tlv_catalogue_and_dol_classification_evidence`, `cargo
+  test`, `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T18:45:29Z
 
 - Increment completed: refresh the public contactless standards-watch boundary

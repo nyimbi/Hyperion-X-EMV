@@ -2577,6 +2577,7 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         assert!(admission.contains("accepts_repeated_record_data_when_value_is_identical"));
         assert!(admission.contains("rejects_nested_record_data_without_partial_store"));
         assert!(admission.contains("rejects_terminal_owned_record_data_without_partial_store"));
+        assert!(admission.contains("rejects_all_terminal_or_kernel_record_tags_atomically"));
         assert!(admission
             .contains("first_gac_preserves_terminal_dol_sources_after_rejected_record_tags"));
         assert!(admission.contains(
