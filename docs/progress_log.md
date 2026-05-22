@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:17:46Z
+
+- Increment completed: promote APDU status-word evidence.
+- Research note: current public EMVCo contact-kernel approval material frames
+  approval as kernel conformance to the EMV specification, and public Level 2
+  guidance describes kernel software testing for specification compliance; the
+  RTM should therefore identify executable status-policy controls rather than
+  generic APDU logs or error-injection labels.
+- Code impact: status-word classification now explicitly regresses that the
+  same non-`9000` response maps to context-specific actions across SELECT,
+  GPO, READ RECORD, GENERATE AC, and EXTERNAL AUTHENTICATE states.
+- Evidence updated: KRN-APDU-009/010 now cite concrete state-specific,
+  transport-follow-up, read-record, VERIFY/script, same-status-different-state,
+  and traceability guard regressions in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:13:16Z
 
 - Increment completed: promote CVM parser and outcome evidence.

@@ -789,6 +789,37 @@ fn rtm_promotes_apdu_command_construction_evidence() {
 }
 
 #[test]
+fn rtm_promotes_apdu_status_word_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let state_specific = csv_row_for_requirement(csv, "KRN-APDU-009").expect("RTM row exists");
+        assert!(
+            !state_specific.contains("APDU + state")
+                && !state_specific.contains("APDU logs + state trace"),
+            "KRN-APDU-009 should cite concrete status-word classifier evidence"
+        );
+        assert!(state_specific.contains("select_status_words_are_state_specific"));
+        assert!(state_specific.contains("same_non_9000_status_words_are_context_specific"));
+        assert!(state_specific.contains("krn_apdu_009_010_status_handling_is_context_specific"));
+        assert!(state_specific.contains("rtm_promotes_apdu_status_word_evidence"));
+
+        let non_generic = csv_row_for_requirement(csv, "KRN-APDU-010").expect("RTM row exists");
+        assert!(
+            !non_generic.contains("Error injection"),
+            "KRN-APDU-010 should cite concrete non-9000 status-word evidence"
+        );
+        assert!(
+            non_generic.contains("handles_success_and_transport_followups_before_context_rules")
+        );
+        assert!(non_generic
+            .contains("read_record_status_words_continue_or_end_without_generic_failure"));
+        assert!(non_generic.contains("verify_and_script_status_words_keep_their_own_meaning"));
+        assert!(non_generic.contains("same_non_9000_status_words_are_context_specific"));
+        assert!(non_generic.contains("krn_apdu_009_010_status_handling_is_context_specific"));
+        assert!(non_generic.contains("rtm_promotes_apdu_status_word_evidence"));
+    }
+}
+
+#[test]
 fn rtm_annexes_are_six_column_csv() {
     fn column_count(line: &str) -> Option<usize> {
         let mut columns = 1;

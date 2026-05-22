@@ -160,6 +160,45 @@ mod tests {
     }
 
     #[test]
+    fn same_non_9000_status_words_are_context_specific() {
+        let not_found = StatusWord::new(0x6a, 0x82);
+        assert_eq!(
+            classify(ApduContext::SelectPse, not_found),
+            StatusAction::FallbackToDirectAid
+        );
+        assert_eq!(
+            classify(ApduContext::SelectAid, not_found),
+            StatusAction::TryNextAid
+        );
+        assert_eq!(
+            classify(ApduContext::Gpo, not_found),
+            StatusAction::Fail {
+                error: KernelError::MissingMandatoryTag
+            }
+        );
+
+        let conditions_not_satisfied = StatusWord::new(0x69, 0x85);
+        assert_eq!(
+            classify(ApduContext::ReadRecord, conditions_not_satisfied),
+            StatusAction::ContinueWithTvr {
+                bit: Tvr::B1_ICC_DATA_MISSING
+            }
+        );
+        assert_eq!(
+            classify(ApduContext::GenerateAc, conditions_not_satisfied),
+            StatusAction::Fail {
+                error: KernelError::CardRemoved
+            }
+        );
+        assert_eq!(
+            classify(ApduContext::ExternalAuthenticate, conditions_not_satisfied),
+            StatusAction::Fail {
+                error: KernelError::InvalidArgument
+            }
+        );
+    }
+
+    #[test]
     fn verify_and_script_status_words_keep_their_own_meaning() {
         assert_eq!(
             classify(ApduContext::Verify, StatusWord::new(0x63, 0xc2)),
