@@ -4,6 +4,31 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T18:01:16Z
+
+- Increment completed: add tag `97` Transaction Certificate Data Object List
+  (TDOL) to the executable TLV catalogue and DOL evidence set.
+- Research note: public tag lookup confirms TDOL is tag `97`; the local gap was
+  that KRN-DOL-001 claimed TDOL construction while the catalogue and tests only
+  exercised PDOL, CDOL1, CDOL2, and DDOL explicitly. This adapts the
+  reference-review pattern of fixture-heavy DOL validation without copying
+  external implementation code.
+- Code impact: added
+  `dol::tests::parses_and_builds_tdol_deterministically`, which proves the
+  existing DOL builder constructs TDOL bytes deterministically from amount, TVR,
+  and TSI inputs under the exact-value policy.
+- Evidence update: the TLV catalogue now carries 63 rows; both RTM annexes cite
+  the TDOL regression under KRN-DOL-001; and the traceability guard requires the
+  TDOL catalogue row, test evidence, and DOL-family catalogue coverage.
+- Verification: `cargo test
+  dol::tests::parses_and_builds_tdol_deterministically`, `cargo test
+  tlv_catalogue_contains_required_foundation_tags`, `cargo test
+  tlv_catalogue_uses_required_schema_and_profile_defined_markers`, `cargo test
+  rtm_promotes_dol_construction_policy_evidence`, `cargo test
+  lab_manifest_leaves_unattached_external_reports_unchecked`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T17:52:09Z
 
 - Increment completed: align EXTERNAL AUTHENTICATE APDU construction with the

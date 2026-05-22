@@ -2604,6 +2604,7 @@ fn rtm_promotes_dol_construction_policy_evidence() {
 
         let exact_lengths = csv_row_for_requirement(csv, "KRN-DOL-001").unwrap();
         assert!(exact_lengths.contains("parses_and_builds_pdol_deterministically"));
+        assert!(exact_lengths.contains("parses_and_builds_tdol_deterministically"));
         assert!(exact_lengths.contains("rejects_dol_lists_above_entry_limit"));
         assert!(exact_lengths.contains("datastore_rejects_invalid_tags_and_resource_limits"));
         assert!(exact_lengths.contains("builds_gpo_with_tag_83_pdol_values"));
@@ -3374,8 +3375,8 @@ fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
 #[test]
 fn tlv_catalogue_contains_required_foundation_tags() {
     for row_prefix in [
-        "5F36,", "84,", "86,", "89,", "94,", "95,", "9B,", "9F18,", "9F26,", "9F27,", "9F37,",
-        "9F5B,",
+        "5F36,", "84,", "86,", "89,", "94,", "95,", "97,", "9B,", "9F18,", "9F26,", "9F27,",
+        "9F37,", "9F5B,",
     ] {
         assert!(
             TLV_CATALOGUE
@@ -3399,6 +3400,13 @@ fn tlv_catalogue_contains_required_foundation_tags() {
         .unwrap();
     assert!(authorization_code.contains("Authorization Code"));
     assert!(authorization_code.contains("Host via L3"));
+
+    let tdol = TLV_CATALOGUE
+        .lines()
+        .find(|line| line.starts_with("97,"))
+        .unwrap();
+    assert!(tdol.contains("Transaction Certificate Data Object List"));
+    assert!(tdol.contains("TDOL"));
 
     let script_results = TLV_CATALOGUE
         .lines()
@@ -3549,14 +3557,14 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
     let rows = lines
         .map(|line| line.split(',').collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 62);
+    assert_eq!(rows.len(), 63);
     for row in &rows {
         assert_eq!(row.len(), expected_header.len(), "invalid TLV row {row:?}");
         assert!(row[0].chars().all(|ch| ch.is_ascii_hexdigit()));
         assert!(!row[9].is_empty(), "missing test IDs for {}", row[0]);
     }
 
-    for tag in ["8C", "8D", "9F49"] {
+    for tag in ["8C", "8D", "97", "9F49"] {
         let row = rows.iter().find(|row| row[0] == tag).unwrap();
         assert_eq!(row[2], "Data Object List");
         assert_eq!(row[3], "tag-length pairs");

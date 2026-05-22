@@ -16,7 +16,7 @@
 - [x] Specification document (v6.0, this file)
 - [x] Bitmap catalogue (`bitmap_catalogue.csv`) – canonical TVR/TSI symbolic bit mapping with RFU masks
 - [x] Performance profile (`performance_profile.csv`) – product-level certification timing buckets and targets
-- [x] TLV catalogue (`tlv_catalogue.csv`) – complete with 62 tags and required 10-column schema
+- [x] TLV catalogue (`tlv_catalogue.csv`) – complete with 63 tags and required 10-column schema
 - [x] State machine table (`state_machine.csv`) – expanded to 85 rows, properly quoted
 - [x] ODA test vectors (`oda_test_vectors.json`) – syntactically validated with deterministic unit fixtures; lab-supplied SDA/DDA/CDA vectors still required for final certification
 - [x] Scheme profiles (`scheme_profiles.cert.json`) – structured with valid hex lengths, contains deterministic TAA keys; actual CAPK values to be replaced by lab

@@ -26,6 +26,7 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 93,Signed Static Application Data,Primitive,variable,EMV Book 3,contact and contactless,all,For SDA,cryptographic,UT-TLV-004
 94,Application File Locator (AFL),Primitive,variable,EMV Book 3,contact and contactless,all,Mandatory after GPO,non-sensitive,UT-TLV-004
 95,Terminal Verification Results (TVR),Primitive,5 bytes,EMV Book 3,contact and contactless,all,Kernel sets,non-sensitive,UT-TLV-004
+97,Transaction Certificate Data Object List (TDOL),Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
 9A,Transaction Date,Primitive,3 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
 9B,Transaction Status Indicator (TSI),Primitive,2 bytes,EMV Book 3,contact and contactless,all,Kernel sets,non-sensitive,UT-TLV-004
 9C,Transaction Type,Primitive,1 byte,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004

@@ -205,6 +205,21 @@ mod tests {
     }
 
     #[test]
+    fn parses_and_builds_tdol_deterministically() {
+        let entries = parse_dol(&[0x9f, 0x02, 0x06, 0x95, 0x05, 0x9b, 0x02]).unwrap();
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x02], &[0x00, 0x00, 0x00, 0x00, 0x25, 0x00])
+            .unwrap();
+        data.put(&[0x95], &[0x80, 0x00, 0x00, 0x00, 0x00]).unwrap();
+        data.put(&[0x9b], &[0x68, 0x00]).unwrap();
+
+        assert_eq!(
+            build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues).unwrap(),
+            vec![0x00, 0x00, 0x00, 0x00, 0x25, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x68, 0x00]
+        );
+    }
+
+    #[test]
     fn rejects_zero_prefixed_high_tag_numbers() {
         assert_eq!(
             parse_dol(&[0x9f, 0x80, 0x04, 0x01]).unwrap_err(),
