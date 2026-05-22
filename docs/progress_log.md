@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T07:10:05Z
+
+- Increment completed: make the pre-lab GENERATE AC replay fixture use a
+  data-bearing short-form command APDU instead of a header-plus-Le-only command.
+- Research note: GENERATE AC evidence is more useful when the request side
+  exercises CDOL-style command data while still proving that production trace
+  policy suppresses command payload bytes and card-returned transaction
+  cryptograms.
+- Code impact: `krn_prelab_trace_pack` now emits first GAC as
+  `80 AE 80 00 03 ... 00`; the replay fixture remains deterministic and the
+  checked-in JSONL does not expose the synthetic CDOL bytes or application
+  cryptogram.
+- Evidence updated: the trace-pack generator and traceability guard now prove
+  both request data suppression and response cryptogram suppression; the
+  checked-in JSONL remains byte-stable because the synthetic CDOL bytes are
+  suppressed by policy.
+- Verification: `cargo run --quiet --example krn_prelab_trace_pack | diff -u
+  docs/prelab_apdu_trace_pack.jsonl -`,
+  `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`, and
+  `cargo test replay_rejects_structurally_invalid_command_apdus` passed,
+  followed by `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`.
+
 ## 2026-05-22T07:06:30Z
 
 - Increment completed: reject structurally invalid APDU replay commands before

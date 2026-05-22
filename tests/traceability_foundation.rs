@@ -5263,7 +5263,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     )
     .unwrap();
     let first_gac = ReplayExchange::new(
-        &hex("80AE800000"),
+        &hex("80AE80000301020300"),
         &hex("800B8000091112131415161718"),
         [0x90, 0x00],
         ApduTraceContext::GenerateAcResponse,
@@ -5287,6 +5287,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f26\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"transaction-cryptogram\""));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012345"));
+    assert!(!PRELAB_APDU_TRACE_PACK.contains("010203"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("1112131415161718"));
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab APDU trace fixture"));

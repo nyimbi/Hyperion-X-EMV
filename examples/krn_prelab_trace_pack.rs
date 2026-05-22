@@ -30,7 +30,7 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
         ApduTraceContext::Generic,
     )?;
     let first_gac = ReplayExchange::new(
-        &decode_hex("80AE800000")?,
+        &decode_hex("80AE80000301020300")?,
         &decode_hex("800B8000091112131415161718")?,
         [0x90, 0x00],
         ApduTraceContext::GenerateAcResponse,
