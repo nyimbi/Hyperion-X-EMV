@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:16:34Z
+
+- Increment completed: reject duplicate issuer-script critical INS policy bytes
+  in signed scheme profiles.
+- Code impact: `critical_issuer_script_ins` parsing now keeps the one-byte
+  shape check and also fails closed when the same INS appears more than once,
+  preserving deterministic script criticality policy before runtime issuer
+  script execution.
+- Evidence update: both RTM annexes cite the duplicate critical-script-policy
+  regression under KRN-CFG-002.
+- Verification: `cargo test
+  rejects_invalid_or_duplicate_critical_script_ins_policy`, `cargo test
+  rtm_promotes_cfg_schema_and_terminal_param_evidence`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T15:08:25Z
 
 - Increment completed: make runtime GENERATE AC CDOL1/CDOL2 construction fail

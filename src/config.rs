@@ -894,7 +894,20 @@ fn optional_hex_byte_array(
                 Err(KernelError::InvalidProfile)
             }
         })
-        .collect()
+        .collect::<KernelResult<Vec<_>>>()
+        .and_then(|values| {
+            reject_duplicate_bytes(&values)?;
+            Ok(values)
+        })
+}
+
+fn reject_duplicate_bytes(values: &[u8]) -> KernelResult<()> {
+    for (index, value) in values.iter().enumerate() {
+        if values[..index].iter().any(|prior| prior == value) {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+    Ok(())
 }
 
 pub fn decode_hex(input: &str) -> KernelResult<Vec<u8>> {
@@ -1911,7 +1924,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_critical_script_ins_policy() {
+    fn rejects_invalid_or_duplicate_critical_script_ins_policy() {
         let invalid = br#"{
           "profile_class": "CERTIFICATION",
           "profile_source": {
@@ -1964,6 +1977,15 @@ mod tests {
         }"#;
         assert_eq!(
             load_profile_set(invalid, &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let duplicate = std::str::from_utf8(VALID_PROFILE).unwrap().replace(
+            r#""critical_issuer_script_ins": ["E2"]"#,
+            r#""critical_issuer_script_ins": ["E2", "E2"]"#,
+        );
+        assert_eq!(
+            load_profile_set(duplicate.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::InvalidProfile
         );
     }
