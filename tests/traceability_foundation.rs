@@ -914,12 +914,17 @@ fn rtm_promotes_apdu_status_word_evidence() {
         assert!(
             non_generic.contains("handles_success_and_transport_followups_before_context_rules")
         );
+        assert!(non_generic.contains("transmit_apdu_followups_rejects_chains_above_limit"));
         assert!(non_generic
             .contains("read_record_status_words_continue_or_end_without_generic_failure"));
         assert!(non_generic.contains("verify_and_script_status_words_keep_their_own_meaning"));
         assert!(non_generic.contains("same_non_9000_status_words_are_context_specific"));
         assert!(non_generic.contains("krn_apdu_009_010_status_handling_is_context_specific"));
         assert!(non_generic.contains("rtm_promotes_apdu_status_word_evidence"));
+
+        let categories = csv_row_for_requirement(csv, "KRN-APDU-003").expect("RTM row exists");
+        assert!(categories.contains("handles_success_and_transport_followups_before_context_rules"));
+        assert!(categories.contains("transmit_apdu_followups_rejects_chains_above_limit"));
     }
 }
 

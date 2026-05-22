@@ -4558,6 +4558,7 @@ mod tests {
             1 if command[1] == 0xc0 => vec![0x90, 0x00],
             2 if count == 0 => vec![0x6c, 0x02],
             2 if command[1] == 0xda && command.last() == Some(&0x02) => vec![0x90, 0x00],
+            3 => vec![0x61, 0x02],
             _ => vec![0x6a, 0x80],
         };
         let capacity = *resp_len;
@@ -5888,6 +5889,35 @@ mod tests {
                 .tvr
                 .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC));
         }
+        SCRIPT_FOLLOWUP_MODE.store(0, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn transmit_apdu_followups_rejects_chains_above_limit() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_script_followup_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        FOLLOWUP_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        SCRIPT_FOLLOWUP_MODE.store(3, Ordering::SeqCst);
+        let result = transmit_apdu_with_followups(
+            runtime,
+            &[0x00, 0xb2, 0x01, 0x0c, 0x00],
+            APDU_TRANSMIT_TIMEOUT_MS,
+            ApduContext::ReadRecord,
+        );
+
+        assert_eq!(result.unwrap_err(), KernelError::LengthOverflow);
+        assert_eq!(
+            FOLLOWUP_TRANSMIT_COUNT.load(Ordering::SeqCst),
+            MAX_APDU_FOLLOWUPS + 1
+        );
+        assert_eq!(FOLLOWUP_TRANSMITTED_INS.load(Ordering::SeqCst), 0xc0);
+        assert_eq!(FOLLOWUP_TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
         SCRIPT_FOLLOWUP_MODE.store(0, Ordering::SeqCst);
     }
 }

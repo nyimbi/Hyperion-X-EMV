@@ -2008,3 +2008,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:27:26Z
+
+- Increment completed: make APDU transport follow-up chain bounds explicit
+  and traceable.
+- Research note: full lab APDU trace packs remain external certification
+  evidence, but repository-controlled APDU transport can prove repeated
+  `61xx`/`6Cxx` follow-ups fail closed instead of looping indefinitely.
+- Code impact: `transmit_apdu_with_followups` now has a regression proving
+  more than `MAX_APDU_FOLLOWUPS` chained follow-ups returns
+  `LengthOverflow`.
+- Evidence updated: current and compatibility RTM annexes cite the APDU
+  follow-up chain overflow regression for `KRN-APDU-003` and `KRN-APDU-010`.
+- Verification: `cargo test transmit_apdu_followups_rejects_chains_above_limit`,
+  `cargo test rtm_promotes_apdu_status_word_evidence`,
+  `cargo test rtm_promotes_runtime_apdu_selection_status_policy_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
