@@ -20,34 +20,126 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
     let mut out = String::new();
     append_case(
         &mut out,
-        "prelab.masking.generate-ac",
-        generate_ac_masking_script()?,
+        PrelabTraceCase {
+            case_id: "prelab.masking.generate-ac",
+            script: generate_ac_masking_script()?,
+            expected_step_count: 3,
+            expected_fsm_events: &["AidSelected", "RecordRead", "GacArqc"],
+            expected_fsm_actions: &[
+                "SelectNextAid",
+                "ReadRecords",
+                "RequestFirstGenerateAc",
+                "BuildHostRequest",
+            ],
+            expected_status_actions: &[],
+            expected_terminal_outcome: "online-authorization-request",
+            masking_assertions: &[
+                "full-apdu-disabled",
+                "pan-last-four-only",
+                "transaction-cryptogram-suppressed",
+            ],
+        },
     )?;
     append_case(
         &mut out,
-        "prelab.masking.issuer-auth-script",
-        issuer_auth_script_masking_script()?,
+        PrelabTraceCase {
+            case_id: "prelab.masking.issuer-auth-script",
+            script: issuer_auth_script_masking_script()?,
+            expected_step_count: 2,
+            expected_fsm_events: &["IssuerAuthenticationSuccess", "ScriptNonCriticalFailure"],
+            expected_fsm_actions: &[
+                "ProcessArpc",
+                "ProcessIssuerScripts",
+                "RequestFinalGenerateAc",
+            ],
+            expected_status_actions: &[],
+            expected_terminal_outcome: "continue-to-final-generate-ac",
+            masking_assertions: &[
+                "full-apdu-disabled",
+                "issuer-authentication-data-suppressed",
+                "issuer-script-command-data-suppressed",
+            ],
+        },
     )?;
     append_case(
         &mut out,
-        "prelab.masking.follow-up-status",
-        followup_status_masking_script()?,
+        PrelabTraceCase {
+            case_id: "prelab.masking.follow-up-status",
+            script: followup_status_masking_script()?,
+            expected_step_count: 4,
+            expected_fsm_events: &["GpoTemplate77", "GacArqc"],
+            expected_fsm_actions: &["BuildGpo", "RequestFirstGenerateAc", "BuildHostRequest"],
+            expected_status_actions: &["GetResponse61xx", "RetryWithCorrectLe6cxx"],
+            expected_terminal_outcome: "first-generate-ac-complete",
+            masking_assertions: &[
+                "full-apdu-disabled",
+                "follow-up-response-tag-masked",
+                "transaction-cryptogram-suppressed",
+            ],
+        },
     )?;
     Ok(out)
 }
 
-fn append_case(out: &mut String, case_id: &str, script: ReplayScript) -> KernelResult<()> {
+struct PrelabTraceCase {
+    case_id: &'static str,
+    script: ReplayScript,
+    expected_step_count: usize,
+    expected_fsm_events: &'static [&'static str],
+    expected_fsm_actions: &'static [&'static str],
+    expected_status_actions: &'static [&'static str],
+    expected_terminal_outcome: &'static str,
+    masking_assertions: &'static [&'static str],
+}
+
+fn append_case(out: &mut String, case: PrelabTraceCase) -> KernelResult<()> {
     out.push_str(
         "{\"type\":\"trace-pack-metadata\",\
          \"trace_pack_id\":\"PRELAB-MASKED-APDU-001\",\
          \"scope\":\"repository-controlled pre-lab fixture\",\
          \"case_id\":\"",
     );
-    out.push_str(case_id);
+    out.push_str(case.case_id);
     out.push_str("\",\"does_not_close\":\"CERT-OPEN-012\"}\n");
+    append_scenario(out, &case);
     let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
-    out.push_str(&script.masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)?);
+    out.push_str(
+        &case
+            .script
+            .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)?,
+    );
     Ok(())
+}
+
+fn append_scenario(out: &mut String, case: &PrelabTraceCase) {
+    out.push_str("{\"type\":\"trace-scenario\",\"case_id\":\"");
+    out.push_str(case.case_id);
+    out.push_str("\",\"expected_step_count\":");
+    out.push_str(&case.expected_step_count.to_string());
+    out.push_str(",\"expected_fsm_events\":");
+    append_string_array(out, case.expected_fsm_events);
+    out.push_str(",\"expected_fsm_actions\":");
+    append_string_array(out, case.expected_fsm_actions);
+    out.push_str(",\"expected_status_actions\":");
+    append_string_array(out, case.expected_status_actions);
+    out.push_str(",\"expected_terminal_outcome\":\"");
+    out.push_str(case.expected_terminal_outcome);
+    out.push_str("\",\"masking_assertions\":");
+    append_string_array(out, case.masking_assertions);
+    out.push_str("}\n");
+}
+
+fn append_string_array(out: &mut String, values: &[&str]) {
+    out.push('[');
+    for (idx, value) in values.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('"');
+        out.push_str(value);
+        out.push('"');
+    }
+    out.push(']');
 }
 
 fn generate_ac_masking_script() -> KernelResult<ReplayScript> {

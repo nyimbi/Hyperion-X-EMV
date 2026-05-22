@@ -5444,6 +5444,18 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         );
         generated.push_str(case_id);
         generated.push_str("\",\"does_not_close\":\"CERT-OPEN-012\"}\n");
+        generated.push_str(match case_id {
+            "prelab.masking.generate-ac" => {
+                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.generate-ac\",\"expected_step_count\":3,\"expected_fsm_events\":[\"AidSelected\",\"RecordRead\",\"GacArqc\"],\"expected_fsm_actions\":[\"SelectNextAid\",\"ReadRecords\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"],\"expected_status_actions\":[],\"expected_terminal_outcome\":\"online-authorization-request\",\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\"]}\n"
+            }
+            "prelab.masking.issuer-auth-script" => {
+                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.issuer-auth-script\",\"expected_step_count\":2,\"expected_fsm_events\":[\"IssuerAuthenticationSuccess\",\"ScriptNonCriticalFailure\"],\"expected_fsm_actions\":[\"ProcessArpc\",\"ProcessIssuerScripts\",\"RequestFinalGenerateAc\"],\"expected_status_actions\":[],\"expected_terminal_outcome\":\"continue-to-final-generate-ac\",\"masking_assertions\":[\"full-apdu-disabled\",\"issuer-authentication-data-suppressed\",\"issuer-script-command-data-suppressed\"]}\n"
+            }
+            "prelab.masking.follow-up-status" => {
+                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.follow-up-status\",\"expected_step_count\":4,\"expected_fsm_events\":[\"GpoTemplate77\",\"GacArqc\"],\"expected_fsm_actions\":[\"BuildGpo\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"],\"expected_status_actions\":[\"GetResponse61xx\",\"RetryWithCorrectLe6cxx\"],\"expected_terminal_outcome\":\"first-generate-ac-complete\",\"masking_assertions\":[\"full-apdu-disabled\",\"follow-up-response-tag-masked\",\"transaction-cryptogram-suppressed\"]}\n"
+            }
+            _ => unreachable!("unexpected pre-lab trace case"),
+        });
         generated.push_str(
             &script
                 .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
@@ -5470,6 +5482,26 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
             .count(),
         3
     );
+    assert_eq!(
+        PRELAB_APDU_TRACE_PACK
+            .matches("\"type\":\"trace-scenario\"")
+            .count(),
+        3
+    );
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"expected_step_count\":3"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"expected_step_count\":4"));
+    assert!(PRELAB_APDU_TRACE_PACK
+        .contains("\"expected_fsm_events\":[\"AidSelected\",\"RecordRead\",\"GacArqc\"]"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains(
+        "\"expected_fsm_actions\":[\"BuildGpo\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"]"
+    ));
+    assert!(PRELAB_APDU_TRACE_PACK
+        .contains("\"expected_status_actions\":[\"GetResponse61xx\",\"RetryWithCorrectLe6cxx\"]"));
+    assert!(PRELAB_APDU_TRACE_PACK
+        .contains("\"expected_terminal_outcome\":\"online-authorization-request\""));
+    assert!(PRELAB_APDU_TRACE_PACK
+        .contains("\"expected_terminal_outcome\":\"continue-to-final-generate-ac\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\"]"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"profile_version\":2"));
@@ -5493,6 +5525,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab APDU trace fixture"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_trace_pack"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("scenario expectations"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("issuer-authentication/script status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("APDU follow-up status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("full lab/test-tool trace pack remains pending"));

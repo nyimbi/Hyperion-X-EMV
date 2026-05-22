@@ -323,9 +323,9 @@ The following are adaptation candidates, ordered by near-term value:
 1. Maintain and extend the `krn_emv_decode` example so lab-trace triage stays
    parser-backed, masked by default, and eventually covers any remaining
    operator-facing decodes that are useful before formal test-tool execution.
-2. Expand `docs/prelab_apdu_trace_pack.jsonl` from a small replay fixture into a
-   scenario pack with expected FSM events/actions, terminal outcome, and
-   sensitive-field masking assertions.
+2. Continue expanding `docs/prelab_apdu_trace_pack.jsonl` beyond the current
+   scenario expectation records into broader lab-case coverage once formal
+   test-tool inputs are available.
 3. Add a mock `ApduInterface` style adapter around the C ABI for deterministic
    request/response scripts, and keep PC/SC or mobile NFC adapters outside the
    kernel core.

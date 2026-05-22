@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T12:33:24Z
+
+- Increment completed: extend the pre-lab APDU trace fixture from masked replay
+  records into a scenario pack with explicit expected FSM events/actions, APDU
+  status actions, terminal outcomes, and masking assertions for each bundled
+  case.
+- Code impact: `examples/krn_prelab_trace_pack.rs` now emits a
+  `trace-scenario` JSONL record next to each case metadata record before the
+  masked trace identity and APDU records.
+- Evidence update: `docs/prelab_apdu_trace_pack.jsonl`, the lab submission
+  manifest, the open-source follow-up backlog, and the traceability guard now
+  prove the scenario expectation records while preserving `CERT-OPEN-012` for
+  the external lab/test-tool trace pack.
+- Verification: `cargo run --quiet --example krn_prelab_trace_pack | diff -u
+  docs/prelab_apdu_trace_pack.jsonl -`,
+  `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`,
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T12:21:30Z
 
 - Increment completed: adapt the open-source reference review's tool-first
