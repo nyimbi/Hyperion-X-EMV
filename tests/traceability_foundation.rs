@@ -6250,6 +6250,7 @@ fn rtm_promotes_issuer_script_evidence() {
         let parser = csv_row_for_requirement(csv, "KRN-SCR-001").unwrap();
         assert!(parser.contains("parses_arpc_arc_and_issuer_scripts"));
         assert!(parser.contains("rejects_script_templates_without_commands"));
+        assert!(parser.contains("rejects_malformed_issuer_script_command_apdus"));
         assert!(parser.contains("rejects_nested_or_duplicate_issuer_script_objects"));
         assert!(parser.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
 
@@ -6719,6 +6720,10 @@ fn host_response_extracts_arpc_and_phase_specific_script_results() {
     );
     assert_eq!(
         parse_host_response(&hex("9108112233445566778891082122232425262728")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_host_response(&hex("7108860600DA000002AA")).unwrap_err(),
         hyperion_emv::KernelError::ParseError
     );
 

@@ -189,6 +189,7 @@ fn parse_script_template(
                 if item.value.is_empty() || item.value.len() > MAX_SCRIPT_COMMAND_LEN {
                     return Err(KernelError::ParseError);
                 }
+                validate_script_command_apdu(item.value)?;
                 if commands.len() >= MAX_SCRIPT_COMMANDS {
                     return Err(KernelError::LengthOverflow);
                 }
@@ -208,6 +209,26 @@ fn parse_script_template(
         identifier,
         commands,
     })
+}
+
+fn validate_script_command_apdu(command: &[u8]) -> KernelResult<()> {
+    if command.len() < 4 {
+        return Err(KernelError::ParseError);
+    }
+    if command.len() <= 5 {
+        return Ok(());
+    }
+
+    let lc = command[4] as usize;
+    if lc == 0 {
+        return Err(KernelError::ParseError);
+    }
+    let data_end = 5usize.checked_add(lc).ok_or(KernelError::LengthOverflow)?;
+    if command.len() == data_end || command.len() == data_end + 1 {
+        Ok(())
+    } else {
+        Err(KernelError::ParseError)
+    }
 }
 
 #[cfg(test)]
@@ -275,6 +296,24 @@ mod tests {
     fn rejects_script_templates_without_commands() {
         assert_eq!(
             parse_host_response(&[0x71, 0x06, 0x9f, 0x18, 0x03, 0x01, 0x02, 0x03]).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_issuer_script_command_apdus() {
+        assert_eq!(
+            parse_host_response(&[0x71, 0x04, 0x86, 0x02, 0x00, 0xda]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x02, 0xaa])
+                .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x00, 0xaa])
+                .unwrap_err(),
             KernelError::ParseError
         );
     }

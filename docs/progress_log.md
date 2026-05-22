@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:42:27Z
+
+- Increment completed: validate issuer script tag `86` values as short-form
+  command APDUs before retaining them for script execution.
+- Research note: issuer script commands cross the Level 3 to kernel boundary as
+  host-supplied APDU bytes. Accepting arbitrary non-empty values delays malformed
+  script detection until runtime exchange and weakens deterministic host-response
+  evidence.
+- Code impact: issuer script parsing now rejects undersized commands, zero-Lc
+  extended-length encodings, and Lc/data length mismatches while preserving valid
+  case 1, case 2, and short case 3/4 command APDUs.
+- Evidence updated: issuer parser regression tests, host-response traceability
+  coverage, and both RTM annexes now cite malformed issuer script command APDU
+  rejection.
+- Verification: `cargo test rejects_malformed_issuer_script_command_apdus`,
+  `cargo test parses_arpc_arc_and_issuer_scripts`,
+  `cargo test host_response_extracts_arpc_and_phase_specific_script_results`,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T05:36:05Z
 
 - Increment completed: reject duplicate ADF names repeated across PSE/PPSE
