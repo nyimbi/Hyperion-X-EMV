@@ -1678,3 +1678,20 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-22T07:44:36Z
+
+- Increment completed: refresh the public standards watch with EMVCo
+  Contactless Kernel 8 approval-process signals.
+- Research note: public EMVCo materials distinguish full contactless device,
+  standalone Contactless Kernel 8, and approved-kernel integration submission
+  paths, with implementation conformance statements, laboratory test reports,
+  and Letters of Approval remaining external evidence.
+- Code impact: no kernel code changed; the standards annex now records the
+  public approval-path boundary that must be resolved before closing
+  `CERT-OPEN-005`.
+- Evidence updated: traceability coverage now requires the standards watch to
+  name the approval paths, ICS evidence, laboratory reports, and LoA boundary.
+- Verification: `cargo test certification_open_issues_register_tracks_external_blockers`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

@@ -1584,7 +1584,17 @@ fn certification_open_issues_register_tracks_external_blockers() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("C-8 v1.1 / SB 325"));
     assert!(STANDARDS_WATCH.contains("Book C-8 Kernel Specification v1.1"));
     assert!(STANDARDS_WATCH.contains("SB 325"));
+    assert!(STANDARDS_WATCH.contains("Public Approval-Process Check"));
+    assert!(STANDARDS_WATCH.contains("approval can be pursued as one element"));
+    assert!(STANDARDS_WATCH.contains("full contactless acceptance"));
+    assert!(STANDARDS_WATCH.contains("standalone kernel"));
+    assert!(STANDARDS_WATCH.contains("approved-kernel integration"));
+    assert!(STANDARDS_WATCH.contains("implementation conformance statement"));
+    assert!(STANDARDS_WATCH.contains("Letter of Approval"));
+    assert!(STANDARDS_WATCH.contains("Do not replace this with repository"));
     assert!(STANDARDS_WATCH.contains("Do not close `CERT-OPEN-005`"));
+    assert!(STANDARDS_WATCH.contains("exact Contactless Kernel 8 approval path"));
+    assert!(STANDARDS_WATCH.contains("laboratory test reports"));
 }
 
 #[test]

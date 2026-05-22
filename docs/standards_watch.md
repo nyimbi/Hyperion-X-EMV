@@ -20,13 +20,41 @@ instructions prevail on conflict.
   device evidence confirm whether the submission target must move to v1.1 or
   incorporate SB 325 behavior.
 
+## 2026-05-22 Public Approval-Process Check
+
+- Public source checked: EMVCo specifications, contactless technology,
+  contactless product approval process, contact kernel approval process, and
+  Contactless Kernel 8 testing announcement pages.
+- Contactless approval signal: EMVCo public materials state that the
+  Contactless Product approval process covers a Contactless acceptance device
+  or a Contactless Kernel C-8, and attests compliance with the EMV
+  specification.
+- Contactless Kernel 8 process signal: EMVCo states that Contactless Kernel 8
+  approval can be pursued as one element of a full contactless acceptance
+  device, as a standalone kernel, or as a delta after integrating an already
+  approved kernel into another device.
+- Contactless Kernel 8 evidence signal: EMVCo public process material lists
+  different implementation conformance statement paths for full device,
+  standalone kernel, and approved-kernel integration submissions; the repository
+  therefore treats the lab-selected ICS path as external evidence.
+- Approval artifact signal: EMVCo public process material describes EMVCo
+  review of laboratory test reports and issuance of a Letter of Approval when
+  sufficient conformance is demonstrated. Do not replace this with repository
+  ABI JSON or pre-lab trace fixtures.
+
 ## Gating Rule
 
 Do not close `CERT-OPEN-005` or claim final C-8 approval until the lab
 submission package includes a licensed C-8 reconciliation note that states:
 
 - the exact C-8 specification version and bulletin set used for testing;
+- the exact Contactless Kernel 8 approval path used: full device, standalone
+  kernel, or approved-kernel integration delta;
+- the Contactless Kernel 8 implementation conformance statement form(s) and
+  versions accepted by the laboratory;
 - the approved test-tool package and version;
 - any scheme/acquirer profile constraints that select or exclude C-8 v1.1 or
   SB 325 behavior; and
+- the laboratory test reports and Letter of Approval or equivalent scheme/lab
+  approval artifact; and
 - the masked APDU/outcome traces for the accepted profile and device set.
