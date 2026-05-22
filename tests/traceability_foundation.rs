@@ -2703,6 +2703,57 @@ fn krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic() {
 }
 
 #[test]
+fn rtm_promotes_deployment_profile_update_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let signed_update = csv_row_for_requirement(csv, "KRN-DPL-001").expect("RTM row exists");
+        assert!(
+            !signed_update.contains("Verified profile update trace"),
+            "KRN-DPL-001 should cite executable signed profile update evidence"
+        );
+        assert!(signed_update.contains("loads_profile_annex_when_signature_is_verified"));
+        assert!(
+            signed_update.contains("rejects_unsigned_certification_profile_rollback_and_replay")
+        );
+        assert!(
+            signed_update.contains("krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic")
+        );
+        assert!(signed_update.contains("rtm_promotes_deployment_profile_update_evidence"));
+
+        let rollback = csv_row_for_requirement(csv, "KRN-DPL-002").expect("RTM row exists");
+        assert!(
+            !rollback.contains("Monotonic version check"),
+            "KRN-DPL-002 should cite executable rollback and replay evidence"
+        );
+        assert!(rollback.contains("rejects_unsigned_certification_profile_rollback_and_replay"));
+        assert!(rollback.contains("profile_loader_rejects_rollback_placeholders_and_expired_capks"));
+        assert!(rollback.contains("krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic"));
+        assert!(rollback.contains("rtm_promotes_deployment_profile_update_evidence"));
+
+        let atomic_update = csv_row_for_requirement(csv, "KRN-DPL-003").expect("RTM row exists");
+        assert!(
+            !atomic_update.contains("Failed update preservation test"),
+            "KRN-DPL-003 should cite executable atomic update evidence"
+        );
+        assert!(
+            atomic_update.contains("krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic")
+        );
+        assert!(atomic_update.contains("rtm_promotes_deployment_profile_update_evidence"));
+
+        let trace_identity = csv_row_for_requirement(csv, "KRN-DPL-004").expect("RTM row exists");
+        assert!(
+            !trace_identity.contains("Trace identity metadata"),
+            "KRN-DPL-004 should cite executable profile identity evidence"
+        );
+        assert!(trace_identity.contains("ffi_reports_loaded_profile_version_for_log_identity"));
+        assert!(trace_identity
+            .contains("replay_trace_identity_records_profile_version_without_unmasking_data"));
+        assert!(trace_identity
+            .contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl"));
+        assert!(trace_identity.contains("rtm_promotes_deployment_profile_update_evidence"));
+    }
+}
+
+#[test]
 fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
     let example_profile = br#"{
       "profile_class": "EXAMPLE_ONLY",

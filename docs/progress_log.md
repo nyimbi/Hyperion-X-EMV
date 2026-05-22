@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:00:16Z
+
+- Increment completed: promote deployment/profile-update evidence.
+- Research note: deployment claims should cite executable signed-profile load,
+  anti-rollback/replay rejection, atomic failed-update preservation, and
+  versioned trace-identity regressions rather than broad update labels.
+- Code impact: no runtime behavior changed; existing config, FFI, trace, and
+  traceability tests are now first-class RTM evidence for the DPL rows.
+- Evidence updated: KRN-DPL-001/002/003/004 now cite concrete profile update
+  regressions and an RTM guard in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:54:05Z
 
 - Increment completed: promote API and error-boundary evidence.
