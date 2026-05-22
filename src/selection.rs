@@ -242,6 +242,24 @@ mod tests {
     }
 
     #[test]
+    fn rejects_candidate_aid_lists_above_limit() {
+        let mut directory_entries = Vec::new();
+        for index in 0..=MAX_CANDIDATE_AIDS {
+            let aid = [0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, index as u8];
+            directory_entries.extend_from_slice(&tlv_bytes(&[0x61], &tlv_bytes(&[0x4f], &aid)));
+        }
+        let fci = tlv_bytes(
+            &[0x6f],
+            &tlv_bytes(&[0xa5], &tlv_bytes(&[0xbf, 0x0c], &directory_entries)),
+        );
+
+        assert_eq!(
+            parse_fci_candidate_aids(&fci).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn selects_deterministically_when_profile_priorities_match() {
         let candidates = match_profile_candidates(
             &profiles(),
@@ -267,5 +285,23 @@ mod tests {
             candidates[0].aid,
             vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]
         );
+    }
+
+    fn tlv_bytes(tag: &[u8], value: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(tag);
+        encode_len(value.len(), &mut out);
+        out.extend_from_slice(value);
+        out
+    }
+
+    fn encode_len(len: usize, out: &mut Vec<u8>) {
+        if len < 0x80 {
+            out.push(len as u8);
+        } else if len <= 0xff {
+            out.extend_from_slice(&[0x81, len as u8]);
+        } else {
+            out.extend_from_slice(&[0x82, (len >> 8) as u8, len as u8]);
+        }
     }
 }

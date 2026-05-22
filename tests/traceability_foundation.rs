@@ -782,6 +782,7 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
             assert!(row.contains("extracts_candidate_aids_from_directory_fci"));
             assert!(row.contains("rejects_duplicate_adf_names_in_directory_entries"));
             assert!(row.contains("rejects_duplicate_adf_names_across_directory_entries"));
+            assert!(row.contains("rejects_candidate_aid_lists_above_limit"));
             assert!(row.contains("krn_sel_001_exact_pse_ppse_apdus_are_stable"));
             assert!(
                 row.contains("krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles")

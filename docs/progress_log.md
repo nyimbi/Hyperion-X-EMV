@@ -1891,3 +1891,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:53:05Z
+
+- Increment completed: make PSE/PPSE candidate-list bounds explicit and
+  traceable.
+- Research note: lab selection cases remain external certification evidence,
+  but repository-controlled FCI directory parsing can still prove oversized
+  candidate lists fail closed before profile matching and SELECT response
+  continuation work.
+- Code impact: PSE/PPSE FCI directory parsing now has a regression proving
+  more than `MAX_CANDIDATE_AIDS` unique ADF names fails with
+  `KRN_ERR_LENGTH_OVERFLOW` before profile matching.
+- Evidence updated: current and compatibility RTM annexes cite the
+  candidate-list overflow regression for `KRN-SEL-001` and `KRN-SEL-002`.
+- Verification: `cargo test rejects_candidate_aid_lists_above_limit`,
+  `cargo test rtm_promotes_runtime_apdu_selection_status_policy_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
