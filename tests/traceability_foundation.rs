@@ -2301,6 +2301,91 @@ fn rtm_promotes_dda_internal_authenticate_evidence() {
 }
 
 #[test]
+fn rtm_promotes_oda_capk_tvr_cda_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in [
+            "KRN-ODA-001",
+            "KRN-ODA-002",
+            "KRN-ODA-003",
+            "KRN-ODA-004",
+            "KRN-ODA-005",
+            "KRN-ODA-006",
+            "KRN-ODA-007",
+            "KRN-ODA-008",
+        ] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("CAPK checksum validation evidence")
+                    && !row.contains("Config signature")
+                    && !row.contains("TVR after failure")
+                    && !row.contains("TVR after ODA failure")
+                    && !row.contains("TVR after recovery failure")
+                    && !row.contains("TVR trace")
+                    && !row.contains("TVR + fallback test")
+                    && !row.contains("CDA vector"),
+                "{id} should cite executable ODA evidence"
+            );
+            assert!(row.contains("rtm_promotes_oda_capk_tvr_cda_evidence"));
+        }
+
+        let capk_hash = csv_row_for_requirement(csv, "KRN-ODA-001").unwrap();
+        assert!(
+            capk_hash.contains("rejects_certification_capk_checksum_mismatch_or_metadata_drift")
+        );
+        assert!(capk_hash
+            .contains("krn_sec_003_oda_001_cert_profile_loader_rejects_capk_checksum_drift"));
+        assert!(capk_hash.contains("krn_capk_001_002_lookup_requires_verified_profile_integrity"));
+
+        let capk_integrity = csv_row_for_requirement(csv, "KRN-ODA-002").unwrap();
+        assert!(
+            capk_integrity.contains("krn_sec_003_oda_002_capks_retain_signed_public_provenance")
+        );
+        assert!(capk_integrity.contains("loads_profile_annex_when_signature_is_verified"));
+        assert!(capk_integrity
+            .contains("profile_loader_requires_verified_signature_and_extracts_capk_tac_limits"));
+
+        for id in ["KRN-ODA-003", "KRN-ODA-004"] {
+            let recovery = csv_row_for_requirement(csv, id).unwrap();
+            assert!(recovery.contains("krn_oda_003_004_certificate_recovery_failures_set_tvr"));
+            assert!(recovery.contains(
+                "krn_oda_003_004_public_key_inputs_require_certificates_exponents_and_remainders"
+            ));
+            assert!(recovery.contains(
+                "krn_oda_002_003_004_recovered_certificates_reconstruct_public_key_material"
+            ));
+        }
+
+        let sda = csv_row_for_requirement(csv, "KRN-ODA-005").unwrap();
+        assert!(sda.contains("runtime_oda_maps_bad_sda_signature_to_tvr_failure"));
+        assert!(sda.contains(
+            "krn_oda_001_005_006_007_selects_method_and_sets_tvr_tsi_without_cda_fallback"
+        ));
+        assert!(sda.contains("krn_oda_005_static_authentication_data_uses_afl_order_and_tag_list"));
+        assert!(sda.contains("krn_oda_005_006_007_recovers_and_verifies_signed_application_data"));
+
+        let dda = csv_row_for_requirement(csv, "KRN-ODA-006").unwrap();
+        assert!(dda.contains("runtime_oda_maps_bad_dda_signature_to_tvr_failure"));
+        assert!(dda.contains("rtm_promotes_dda_internal_authenticate_evidence"));
+
+        let cda = csv_row_for_requirement(csv, "KRN-ODA-007").unwrap();
+        assert!(cda.contains("runtime_cda_failure_sets_tvr_without_falling_back_to_dda"));
+        assert!(
+            cda.contains("selects_strongest_allowed_oda_method_without_fallback_after_cda_failure")
+        );
+        assert!(cda.contains(
+            "krn_oda_001_005_006_007_selects_method_and_sets_tvr_tsi_without_cda_fallback"
+        ));
+
+        let cda_exact = csv_row_for_requirement(csv, "KRN-ODA-008").unwrap();
+        assert!(cda_exact.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
+        assert!(cda_exact.contains("validates_complete_vector_syntax_and_rejects_placeholders"));
+        assert!(
+            cda_exact.contains("krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode")
+        );
+    }
+}
+
+#[test]
 fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-FSM-001", "KRN-FSM-002", "KRN-FSM-003", "KRN-FSM-004"] {

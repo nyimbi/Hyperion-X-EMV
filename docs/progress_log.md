@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:08:05Z
+
+- Increment completed: promote ODA CAPK, TVR, and CDA evidence.
+- Research note: ODA claims should cite executable CAPK checksum/provenance,
+  certificate-recovery, SDA/DDA/CDA failure, no-fallback, and vector-syntax
+  regressions rather than broad TVR, config-signature, or CDA-vector labels.
+- Code impact: no runtime behavior changed; existing ODA, config, FFI, and
+  traceability tests are now first-class RTM evidence for the older ODA rows.
+- Evidence updated: KRN-ODA-001/002/003/004/005/006/007/008 now cite concrete
+  ODA regressions and an RTM guard in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:03:50Z
 
 - Increment completed: promote reference, profile-class, and log-policy
