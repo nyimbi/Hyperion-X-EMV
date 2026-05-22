@@ -5102,6 +5102,43 @@ fn krn_taa_001_002_003_004_005_006_007_uses_iac_tac_order_and_profile_fallbacks(
 }
 
 #[test]
+fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in [
+            "KRN-IAUTH-001",
+            "KRN-IAUTH-002",
+            "KRN-IAUTH-003",
+            "KRN-GAC2-001",
+            "KRN-GAC2-002",
+            "KRN-GAC2-003",
+            "KRN-GAC2-004",
+        ] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete issuer-auth/final-GAC evidence"
+            );
+            assert!(row.contains("rtm_promotes_issuer_authentication_and_final_gac_evidence"));
+        }
+
+        let issuer_auth = csv_row_for_requirement(csv, "KRN-IAUTH-001").unwrap();
+        assert!(issuer_auth.contains("builds_external_authenticate_for_issuer_authentication_data"));
+        assert!(issuer_auth.contains("parses_arpc_arc_and_issuer_scripts"));
+
+        let issuer_auth_failure = csv_row_for_requirement(csv, "KRN-IAUTH-003").unwrap();
+        assert!(issuer_auth_failure
+            .contains("issuer_authentication_failure_sets_tvr_and_reaches_scripts"));
+
+        let cdol2 = csv_row_for_requirement(csv, "KRN-GAC2-001").unwrap();
+        assert!(cdol2.contains("final_generate_ac_builds_cdol2_from_host_response_and_state"));
+
+        let final_outcome = csv_row_for_requirement(csv, "KRN-GAC2-004").unwrap();
+        assert!(final_outcome
+            .contains("krn_gac2_004_final_generate_ac_skipped_without_cdol2_honors_host_arc"));
+    }
+}
+
+#[test]
 fn rtm_promotes_terminal_action_analysis_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in [

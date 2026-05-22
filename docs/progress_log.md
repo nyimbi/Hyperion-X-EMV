@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:47:13Z
+
+- Increment completed: promote issuer authentication and final GENERATE AC
+  evidence.
+- Code impact: final GENERATE AC regression now captures and asserts the CDOL2
+  APDU payload built from host ARC, issuer authentication data, TVR, and TSI,
+  proving the second GENERATE AC path uses host/state data rather than generic
+  length-only evidence.
+- Evidence updated: KRN-IAUTH-001/002/003 and KRN-GAC2-001/002/003/004 now cite
+  concrete APDU, issuer-authentication, CDOL2, and final-outcome regressions in
+  both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:39:47Z
 
 - Increment completed: tighten ODA certification vector coverage validation.

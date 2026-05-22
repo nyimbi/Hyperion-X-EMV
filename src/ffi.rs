@@ -4183,6 +4183,7 @@ mod tests {
         let count = TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
         TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
         TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
         let response = match count {
             0 => vec![
@@ -4271,6 +4272,7 @@ mod tests {
         TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
         TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
         TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
         let response = [
             RELAY_SW1.load(Ordering::SeqCst),
@@ -5391,6 +5393,54 @@ mod tests {
             assert_eq!(ctx.final_outcome, Some(expected_outcome));
             assert!(ctx.final_gac_response.is_none());
         }
+    }
+
+    #[test]
+    fn final_generate_ac_builds_cdol2_from_host_response_and_state() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S14;
+        ctx.state = KernelState::SecondGenerateAc;
+        install_profile_selection(&mut ctx);
+        let issuer_authentication_data = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88];
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: Some(issuer_authentication_data.to_vec()),
+            scripts: Vec::new(),
+        });
+        ctx.card_data
+            .put(&[0x8d], &[0x8a, 0x02, 0x91, 0x08, 0x95, 0x05, 0x9b, 0x02])
+            .unwrap();
+        ctx.card_data.put(&[0x8a], b"00").unwrap();
+        ctx.card_data
+            .put(&[0x91], &issuer_authentication_data)
+            .unwrap();
+        ctx.tvr.set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED);
+        ctx.tsi.set(Tsi::ISSUER_AUTHENTICATION_PERFORMED);
+        let expected_tvr = ctx.tvr.bytes();
+        let expected_tsi = ctx.tsi.bytes();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        assert_eq!(run_final_generate_ac(&mut ctx, runtime), Ok(()));
+
+        let command = LAST_TRANSMITTED_COMMAND.lock().unwrap().clone();
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+        assert_eq!(&command[..5], &[0x80, 0xae, 0x40, 0x00, 0x11]);
+        assert_eq!(&command[5..7], b"00");
+        assert_eq!(&command[7..15], &issuer_authentication_data);
+        assert_eq!(&command[15..20], &expected_tvr);
+        assert_eq!(&command[20..22], &expected_tsi);
+        assert_eq!(command[22], 0x00);
+        assert_eq!(ctx.fsm_state, FsmState::S15);
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::ApprovedOnline));
+        assert!(ctx.final_gac_response.is_some());
     }
 
     #[test]
