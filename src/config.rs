@@ -14,6 +14,14 @@ const MAX_CAPK_RSA_MODULUS_BYTES: usize = 256;
 const MAX_CAPK_RSA_EXPONENT_BYTES: usize = 3;
 const CAPK_CHECKSUM_ALGORITHM: &str = "sha1(rid || key_index || modulus || exponent)";
 const CAPK_CHECKSUM_SCOPE: [&str; 4] = ["rid", "key_index", "modulus_hex", "exponent_hex"];
+const PROFILE_MATERIAL_STATUSES: [&str; 2] = [
+    "certification_format_fixture_pending_lab_signature",
+    "lab_signed_certification_profile",
+];
+const CAPK_MATERIAL_STATUSES: [&str; 2] = [
+    "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks",
+    "lab_signed_capks",
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildMode {
@@ -223,10 +231,8 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
             "scheme_profiles",
         ],
     )?;
-    if let Some(scope) = object.get("certification_scope") {
-        parse_certification_scope(scope)?;
-    }
     let profile_class = parse_profile_class(object, policy.mode)?;
+    parse_certification_scope(object.get("certification_scope"), profile_class)?;
     let profile_source = parse_profile_source(object, profile_class, policy.mode)?;
     let schemes_value = object
         .get("scheme_profiles")
@@ -334,7 +340,16 @@ fn parse_source_object(
     })
 }
 
-fn parse_certification_scope(value: &JsonValue) -> KernelResult<()> {
+fn parse_certification_scope(
+    value: Option<&JsonValue>,
+    profile_class: ProfileClass,
+) -> KernelResult<()> {
+    let Some(value) = value else {
+        return match profile_class {
+            ProfileClass::Certification => Err(KernelError::InvalidProfile),
+            ProfileClass::ExampleOnly => Ok(()),
+        };
+    };
     let scope = value.as_object()?;
     reject_unknown_fields(
         scope,
@@ -347,6 +362,29 @@ fn parse_certification_scope(value: &JsonValue) -> KernelResult<()> {
             "production_profile_bundle_required",
         ],
     )?;
+    if profile_class == ProfileClass::ExampleOnly {
+        return Ok(());
+    }
+
+    let bundled = required_string_set(scope, "bundled_scheme_profiles", true)?;
+    let lab_required = required_string_set(scope, "lab_supplied_scheme_profiles_required", false)?;
+    if bundled.iter().any(|bundled_scheme| {
+        lab_required
+            .iter()
+            .any(|lab_scheme| lab_scheme == bundled_scheme)
+    }) {
+        return Err(KernelError::InvalidProfile);
+    }
+    let contactless_profile = required_string(scope, "contactless_kernel_profile")?;
+    reject_placeholder(contactless_profile)?;
+    if contactless_profile.is_empty() {
+        return Err(KernelError::InvalidProfile);
+    }
+    required_allowed_string(scope, "profile_material_status", &PROFILE_MATERIAL_STATUSES)?;
+    required_allowed_string(scope, "capk_material_status", &CAPK_MATERIAL_STATUSES)?;
+    if !required_bool(scope, "production_profile_bundle_required")? {
+        return Err(KernelError::InvalidProfile);
+    }
     Ok(())
 }
 
@@ -851,6 +889,49 @@ fn required_string<'a>(
         .as_string()
 }
 
+fn required_allowed_string<'a>(
+    object: &'a BTreeMap<String, JsonValue>,
+    key: &str,
+    allowed: &[&str],
+) -> KernelResult<&'a str> {
+    let value = required_string(object, key)?;
+    if allowed.contains(&value) {
+        Ok(value)
+    } else {
+        Err(KernelError::InvalidProfile)
+    }
+}
+
+fn required_string_set(
+    object: &BTreeMap<String, JsonValue>,
+    key: &str,
+    must_be_non_empty: bool,
+) -> KernelResult<Vec<String>> {
+    let values = object
+        .get(key)
+        .ok_or(KernelError::InvalidProfile)?
+        .as_array()?
+        .iter()
+        .map(|item| {
+            let value = item.as_string()?;
+            reject_placeholder(value)?;
+            if value.is_empty() {
+                return Err(KernelError::InvalidProfile);
+            }
+            Ok(value.to_string())
+        })
+        .collect::<KernelResult<Vec<_>>>()?;
+    if must_be_non_empty && values.is_empty() {
+        return Err(KernelError::InvalidProfile);
+    }
+    for (index, value) in values.iter().enumerate() {
+        if values[..index].iter().any(|prior| prior == value) {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+    Ok(values)
+}
+
 fn required_u64(object: &BTreeMap<String, JsonValue>, key: &str) -> KernelResult<u64> {
     object.get(key).ok_or(KernelError::InvalidProfile)?.as_u64()
 }
@@ -1249,6 +1330,14 @@ mod tests {
         "version": "2",
         "verification": "external_signature_required"
       },
+      "certification_scope": {
+        "bundled_scheme_profiles": ["Visa"],
+        "lab_supplied_scheme_profiles_required": ["Mastercard"],
+        "contactless_kernel_profile": "C-8 lab approval package",
+        "profile_material_status": "certification_format_fixture_pending_lab_signature",
+        "capk_material_status": "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks",
+        "production_profile_bundle_required": true
+      },
       "scheme_profiles": [{
         "scheme_name": "Visa",
         "rid": "A000000003",
@@ -1422,6 +1511,64 @@ mod tests {
             Some(CdaRequestEncoding::InCdolData)
         );
         assert!(profiles.schemes[0].aids[0].cda_allowed_by_profile());
+    }
+
+    #[test]
+    fn rejects_invalid_certification_scope_boundaries() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+
+        let missing_scope = profile.replace(
+            r#",
+      "certification_scope": {
+        "bundled_scheme_profiles": ["Visa"],
+        "lab_supplied_scheme_profiles_required": ["Mastercard"],
+        "contactless_kernel_profile": "C-8 lab approval package",
+        "profile_material_status": "certification_format_fixture_pending_lab_signature",
+        "capk_material_status": "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks",
+        "production_profile_bundle_required": true
+      }"#,
+            "",
+        );
+        assert_eq!(
+            load_profile_set(missing_scope.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let overlap = profile.replace(
+            r#""lab_supplied_scheme_profiles_required": ["Mastercard"]"#,
+            r#""lab_supplied_scheme_profiles_required": ["Visa"]"#,
+        );
+        assert_eq!(
+            load_profile_set(overlap.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let false_production_bundle = profile.replace(
+            r#""production_profile_bundle_required": true"#,
+            r#""production_profile_bundle_required": false"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                false_production_bundle.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let unsupported_status = profile.replace(
+            r#""profile_material_status": "certification_format_fixture_pending_lab_signature""#,
+            r#""profile_material_status": "self_attested_ready_for_certification""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                unsupported_status.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
     }
 
     #[test]

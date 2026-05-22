@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T17:03:44Z
+
+- Increment completed: make certification-scope metadata executable in the
+  signed profile loader instead of accepting any object with allowed field
+  names.
+- Research note: the current certification boundary still depends on
+  lab-signed profiles, CAPKs, C-8 package material, and explicit fixture
+  disclaimers; this slice tightens the local profile schema so repository
+  fixtures cannot silently claim unsupported scope or material status.
+- Code impact: `load_profile_set` now requires certification profiles to carry
+  a typed `certification_scope` with non-overlapping bundled/lab-required
+  scheme lists, explicit C-8 profile scope, approved material-status markers,
+  and `production_profile_bundle_required = true`.
+- Evidence update: `config::tests::rejects_invalid_certification_scope_boundaries`
+  covers missing scope, overlapping scheme claims, false production-bundle
+  requirements, and unsupported material-status claims; both RTM annexes cite
+  that evidence under KRN-CFG-002.
+- Verification: `cargo test config::tests`, `cargo test
+  supported_contactless_profiles_use_c8_certification_scope`, `cargo test
+  rtm_promotes_cfg_schema_and_terminal_param_evidence`, `cargo test`, `cargo
+  test --examples`, `cargo clippy --all-targets --all-features`, `cargo fmt
+  --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:52:03Z
 
 - Increment completed: expand the repository-controlled masked pre-lab trace

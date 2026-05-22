@@ -2305,6 +2305,14 @@ fn krn_sec_003_oda_002_capks_retain_signed_public_provenance() {
         "version": "2",
         "verification": "external_signature_required"
       },
+      "certification_scope": {
+        "bundled_scheme_profiles": ["Visa"],
+        "lab_supplied_scheme_profiles_required": ["Mastercard"],
+        "contactless_kernel_profile": "C-8 lab approval package",
+        "profile_material_status": "certification_format_fixture_pending_lab_signature",
+        "capk_material_status": "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks",
+        "production_profile_bundle_required": true
+      },
       "scheme_profiles": [{
         "scheme_name": "Visa",
         "rid": "A000000003",
@@ -2476,6 +2484,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_invalid_capk_expiry_calendar_dates"));
         assert!(row.contains("rejects_invalid_capk_public_key_components"));
         assert!(row.contains("rejects_invalid_or_duplicate_critical_script_ins_policy"));
+        assert!(row.contains("rejects_invalid_certification_scope_boundaries"));
         assert!(row.contains("rejects_inconsistent_contactless_limit_ordering"));
         assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
         assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
@@ -3708,6 +3717,14 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
         "document": "signed_certification_profile_bundle",
         "version": "2",
         "verification": "external_signature_required"
+      },
+      "certification_scope": {
+        "bundled_scheme_profiles": ["Visa"],
+        "lab_supplied_scheme_profiles_required": ["Mastercard"],
+        "contactless_kernel_profile": "C-8 lab approval package",
+        "profile_material_status": "certification_format_fixture_pending_lab_signature",
+        "capk_material_status": "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks",
+        "production_profile_bundle_required": true
       },
       "scheme_profiles": [{
         "scheme_name": "Visa",
