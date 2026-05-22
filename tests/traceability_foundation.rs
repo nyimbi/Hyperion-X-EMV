@@ -6328,8 +6328,16 @@ fn rtm_promotes_terminal_action_analysis_evidence() {
         assert!(denial.contains("denial_action_codes_take_precedence"));
 
         let iac = csv_row_for_requirement(csv, "KRN-TAA-002").unwrap();
+        assert!(iac.contains("loads_profile_issuer_action_code_fallbacks"));
         assert!(iac.contains("iac_values_participate_in_denial_online_and_default_decisions"));
         assert!(iac.contains("taa_offline_final_state_finishes_from_s16"));
+        assert!(iac.contains("taa_uses_profile_iac_fallbacks_when_card_omits_iacs"));
+        assert!(iac.contains("card_iac_tags_override_profile_fallbacks"));
+
+        let iac_fetch = csv_row_for_requirement(csv, "KRN-TAA-004").unwrap();
+        assert!(iac_fetch.contains("loads_profile_issuer_action_code_fallbacks"));
+        assert!(iac_fetch.contains("taa_uses_profile_iac_fallbacks_when_card_omits_iacs"));
+        assert!(iac_fetch.contains("card_iac_tags_override_profile_fallbacks"));
 
         let unconstrained_default = csv_row_for_requirement(csv, "KRN-TAA-003").unwrap();
         assert!(unconstrained_default.contains("invalid_profile_combinations_are_rejected"));

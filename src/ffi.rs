@@ -2347,7 +2347,7 @@ fn run_terminal_action_analysis(
     let decision = decide_taa(TaaInput {
         tvr: ctx.tvr,
         tac: aid.action_codes,
-        iac: issuer_action_codes(&ctx.card_data)?,
+        iac: issuer_action_codes(&ctx.card_data, aid.issuer_action_codes)?,
         terminal_online_capable: true,
         profile: scheme.taa,
     });
@@ -2814,11 +2814,14 @@ fn final_outcome_for_host_arc(host_arc: [u8; 2]) -> KrnOutcome {
     }
 }
 
-fn issuer_action_codes(data: &DataStore) -> Result<ActionCodes, KernelError> {
+fn issuer_action_codes(
+    data: &DataStore,
+    profile_fallback: ActionCodes,
+) -> Result<ActionCodes, KernelError> {
     Ok(ActionCodes {
-        denial: optional_fixed::<5>(data, &[0x9f, 0x0e])?.unwrap_or([0; 5]),
-        online: optional_fixed::<5>(data, &[0x9f, 0x0f])?.unwrap_or([0; 5]),
-        default: optional_fixed::<5>(data, &[0x9f, 0x0d])?.unwrap_or([0; 5]),
+        denial: optional_fixed::<5>(data, &[0x9f, 0x0e])?.unwrap_or(profile_fallback.denial),
+        online: optional_fixed::<5>(data, &[0x9f, 0x0f])?.unwrap_or(profile_fallback.online),
+        default: optional_fixed::<5>(data, &[0x9f, 0x0d])?.unwrap_or(profile_fallback.default),
     })
 }
 
@@ -3680,6 +3683,44 @@ mod tests {
             Ok(KrnOutcome::DeclinedOffline)
         );
         assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
+    }
+
+    #[test]
+    fn taa_uses_profile_iac_fallbacks_when_card_omits_iacs() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.fsm_state = FsmState::S9;
+        ctx.state = KernelState::TerminalActionAnalysis;
+        ctx.tvr.set(Tvr::B4_FLOOR_LIMIT_EXCEEDED);
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0]
+            .issuer_action_codes
+            .online = [0, 0, 0, 0x80, 0];
+
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(run_terminal_action_analysis(&mut ctx, &profiles), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S10);
+        assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Arqc));
+    }
+
+    #[test]
+    fn card_iac_tags_override_profile_fallbacks() {
+        let mut data = DataStore::new();
+        let profile_fallback = ActionCodes {
+            denial: [0x40, 0, 0, 0, 0],
+            online: [0, 0, 0, 0x80, 0],
+            default: [0x20, 0, 0, 0, 0],
+        };
+
+        assert_eq!(
+            issuer_action_codes(&data, profile_fallback).unwrap(),
+            profile_fallback
+        );
+
+        data.put(&[0x9f, 0x0e], &[0, 0, 0, 0, 0]).unwrap();
+        let iac = issuer_action_codes(&data, profile_fallback).unwrap();
+        assert_eq!(iac.denial, [0, 0, 0, 0, 0]);
+        assert_eq!(iac.online, profile_fallback.online);
+        assert_eq!(iac.default, profile_fallback.default);
     }
 
     fn install_sda_success_fixture(ctx: &mut KrnContext) {

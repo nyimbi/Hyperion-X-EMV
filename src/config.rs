@@ -108,6 +108,7 @@ pub struct AidProfile {
     pub partial_selection: bool,
     pub interfaces: Vec<String>,
     pub action_codes: ActionCodes,
+    pub issuer_action_codes: ActionCodes,
     pub floor_limit: u64,
     pub cvm_limit_contact: u64,
     pub random_selection_percent: u8,
@@ -552,6 +553,11 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             online: fixed_vec::<5>(parse_hex_field(object, "tac_online")?)?,
             denial: fixed_vec::<5>(parse_hex_field(object, "tac_denial")?)?,
             default: fixed_vec::<5>(parse_hex_field(object, "tac_default")?)?,
+        },
+        issuer_action_codes: ActionCodes {
+            online: fixed_vec::<5>(parse_hex_field(object, "iac_online")?)?,
+            denial: fixed_vec::<5>(parse_hex_field(object, "iac_denial")?)?,
+            default: fixed_vec::<5>(parse_hex_field(object, "iac_default")?)?,
         },
         floor_limit: required_u64(object, "floor_limit")?,
         cvm_limit_contact: required_u64(object, "cvm_limit_contact")?,
@@ -1261,6 +1267,10 @@ mod tests {
             [0xe0, 0xf8, 0xc8, 0, 0]
         );
         assert_eq!(
+            profiles.schemes[0].aids[0].issuer_action_codes.default,
+            [0, 0, 0, 0, 0]
+        );
+        assert_eq!(
             profiles.schemes[0].aids[0].default_cdol1.as_deref(),
             Some(
                 &[
@@ -1350,6 +1360,21 @@ mod tests {
             )
             .unwrap_err(),
             KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn loads_profile_issuer_action_code_fallbacks() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap().replace(
+            r#""iac_default": "0000000000""#,
+            r#""iac_default": "2000000000""#,
+        );
+
+        let profiles =
+            load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap();
+        assert_eq!(
+            profiles.schemes[0].aids[0].issuer_action_codes.default,
+            [0x20, 0, 0, 0, 0]
         );
     }
 

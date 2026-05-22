@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:20:21Z
+
+- Increment completed: carry signed profile IAC fallback values through profile
+  loading and into Terminal Action Analysis when the card omits an IAC tag.
+- Research note: IAC Default (`9F0D`), IAC Denial (`9F0E`), and IAC Online
+  (`9F0F`) participate in TAA alongside TAC and TVR. Accepting `iac_*` profile
+  fields but not retaining them made signed fallback behavior impossible.
+- Code impact: `AidProfile` now stores profile issuer action codes, runtime TAA
+  uses card-returned IAC tags when present, and falls back per-field to signed
+  profile IAC values when the card omits a tag.
+- Evidence updated: configuration, runtime TAA, card-override, and both RTM
+  annexes now cite signed profile IAC fallback behavior under `KRN-TAA-002` and
+  `KRN-TAA-004`.
+- Verification: `cargo test loads_profile_issuer_action_code_fallbacks`,
+  `cargo test taa_uses_profile_iac_fallbacks_when_card_omits_iacs`,
+  `cargo test card_iac_tags_override_profile_fallbacks`,
+  `cargo test rtm_promotes_terminal_action_analysis_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T06:13:37Z
 
 - Increment completed: reject scheme profile AIDs whose first five bytes do not
