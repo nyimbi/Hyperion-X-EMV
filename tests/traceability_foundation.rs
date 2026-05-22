@@ -579,6 +579,55 @@ fn krn_sec_001_002_sources_exclude_issuer_key_custody_and_cryptogram_generation(
 }
 
 #[test]
+fn rtm_promotes_security_trust_boundary_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-SEC-001", "KRN-SEC-002", "KRN-SEC-003", "KRN-SEC-004"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("Code review")
+                    && !row.contains("APDU logs")
+                    && !row.contains("PED statement")
+                    && !row.contains("Architecture review"),
+                "{id} should cite executable trust-boundary evidence"
+            );
+            assert!(
+                row.contains("rtm_promotes_security_trust_boundary_evidence"),
+                "{id} should cite this RTM guard"
+            );
+        }
+
+        let issuer_key = csv_row_for_requirement(csv, "KRN-SEC-001").unwrap();
+        assert!(issuer_key.contains(
+            "krn_sec_001_002_sources_exclude_issuer_key_custody_and_cryptogram_generation"
+        ));
+
+        let card_cryptograms = csv_row_for_requirement(csv, "KRN-SEC-002").unwrap();
+        assert!(card_cryptograms
+            .contains("builds_online_authorization_package_without_generating_cryptograms"));
+        assert!(card_cryptograms
+            .contains("gac_parsing_uses_card_returned_cryptogram_for_online_handoff"));
+        assert!(card_cryptograms.contains(
+            "krn_sec_001_002_sources_exclude_issuer_key_custody_and_cryptogram_generation"
+        ));
+
+        let capk_integrity = csv_row_for_requirement(csv, "KRN-SEC-003").unwrap();
+        assert!(capk_integrity
+            .contains("rejects_certification_capk_checksum_mismatch_or_metadata_drift"));
+        assert!(capk_integrity
+            .contains("krn_sec_003_oda_001_cert_profile_loader_rejects_capk_checksum_drift"));
+        assert!(
+            capk_integrity.contains("krn_sec_003_oda_002_capks_retain_signed_public_provenance")
+        );
+
+        let ped_boundary = csv_row_for_requirement(csv, "KRN-SEC-004").unwrap();
+        assert!(ped_boundary.contains("offline_pin_requires_ped_owned_opaque_handle"));
+        assert!(ped_boundary.contains("offline_pin_debug_redacts_ped_handle_values"));
+        assert!(ped_boundary
+            .contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
+    }
+}
+
+#[test]
 fn rtm_annexes_cover_the_same_requirement_ids_independently() {
     let current_ids = krn_ids_from_csv(CURRENT_RTM);
     let legacy_ids = krn_ids_from_csv(LEGACY_RTM);

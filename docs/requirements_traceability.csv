@@ -1,9 +1,9 @@
 Requirement ID,Requirement Text,Unit Test ID,Integration Test ID,EMVCo Test Case Ref,Evidence Artifact
 KRN-REF-001,Comply with normative references,UT-REF-001,IT-REF-001,EMV-BASELINE-001,Conformance statement
-KRN-SEC-001,No issuer master key in kernel,UT-SEC-001,IT-SEC-001,PCI-PTS-KEY-001,Code review
-KRN-SEC-002,Kernel does not generate ARQC/TC/AAC,UT-SEC-002,IT-SEC-002,EMV-L2-CONTACT-VID-015,APDU logs
-KRN-SEC-003,CAPKs public key integrity only,UT-SEC-003,IT-SEC-003,EMV-L2-CONTACT-MC-008,Config signature and CAPK checksum validation
-KRN-SEC-004,PED-owned VERIFY model,UT-SEC-004,IT-SEC-004,PCI-PTS-PIN-002,PED statement
+KRN-SEC-001,No issuer master key in kernel,UT-SEC-001,IT-SEC-001,PCI-PTS-KEY-001,traceability_foundation::krn_sec_001_002_sources_exclude_issuer_key_custody_and_cryptogram_generation; traceability_foundation::rtm_promotes_security_trust_boundary_evidence
+KRN-SEC-002,Kernel does not generate ARQC/TC/AAC,UT-SEC-002,IT-SEC-002,EMV-L2-CONTACT-VID-015,gac::tests::builds_online_authorization_package_without_generating_cryptograms; traceability_foundation::gac_parsing_uses_card_returned_cryptogram_for_online_handoff; traceability_foundation::krn_sec_001_002_sources_exclude_issuer_key_custody_and_cryptogram_generation; traceability_foundation::rtm_promotes_security_trust_boundary_evidence
+KRN-SEC-003,CAPKs public key integrity only,UT-SEC-003,IT-SEC-003,EMV-L2-CONTACT-MC-008,config::tests::rejects_certification_capk_checksum_mismatch_or_metadata_drift; traceability_foundation::krn_sec_003_oda_001_cert_profile_loader_rejects_capk_checksum_drift; traceability_foundation::krn_sec_003_oda_002_capks_retain_signed_public_provenance; traceability_foundation::rtm_promotes_security_trust_boundary_evidence
+KRN-SEC-004,PED-owned VERIFY model,UT-SEC-004,IT-SEC-004,PCI-PTS-PIN-002,cvm::tests::offline_pin_requires_ped_owned_opaque_handle; cvm::tests::offline_pin_debug_redacts_ped_handle_values; traceability_foundation::krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles; traceability_foundation::rtm_promotes_security_trust_boundary_evidence
 KRN-SEL-001,Correct PSE/PPSE selection,UT-SEL-001,IT-SEL-001,EMV-L2-CONTACT-VID-001,apdu::tests::builds_exact_contact_pse_and_contactless_ppse_selects; traceability_foundation::krn_sel_001_exact_pse_ppse_apdus_are_stable; ffi::tests::ffi_builds_select_into_caller_buffer
 KRN-GPO-001,Parse valid GPO response formats 77 and 80,UT-GPO-001,IT-GPO-001,EMV-L2-CONTACT-VID-002,GPO response parser evidence
 KRN-GPO-002,Extract AIP and AFL or fail with explicit missing mandatory tag,UT-GPO-002,IT-GPO-002,EMV-L2-CONTACT-MC-002,GPO state transition evidence

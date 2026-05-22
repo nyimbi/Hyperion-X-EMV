@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:01:06Z
+
+- Increment completed: promote security trust-boundary evidence.
+- Research note: current public EMVCo materials continue to frame kernel
+  approval as specification compliance proven through implementation
+  conformance statements, accredited test execution, and approval evidence,
+  so trust-boundary rows should cite executable controls rather than generic
+  review labels.
+- Code impact: RTM coverage now guards KRN-SEC-001/002/003/004 against generic
+  architecture, APDU-log, or PED-statement evidence labels and binds them to
+  source custody scans, card-returned cryptogram packaging, CAPK
+  integrity/provenance checks, and PED-owned PIN handle regressions.
+- Evidence updated: KRN-SEC-001/002/003/004 now cite concrete executable
+  trust-boundary evidence in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:56:22Z
 
 - Increment completed: promote issuer script execution evidence.
