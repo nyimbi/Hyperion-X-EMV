@@ -2163,3 +2163,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T10:04:14Z
+
+- Increment completed: make contactless relay-resistance minimum profile
+  fields explicit and traceable.
+- Research note: licensed relay-resistance profile data remains external C-8
+  certification evidence, but repository-controlled profile validation can
+  prove incomplete command APDUs, incomplete success responses, and zero timing
+  windows fail closed before runtime use.
+- Code impact: C-8 relay-resistance profile validation now has a regression
+  proving command APDUs shorter than 4 bytes, success responses shorter than 2
+  bytes, and `max_round_trip_ms = 0` return `InvalidProfile`.
+- Evidence updated: current and compatibility RTM annexes cite the incomplete
+  relay-resistance profile regression for `KRN-CLESS-005`.
+- Verification: `cargo test rejects_incomplete_relay_resistance_profiles`,
+  `cargo test krn_cless_005_relay_resistance_is_profile_required_and_traced`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

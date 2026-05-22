@@ -689,4 +689,38 @@ mod tests {
             KernelError::InvalidProfile
         );
     }
+
+    #[test]
+    fn rejects_incomplete_relay_resistance_profiles() {
+        assert_eq!(
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f],
+                50,
+                vec![0x90, 0x00],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f, 0x7a, 0x00],
+                50,
+                vec![0x90],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f, 0x7a, 0x00],
+                0,
+                vec![0x90, 0x00],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
 }
