@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:48:26Z
+
+- Increment completed: bring the open-source reference review into the
+  repository-controlled provenance gate.
+- Documentation impact: the lab manifest now lists `docs/open_source.md` as a
+  clean-room learning/provenance artifact with explicit do-not-borrow and
+  non-certification-evidence boundaries.
+- Evidence updated: `prelab_quality_gates_json` and
+  `docs/prelab_quality_gates.json` now include `docs/open_source.md` in the
+  build-provenance command, and traceability guards require it in the manifest
+  artifact set.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T21:44:28Z
 
 - Increment completed: align the lab manifest's decoder coverage statement

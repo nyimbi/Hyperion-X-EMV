@@ -1439,6 +1439,10 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("standards_watch.md"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("PCI PTS/PED evidence boundaries"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("licensed/lab reconciliation is still required"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Open-source reference review"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("open_source.md"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("clean-room adaptation candidates"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("not certification evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Scheme profile dictionary"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_scheme_profile_dictionary"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("requirements-traceability-matrix.csv"));
@@ -1454,7 +1458,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
 
     let mut input_paths = vec![
@@ -1465,6 +1469,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/certification_open_issues.md".to_string(),
         "docs/lab_submission_manifest.md".to_string(),
         "docs/oda_test_vectors.json".to_string(),
+        "docs/open_source.md".to_string(),
         "docs/performance_profile.csv".to_string(),
         "docs/prelab_apdu_trace_pack.jsonl".to_string(),
         "docs/prelab_quality_gates.json".to_string(),
@@ -1520,6 +1525,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/certification_open_issues.md",
         "docs/lab_submission_manifest.md",
         "docs/oda_test_vectors.json",
+        "docs/open_source.md",
         "docs/performance_profile.csv",
         "docs/prelab_apdu_trace_pack.jsonl",
         "docs/prelab_quality_gates.json",
@@ -5995,7 +6001,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
         "cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
