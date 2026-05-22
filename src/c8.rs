@@ -476,15 +476,30 @@ mod tests {
 
     #[test]
     fn outcome_model_bounds_records_and_alternate_interface_instruction() {
-        let too_long = [0u8; MAX_C8_DATA_RECORD_LEN + 1];
+        let data_record_too_long = [0u8; MAX_C8_DATA_RECORD_LEN + 1];
         assert_eq!(
             ContactlessOutcome::new(
                 ContactlessOutcomeCode::Approved,
                 StartSignal::None,
                 UiRequest::none(),
                 false,
-                &too_long,
+                &data_record_too_long,
                 &[],
+                AlternateInterface::None,
+            )
+            .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        let discretionary_data_too_long = [0u8; MAX_C8_DISCRETIONARY_DATA_LEN + 1];
+        assert_eq!(
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::Approved,
+                StartSignal::None,
+                UiRequest::none(),
+                false,
+                &[],
+                &discretionary_data_too_long,
                 AlternateInterface::None,
             )
             .unwrap_err(),

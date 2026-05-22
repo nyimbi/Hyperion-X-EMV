@@ -2143,3 +2143,23 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:59:06Z
+
+- Increment completed: make contactless outcome record resource bounds
+  explicit and traceable.
+- Research note: full C-8 outcome trace packs remain external certification
+  evidence, but repository-controlled outcome construction can prove both data
+  record and discretionary data payloads are bounded before callback exposure.
+- Code impact: the C-8 outcome model now has a regression proving
+  `MAX_C8_DATA_RECORD_LEN` and `MAX_C8_DISCRETIONARY_DATA_LEN` are enforced
+  with `LengthOverflow`.
+- Evidence updated: current and compatibility RTM annexes cite the contactless
+  outcome record-bound regression for `KRN-CLESS-002`, `KRN-C8-001`, and
+  `KRN-C8-002`.
+- Verification: `cargo test outcome_model_bounds_records_and_alternate_interface_instruction`,
+  `cargo test rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence`,
+  `cargo test rtm_promotes_c8_kernel_outcome_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
