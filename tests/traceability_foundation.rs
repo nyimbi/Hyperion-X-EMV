@@ -1466,6 +1466,50 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
 }
 
 #[test]
+fn rtm_promotes_reference_config_log_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let reference = csv_row_for_requirement(csv, "KRN-REF-001").expect("RTM row exists");
+        assert!(
+            !reference.contains("Conformance statement"),
+            "KRN-REF-001 should cite executable conformance statement evidence"
+        );
+        assert!(reference.contains("conformance_statement_json_is_deterministic_and_scoped"));
+        assert!(
+            reference.contains("krn_ref_001_conformance_statement_declares_normative_hierarchy")
+        );
+        assert!(reference.contains("rtm_promotes_reference_config_log_evidence"));
+
+        let profile_class = csv_row_for_requirement(csv, "KRN-CFG-004").expect("RTM row exists");
+        assert!(
+            !profile_class.contains("Signed profile class validation"),
+            "KRN-CFG-004 should cite executable profile class rejection evidence"
+        );
+        assert!(
+            profile_class.contains("rejects_example_profile_in_certification_or_production_mode")
+        );
+        assert!(profile_class
+            .contains("profile_loader_rejects_example_only_profiles_for_certification_policy"));
+        assert!(profile_class.contains(
+            "certification_package_rejects_illustrative_profiles_and_placeholder_vectors"
+        ));
+        assert!(profile_class.contains("rtm_promotes_reference_config_log_evidence"));
+
+        let log_policy = csv_row_for_requirement(csv, "KRN-LOG-001").expect("RTM row exists");
+        assert!(
+            !log_policy.contains("Log config audit")
+                && !log_policy.contains("Logging configuration + audit"),
+            "KRN-LOG-001 should cite executable log policy evidence"
+        );
+        assert!(log_policy.contains("krn_log_001_masks_sensitive_tlv_and_gac_trace_values"));
+        assert!(log_policy.contains("krn_log_001_exposes_masked_apdu_trace_json_via_abi"));
+        assert!(log_policy
+            .contains("production_policy_never_emits_full_apdu_data_even_if_misconfigured"));
+        assert!(log_policy.contains("rtm_promotes_logging_policy_evidence"));
+        assert!(log_policy.contains("rtm_promotes_reference_config_log_evidence"));
+    }
+}
+
+#[test]
 fn corrected_spec_contains_contactless_c8_outcome_requirements() {
     for krn_id in [
         "KRN-INT-002",

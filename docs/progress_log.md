@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:03:50Z
+
+- Increment completed: promote reference, profile-class, and log-policy
+  evidence.
+- Research note: conformance, example-profile rejection, and production log
+  policy claims should cite executable ABI JSON, certification profile class,
+  masking, and APDU log suppression regressions rather than broad audit labels.
+- Code impact: no runtime behavior changed; existing conformance, config, trace,
+  and traceability tests are now first-class RTM evidence for the older rows.
+- Evidence updated: KRN-REF-001, KRN-CFG-004, and KRN-LOG-001 now cite concrete
+  regressions and an RTM guard in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:00:16Z
 
 - Increment completed: promote deployment/profile-update evidence.
