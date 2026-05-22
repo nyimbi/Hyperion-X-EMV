@@ -153,6 +153,7 @@ fn parse_format_1(value: &[u8]) -> KernelResult<GenerateAcResponse> {
 }
 
 fn parse_format_2(children: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse> {
+    reject_constructed_format_2_children(children)?;
     let cid = fixed::<1>(children, &[0x9f, 0x27])?;
     let application_cryptogram = fixed::<8>(children, &[0x9f, 0x26])?;
     let atc = fixed::<2>(children, &[0x9f, 0x36])?;
@@ -171,6 +172,13 @@ fn parse_format_2(children: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse>
         icc_dynamic_number,
         signed_dynamic_application_data,
     })
+}
+
+fn reject_constructed_format_2_children(children: &[tlv::Tlv<'_>]) -> KernelResult<()> {
+    if children.iter().any(|child| child.constructed) {
+        return Err(KernelError::ParseError);
+    }
+    Ok(())
 }
 
 fn fixed<const N: usize>(children: &[tlv::Tlv<'_>], tag: &[u8]) -> KernelResult<[u8; N]> {
@@ -248,7 +256,18 @@ mod tests {
                 0x26, 0x08, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
             ])
             .unwrap_err(),
-            KernelError::MissingMandatoryTag
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x77, 0x2a, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0xa5, 0x14, 0x9f, 0x27, 0x01, 0x40,
+                0x9f, 0x36, 0x02, 0x00, 0x0a, 0x9f, 0x26, 0x08, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25,
+                0x26, 0x27,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
         );
 
         assert_eq!(

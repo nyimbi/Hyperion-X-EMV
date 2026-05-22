@@ -3592,7 +3592,7 @@ fn krn_cid_001_002_decodes_type_and_preserves_non_type_bits() {
     assert_eq!(
         parse_generate_ac_response(&hex("7716A5149F27018F9F360200099F26081112131415161718"))
             .unwrap_err(),
-        hyperion_emv::KernelError::MissingMandatoryTag
+        hyperion_emv::KernelError::ParseError
     );
     assert_eq!(
         parse_generate_ac_response(&hex(
@@ -6690,6 +6690,13 @@ fn gac_parsing_uses_card_returned_cryptogram_for_online_handoff() {
         parse_generate_ac_response(&hex("9F2701809F360200099F260811121314151617189F1003AABBCC"))
             .unwrap_err(),
         hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert_eq!(
+        parse_generate_ac_response(&hex(
+            "772A9F2701809F360200099F26081112131415161718A5149F2701409F3602000A9F26082021222324252627"
+        ))
+        .unwrap_err(),
+        hyperion_emv::KernelError::ParseError
     );
 }
 

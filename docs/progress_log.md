@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:49:00Z
+
+- Increment completed: reject constructed children inside GENERATE AC response
+  format 2 template `77` before parsing card-returned cryptogram data.
+- Research note: GENERATE AC format 2 carries direct TLV-coded response data
+  objects under template `77`, including CID, ATC, Application Cryptogram, and
+  optional issuer/dynamic authentication data. Allowing constructed descendants
+  can hide conflicting cryptogram data with ambiguous provenance.
+- Code impact: `parse_generate_ac_response` now fails closed on any constructed
+  child of template `77`, so GAC decisions and online authorization packages are
+  built only from direct primitive card-returned objects.
+- Evidence updated: GAC parser regression tests and traceability guards now
+  exercise nested conflicting cryptogram rejection; existing RTM rows already
+  cite the strengthened GAC nested/duplicate response-data evidence.
+- Verification: `cargo test rejects_nested_or_duplicate_generate_ac_format_2_data`,
+  `cargo test parses_generate_ac_format_2_template_77`,
+  `cargo test gac_parsing_uses_card_returned_cryptogram_for_online_handoff`,
+  `cargo test rtm_promotes_gac_cdol_encoding_and_response_evidence`,
+  `cargo test krn_cid_001_002_decodes_type_and_preserves_non_type_bits`,
+  `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, `cargo fmt --check`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T05:42:27Z
 
 - Increment completed: validate issuer script tag `86` values as short-form
