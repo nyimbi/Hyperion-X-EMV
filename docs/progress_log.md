@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:27:03Z
+
+- Increment completed: reject inconsistent or malformed cardholder PAN data
+  before READ RECORD record data can enter the shared card data store.
+- Code impact: Template `70` admission now parses tag `5A` PAN digits and tag
+  `57` Track 2 equivalent data, rejects malformed BCD/separator/padding shapes,
+  rejects mismatched PAN values across current-record or already-stored data,
+  and preserves the existing no-partial-store behavior on failure.
+- Evidence update: the corrected spec adds `KRN-RR-004`, both RTM annexes cite
+  executable PAN/Track 2 admission tests, the traceability guard checks those
+  citations, and the open-source adaptation backlog now treats PAN/track
+  consistency as maintained clean-room coverage.
+- Verification: `cargo test pan_and_track2`, `cargo test
+  malformed_pan_or_track2`, `cargo test
+  rtm_promotes_gpo_and_read_record_evidence`, `cargo test
+  corrected_spec_requirement_ids_are_all_in_rtm_annexes`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T13:16:08Z
 
 - Increment completed: add a deterministic C ABI APDU script adapter for

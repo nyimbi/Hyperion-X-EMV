@@ -499,6 +499,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-RR-001",
         "KRN-RR-002",
         "KRN-RR-003",
+        "KRN-RR-004",
         "KRN-SEC-004",
         "KRN-API-005",
         "KRN-API-006",
@@ -907,6 +908,13 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
             record.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data")
         );
         assert!(record.contains("rtm_promotes_gpo_and_read_record_evidence"));
+
+        let cardholder_data = csv_row_for_requirement(csv, "KRN-RR-004").expect("RTM row exists");
+        assert!(cardholder_data
+            .contains("accepts_matching_pan_and_track2_without_unmasked_logging_dependency"));
+        assert!(cardholder_data.contains("rejects_mismatched_pan_and_track2_without_partial_store"));
+        assert!(cardholder_data.contains("rejects_malformed_pan_or_track2_without_partial_store"));
+        assert!(cardholder_data.contains("rtm_promotes_gpo_and_read_record_evidence"));
     }
 }
 

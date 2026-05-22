@@ -571,6 +571,8 @@ GPO response may be:
 
 **KRN-RR-003 SHALL** parse returned record templates and update the card data store without logging sensitive values unmasked.
 
+**KRN-RR-004 SHALL** reject inconsistent or malformed cardholder PAN data between tags `5A` and `57` without partially updating the card data store.
+
 ## 7.5 INTERNAL AUTHENTICATE
 
 INTERNAL AUTHENTICATE is used for DDA where supported and required. It is not used for SDA.

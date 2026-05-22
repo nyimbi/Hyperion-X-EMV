@@ -48,6 +48,7 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
     if entries.is_empty() {
         return Err(KernelError::MissingMandatoryTag);
     }
+    validate_cardholder_data_consistency(&entries, data)?;
     for (tag, value) in &entries {
         data.put(tag, value)?;
     }
@@ -56,6 +57,97 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
 
 fn is_terminal_or_kernel_record_tag(tag: &[u8]) -> bool {
     TERMINAL_OR_KERNEL_RECORD_TAGS.contains(&tag)
+}
+
+fn validate_cardholder_data_consistency(
+    entries: &[(&[u8], &[u8])],
+    data: &DataStore,
+) -> KernelResult<()> {
+    let pan = record_or_store_value(entries, data, &[0x5a]);
+    let track2 = record_or_store_value(entries, data, &[0x57]);
+
+    let pan_digits = pan.map(pan_digits_from_5a).transpose()?;
+    let track2_pan_digits = track2.map(pan_digits_from_track2).transpose()?;
+    if let (Some(pan_digits), Some(track2_pan_digits)) = (pan_digits, track2_pan_digits) {
+        if pan_digits != track2_pan_digits {
+            return Err(KernelError::ParseError);
+        }
+    }
+    Ok(())
+}
+
+fn record_or_store_value<'a>(
+    entries: &'a [(&'a [u8], &'a [u8])],
+    data: &'a DataStore,
+    tag: &[u8],
+) -> Option<&'a [u8]> {
+    entries
+        .iter()
+        .find(|(entry_tag, _)| *entry_tag == tag)
+        .map(|(_, value)| *value)
+        .or_else(|| data.get(tag))
+}
+
+fn pan_digits_from_5a(value: &[u8]) -> KernelResult<Vec<u8>> {
+    if value.is_empty() {
+        return Err(KernelError::ParseError);
+    }
+
+    let mut digits = Vec::with_capacity(value.len() * 2);
+    for (byte_idx, byte) in value.iter().copied().enumerate() {
+        for (nibble_idx, nibble) in [byte >> 4, byte & 0x0f].into_iter().enumerate() {
+            let is_final_nibble = byte_idx + 1 == value.len() && nibble_idx == 1;
+            match nibble {
+                0..=9 => digits.push(nibble),
+                0x0f if is_final_nibble => {}
+                _ => return Err(KernelError::ParseError),
+            }
+        }
+    }
+    validate_pan_length(&digits)?;
+    Ok(digits)
+}
+
+fn pan_digits_from_track2(value: &[u8]) -> KernelResult<Vec<u8>> {
+    if value.is_empty() {
+        return Err(KernelError::ParseError);
+    }
+
+    let mut pan_digits = Vec::new();
+    let mut saw_separator = false;
+    let mut post_separator_digits = 0usize;
+    let mut saw_padding = false;
+    for byte in value.iter().copied() {
+        for nibble in [byte >> 4, byte & 0x0f] {
+            if saw_padding {
+                if nibble != 0x0f {
+                    return Err(KernelError::ParseError);
+                }
+                continue;
+            }
+
+            match nibble {
+                0..=9 if saw_separator => post_separator_digits += 1,
+                0..=9 => pan_digits.push(nibble),
+                0x0d if !saw_separator && !pan_digits.is_empty() => saw_separator = true,
+                0x0f if saw_separator => saw_padding = true,
+                _ => return Err(KernelError::ParseError),
+            }
+        }
+    }
+
+    if !saw_separator || post_separator_digits < 7 {
+        return Err(KernelError::ParseError);
+    }
+    validate_pan_length(&pan_digits)?;
+    Ok(pan_digits)
+}
+
+fn validate_pan_length(digits: &[u8]) -> KernelResult<()> {
+    if digits.is_empty() || digits.len() > 19 {
+        return Err(KernelError::ParseError);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -170,6 +262,70 @@ mod tests {
             data.get(&[0x9f, 0x02]),
             Some(&[0x00, 0x00, 0x00, 0x00, 0x20, 0x00][..])
         );
+    }
+
+    #[test]
+    fn accepts_matching_pan_and_track2_without_unmasked_logging_dependency() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x18, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x57,
+                    0x0c, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5d, 0x25, 0x12, 0x20, 0x1f,
+                ],
+                &mut data,
+            )
+            .unwrap(),
+            2
+        );
+        assert_eq!(
+            data.get(&[0x5a]),
+            Some(&[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f][..])
+        );
+        assert!(data.get(&[0x57]).is_some());
+    }
+
+    #[test]
+    fn rejects_mismatched_pan_and_track2_without_partial_store() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x18, 0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f, 0x57,
+                    0x0c, 0x98, 0x76, 0x54, 0x32, 0x10, 0x98, 0x76, 0x5d, 0x25, 0x12, 0x20, 0x1f,
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x5a]).is_none());
+        assert!(data.get(&[0x57]).is_none());
+    }
+
+    #[test]
+    fn rejects_malformed_pan_or_track2_without_partial_store() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            parse_read_record_body(
+                &[0x70, 0x0b, 0x5a, 0x03, 0x12, 0xf3, 0x45, 0x5f, 0x24, 0x03, 0x30, 0x12, 0x31,],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x5a]).is_none());
+        assert!(data.get(&[0x5f, 0x24]).is_none());
+
+        assert_eq!(
+            parse_read_record_body(
+                &[0x70, 0x08, 0x57, 0x06, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x57]).is_none());
     }
 
     #[test]
