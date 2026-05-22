@@ -2462,6 +2462,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_expired_capk"));
         assert!(row.contains("rejects_invalid_capk_public_key_components"));
         assert!(row.contains("rejects_invalid_or_duplicate_critical_script_ins_policy"));
+        assert!(row.contains("rejects_inconsistent_contactless_limit_ordering"));
         assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
         assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
         assert!(row.contains("rtm_promotes_cfg_schema_and_terminal_param_evidence"));
@@ -5852,6 +5853,7 @@ fn rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence() {
 
         let limits = csv_row_for_requirement(csv, "KRN-CLESS-003").unwrap();
         assert!(limits.contains("contactless_limits_are_profile_driven_and_deterministic"));
+        assert!(limits.contains("rejects_inconsistent_contactless_limit_ordering"));
         assert!(limits.contains("contactless_limit_processing_uses_profile_limits_and_ctq_cdcvm"));
         assert!(limits.contains("krn_cless_003_limits_are_signed_profile_inputs"));
 

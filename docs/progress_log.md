@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:22:42Z
+
+- Increment completed: reject signed profile contactless limit configurations
+  where the CVM limit exceeds the active contactless transaction limit.
+- Code impact: AID profile parsing now validates the relationship between
+  `contactless_transaction_limit` and `contactless_cvm_limit` before storing
+  profile values used by the contactless C-8 limit decision path.
+- Evidence update: both RTM annexes cite
+  `config::tests::rejects_inconsistent_contactless_limit_ordering` under
+  KRN-CFG-002 and KRN-CLESS-003.
+- Verification: `cargo test rejects_inconsistent_contactless_limit_ordering`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`, `cargo test
+  rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence`, `cargo
+  fmt --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T15:16:34Z
 
 - Increment completed: reject duplicate issuer-script critical INS policy bytes

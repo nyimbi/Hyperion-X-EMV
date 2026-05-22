@@ -593,6 +593,12 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         }
     }
 
+    let contactless_transaction_limit = required_u64(object, "contactless_transaction_limit")?;
+    let contactless_cvm_limit = required_u64(object, "contactless_cvm_limit")?;
+    if contactless_transaction_limit != 0 && contactless_cvm_limit > contactless_transaction_limit {
+        return Err(KernelError::InvalidProfile);
+    }
+
     Ok(AidProfile {
         aid,
         priority: priority as u8,
@@ -613,8 +619,8 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         random_selection_percent: random_selection_percent as u8,
         lower_consecutive_offline_limit,
         upper_consecutive_offline_limit,
-        contactless_transaction_limit: required_u64(object, "contactless_transaction_limit")?,
-        contactless_cvm_limit: required_u64(object, "contactless_cvm_limit")?,
+        contactless_transaction_limit,
+        contactless_cvm_limit,
         cdcvm_supported: required_bool(object, "cdcvm_supported")?,
         cda_supported: required_bool(object, "cda_supported")?,
         cda_request_encoding: object
@@ -1727,6 +1733,19 @@ mod tests {
             )
             .unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_inconsistent_contactless_limit_ordering() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap().replace(
+            r#""contactless_cvm_limit": 3000"#,
+            r#""contactless_cvm_limit": 6000"#,
+        );
+
+        assert_eq!(
+            load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
         );
     }
 
