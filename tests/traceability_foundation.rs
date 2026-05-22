@@ -2344,6 +2344,19 @@ fn rtm_promotes_api_abi_and_callback_validation_evidence() {
         assert!(
             amount_currency.contains("transaction_params_bind_minor_units_to_currency_exponent")
         );
+
+        let caller_buffers = csv_row_for_requirement(csv, "KRN-API-005").unwrap();
+        assert!(
+            !caller_buffers.contains("Memory analysis"),
+            "KRN-API-005 should cite executable caller-owned buffer evidence"
+        );
+        assert!(caller_buffers.contains(
+            "krn_api_005_caller_owned_output_buffers_are_probeable_and_not_partially_written"
+        ));
+        assert!(caller_buffers.contains("ffi_builds_select_into_caller_buffer"));
+        assert!(caller_buffers.contains("ffi_reports_buffer_size_without_writing"));
+        assert!(caller_buffers.contains("ffi_write_output_handles_empty_outputs_without_buffer"));
+        assert!(caller_buffers.contains("rtm_promotes_api_abi_and_callback_validation_evidence"));
     }
 }
 

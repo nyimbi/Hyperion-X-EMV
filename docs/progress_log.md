@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:27:09Z
+
+- Increment completed: promote caller-owned buffer evidence.
+- Research note: current public EMVCo approval material still ties product
+  claims to ICS-supported features and laboratory conformance testing, so ABI
+  ownership requirements should cite repeatable caller-buffer regressions
+  instead of generic memory-analysis labels.
+- Code impact: no runtime behavior changed; the existing caller-owned output
+  buffer probes, short-buffer no-write check, exact-write check, null-length
+  rejection, and empty-output helper tests are now first-class evidence.
+- Evidence updated: KRN-API-005 now cites concrete caller-owned buffer,
+  buffer-size probe, no-partial-write, empty-output, and RTM guard regressions
+  in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:22:34Z
 
 - Increment completed: promote unpredictable-number callback evidence.
