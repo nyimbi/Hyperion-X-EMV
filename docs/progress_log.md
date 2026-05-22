@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:58:32Z
+
+- Increment completed: align the AFL parser bound with the full 252-byte AFL
+  field domain while keeping READ RECORD execution bounded by the separate
+  record-locator cap.
+- Code impact: `MAX_AFL_ENTRIES` is now derived from the 252-byte AFL envelope
+  as 63 four-byte entries; the record plan still rejects locator expansion
+  beyond `MAX_RECORD_LOCATORS` and duplicate SFI/record locators.
+- Evidence update: both RTM annexes cite the new maximum-entry acceptance
+  regression under KRN-RR-001, and the open-source review records the
+  clean-room validation concept adapted from reference utility review.
+- Verification: `cargo test
+  accepts_maximum_afl_entry_count_without_overflow`, `cargo test
+  rejects_afl_lists_above_entry_limit`, and `cargo test
+  rtm_promotes_gpo_and_read_record_evidence`, `cargo fmt --check`, `cargo
+  test`, `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  and `git diff --check` passed.
+
 ## 2026-05-22T14:47:56Z
 
 - Increment completed: reject conflicting cross-record card data rewrites

@@ -243,6 +243,10 @@ Useful ideas to adapt:
   APDU scripts, processing restrictions, terminal risk management, and RSA/CDA
   tests. Hyperion should mirror this density for every certification-critical
   state-machine branch.
+- AFL validation treats the AFL as bounded four-byte records and validates
+  field-domain edges before READ RECORD planning. Hyperion adapted the concept
+  as a 252-byte / 63-entry parser bound while retaining its separate
+  `MAX_RECORD_LOCATORS` execution cap.
 - The README's packaging/build/test matrix across Linux, macOS, Windows, and
   CodeQL is useful as release engineering inspiration for pre-lab evidence.
 

@@ -1,7 +1,8 @@
 use crate::apdu::{read_record, CommandApdu};
 use crate::error::{KernelError, KernelResult};
 
-pub const MAX_AFL_ENTRIES: usize = 32;
+const MAX_AFL_BYTES: usize = 252;
+pub const MAX_AFL_ENTRIES: usize = MAX_AFL_BYTES / 4;
 pub const MAX_RECORD_LOCATORS: usize = 256;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -179,6 +180,24 @@ mod tests {
             parse_afl(&[0x13, 0x01, 0x01, 0x00]).unwrap_err(),
             KernelError::ParseError
         );
+    }
+
+    #[test]
+    fn accepts_maximum_afl_entry_count_without_overflow() {
+        assert_eq!(MAX_AFL_ENTRIES, 63);
+        assert_eq!(MAX_AFL_ENTRIES * 4, MAX_AFL_BYTES);
+
+        let mut afl = Vec::new();
+        for index in 0..MAX_AFL_ENTRIES {
+            let sfi = (index % 30 + 1) as u8;
+            let record = (index / 30 + 1) as u8;
+            afl.extend_from_slice(&[sfi << 3, record, record, 0x00]);
+        }
+
+        let entries = parse_afl(&afl).unwrap();
+        assert_eq!(entries.len(), MAX_AFL_ENTRIES);
+        let plan = record_plan(&entries).unwrap();
+        assert_eq!(plan.len(), MAX_AFL_ENTRIES);
     }
 
     #[test]
