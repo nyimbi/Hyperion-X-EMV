@@ -188,6 +188,16 @@ mod tests {
     }
 
     #[test]
+    fn rejects_dol_lists_above_entry_limit() {
+        let mut dol = Vec::new();
+        for _ in 0..=MAX_DOL_ENTRIES {
+            dol.extend_from_slice(&[0x9f, 0x37, 0x01]);
+        }
+
+        assert_eq!(parse_dol(&dol).unwrap_err(), KernelError::LengthOverflow);
+    }
+
+    #[test]
     fn pads_short_or_missing_data_with_zeroes() {
         let entries = parse_dol(&[0x9f, 0x37, 0x04, 0x5f, 0x2a, 0x02]).unwrap();
         let mut data = DataStore::new();

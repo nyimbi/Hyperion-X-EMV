@@ -1833,3 +1833,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:40:20Z
+
+- Increment completed: make the DOL parser's entry-count bound explicit and
+  traceable.
+- Research note: external DOL/APDU certification packs remain lab-controlled
+  evidence, but repository-controlled parsing can still prove oversized DOL
+  definitions fail closed before PDOL/CDOL/DDOL construction work scales past
+  the configured entry cap.
+- Code impact: `parse_dol` now has a regression proving more than
+  `MAX_DOL_ENTRIES` valid tag-length pairs fails with
+  `KRN_ERR_LENGTH_OVERFLOW`.
+- Evidence updated: current and compatibility RTM annexes cite the oversized
+  DOL-entry regression for `KRN-DOL-001`.
+- Verification: `cargo test rejects_dol_lists_above_entry_limit`,
+  `cargo test rtm_promotes_dol_construction_policy_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
