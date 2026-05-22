@@ -879,6 +879,32 @@ fn rtm_promotes_tvr_and_cvm_table_evidence() {
 }
 
 #[test]
+fn rtm_promotes_cvm_outcome_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let parsing = csv_row_for_requirement(csv, "KRN-CVM-001").expect("RTM row exists");
+        assert!(
+            !parsing.contains("CVM trace"),
+            "KRN-CVM-001 should cite parser and evaluator regressions"
+        );
+        assert!(parsing.contains("parses_cvm_list_amounts_and_certified_method_codes"));
+        assert!(parsing.contains("amount_conditions_are_enforced"));
+        assert!(parsing.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
+        assert!(parsing.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
+        assert!(parsing.contains("rtm_promotes_cvm_outcome_evidence"));
+
+        let outcome = csv_row_for_requirement(csv, "KRN-CVM-002").expect("RTM row exists");
+        assert!(
+            !outcome.contains("TVR after CVM"),
+            "KRN-CVM-002 should cite executable CVM result and TVR regressions"
+        );
+        assert!(outcome.contains("offline_pin_requires_ped_owned_opaque_handle"));
+        assert!(outcome.contains("offline_pin_verify_status_updates_cvm_results_and_tvr_bits"));
+        assert!(outcome.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
+        assert!(outcome.contains("rtm_promotes_cvm_outcome_evidence"));
+    }
+}
+
+#[test]
 fn performance_profile_defines_product_targets_and_buckets() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("performance_profile.csv"));
 

@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:13:16Z
+
+- Increment completed: promote CVM parser and outcome evidence.
+- Research note: current public EMVCo contact-kernel process material still
+  centers product feature declarations in the ICS and validation through an
+  EMVCo-recognized laboratory, so evidence rows should identify repeatable
+  parser and outcome tests for each supported CVM feature.
+- Code impact: CVM evaluation now explicitly regresses the EMV continuation
+  bit behavior by skipping an unsupported offline PIN rule when continuation is
+  allowed and selecting the next matching online PIN rule.
+- Evidence updated: KRN-CVM-001/002 now cite concrete CVM parser,
+  amount-condition, continuation, CVM result, and TVR-byte-3 regressions in
+  both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:08:36Z
 
 - Increment completed: promote TVR and CVM table evidence.

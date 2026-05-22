@@ -586,6 +586,25 @@ mod tests {
     }
 
     #[test]
+    fn continue_on_failure_skips_to_next_matching_cvm_rule() {
+        let list = parse_cvm_list(&[
+            0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x41, 0x00, 0x02, 0x00,
+        ])
+        .unwrap();
+
+        let mut no_offline_pin = context();
+        no_offline_pin.offline_pin_supported = false;
+
+        assert_eq!(
+            evaluate(&list, no_offline_pin, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::OnlinePin,
+                cvm_results: [0x02, 0x00, 0x02]
+            }
+        );
+    }
+
+    #[test]
     fn contactless_scheme_specific_cdcvm_is_profile_context_driven() {
         let list = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x20, 0x00]).unwrap();
         let mut ctx = context();
