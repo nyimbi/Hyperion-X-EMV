@@ -3017,6 +3017,41 @@ fn rtm_promotes_cid_decode_and_preservation_evidence() {
 }
 
 #[test]
+fn rtm_promotes_legacy_gac_cda_control_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let p1 = csv_row_for_requirement(csv, "KRN-GAC-008").expect("RTM row exists");
+        assert!(
+            !p1.contains("APDU logs"),
+            "KRN-GAC-008 should cite executable GENERATE AC P1 evidence"
+        );
+        assert!(p1.contains("encodes_generate_ac_type_bits_without_cda_collision"));
+        assert!(p1.contains("krn_gac_008_009_cda_control_never_changes_type_bits"));
+        assert!(p1.contains("rtm_promotes_legacy_gac_cda_control_evidence"));
+
+        let cda_bits = csv_row_for_requirement(csv, "KRN-GAC-009").expect("RTM row exists");
+        assert!(
+            !cda_bits.contains("APDU + profile") && !cda_bits.contains("APDU logs"),
+            "KRN-GAC-009 should cite executable CDA bit-control evidence"
+        );
+        assert!(cda_bits.contains("encodes_generate_ac_type_bits_without_cda_collision"));
+        assert!(cda_bits.contains("cda_request_encoding_is_profile_defined_and_non_colliding"));
+        assert!(cda_bits.contains("first_gac_cda_request_control_is_profile_defined"));
+        assert!(cda_bits.contains("krn_gac_008_009_cda_control_never_changes_type_bits"));
+        assert!(cda_bits.contains("rtm_promotes_legacy_gac_cda_control_evidence"));
+
+        let cda_profile = csv_row_for_requirement(csv, "KRN-GAC-010").expect("RTM row exists");
+        assert!(
+            !cda_profile.contains("Profile validation"),
+            "KRN-GAC-010 should cite executable profile-defined CDA evidence"
+        );
+        assert!(cda_profile.contains("cda_request_encoding_is_profile_defined_and_non_colliding"));
+        assert!(cda_profile.contains("first_gac_cda_request_control_is_profile_defined"));
+        assert!(cda_profile.contains("krn_gac_010_cda_request_is_profile_defined_or_unsupported"));
+        assert!(cda_profile.contains("rtm_promotes_legacy_gac_cda_control_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_online_boundary_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-ONL-001", "KRN-ONL-002"] {

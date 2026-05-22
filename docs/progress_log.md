@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:36:20Z
+
+- Increment completed: promote legacy GAC/CDA-control evidence.
+- Research note: public approval-oriented material cannot prove command-bit
+  correctness by log labels alone, so the RTM should tie GENERATE AC P1 and CDA
+  request behavior to executable bit-mask, profile-encoding, and first-GAC
+  control regressions.
+- Code impact: no runtime behavior changed; existing GENERATE AC type-bit,
+  CDA profile-encoding, and first-GAC CDA-control tests are now first-class RTM
+  evidence for the older GAC rows.
+- Evidence updated: KRN-GAC-008/009/010 now cite concrete APDU, profile, FFI,
+  traceability, and RTM guard regressions in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:31:56Z
 
 - Increment completed: promote C-8 contactless kernel evidence.
