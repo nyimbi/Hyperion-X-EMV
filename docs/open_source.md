@@ -332,12 +332,12 @@ The following are adaptation candidates, ordered by near-term value:
 4. Maintain and extend the human-readable signed-profile dictionary generated
    from `docs/scheme_profiles.cert.json`, especially as lab-supplied profiles
    replace fixture material.
-5. Add RTM rows or annex text for card-originated TLV admission policy:
-   duplicate handling, parent-template restrictions, PAN/track consistency, and
-   private/proprietary tag update rules.
-6. Add tests for DOL source precedence and padding/truncation behavior across
-   transaction params, terminal data, ICC data, generated unpredictable numbers,
-   and profile defaults.
+5. Maintain the initial RTM/spec coverage for card-originated TLV admission
+   policy and extend it toward PAN/track consistency and private/proprietary tag
+   update rules as licensed profiles define those boundaries.
+6. Maintain and extend the DOL source-precedence tests across transaction
+   params, terminal data, ICC data, generated unpredictable numbers, and profile
+   defaults.
 7. Keep public-reference review out of the lab evidence closure path: update
    open issues only when licensed/lab evidence arrives, not when an open-source
    reference demonstrates similar behavior.

@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:05:12Z
+
+- Increment completed: add a card-originated record admission boundary and DOL
+  source-precedence regression for terminal/kernel-owned transaction data.
+- Code impact: AFL record parsing now rejects direct Template `70` children for
+  terminal/kernel-owned tags such as amount, date, type, TVR, TSI, terminal
+  country, CVM results, and unpredictable number before any partial data-store
+  update occurs.
+- Evidence update: the corrected spec adds `KRN-TLV-006`, both RTM annexes map
+  the new policy to record-parser and first-GAC regressions, and the
+  open-source adaptation backlog now treats TLV admission and DOL precedence as
+  maintained coverage rather than unstarted work.
+- Verification: `cargo test rejects_terminal_owned_record_data_without_partial_store`,
+  `cargo test first_gac_preserves_terminal_dol_sources_after_rejected_record_tags`,
+  `cargo test rtm_promotes_tlv_catalogue_and_dol_classification_evidence`,
+  `cargo test rtm_promotes_dol_construction_policy_evidence`, `cargo test
+  rtm_promotes_gac_cdol_encoding_and_response_evidence`, `cargo test
+  corrected_spec_requirement_ids_are_all_in_rtm_annexes`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T12:43:54Z
 
 - Increment completed: add a human-readable scheme profile dictionary generated

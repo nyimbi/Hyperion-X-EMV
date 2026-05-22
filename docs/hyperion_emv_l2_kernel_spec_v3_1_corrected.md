@@ -342,6 +342,8 @@ This table is not a substitute for the full EMV and scheme data dictionary. It l
 
 **KRN-TLV-005 SHALL** mark scheme-specific, proprietary, and RFU tags as PROFILE-DEFINED and shall not assign invented semantics.
 
+**KRN-TLV-006 SHALL** admit card-originated AFL record TLVs only from direct primitive Template `70` children and shall reject terminal-owned or kernel-owned tags without partially updating the transaction data store.
+
 ---
 
 # 6. TVR, TSI, CID, and CVM result bitmaps

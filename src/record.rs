@@ -2,6 +2,27 @@ use crate::dol::DataStore;
 use crate::error::{KernelError, KernelResult};
 use crate::tlv;
 
+const TERMINAL_OR_KERNEL_RECORD_TAGS: &[&[u8]] = &[
+    &[0x5f, 0x2a], // Transaction Currency Code
+    &[0x5f, 0x36], // Transaction Currency Exponent
+    &[0x95],       // TVR
+    &[0x9a],       // Transaction Date
+    &[0x9b],       // TSI
+    &[0x9c],       // Transaction Type
+    &[0x9f, 0x02], // Amount Authorised
+    &[0x9f, 0x03], // Amount Other
+    &[0x9f, 0x15], // Merchant Category Code
+    &[0x9f, 0x1a], // Terminal Country Code
+    &[0x9f, 0x1e], // Interface Device Serial Number
+    &[0x9f, 0x33], // Terminal Capabilities
+    &[0x9f, 0x34], // CVM Results
+    &[0x9f, 0x35], // Terminal Type
+    &[0x9f, 0x37], // Unpredictable Number
+    &[0x9f, 0x40], // Additional Terminal Capabilities
+    &[0x9f, 0x4e], // Merchant Name and Location
+    &[0x9f, 0x66], // TTQ
+];
+
 pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult<usize> {
     let parsed = tlv::parse_many(body)?;
     if parsed.len() != 1 || parsed[0].tag != [0x70] || !parsed[0].constructed {
@@ -11,6 +32,9 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
     let mut entries = Vec::new();
     for item in &parsed[0].children {
         if item.constructed {
+            return Err(KernelError::ParseError);
+        }
+        if is_terminal_or_kernel_record_tag(item.tag) {
             return Err(KernelError::ParseError);
         }
         if entries
@@ -28,6 +52,10 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
         data.put(tag, value)?;
     }
     Ok(entries.len())
+}
+
+fn is_terminal_or_kernel_record_tag(tag: &[u8]) -> bool {
+    TERMINAL_OR_KERNEL_RECORD_TAGS.contains(&tag)
 }
 
 #[cfg(test)]
@@ -118,6 +146,30 @@ mod tests {
         );
         assert!(data.get(&[0x5a]).is_none());
         assert!(data.get(&[0x5f, 0x24]).is_none());
+    }
+
+    #[test]
+    fn rejects_terminal_owned_record_data_without_partial_store() {
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x02], &[0x00, 0x00, 0x00, 0x00, 0x20, 0x00])
+            .unwrap();
+
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x0c, 0x5a, 0x01, 0x12, 0x9f, 0x02, 0x06, 0x99, 0x99, 0x99, 0x99, 0x99,
+                    0x99,
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x5a]).is_none());
+        assert_eq!(
+            data.get(&[0x9f, 0x02]),
+            Some(&[0x00, 0x00, 0x00, 0x00, 0x20, 0x00][..])
+        );
     }
 
     #[test]

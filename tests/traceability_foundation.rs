@@ -2453,6 +2453,7 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
             "KRN-TLV-003",
             "KRN-TLV-004",
             "KRN-TLV-005",
+            "KRN-TLV-006",
         ] {
             let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
             assert!(
@@ -2484,6 +2485,13 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         let scheme_defined = csv_row_for_requirement(csv, "KRN-TLV-005").unwrap();
         assert!(scheme_defined
             .contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers"));
+
+        let admission = csv_row_for_requirement(csv, "KRN-TLV-006").unwrap();
+        assert!(admission.contains("rejects_duplicate_record_data_without_partial_store"));
+        assert!(admission.contains("rejects_nested_record_data_without_partial_store"));
+        assert!(admission.contains("rejects_terminal_owned_record_data_without_partial_store"));
+        assert!(admission
+            .contains("first_gac_preserves_terminal_dol_sources_after_rejected_record_tags"));
 
         let malformed = csv_row_for_requirement(csv, "KRN-TLV-003").unwrap();
         assert!(malformed.contains("rejects_indefinite_lengths_for_fuzzability"));
@@ -2520,6 +2528,8 @@ fn rtm_promotes_dol_construction_policy_evidence() {
             exact_lengths.contains("rejects_gpo_pdol_values_above_short_apdu_template_capacity")
         );
         assert!(exact_lengths.contains("builds_internal_authenticate_from_ddol_values"));
+        assert!(exact_lengths
+            .contains("first_gac_preserves_terminal_dol_sources_after_rejected_record_tags"));
 
         let padding_policy = csv_row_for_requirement(csv, "KRN-DOL-002").unwrap();
         assert!(padding_policy.contains("zero_padding_policy_is_explicit_and_deterministic"));
@@ -2789,6 +2799,9 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
 
         let cdol1 = csv_row_for_requirement(csv, "KRN-GAC1-002").unwrap();
         assert!(cdol1.contains("krn_gac_001_gac1_002_cdol_data_matches_active_dol_definitions"));
+        assert!(
+            cdol1.contains("first_gac_preserves_terminal_dol_sources_after_rejected_record_tags")
+        );
 
         let cdol_defaults = csv_row_for_requirement(csv, "KRN-GAC1-001").unwrap();
         assert!(cdol_defaults.contains("first_gac_uses_profile_default_cdol1_when_card_omits_8c"));
