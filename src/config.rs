@@ -1006,7 +1006,8 @@ fn required_string_set(
         .map(|item| {
             let value = item.as_string()?;
             reject_placeholder(value)?;
-            if value.trim().is_empty() {
+            let value = value.trim();
+            if value.is_empty() {
                 return Err(KernelError::InvalidProfile);
             }
             Ok(value.to_string())
@@ -1672,6 +1673,32 @@ mod tests {
         );
         assert_eq!(
             load_profile_set(overlap.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let whitespace_padded_overlap = profile.replace(
+            r#""lab_supplied_scheme_profiles_required": ["Mastercard"]"#,
+            r#""lab_supplied_scheme_profiles_required": [" Visa "]"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                whitespace_padded_overlap.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let whitespace_padded_duplicate = profile.replace(
+            r#""bundled_scheme_profiles": ["Visa"]"#,
+            r#""bundled_scheme_profiles": ["Visa", " Visa "]"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                whitespace_padded_duplicate.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
 

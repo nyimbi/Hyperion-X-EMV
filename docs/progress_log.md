@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:47:44Z
+
+- Increment completed: canonicalize certification-scope scheme identities
+  before duplicate and overlap checks.
+- Code impact: signed certification scope arrays now compare trimmed scheme
+  names, so whitespace-padded values cannot bypass bundled-versus-lab-required
+  overlap checks or duplicate detection.
+- Evidence updated:
+  `config::tests::rejects_invalid_certification_scope_boundaries` now covers
+  whitespace-padded overlaps and duplicates in addition to missing scope,
+  whitespace-only values, unsupported material statuses, and missing
+  production-bundle requirements.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:40:34Z
 
 - Increment completed: reject whitespace-only signed scheme identity fields.
