@@ -1212,6 +1212,7 @@ fn contains_forbidden_placeholder(text: &str) -> bool {
         || lower.contains("placeholder")
         || lower.contains("dummy")
         || lower.contains("fictitious")
+        || lower.contains("fixture")
 }
 
 #[cfg(test)]
@@ -1220,6 +1221,15 @@ mod tests {
     use crate::config::{load_profile_set, BuildMode, ConfigLoadPolicy, SignatureStatus};
 
     const PROFILE: &[u8] = br#"{"profile_class":"CERTIFICATION","profile_source":{"owner":"scheme_or_acquirer","document":"signed_certification_profile_bundle","version":"2","verification":"external_signature_required"},"scheme_profiles":[{"scheme_name":"Visa","rid":"A000000003","kernel_type":"c8_contactless","contact_kernel_type":"legacy_visa","taa_fallback_when_offline_unable_online":"AAC","taa_no_match_default_when_online_capable":"ARQC","taa_no_match_default_when_offline_only":"AAC","aids":[{"aid":"A0000000031010","priority":1,"partial_selection":true,"interfaces":["contact","contactless"],"tac_online":"0000000000","tac_denial":"0000000000","tac_default":"0000000000","iac_online":"0000000000","iac_denial":"0000000000","iac_default":"0000000000","floor_limit":0,"cvm_limit_contact":0,"random_selection_percent":0,"contactless_transaction_limit":5000,"contactless_cvm_limit":3000,"cdcvm_supported":true,"cda_supported":true}],"capks":[{"key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0","exponent_hex":"010001","expiry":"2030-12-31","checksum_hex":"E7BE39F210609E8609E23255BC1B54E81C7EC5D5","checksum_algorithm":"sha1(rid || key_index || modulus || exponent)","checksum_scope":["rid","key_index","modulus_hex","exponent_hex"],"source":{"owner":"scheme_or_acquirer","document":"signed_certification_capk_bundle","version":"2","verification":"external_signature_required"}}]}]}"#;
+    fn certification_shaped_annex() -> String {
+        include_str!("../docs/oda_test_vectors.json")
+            .replace(
+                "\"vector_class\": \"STRUCTURAL_FIXTURE\"",
+                "\"vector_class\": \"CERTIFICATION\"",
+            )
+            .replace("structural fixtures", "certification vectors")
+            .replace("parser and evidence plumbing", "lab acceptance")
+    }
 
     #[test]
     fn selects_strongest_allowed_oda_method_without_fallback_after_cda_failure() {
@@ -1935,11 +1945,17 @@ mod tests {
 
     #[test]
     fn validates_complete_vector_syntax_and_rejects_placeholders() {
-        let complete = include_str!("../docs/oda_test_vectors.json").replace(
+        let complete = certification_shaped_annex();
+        validate_oda_vector_annex(complete.as_bytes(), true).unwrap();
+
+        let relabeled_fixture = include_str!("../docs/oda_test_vectors.json").replace(
             "\"vector_class\": \"STRUCTURAL_FIXTURE\"",
             "\"vector_class\": \"CERTIFICATION\"",
         );
-        validate_oda_vector_annex(complete.as_bytes(), true).unwrap();
+        assert_eq!(
+            validate_oda_vector_annex(relabeled_fixture.as_bytes(), true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
 
         let fixture = br#"{"vector_class":"STRUCTURAL_FIXTURE","test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
         validate_oda_vector_annex(fixture, false).unwrap();
@@ -1963,10 +1979,7 @@ mod tests {
 
     #[test]
     fn certification_vector_coverage_is_method_specific() {
-        let complete = include_str!("../docs/oda_test_vectors.json").replace(
-            "\"vector_class\": \"STRUCTURAL_FIXTURE\"",
-            "\"vector_class\": \"CERTIFICATION\"",
-        );
+        let complete = certification_shaped_annex();
         validate_oda_vector_annex(complete.as_bytes(), true).unwrap();
 
         let dda_auth_response =

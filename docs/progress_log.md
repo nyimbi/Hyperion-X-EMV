@@ -1660,3 +1660,21 @@ decision record, while this file tracks work toward certification readiness.
   `cargo run --quiet --example krn_build_manifest -- ...` pre-lab provenance
   command, `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-22T07:34:52Z
+
+- Increment completed: prevent structural ODA fixtures from being promoted to
+  certification vectors by changing only `vector_class`.
+- Research note: ODA certification vectors are external lab evidence, so a
+  repository fixture that describes itself as parser/evidence plumbing must not
+  pass certification-mode validation after metadata relabeling.
+- Code impact: certification-mode ODA vector validation now rejects fixture
+  language in addition to placeholders, dummy material, and fictitious data.
+- Evidence updated: ODA unit and traceability tests now use a separate
+  certification-shaped positive annex and assert that the checked-in structural
+  fixture remains rejected when relabeled.
+- Verification: `cargo test validates_complete_vector_syntax_and_rejects_placeholders`,
+  `cargo test certification_vector_coverage_is_method_specific`,
+  `cargo test krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
