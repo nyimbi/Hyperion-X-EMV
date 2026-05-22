@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T03:31:09Z
+
+- Increment completed: require TLV-encoded INTERNAL AUTHENTICATE responses to
+  use a single top-level response template before accepting signed dynamic
+  application data.
+- Research note: public EMV tag references identify response template `77` as
+  used for INTERNAL AUTHENTICATE, and the corrected kernel specification says
+  TLV-encoded INTERNAL AUTHENTICATE responses carry signed dynamic data under
+  tag `9F4B`; accepting an unwrapped `9F4B` would weaken DDA parser evidence.
+- Code impact: `parse_internal_authenticate_response` now rejects unwrapped
+  signed dynamic data and extra sibling TLVs, then extracts `9F4B` and optional
+  `9F4C` only from the sole top-level `77` template.
+- Evidence updated: unit, traceability, and RTM rows now include
+  `oda::tests::rejects_internal_authenticate_without_response_template`
+  alongside DDA signed-dynamic-data verification evidence.
+- Verification: `cargo test rejects_internal_authenticate_without_response_template`,
+  `cargo test parses_internal_authenticate_response_signed_dynamic_data`,
+  `cargo test krn_dda_002_oda_006_requires_signed_dynamic_application_data`,
+  `cargo test rtm_promotes_dda_internal_authenticate_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T03:23:25Z
 
 - Increment completed: require READ RECORD bodies to use a single top-level
