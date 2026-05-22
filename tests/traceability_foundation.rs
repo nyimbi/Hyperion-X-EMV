@@ -1434,6 +1434,30 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
             "external artifact should remain unchecked: {pending}"
         );
     }
+
+    for overstatement in [
+        "**EMV Level 2 Contact:** Yes",
+        "**EMV Level 2 Contactless (C‑8):** Yes",
+        "**PCI PTS POI v7.0 alignment:** Yes",
+    ] {
+        assert!(
+            !LAB_SUBMISSION_MANIFEST.contains(overstatement),
+            "manifest must not claim approval while external evidence is unattached: {overstatement}"
+        );
+    }
+
+    for scoped_claim in [
+        "EMV Level 2 Contact:** In scope for pre-certification hardening",
+        "final claim requires lab execution, signed approval evidence",
+        "EMV Level 2 Contactless (C‑8):** In scope for pre-certification hardening",
+        "final claim requires the unified kernel approval package and lab-supplied profile data",
+        "PCI PTS POI v7.0 alignment:** Alignment target pending PED integration statement",
+    ] {
+        assert!(
+            LAB_SUBMISSION_MANIFEST.contains(scoped_claim),
+            "manifest missing bounded scope statement: {scoped_claim}"
+        );
+    }
 }
 
 #[test]
@@ -1755,11 +1779,12 @@ fn scheme_profile_annex_declares_bundled_and_lab_supplied_scope() {
         );
     }
 
-    assert!(LAB_SUBMISSION_MANIFEST.contains(
-        "Yes (Visa, Mastercard); Amex and Discover require lab-supplied signed profiles"
-    ));
     assert!(LAB_SUBMISSION_MANIFEST
-        .contains("unified kernel approval package; profile data supplied by lab"));
+        .contains("In scope for pre-certification hardening (Visa, Mastercard)"));
+    assert!(LAB_SUBMISSION_MANIFEST
+        .contains("lab-supplied signed profiles before any Amex or Discover claim"));
+    assert!(LAB_SUBMISSION_MANIFEST
+        .contains("final claim requires the unified kernel approval package"));
 }
 
 #[test]
@@ -1768,7 +1793,8 @@ fn supported_contactless_profiles_use_c8_certification_scope() {
         SCHEME_PROFILES.contains("\"contactless_kernel_profile\": \"C-8 lab approval package\"")
     );
     assert!(LAB_SUBMISSION_MANIFEST
-        .contains("unified kernel approval package; profile data supplied by lab"));
+        .contains("final claim requires the unified kernel approval package"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("lab-supplied profile data"));
 
     let profiles = load_profile_set(SCHEME_PROFILES.as_bytes(), &certification_policy()).unwrap();
     assert_eq!(profiles.profile_class, ProfileClass::Certification);

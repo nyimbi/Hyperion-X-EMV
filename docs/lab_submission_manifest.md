@@ -8,9 +8,9 @@
 - **Submission Date:** [To be filled by lab]
 
 ## Certification Scope
-- **EMV Level 2 Contact:** Yes (Visa, Mastercard); Amex and Discover require lab-supplied signed profiles before claim
-- **EMV Level 2 Contactless (C‑8):** Yes (unified kernel approval package; profile data supplied by lab)
-- **PCI PTS POI v7.0 alignment:** Yes (via PED integration statement)
+- **EMV Level 2 Contact:** In scope for pre-certification hardening (Visa, Mastercard); final claim requires lab execution, signed approval evidence, and lab-supplied signed profiles before any Amex or Discover claim
+- **EMV Level 2 Contactless (C‑8):** In scope for pre-certification hardening; final claim requires the unified kernel approval package and lab-supplied profile data
+- **PCI PTS POI v7.0 alignment:** Alignment target pending PED integration statement and device certification evidence
 
 ## Attached Artifacts
 - [x] Specification document (v6.0, this file)

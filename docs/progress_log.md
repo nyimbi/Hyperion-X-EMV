@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:27:19Z
+
+- Increment completed: bound lab-manifest certification scope claims.
+- Research note: a draft submission manifest should distinguish in-scope
+  pre-certification hardening from actual EMV Level 2, C-8, or PCI evidence
+  approval while lab reports, signed profiles, and integration statements remain
+  unattached.
+- Code impact: no runtime behavior changed; traceability tests now reject
+  approval-sounding `Yes` scope claims in the lab manifest.
+- Evidence updated: the lab manifest now says contact and C-8 are in scope for
+  pre-certification hardening and that final claims require lab execution,
+  signed approval evidence, lab-supplied profile data, and PED integration
+  evidence.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:23:49Z
 
 - Increment completed: widen reproducible-build provenance to the source tree.
