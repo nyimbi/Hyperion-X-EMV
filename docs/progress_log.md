@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:36:05Z
+
+- Increment completed: reject duplicate ADF names repeated across PSE/PPSE
+  directory entries instead of silently de-duplicating them.
+- Research note: application selection promotes card ADF names from directory
+  entries into the terminal candidate list. Treating repeated ADF names as a
+  parse error keeps candidate provenance deterministic before profile matching.
+- Code impact: `parse_fci_candidate_aids` now returns `ParseError` when a
+  directory response repeats an AID, whether the duplicate appears inside one
+  directory entry or across multiple entries.
+- Evidence updated: selection parser regression tests, selection traceability
+  guards, and both RTM annexes now cite across-entry duplicate ADF rejection.
+- Verification: `cargo test rejects_duplicate_adf_names_across_directory_entries`,
+  `cargo test rejects_duplicate_adf_names_in_directory_entries`,
+  `cargo test krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles`,
+  `cargo test rtm_promotes_runtime_apdu_selection_status_policy_evidence`,
+  `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, `cargo fmt --check`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T05:27:51Z
 
 - Increment completed: reject nested constructed objects inside READ RECORD

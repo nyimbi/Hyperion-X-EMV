@@ -780,6 +780,7 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
             assert!(row.contains("builds_exact_contact_pse_and_contactless_ppse_selects"));
             assert!(row.contains("extracts_candidate_aids_from_directory_fci"));
             assert!(row.contains("rejects_duplicate_adf_names_in_directory_entries"));
+            assert!(row.contains("rejects_duplicate_adf_names_across_directory_entries"));
             assert!(row.contains("krn_sel_001_exact_pse_ppse_apdus_are_stable"));
             assert!(
                 row.contains("krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles")
@@ -3746,6 +3747,13 @@ fn krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles() {
     assert_eq!(
         parse_fci_candidate_aids(&hex("6F17A515BF0C1261104F07A00000000310104F05A000000003"))
             .unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_fci_candidate_aids(&hex(
+            "6F1BA519BF0C1661094F07A000000003101061094F07A0000000031010"
+        ))
+        .unwrap_err(),
         hyperion_emv::KernelError::ParseError
     );
 

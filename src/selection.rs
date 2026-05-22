@@ -118,9 +118,10 @@ fn push_unique_aid(out: &mut Vec<Vec<u8>>, aid: &[u8]) -> KernelResult<()> {
     if out.len() >= MAX_CANDIDATE_AIDS {
         return Err(KernelError::LengthOverflow);
     }
-    if !out.iter().any(|stored| stored == aid) {
-        out.push(aid.to_vec());
+    if out.iter().any(|stored| stored == aid) {
+        return Err(KernelError::ParseError);
     }
+    out.push(aid.to_vec());
     Ok(())
 }
 
@@ -220,6 +221,19 @@ mod tests {
         let fci = [
             0x6f, 0x17, 0xa5, 0x15, 0xbf, 0x0c, 0x12, 0x61, 0x10, 0x4f, 0x07, 0xa0, 0x00, 0x00,
             0x00, 0x03, 0x10, 0x10, 0x4f, 0x05, 0xa0, 0x00, 0x00, 0x00, 0x03,
+        ];
+        assert_eq!(
+            parse_fci_candidate_aids(&fci).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_adf_names_across_directory_entries() {
+        let fci = [
+            0x6f, 0x1b, 0xa5, 0x19, 0xbf, 0x0c, 0x16, 0x61, 0x09, 0x4f, 0x07, 0xa0, 0x00, 0x00,
+            0x00, 0x03, 0x10, 0x10, 0x61, 0x09, 0x4f, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10,
+            0x10,
         ];
         assert_eq!(
             parse_fci_candidate_aids(&fci).unwrap_err(),
