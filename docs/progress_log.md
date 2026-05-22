@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:29:38Z
+
+- Increment completed: harden contactless C-8 debug output before crash
+  capture.
+- Code impact: `ContactlessOutcome` and `RelayResistanceProfile` now expose
+  only outcome metadata, UI/status metadata, APDU lengths, record lengths, and
+  relay timing/failure metadata in `Debug` output without printing raw
+  contactless outcome records or relay-resistance APDU bytes.
+- Evidence updated: KRN-LOG-003 now cites contactless outcome and relay-profile
+  debug redaction alongside APDU, TLV, profile/CAPK, CVM, data-store, GAC,
+  issuer, ODA, and replay crash-safety regressions.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:24:34Z
 
 - Increment completed: harden parsed TLV debug output before crash capture.

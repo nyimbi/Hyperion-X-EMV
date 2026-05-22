@@ -1,4 +1,5 @@
 use crate::error::{KernelError, KernelResult};
+use core::fmt;
 
 pub const MAX_C8_DATA_RECORD_LEN: usize = 252;
 pub const MAX_C8_DISCRETIONARY_DATA_LEN: usize = 252;
@@ -66,7 +67,7 @@ impl UiRequest {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ContactlessOutcome {
     pub outcome_code: ContactlessOutcomeCode,
     pub start_signal: StartSignal,
@@ -75,6 +76,24 @@ pub struct ContactlessOutcome {
     pub data_record: Vec<u8>,
     pub discretionary_data: Vec<u8>,
     pub alternate_interface: AlternateInterface,
+}
+
+impl fmt::Debug for ContactlessOutcome {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ContactlessOutcome")
+            .field("outcome_code", &self.outcome_code)
+            .field("start_signal", &self.start_signal)
+            .field("ui", &self.ui)
+            .field("restart_required", &self.restart_required)
+            .field("data_record_len", &self.data_record.len())
+            .field("discretionary_data_len", &self.discretionary_data.len())
+            .field("alternate_interface", &self.alternate_interface)
+            .field(
+                "data_policy",
+                &"contactless outcome records redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 impl ContactlessOutcome {
@@ -167,12 +186,27 @@ pub enum RelayResistanceFailureOutcome {
     Terminate,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct RelayResistanceProfile {
     pub command_apdu: Vec<u8>,
     pub max_round_trip_ms: u16,
     pub success_response: Vec<u8>,
     pub failure_outcome: RelayResistanceFailureOutcome,
+}
+
+impl fmt::Debug for RelayResistanceProfile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RelayResistanceProfile")
+            .field("command_apdu_len", &self.command_apdu.len())
+            .field("max_round_trip_ms", &self.max_round_trip_ms)
+            .field("success_response_len", &self.success_response.len())
+            .field("failure_outcome", &self.failure_outcome)
+            .field(
+                "data_policy",
+                &"relay resistance APDU bytes redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 impl RelayResistanceProfile {
@@ -369,6 +403,39 @@ mod tests {
         assert_eq!(ffi.discretionary_data_len, 4);
         assert!(!ffi.data_record.is_null());
         assert!(!ffi.discretionary_data.is_null());
+    }
+
+    #[test]
+    fn contactless_debug_redacts_outcome_and_relay_records() {
+        let outcome = ContactlessOutcome::new(
+            ContactlessOutcomeCode::OnlineRequired,
+            StartSignal::Start,
+            UiRequest {
+                message_id: 0x1234,
+                status: UiStatus::Processing,
+                hold_time_ms: 500,
+            },
+            false,
+            &[0xde, 0xad, 0xbe, 0xef],
+            &[0xaa, 0xbb, 0xcc, 0xdd],
+            AlternateInterface::None,
+        )
+        .unwrap();
+        let relay = RelayResistanceProfile::new(
+            vec![0x80, 0xca, 0xde, 0xad, 0xbe],
+            50,
+            vec![0xef, 0xaa, 0xbb, 0xcc, 0xdd],
+            RelayResistanceFailureOutcome::TryAgain,
+        )
+        .unwrap();
+
+        for debug in [format!("{:?}", outcome), format!("{:?}", relay)] {
+            assert!(debug.contains("redacted for crash safety"));
+            assert!(debug.contains("_len"));
+            for raw_value_byte in ["222", "173", "190", "239", "170", "187", "204", "221"] {
+                assert!(!debug.contains(raw_value_byte));
+            }
+        }
     }
 
     #[test]
