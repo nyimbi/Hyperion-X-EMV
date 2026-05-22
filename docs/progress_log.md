@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-21T23:59:51Z
+
+- Increment completed: tighten certification-mode ODA vector coverage gates.
+- Code impact: `validate_oda_vector_annex` now requires certification vector
+  annexes to include SDA, DDA, and CDA coverage plus the method-specific
+  cryptographic fields before they can pass certification-mode validation.
+- Evidence updated: ODA vector validation now rejects single-scenario
+  certification annexes while keeping bundled structural fixtures
+  non-certification only; KRN-ANNEX-005 remains pending until lab-supplied
+  complete cryptographic vectors are attached.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-21T22:15:35Z
 
 - Baseline checked: current public EMVCo materials still frame Level 2 as

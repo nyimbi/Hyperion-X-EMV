@@ -4918,8 +4918,17 @@ fn krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode() {
         hyperion_emv::KernelError::InvalidProfile
     );
 
-    let complete = br#"{"vector_class":"CERTIFICATION","test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
-    validate_oda_vector_annex(complete, true).unwrap();
+    let complete = ODA_VECTORS.replace(
+        "\"vector_class\": \"STRUCTURAL_FIXTURE\"",
+        "\"vector_class\": \"CERTIFICATION\"",
+    );
+    validate_oda_vector_annex(complete.as_bytes(), true).unwrap();
+
+    let sda_only = br#"{"vector_class":"CERTIFICATION","test_vectors":[{"id":"SDA","capk":{"rid":"A000000003","key_index":1,"modulus_hex":"D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0","exponent_hex":"010001","checksum_hex":"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8"},"issuer_certificate_hex":"6F2A9F103A1B2C3D4E5F60718293A4B5C6D7E8F9A0","static_signature_hex":"ABCD1234567890ABCD","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
+    assert_eq!(
+        validate_oda_vector_annex(sda_only, true).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
 }
 
 #[test]
