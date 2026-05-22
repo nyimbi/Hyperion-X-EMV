@@ -1078,6 +1078,7 @@ fn rtm_promotes_cvm_outcome_evidence() {
             "KRN-CVM-001 should cite parser and evaluator regressions"
         );
         assert!(parsing.contains("parses_cvm_list_amounts_and_certified_method_codes"));
+        assert!(parsing.contains("rejects_cvm_lists_above_rule_limit"));
         assert!(parsing.contains("amount_conditions_are_enforced"));
         assert!(parsing.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(parsing.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));

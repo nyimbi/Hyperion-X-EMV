@@ -4,6 +4,8 @@ use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use core::fmt;
 
 pub const MAX_CVM_RULES: usize = 64;
+const CVM_LIST_AMOUNT_BYTES: usize = 8;
+const CVM_RULE_BYTES: usize = 2;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct PedPinHandle(u64);
@@ -243,10 +245,12 @@ pub struct OfflinePinVerifyOutcome {
 }
 
 pub fn parse_cvm_list(input: &[u8]) -> KernelResult<CvmList> {
-    if input.len() < 8 || (input.len() - 8) % 2 != 0 {
+    if input.len() < CVM_LIST_AMOUNT_BYTES
+        || (input.len() - CVM_LIST_AMOUNT_BYTES) % CVM_RULE_BYTES != 0
+    {
         return Err(KernelError::ParseError);
     }
-    let rule_count = (input.len() - 8) / 2;
+    let rule_count = (input.len() - CVM_LIST_AMOUNT_BYTES) / CVM_RULE_BYTES;
     if rule_count > MAX_CVM_RULES {
         return Err(KernelError::LengthOverflow);
     }
@@ -429,6 +433,19 @@ mod tests {
         assert_eq!(list.rules[0].method, CvmMethod::OfflinePlaintextPin);
         assert_eq!(list.rules[1].method, CvmMethod::OnlinePin);
         assert_eq!(list.rules[2].method, CvmMethod::NoCvmRequired);
+    }
+
+    #[test]
+    fn rejects_cvm_lists_above_rule_limit() {
+        let mut cvm_list = vec![0x00; CVM_LIST_AMOUNT_BYTES];
+        for _ in 0..=MAX_CVM_RULES {
+            cvm_list.extend_from_slice(&[0x1f, 0x00]);
+        }
+
+        assert_eq!(
+            parse_cvm_list(&cvm_list).unwrap_err(),
+            KernelError::LengthOverflow
+        );
     }
 
     #[test]

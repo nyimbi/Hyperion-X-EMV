@@ -1815,3 +1815,21 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:34:00Z
+
+- Increment completed: make the CVM List parser's rule-count bound explicit
+  and traceable.
+- Research note: lab CVM cases remain external certification evidence, but the
+  repository-controlled parser can still prove that an oversized CVM List is
+  rejected before evaluator work scales past the configured rule cap.
+- Code impact: CVM List amount-header and rule-stride sizes now use named
+  constants, and `parse_cvm_list` has a regression proving more than
+  `MAX_CVM_RULES` entries fails with `KRN_ERR_LENGTH_OVERFLOW`.
+- Evidence updated: current and compatibility RTM annexes cite the CVM
+  overflow regression for `KRN-CVM-001`.
+- Verification: `cargo test rejects_cvm_lists_above_rule_limit`,
+  `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
