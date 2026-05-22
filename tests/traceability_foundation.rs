@@ -1239,6 +1239,7 @@ fn rtm_promotes_certification_evidence_boundaries() {
             "KRN-CERT-004 should cite executable security regression evidence"
         );
         assert!(pen.contains("krn_cert_004_penetration_rejects_apdu_injection_and_state_bypass"));
+        assert!(pen.contains("replay_rejects_structurally_invalid_command_apdus"));
         assert!(pen.contains("external third-party security assessment"));
         assert!(pen.contains("rtm_promotes_certification_evidence_boundaries"));
     }

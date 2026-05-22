@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T07:06:30Z
+
+- Increment completed: reject structurally invalid APDU replay commands before
+  they can be traced or executed by deterministic replay evidence.
+- Research note: pre-lab replay scripts are certification evidence inputs, so
+  accepting fewer than four command-header bytes, truncated Lc payloads, or
+  unsupported extended/extra command bytes would weaken APDU injection
+  hardening even when raw APDU logging remains masked.
+- Code impact: `ReplayExchange::new` and direct APDU command masking now share
+  short-form command structure validation before extracting command fields or
+  accepting replay steps.
+- Evidence updated: the penetration/APDU-injection RTM row now cites
+  `trace::tests::replay_rejects_structurally_invalid_command_apdus` while
+  preserving the external third-party assessment requirement.
+- Verification: `cargo test replay_rejects_structurally_invalid_command_apdus`,
+  `cargo test replay_rejects_pin_verify_payload_custody`,
+  `cargo test rtm_promotes_certification_evidence_boundaries`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T07:01:07Z
 
 - Increment completed: tighten the ABI conformance statement scope so the

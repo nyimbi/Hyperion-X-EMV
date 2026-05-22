@@ -216,7 +216,7 @@ impl ReplayExchange {
         sw: [u8; 2],
         context: ApduTraceContext,
     ) -> KernelResult<Self> {
-        validate_replay_apdu(command)?;
+        validate_replay_command_apdu(command)?;
         validate_replay_apdu(response_data)?;
         if is_pin_verify_with_data(command) {
             return Err(KernelError::InvalidArgument);
@@ -373,7 +373,7 @@ pub fn mask_apdu_command(
     command: &[u8],
     policy: LogPolicy,
 ) -> KernelResult<ApduTrace> {
-    validate_replay_apdu(command)?;
+    validate_replay_command_apdu(command)?;
     let cla = command.first().copied();
     let ins = command.get(1).copied();
     let p1 = command.get(2).copied();
@@ -554,6 +554,26 @@ fn log_build_mode_name(mode: LogBuildMode) -> &'static str {
 fn validate_replay_apdu(bytes: &[u8]) -> KernelResult<()> {
     if bytes.len() > MAX_REPLAY_APDU_BYTES {
         return Err(KernelError::LengthOverflow);
+    }
+    Ok(())
+}
+
+fn validate_replay_command_apdu(command: &[u8]) -> KernelResult<()> {
+    validate_replay_apdu(command)?;
+    if command.len() < 4 {
+        return Err(KernelError::ParseError);
+    }
+    if command.len() <= 5 {
+        return Ok(());
+    }
+
+    let lc = command[4] as usize;
+    if lc == 0 {
+        return Err(KernelError::ParseError);
+    }
+    let data_end = 5usize.checked_add(lc).ok_or(KernelError::LengthOverflow)?;
+    if command.len() < data_end || command.len() > data_end + 1 {
+        return Err(KernelError::ParseError);
     }
     Ok(())
 }
@@ -911,5 +931,33 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, KernelError::InvalidArgument);
+    }
+
+    #[test]
+    fn replay_rejects_structurally_invalid_command_apdus() {
+        for command in [
+            &[0x00, 0xa4, 0x04][..],
+            &[0x80, 0xa8, 0x00, 0x00, 0x04, 0x83, 0x02][..],
+            &[0x80, 0xae, 0x80, 0x00, 0x00, 0xde][..],
+            &[0x00, 0x82, 0x00, 0x00, 0x02, 0x11, 0x22, 0x33, 0x44][..],
+        ] {
+            assert_eq!(
+                ReplayExchange::new(command, &[], [0x90, 0x00], ApduTraceContext::Generic)
+                    .unwrap_err(),
+                KernelError::ParseError
+            );
+            assert_eq!(
+                mask_apdu_command(1, command, LogPolicy::production()).unwrap_err(),
+                KernelError::ParseError
+            );
+        }
+
+        assert!(ReplayExchange::new(
+            &[0x00, 0xc0, 0x00, 0x00, 0x1a],
+            &[],
+            [0x90, 0x00],
+            ApduTraceContext::Generic
+        )
+        .is_ok());
     }
 }
