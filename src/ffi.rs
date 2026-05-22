@@ -4628,6 +4628,28 @@ mod tests {
     }
 
     #[test]
+    fn apply_host_response_rejects_empty_or_oversize_payload() {
+        unsafe {
+            let ctx = krn_context_new();
+
+            assert_eq!(
+                krn_apply_host_response(ctx, ptr::null(), 0),
+                KernelError::LengthOverflow.code()
+            );
+            assert_eq!(krn_get_last_error(ctx), KernelError::LengthOverflow.code());
+
+            let oversized = vec![0u8; MAX_HOST_RESPONSE_LEN + 1];
+            assert_eq!(
+                krn_apply_host_response(ctx, oversized.as_ptr(), oversized.len()),
+                KernelError::LengthOverflow.code()
+            );
+            assert_eq!(krn_get_last_error(ctx), KernelError::LengthOverflow.code());
+
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
     fn krn_api_004_rejects_reentrant_mutating_entrypoints() {
         unsafe {
             let ctx = krn_context_new();

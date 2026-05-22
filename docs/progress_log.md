@@ -1953,3 +1953,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:10:32Z
+
+- Increment completed: make Level 3 host-response ABI input bounds explicit
+  and traceable.
+- Research note: external issuer/host response case packs remain certification
+  evidence, but repository-controlled ABI handling can still prove empty and
+  oversized host response payloads fail closed before parsing or state
+  mutation.
+- Code impact: `krn_apply_host_response` now has a regression proving empty
+  and larger-than-`MAX_HOST_RESPONSE_LEN` payloads return
+  `KRN_ERR_LENGTH_OVERFLOW` before host-response parsing.
+- Evidence updated: current and compatibility RTM annexes cite the
+  host-response ABI input-bound regression for `KRN-ONL-002`.
+- Verification: `cargo test apply_host_response_rejects_empty_or_oversize_payload`,
+  `cargo test rtm_promotes_online_boundary_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
