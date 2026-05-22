@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:53:15Z
+
+- Increment completed: validate host authorization response code (`8A`)
+  character class before storing Level 3 online response data.
+- Code impact: host response parsing now requires `8A` to be exactly two ASCII
+  alphanumeric-or-space bytes, matching the EMV alphanumeric ARC shape used by
+  online response and CDOL2 handling.
+- Evidence update: both RTM annexes cite
+  `issuer::tests::rejects_non_alphanumeric_authorization_response_codes` under
+  KRN-ONL-002.
+- Verification: `cargo test
+  rejects_non_alphanumeric_authorization_response_codes`, `cargo test
+  rtm_promotes_online_boundary_evidence`, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T15:47:42Z
 
 - Increment completed: reject impossible CAPK expiry calendar dates in signed

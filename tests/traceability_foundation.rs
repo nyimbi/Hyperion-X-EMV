@@ -3901,6 +3901,7 @@ fn rtm_promotes_online_boundary_evidence() {
         let host = csv_row_for_requirement(csv, "KRN-ONL-002").unwrap();
         assert!(host.contains("parses_arpc_arc_and_issuer_scripts"));
         assert!(host.contains("rejects_malformed_issuer_authentication_data"));
+        assert!(host.contains("rejects_non_alphanumeric_authorization_response_codes"));
         assert!(host.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
         assert!(host.contains("apply_host_response_rejects_empty_or_oversize_payload"));
         assert!(host.contains("host_response_extracts_arpc_and_phase_specific_script_results"));

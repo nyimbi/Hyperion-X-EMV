@@ -84,8 +84,7 @@ pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
     reject_nested_host_response_objects(&tlvs)?;
 
     let authorization_response_code = match tlv::find_unique_direct(&tlvs, &[0x8a])? {
-        Some(value) if value.len() == 2 => Some([value[0], value[1]]),
-        Some(_) => return Err(KernelError::ParseError),
+        Some(value) => Some(parse_authorization_response_code(value)?),
         None => None,
     };
     let issuer_authentication_data = match tlv::find_unique_direct(&tlvs, &[0x91])? {
@@ -106,6 +105,19 @@ pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
         issuer_authentication_data,
         scripts,
     })
+}
+
+fn parse_authorization_response_code(value: &[u8]) -> KernelResult<[u8; 2]> {
+    if value.len() != 2 {
+        return Err(KernelError::ParseError);
+    }
+    if !value
+        .iter()
+        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b' ')
+    {
+        return Err(KernelError::ParseError);
+    }
+    Ok([value[0], value[1]])
 }
 
 pub fn apply_script_results(
@@ -417,6 +429,24 @@ mod tests {
         assert_eq!(
             parse_host_response(&too_long).unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_non_alphanumeric_authorization_response_codes() {
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, 0x00, b'0']).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b'0', 0xff]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b' ', b'0'])
+                .unwrap()
+                .authorization_response_code,
+            Some([b' ', b'0'])
         );
     }
 
