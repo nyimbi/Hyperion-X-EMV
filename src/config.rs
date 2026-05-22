@@ -4,7 +4,7 @@ use crate::error::{KernelError, KernelResult};
 use crate::restrictions::EmvDate;
 use crate::sha1::{Sha1, SHA1_DIGEST_BYTES};
 use crate::taa::{ActionCodes, TaaProfile, TerminalAction};
-use crate::trm::TrmProfile;
+use crate::trm::{TransactionTypeFloorLimit, TrmProfile};
 use core::fmt;
 use std::collections::BTreeMap;
 
@@ -120,6 +120,7 @@ pub struct AidProfile {
     pub action_codes: ActionCodes,
     pub issuer_action_codes: ActionCodes,
     pub floor_limit: u64,
+    pub transaction_type_floor_limits: Vec<TransactionTypeFloorLimit>,
     pub cvm_limit_contact: u64,
     pub random_selection_percent: u8,
     pub lower_consecutive_offline_limit: Option<u16>,
@@ -150,6 +151,10 @@ impl fmt::Debug for AidProfile {
             .field("critical_issuer_script_ins_count", &self.critical_issuer_script_ins.len())
             .field("relay_resistance_present", &self.relay_resistance.is_some())
             .field(
+                "transaction_type_floor_limit_count",
+                &self.transaction_type_floor_limits.len(),
+            )
+            .field(
                 "data_policy",
                 &"AID values, action codes, limits, DOL bytes, and script policy bytes redacted for crash safety",
             )
@@ -159,8 +164,9 @@ impl fmt::Debug for AidProfile {
 
 impl AidProfile {
     pub fn trm_profile(&self) -> Option<TrmProfile> {
-        TrmProfile::new(
+        TrmProfile::with_transaction_type_floor_limits(
             self.floor_limit,
+            self.transaction_type_floor_limits.clone(),
             self.random_selection_percent,
             self.lower_consecutive_offline_limit,
             self.upper_consecutive_offline_limit,
@@ -570,6 +576,7 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             "iac_denial",
             "iac_default",
             "floor_limit",
+            "transaction_type_floor_limits",
             "cvm_limit_contact",
             "random_selection_percent",
             "lower_consecutive_offline_limit",
@@ -653,6 +660,7 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             default: fixed_vec::<5>(parse_hex_field(object, "iac_default")?)?,
         },
         floor_limit: required_u64(object, "floor_limit")?,
+        transaction_type_floor_limits: parse_transaction_type_floor_limits(object)?,
         cvm_limit_contact: required_u64(object, "cvm_limit_contact")?,
         random_selection_percent: random_selection_percent as u8,
         lower_consecutive_offline_limit,
@@ -670,6 +678,33 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         critical_issuer_script_ins: optional_hex_byte_array(object, "critical_issuer_script_ins")?,
         relay_resistance: parse_relay_resistance_profile(object)?,
     })
+}
+
+fn parse_transaction_type_floor_limits(
+    object: &BTreeMap<String, JsonValue>,
+) -> KernelResult<Vec<TransactionTypeFloorLimit>> {
+    let Some(value) = object.get("transaction_type_floor_limits") else {
+        return Ok(Vec::new());
+    };
+    let values = value
+        .as_array()?
+        .iter()
+        .map(|item| {
+            let entry = item.as_object()?;
+            reject_unknown_fields(entry, &["transaction_type", "floor_limit"])?;
+            let transaction_type = parse_hex_field(entry, "transaction_type")?;
+            if transaction_type.len() != 1 {
+                return Err(KernelError::InvalidProfile);
+            }
+            Ok(TransactionTypeFloorLimit {
+                transaction_type: transaction_type[0],
+                floor_limit: required_u64(entry, "floor_limit")?,
+            })
+        })
+        .collect::<KernelResult<Vec<_>>>()?;
+    TrmProfile::with_transaction_type_floor_limits(0, values.clone(), 0, None, None)
+        .ok_or(KernelError::InvalidProfile)?;
+    Ok(values)
 }
 
 fn parse_default_cdol1(object: &BTreeMap<String, JsonValue>) -> KernelResult<Option<Vec<u8>>> {
@@ -1358,6 +1393,9 @@ mod tests {
           "iac_denial": "0000000000",
           "iac_default": "0000000000",
           "floor_limit": 0,
+          "transaction_type_floor_limits": [
+            {"transaction_type": "01", "floor_limit": 10000}
+          ],
           "cvm_limit_contact": 5000,
           "random_selection_percent": 5,
           "contactless_transaction_limit": 5000,
@@ -1505,6 +1543,27 @@ mod tests {
         assert_eq!(
             profiles.schemes[0].aids[0].critical_issuer_script_ins,
             [0xe2]
+        );
+        assert_eq!(
+            profiles.schemes[0].aids[0].transaction_type_floor_limits,
+            [TransactionTypeFloorLimit {
+                transaction_type: 0x01,
+                floor_limit: 10_000
+            }]
+        );
+        assert_eq!(
+            profiles.schemes[0].aids[0]
+                .trm_profile()
+                .unwrap()
+                .floor_limit_for_transaction_type(0x01),
+            10_000
+        );
+        assert_eq!(
+            profiles.schemes[0].aids[0]
+                .trm_profile()
+                .unwrap()
+                .floor_limit_for_transaction_type(0x00),
+            0
         );
         assert_eq!(
             profiles.schemes[0].aids[0].cda_request_encoding,
@@ -1862,6 +1921,37 @@ mod tests {
         assert_eq!(
             load_profile_set(
                 invalid_offline_limits.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let duplicate_transaction_type_floor_limit = profile.replace(
+            r#""transaction_type_floor_limits": [
+            {"transaction_type": "01", "floor_limit": 10000}
+          ],"#,
+            r#""transaction_type_floor_limits": [
+            {"transaction_type": "01", "floor_limit": 10000},
+            {"transaction_type": "01", "floor_limit": 20000}
+          ],"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                duplicate_transaction_type_floor_limit.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let malformed_transaction_type_floor_limit = profile.replace(
+            r#""transaction_type": "01""#,
+            r#""transaction_type": "0102""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                malformed_transaction_type_floor_limit.as_bytes(),
                 &policy(SignatureStatus::Verified)
             )
             .unwrap_err(),

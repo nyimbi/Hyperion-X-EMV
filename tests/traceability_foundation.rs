@@ -2942,6 +2942,9 @@ fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
 
         let floor = csv_row_for_requirement(csv, "KRN-TRM-001").unwrap();
         assert!(floor.contains("evaluates_floor_exception_velocity_random_and_merchant_bits"));
+        assert!(floor.contains("floor_limit_uses_transaction_type_profile_override"));
+        assert!(floor.contains("loads_profile_annex_when_signature_is_verified"));
+        assert!(floor.contains("rejects_cfg_002_profile_schema_and_field_failures"));
         assert!(floor
             .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
 
@@ -7172,6 +7175,7 @@ fn trm_sets_floor_random_velocity_exception_and_tsi_bits() {
     let result = evaluate_trm(
         TrmInput {
             amount_authorized: 6_000,
+            transaction_type: 0x00,
             exception_file_match: true,
             merchant_forced_online: true,
             offline_counter: Some(OfflineCounter::non_volatile(5)),
@@ -7200,11 +7204,12 @@ fn trm_003_requires_nonvolatile_counter_for_velocity_limits() {
     let profile = TrmProfile::new(5_000, 0, Some(2), Some(4)).unwrap();
     let input = |offline_counter| TrmInput {
         amount_authorized: 100,
+        transaction_type: 0x00,
         exception_file_match: false,
         merchant_forced_online: false,
         offline_counter,
         random_sample_basis_points: None,
-        profile,
+        profile: profile.clone(),
     };
 
     assert_eq!(
@@ -7271,6 +7276,7 @@ fn tsi_bits_are_set_only_after_corresponding_processing() {
     let trm = evaluate_trm(
         TrmInput {
             amount_authorized: 100,
+            transaction_type: 0x00,
             exception_file_match: false,
             merchant_forced_online: false,
             offline_counter: None,

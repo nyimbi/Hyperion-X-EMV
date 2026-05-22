@@ -2407,6 +2407,7 @@ fn run_terminal_risk_management(
     let result = evaluate_trm(
         TrmInput {
             amount_authorized: params.amount_authorised_minor,
+            transaction_type: params.transaction_type,
             exception_file_match: false,
             merchant_forced_online: false,
             offline_counter: ctx.offline_counter,

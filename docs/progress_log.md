@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T18:27:56Z
+
+- Increment completed: make KRN-TRM-001's "per profile and transaction type"
+  floor-limit claim executable instead of relying on a single AID floor limit.
+- Research note: public TRM references describe amount-to-floor-limit
+  comparison as a terminal risk management input; the local gap was that the
+  RTM claimed transaction-type sensitivity while `TrmInput` had no transaction
+  type and profile loading had no typed floor-limit override surface.
+- Code impact: `TrmProfile` now accepts bounded transaction-type floor-limit
+  overrides keyed by tag `9C` transaction type, `TrmInput` carries the
+  transaction type from runtime parameters, and floor-limit evaluation falls
+  back to the AID floor limit when no override is present.
+- Evidence update: KRN-TRM-001 in both RTM annexes now cites
+  `trm::tests::floor_limit_uses_transaction_type_profile_override` plus config
+  loader acceptance/rejection coverage for transaction-type override profiles.
+- Verification: `cargo test
+  trm::tests::floor_limit_uses_transaction_type_profile_override`, `cargo test
+  trm::tests`, `cargo test config::tests::loads_profile_annex_when_signature_is_verified`,
+  `cargo test config::tests::rejects_cfg_002_profile_schema_and_field_failures`,
+  `cargo test rtm_promotes_trm_floor_random_and_tsi_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T18:17:02Z
 
 - Increment completed: expose runtime input for certified-profile TRM random

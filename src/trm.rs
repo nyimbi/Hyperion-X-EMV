@@ -1,9 +1,18 @@
 use crate::error::{KernelError, KernelResult};
 use crate::state::{Tsi, Tvr};
 
+pub const MAX_TRANSACTION_TYPE_FLOOR_LIMITS: usize = 16;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TransactionTypeFloorLimit {
+    pub transaction_type: u8,
+    pub floor_limit: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrmProfile {
     pub floor_limit: u64,
+    pub transaction_type_floor_limits: Vec<TransactionTypeFloorLimit>,
     pub random_selection_percent: u8,
     pub lower_consecutive_offline_limit: Option<u16>,
     pub upper_consecutive_offline_limit: Option<u16>,
@@ -16,8 +25,35 @@ impl TrmProfile {
         lower_consecutive_offline_limit: Option<u16>,
         upper_consecutive_offline_limit: Option<u16>,
     ) -> Option<Self> {
+        Self::with_transaction_type_floor_limits(
+            floor_limit,
+            Vec::new(),
+            random_selection_percent,
+            lower_consecutive_offline_limit,
+            upper_consecutive_offline_limit,
+        )
+    }
+
+    pub fn with_transaction_type_floor_limits(
+        floor_limit: u64,
+        transaction_type_floor_limits: Vec<TransactionTypeFloorLimit>,
+        random_selection_percent: u8,
+        lower_consecutive_offline_limit: Option<u16>,
+        upper_consecutive_offline_limit: Option<u16>,
+    ) -> Option<Self> {
         if random_selection_percent > 100 {
             return None;
+        }
+        if transaction_type_floor_limits.len() > MAX_TRANSACTION_TYPE_FLOOR_LIMITS {
+            return None;
+        }
+        for (index, limit) in transaction_type_floor_limits.iter().enumerate() {
+            if transaction_type_floor_limits[..index]
+                .iter()
+                .any(|prior| prior.transaction_type == limit.transaction_type)
+            {
+                return None;
+            }
         }
         if let (Some(lower), Some(upper)) = (
             lower_consecutive_offline_limit,
@@ -29,13 +65,21 @@ impl TrmProfile {
         }
         Some(Self {
             floor_limit,
+            transaction_type_floor_limits,
             random_selection_percent,
             lower_consecutive_offline_limit,
             upper_consecutive_offline_limit,
         })
     }
 
-    pub fn requires_terminal_offline_counter(self) -> bool {
+    pub fn floor_limit_for_transaction_type(&self, transaction_type: u8) -> u64 {
+        self.transaction_type_floor_limits
+            .iter()
+            .find(|limit| limit.transaction_type == transaction_type)
+            .map_or(self.floor_limit, |limit| limit.floor_limit)
+    }
+
+    pub fn requires_terminal_offline_counter(&self) -> bool {
         self.lower_consecutive_offline_limit.is_some()
             || self.upper_consecutive_offline_limit.is_some()
     }
@@ -69,9 +113,10 @@ impl OfflineCounter {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrmInput {
     pub amount_authorized: u64,
+    pub transaction_type: u8,
     pub exception_file_match: bool,
     pub merchant_forced_online: bool,
     pub offline_counter: Option<OfflineCounter>,
@@ -88,7 +133,10 @@ pub struct TrmResult {
 }
 
 pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> KernelResult<TrmResult> {
-    let offline_count = offline_count_for_profile(input.profile, input.offline_counter)?;
+    let offline_count = offline_count_for_profile(&input.profile, input.offline_counter)?;
+    let floor_limit = input
+        .profile
+        .floor_limit_for_transaction_type(input.transaction_type);
     let mut force_online = false;
 
     if input.exception_file_match {
@@ -96,7 +144,7 @@ pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> KernelResult<Trm
         force_online = true;
     }
 
-    if input.amount_authorized > input.profile.floor_limit {
+    if input.amount_authorized > floor_limit {
         tvr.set(Tvr::B4_FLOOR_LIMIT_EXCEEDED);
         force_online = true;
     }
@@ -142,7 +190,7 @@ pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> KernelResult<Trm
 }
 
 fn offline_count_for_profile(
-    profile: TrmProfile,
+    profile: &TrmProfile,
     offline_counter: Option<OfflineCounter>,
 ) -> KernelResult<Option<u16>> {
     if !profile.requires_terminal_offline_counter() {
@@ -182,6 +230,7 @@ mod tests {
         let result = evaluate(
             TrmInput {
                 amount_authorized: 6_000,
+                transaction_type: 0x00,
                 exception_file_match: true,
                 merchant_forced_online: true,
                 offline_counter: Some(OfflineCounter::non_volatile(5)),
@@ -217,11 +266,12 @@ mod tests {
         let selected = evaluate(
             TrmInput {
                 amount_authorized: 1,
+                transaction_type: 0x00,
                 exception_file_match: false,
                 merchant_forced_online: false,
                 offline_counter: None,
                 random_sample_basis_points: Some(499),
-                profile,
+                profile: profile.clone(),
             },
             Tvr::cleared(),
             Tsi::cleared(),
@@ -232,6 +282,7 @@ mod tests {
                 random_sample_basis_points: Some(500),
                 ..TrmInput {
                     amount_authorized: 1,
+                    transaction_type: 0x00,
                     exception_file_match: false,
                     merchant_forced_online: false,
                     offline_counter: None,
@@ -256,6 +307,23 @@ mod tests {
     fn rejects_invalid_profile_percent() {
         assert!(TrmProfile::new(0, 101, None, None).is_none());
         assert!(TrmProfile::new(0, 0, Some(3), Some(2)).is_none());
+        assert!(TrmProfile::with_transaction_type_floor_limits(
+            1_000,
+            vec![
+                TransactionTypeFloorLimit {
+                    transaction_type: 0x00,
+                    floor_limit: 2_000,
+                },
+                TransactionTypeFloorLimit {
+                    transaction_type: 0x00,
+                    floor_limit: 3_000,
+                },
+            ],
+            0,
+            None,
+            None,
+        )
+        .is_none());
     }
 
     #[test]
@@ -265,6 +333,7 @@ mod tests {
             evaluate(
                 TrmInput {
                     amount_authorized: 1,
+                    transaction_type: 0x00,
                     exception_file_match: false,
                     merchant_forced_online: false,
                     offline_counter: None,
@@ -284,11 +353,12 @@ mod tests {
         let profile = TrmProfile::new(10_000, 0, Some(2), None).unwrap();
         let input = |offline_counter| TrmInput {
             amount_authorized: 1,
+            transaction_type: 0x00,
             exception_file_match: false,
             merchant_forced_online: false,
             offline_counter,
             random_sample_basis_points: None,
-            profile,
+            profile: profile.clone(),
         };
 
         assert_eq!(
@@ -314,5 +384,52 @@ mod tests {
         assert!(result
             .tvr
             .is_set(Tvr::B4_LOWER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED));
+    }
+
+    #[test]
+    fn floor_limit_uses_transaction_type_profile_override() {
+        let profile = TrmProfile::with_transaction_type_floor_limits(
+            5_000,
+            vec![TransactionTypeFloorLimit {
+                transaction_type: 0x01,
+                floor_limit: 10_000,
+            }],
+            0,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let purchase = evaluate(
+            TrmInput {
+                amount_authorized: 6_000,
+                transaction_type: 0x00,
+                exception_file_match: false,
+                merchant_forced_online: false,
+                offline_counter: None,
+                random_sample_basis_points: None,
+                profile: profile.clone(),
+            },
+            Tvr::cleared(),
+            Tsi::cleared(),
+        )
+        .unwrap();
+        let cash = evaluate(
+            TrmInput {
+                amount_authorized: 6_000,
+                transaction_type: 0x01,
+                exception_file_match: false,
+                merchant_forced_online: false,
+                offline_counter: None,
+                random_sample_basis_points: None,
+                profile,
+            },
+            Tvr::cleared(),
+            Tsi::cleared(),
+        )
+        .unwrap();
+
+        assert!(purchase.tvr.is_set(Tvr::B4_FLOOR_LIMIT_EXCEEDED));
+        assert!(!cash.tvr.is_set(Tvr::B4_FLOOR_LIMIT_EXCEEDED));
     }
 }
