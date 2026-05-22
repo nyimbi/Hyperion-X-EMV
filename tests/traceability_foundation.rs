@@ -854,6 +854,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(sfi.contains("validates_read_record_sfi"));
         assert!(sfi.contains("rejects_malformed_afl_entries"));
         assert!(sfi.contains("rejects_afl_sfi_bytes_with_nonzero_low_bits"));
+        assert!(sfi.contains("rejects_duplicate_afl_record_locators"));
         assert!(sfi.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data"));
         assert!(sfi.contains("rtm_promotes_gpo_and_read_record_evidence"));
 
@@ -864,6 +865,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         );
         assert!(p2.contains("validates_read_record_sfi"));
         assert!(p2.contains("builds_read_record_commands_from_afl_order"));
+        assert!(p2.contains("rejects_duplicate_afl_record_locators"));
         assert!(p2.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data"));
         assert!(p2.contains("rtm_promotes_gpo_and_read_record_evidence"));
 
@@ -6325,6 +6327,11 @@ fn lifecycle_afl_plan_produces_read_record_sequence_and_oda_flags() {
         parse_afl(&hex("13010100")).unwrap_err(),
         hyperion_emv::KernelError::ParseError
     );
+    let overlapping = parse_afl(&hex("1001020010020300")).unwrap();
+    assert_eq!(
+        record_plan(&overlapping).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
 }
 
 #[test]
@@ -6357,6 +6364,11 @@ fn krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data() {
     );
     assert_eq!(
         parse_afl(&hex("13010100")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    let overlapping = parse_afl(&hex("1001020010020300")).unwrap();
+    assert_eq!(
+        read_record_commands(&overlapping).unwrap_err(),
         hyperion_emv::KernelError::ParseError
     );
 }

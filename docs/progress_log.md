@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:47:42Z
+
+- Increment completed: reject duplicate AFL-derived record locators before
+  issuing READ RECORD commands.
+- Research note: public EMV AFL material describes the AFL as the card-provided
+  guide for which SFI/record ranges the terminal reads. Overlapping AFL ranges
+  create duplicate `(SFI, record)` locators, which would otherwise make record
+  reads and offline-authentication contribution order ambiguous.
+- Code impact: `record_plan` now rejects duplicate record locators across AFL
+  entries, and `read_record_commands` inherits the same validation before
+  producing APDUs.
+- Evidence updated: AFL unit tests, lifecycle/READ RECORD traceability guards,
+  and both RTM annexes now cite duplicate-locator rejection coverage.
+- Verification: `cargo test rejects_duplicate_afl_record_locators`,
+  `cargo test builds_read_record_commands_from_afl_order`,
+  `cargo test lifecycle_afl_plan_produces_read_record_sequence_and_oda_flags`,
+  `cargo test krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T04:42:36Z
 
 - Increment completed: reject AFL entries whose encoded SFI byte has non-zero

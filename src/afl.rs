@@ -72,9 +72,16 @@ pub fn record_plan(entries: &[AflEntry]) -> KernelResult<Vec<RecordLocator>> {
             if out.len() >= MAX_RECORD_LOCATORS {
                 return Err(KernelError::LengthOverflow);
             }
+            let record = entry.first_record + index;
+            if out
+                .iter()
+                .any(|locator: &RecordLocator| locator.sfi == entry.sfi && locator.record == record)
+            {
+                return Err(KernelError::ParseError);
+            }
             out.push(RecordLocator {
                 sfi: entry.sfi,
-                record: entry.first_record + index,
+                record,
                 contributes_to_offline_auth: index < entry.offline_auth_record_count,
             });
         }
@@ -170,6 +177,16 @@ mod tests {
     fn rejects_afl_sfi_bytes_with_nonzero_low_bits() {
         assert_eq!(
             parse_afl(&[0x13, 0x01, 0x01, 0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_afl_record_locators() {
+        let entries = parse_afl(&[0x10, 0x01, 0x02, 0x00, 0x10, 0x02, 0x03, 0x00]).unwrap();
+        assert_eq!(record_plan(&entries).unwrap_err(), KernelError::ParseError);
+        assert_eq!(
+            read_record_commands(&entries).unwrap_err(),
             KernelError::ParseError
         );
     }
