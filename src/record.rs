@@ -63,6 +63,9 @@ fn validate_cardholder_data_consistency(
     entries: &[(&[u8], &[u8])],
     data: &DataStore,
 ) -> KernelResult<()> {
+    reject_conflicting_cardholder_value(entries, data, &[0x5a])?;
+    reject_conflicting_cardholder_value(entries, data, &[0x57])?;
+
     let pan = record_or_store_value(entries, data, &[0x5a]);
     let track2 = record_or_store_value(entries, data, &[0x57]);
 
@@ -72,6 +75,23 @@ fn validate_cardholder_data_consistency(
         if pan_digits != track2_pan_digits {
             return Err(KernelError::ParseError);
         }
+    }
+    Ok(())
+}
+
+fn reject_conflicting_cardholder_value(
+    entries: &[(&[u8], &[u8])],
+    data: &DataStore,
+    tag: &[u8],
+) -> KernelResult<()> {
+    let Some((_, record_value)) = entries.iter().find(|(entry_tag, _)| *entry_tag == tag) else {
+        return Ok(());
+    };
+    if data
+        .get(tag)
+        .is_some_and(|stored_value| stored_value != *record_value)
+    {
+        return Err(KernelError::ParseError);
     }
     Ok(())
 }
@@ -301,6 +321,30 @@ mod tests {
         );
         assert!(data.get(&[0x5a]).is_none());
         assert!(data.get(&[0x57]).is_none());
+    }
+
+    #[test]
+    fn rejects_conflicting_cardholder_data_rewrite_without_partial_store() {
+        let mut data = DataStore::new();
+        data.put(&[0x5a], &[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f])
+            .unwrap();
+
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x0e, 0x5a, 0x08, 0x98, 0x76, 0x54, 0x32, 0x10, 0x98, 0x76, 0x5f, 0x5f,
+                    0x24, 0x01, 0x26,
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            data.get(&[0x5a]),
+            Some(&[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f][..])
+        );
+        assert!(data.get(&[0x5f, 0x24]).is_none());
     }
 
     #[test]

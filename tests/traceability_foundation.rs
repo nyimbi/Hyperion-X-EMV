@@ -913,6 +913,8 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(cardholder_data
             .contains("accepts_matching_pan_and_track2_without_unmasked_logging_dependency"));
         assert!(cardholder_data.contains("rejects_mismatched_pan_and_track2_without_partial_store"));
+        assert!(cardholder_data
+            .contains("rejects_conflicting_cardholder_data_rewrite_without_partial_store"));
         assert!(cardholder_data.contains("rejects_malformed_pan_or_track2_without_partial_store"));
         assert!(cardholder_data.contains("rtm_promotes_gpo_and_read_record_evidence"));
     }

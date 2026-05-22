@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:20:33Z
+
+- Increment completed: prevent cross-record rewrites of cardholder PAN and
+  Track 2 data from silently replacing previously accepted values.
+- Code impact: READ RECORD admission now rejects conflicting duplicate 5A or
+  57 values before any data-store update, while still allowing later records to
+  supply the missing counterpart when the values are consistent.
+- Evidence update: both RTM annexes now cite the new cardholder-data rewrite
+  regression under KRN-RR-004.
+- Verification: `cargo test
+  rejects_conflicting_cardholder_data_rewrite_without_partial_store`, `cargo
+  test rtm_promotes_gpo_and_read_record_evidence`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T14:15:18Z
 
 - Increment completed: extend the pre-lab decoder with operator-facing
