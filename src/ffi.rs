@@ -1395,6 +1395,7 @@ unsafe fn read_transaction_params(
     if params.currency_exponent > 9 {
         return Err(KernelError::InvalidArgument);
     }
+    terminal_type_online_capable(params.terminal_type)?;
     if params.merchant_name_location_len > MAX_MERCHANT_NAME_LOCATION_LEN {
         return Err(KernelError::LengthOverflow);
     }
@@ -2049,6 +2050,14 @@ fn service_type(params: &StoredTxnParams) -> ServiceType {
     }
 }
 
+fn terminal_type_online_capable(terminal_type: u8) -> Result<bool, KernelError> {
+    match terminal_type {
+        0x11 | 0x12 | 0x14 | 0x15 | 0x21 | 0x22 | 0x24 | 0x25 | 0x34 | 0x35 => Ok(true),
+        0x13 | 0x16 | 0x23 | 0x26 | 0x36 => Ok(false),
+        _ => Err(KernelError::InvalidArgument),
+    }
+}
+
 fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<(), KernelError> {
     let cvm_list = parse_cvm_list(
         ctx.card_data
@@ -2348,7 +2357,12 @@ fn run_terminal_action_analysis(
         tvr: ctx.tvr,
         tac: aid.action_codes,
         iac: issuer_action_codes(&ctx.card_data, aid.issuer_action_codes)?,
-        terminal_online_capable: true,
+        terminal_online_capable: ctx
+            .txn_params
+            .as_ref()
+            .map(|params| terminal_type_online_capable(params.terminal_type))
+            .transpose()?
+            .unwrap_or(true),
         profile: scheme.taa,
     });
     let (request, event, state) = match decision.action {
@@ -3610,6 +3624,16 @@ mod tests {
             unsafe { read_transaction_params(&invalid_exponent).unwrap_err() },
             KernelError::InvalidArgument
         );
+        let invalid_terminal_type = KrnTxnParams {
+            terminal_type: 0x00,
+            ..params
+        };
+        assert_eq!(
+            unsafe { read_transaction_params(&invalid_terminal_type).unwrap_err() },
+            KernelError::InvalidArgument
+        );
+        assert_eq!(terminal_type_online_capable(0x22), Ok(true));
+        assert_eq!(terminal_type_online_capable(0x23), Ok(false));
 
         let oversized_merchant = KrnTxnParams {
             merchant_name_location: ptr::null(),
@@ -3700,6 +3724,38 @@ mod tests {
         assert_eq!(run_terminal_action_analysis(&mut ctx, &profiles), Ok(()));
         assert_eq!(ctx.fsm_state, FsmState::S10);
         assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Arqc));
+    }
+
+    #[test]
+    fn taa_uses_terminal_type_online_capability() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.fsm_state = FsmState::S9;
+        ctx.state = KernelState::TerminalActionAnalysis;
+        ctx.txn_params = Some(StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x23,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        });
+        ctx.tvr.set(Tvr::B4_FLOOR_LIMIT_EXCEEDED);
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0]
+            .issuer_action_codes
+            .online = [0, 0, 0, 0x80, 0];
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0]
+            .issuer_action_codes
+            .default = [0, 0, 0, 0x80, 0];
+
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(run_terminal_action_analysis(&mut ctx, &profiles), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S16);
+        assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Aac));
     }
 
     #[test]

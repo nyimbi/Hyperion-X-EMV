@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:28:04Z
+
+- Increment completed: derive runtime TAA online capability from EMV terminal
+  type (`9F35`) instead of hardcoding every terminal as online-capable.
+- Research note: terminal type carries the terminal environment and
+  communication capability. TAA online/default branches depend on whether the
+  terminal can go online, so an offline-only terminal must not request ARQC just
+  because TAC/IAC online bits match.
+- Code impact: transaction parameter loading rejects unsupported terminal type
+  values, runtime TAA maps known terminal types to online-capable or
+  offline-only behavior, and offline-only TAA now follows configured default
+  fallback instead of the online ARQC path.
+- Evidence updated: runtime TAA regression coverage and both RTM annexes now
+  cite terminal-type-driven online capability under `KRN-TAA-006` and
+  `KRN-GAC1-003`.
+- Verification: `cargo test transaction_params_bind_minor_units_to_currency_exponent`,
+  `cargo test taa_uses_terminal_type_online_capability`,
+  `cargo test rtm_promotes_terminal_action_analysis_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T06:20:21Z
 
 - Increment completed: carry signed profile IAC fallback values through profile
