@@ -1388,8 +1388,10 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
 
     let mut input_paths = vec![
@@ -1413,6 +1415,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/tlv_catalogue.csv".to_string(),
         "examples/krn_abi_conformance_statement.rs".to_string(),
         "examples/krn_build_manifest.rs".to_string(),
+        "examples/krn_cabi_script_adapter.rs".to_string(),
         "examples/krn_emv_decode.rs".to_string(),
         "examples/krn_scheme_profile_dictionary.rs".to_string(),
         "examples/krn_prelab_quality_gates.rs".to_string(),
@@ -1467,6 +1470,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/tlv_catalogue.csv",
         "examples/krn_abi_conformance_statement.rs",
         "examples/krn_build_manifest.rs",
+        "examples/krn_cabi_script_adapter.rs",
         "examples/krn_emv_decode.rs",
         "examples/krn_scheme_profile_dictionary.rs",
         "examples/krn_prelab_quality_gates.rs",
@@ -1526,6 +1530,7 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "Trace identity metadata",
         "Pre-lab APDU trace fixture",
         "Pre-lab quality gate manifest",
+        "C ABI APDU script adapter",
     ] {
         assert!(
             LAB_SUBMISSION_MANIFEST.contains(&format!("- [x] {attached}")),
@@ -3008,6 +3013,8 @@ fn rtm_promotes_api_error_boundary_evidence() {
         assert!(
             callbacks.contains("krn_api_007_err_002_preserves_callback_error_codes_fail_closed")
         );
+        assert!(callbacks.contains("script_adapter_drives_contact_transaction_to_online_request"));
+        assert!(callbacks.contains("script_adapter_fails_closed_on_unexpected_apdu"));
         assert!(callbacks.contains("rtm_promotes_api_error_boundary_evidence"));
 
         let last_error = csv_row_for_requirement(csv, "KRN-API-007").expect("RTM row exists");
@@ -5567,7 +5574,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
         "cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",

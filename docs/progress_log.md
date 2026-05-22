@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:16:08Z
+
+- Increment completed: add a deterministic C ABI APDU script adapter for
+  pre-lab integration smoke tests without pulling PC/SC, mobile NFC, or device
+  drivers into the kernel core.
+- Code impact: `examples/krn_cabi_script_adapter.rs` drives `krn_init`,
+  verified profile loading, transaction parameter setup, and
+  `krn_run_transaction` through `KrnRuntime` APDU/RNG callbacks, records command
+  order and callback timeouts, and fails closed when the kernel sends an
+  unexpected APDU.
+- Evidence update: the lab manifest, pre-lab quality gate provenance command,
+  both RTM annexes, and traceability guards now include the adapter as a
+  repository-controlled integration fixture while preserving the external full
+  lab trace-pack blocker.
+- Verification: `cargo test --example krn_cabi_script_adapter`, `cargo run
+  --quiet --example krn_cabi_script_adapter`, `cargo run --quiet --example
+  krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -`, `cargo
+  test lab_manifest_and_provenance_cover_reproducible_build_artifacts`, and
+  `cargo test rtm_promotes_api_error_boundary_evidence` passed, followed by
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check`.
+
 ## 2026-05-22T13:05:12Z
 
 - Increment completed: add a card-originated record admission boundary and DOL
