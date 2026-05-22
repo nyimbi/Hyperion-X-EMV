@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:31:56Z
+
+- Increment completed: promote C-8 contactless kernel evidence.
+- Research note: current public EMVCo contact-kernel material keeps
+  C-8/contactless approval tied to product scope, ICS evidence, and laboratory
+  execution, so RTM rows should cite structured outcome/callback and
+  interface-separation regressions rather than generic logs or interface
+  labels.
+- Code impact: no runtime behavior changed; existing C-8 outcome, contactless
+  callback, and contact/contactless separation regressions are now first-class
+  RTM evidence.
+- Evidence updated: KRN-C8-001/002/003 now cite concrete structured outcome,
+  FFI contactless callback, C-8-only outcome, selected-kernel mapping, and
+  contact-kernel rejection regressions in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:27:09Z
 
 - Increment completed: promote caller-owned buffer evidence.

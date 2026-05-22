@@ -4652,6 +4652,41 @@ fn rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence() {
 }
 
 #[test]
+fn rtm_promotes_c8_kernel_outcome_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let kernel = csv_row_for_requirement(csv, "KRN-C8-001").expect("RTM row exists");
+        assert!(
+            !kernel.contains("Outcome logs") && !kernel.contains("Contactless outcome logs"),
+            "KRN-C8-001 should cite executable C-8 outcome evidence"
+        );
+        assert!(kernel.contains("krn_c8_001_002_003_uses_structured_contactless_only_outcomes"));
+        assert!(kernel.contains("outcome_model_preserves_structured_records_for_callback"));
+        assert!(kernel.contains("rtm_promotes_c8_kernel_outcome_evidence"));
+
+        let callback = csv_row_for_requirement(csv, "KRN-C8-002").expect("RTM row exists");
+        assert!(
+            !callback.contains("Callback trace"),
+            "KRN-C8-002 should cite executable contactless callback evidence"
+        );
+        assert!(callback.contains("outcome_model_preserves_structured_records_for_callback"));
+        assert!(callback.contains("ffi_emits_structured_contactless_outcome_callback"));
+        assert!(callback.contains("krn_c8_001_002_003_uses_structured_contactless_only_outcomes"));
+        assert!(callback.contains("rtm_promotes_c8_kernel_outcome_evidence"));
+
+        let interface = csv_row_for_requirement(csv, "KRN-C8-003").expect("RTM row exists");
+        assert!(
+            !interface.contains("Interface test")
+                && !interface.contains("Interface selection test"),
+            "KRN-C8-003 should cite executable contact/contactless separation evidence"
+        );
+        assert!(interface.contains("krn_c8_001_002_003_uses_structured_contactless_only_outcomes"));
+        assert!(interface.contains("selected_kernel_mapping_is_interface_specific"));
+        assert!(interface.contains("rejects_contact_kernel_type_that_reuses_c8"));
+        assert!(interface.contains("rtm_promotes_c8_kernel_outcome_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_interface_kernel_mapping_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-INT-001", "KRN-INT-002", "KRN-INT-003", "KRN-INT-004"] {
