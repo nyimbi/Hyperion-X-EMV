@@ -40,7 +40,7 @@ impl fmt::Debug for IssuerScript {
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct HostResponse {
-    pub authorization_response_code: Option<[u8; 2]>,
+    pub authorization_response_code: [u8; 2],
     pub issuer_authentication_data: Option<Vec<u8>>,
     pub scripts: Vec<IssuerScript>,
 }
@@ -103,7 +103,7 @@ pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
         authorization_response_code.ok_or(KernelError::MissingMandatoryTag)?;
 
     Ok(HostResponse {
-        authorization_response_code: Some(authorization_response_code),
+        authorization_response_code,
         issuer_authentication_data,
         scripts,
     })
@@ -269,7 +269,7 @@ mod tests {
         ])
         .unwrap();
 
-        assert_eq!(response.authorization_response_code, Some([b'0', b'0']));
+        assert_eq!(response.authorization_response_code, [b'0', b'0']);
         assert_eq!(
             response.issuer_authentication_data,
             Some(vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
@@ -448,7 +448,7 @@ mod tests {
             parse_host_response(&[0x8a, 0x02, b' ', b'0'])
                 .unwrap()
                 .authorization_response_code,
-            Some([b' ', b'0'])
+            [b' ', b'0']
         );
     }
 

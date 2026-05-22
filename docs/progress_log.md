@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:31:20Z
+
+- Increment completed: collapse the parsed host-response ARC from an optional
+  field into a mandatory fixed two-byte value after the parser-level `8A`
+  requirement.
+- Research note: the public reference metadata reviewed for the prior slice and
+  Hyperion's Level 3 ABI contract both treat `8A` as mandatory host-response
+  data; this slice adapts that into the in-memory model rather than preserving
+  an impossible `None` state.
+- Code impact: `HostResponse.authorization_response_code` is now `[u8; 2]`;
+  parser diagnostics still validate malformed issuer scripts before reporting a
+  missing ARC, preserving existing fail-closed evidence.
+- Evidence update: existing parser and final-GAC tests now exercise the
+  non-optional ARC model directly without `Option` unwrap paths.
+- Verification: `cargo test rejects_host_response_without_authorization_response_code`,
+  `cargo test parses_arpc_arc_and_issuer_scripts`, `cargo test
+  final_generate_ac_builds_cdol2_from_host_response_and_state`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:23:09Z
 
 - Increment completed: require Level 3 online host responses to carry
