@@ -358,13 +358,14 @@ pub fn parse_internal_authenticate_response(
         return Err(KernelError::MissingMandatoryTag);
     }
 
-    let signed_dynamic_application_data = tlv::find_first(&tlvs[0].children, &[0x9f, 0x4b])
-        .ok_or(KernelError::MissingMandatoryTag)?;
+    let signed_dynamic_application_data =
+        tlv::find_unique_direct(&tlvs[0].children, &[0x9f, 0x4b])?
+            .ok_or(KernelError::MissingMandatoryTag)?;
     if signed_dynamic_application_data.len() < MIN_ODA_SIGNATURE_BYTES {
         return Err(KernelError::InvalidProfile);
     }
     let icc_dynamic_number =
-        tlv::find_first(&tlvs[0].children, &[0x9f, 0x4c]).map(|value| value.to_vec());
+        tlv::find_unique_direct(&tlvs[0].children, &[0x9f, 0x4c])?.map(|value| value.to_vec());
 
     Ok(InternalAuthenticateResponse {
         signed_dynamic_application_data: signed_dynamic_application_data.to_vec(),
@@ -1407,6 +1408,36 @@ mod tests {
             ])
             .unwrap_err(),
             KernelError::MissingMandatoryTag
+        );
+    }
+
+    #[test]
+    fn rejects_nested_or_duplicate_internal_authenticate_data() {
+        assert_eq!(
+            parse_internal_authenticate_response(&[
+                0x77, 0x0d, 0xa5, 0x0b, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7,
+                0xa8,
+            ])
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
+        assert_eq!(
+            parse_internal_authenticate_response(&[
+                0x77, 0x16, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0x9f,
+                0x4b, 0x08, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            parse_internal_authenticate_response(&[
+                0x77, 0x15, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0x9f,
+                0x4c, 0x02, 0x01, 0x02, 0x9f, 0x4c, 0x02, 0x03, 0x04,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
         );
     }
 

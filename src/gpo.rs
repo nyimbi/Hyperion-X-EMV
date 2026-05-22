@@ -45,15 +45,18 @@ pub fn parse_gpo_response(body: &[u8]) -> KernelResult<GpoResponse> {
     }
 
     match parsed[0].tag {
-        [0x77] => parse_template_77(&parsed),
+        [0x77] => parse_template_77(&parsed[0].children),
         [0x80] => parse_template_80(parsed[0].value),
         _ => Err(KernelError::MissingMandatoryTag),
     }
 }
 
-fn parse_template_77(parsed: &[tlv::Tlv<'_>]) -> KernelResult<GpoResponse> {
-    let aip = fixed_aip(tlv::find_first(parsed, &[0x82]).ok_or(KernelError::MissingMandatoryTag)?)?;
-    let afl_value = tlv::find_first(parsed, &[0x94]).ok_or(KernelError::MissingMandatoryTag)?;
+fn parse_template_77(children: &[tlv::Tlv<'_>]) -> KernelResult<GpoResponse> {
+    let aip = fixed_aip(
+        tlv::find_unique_direct(children, &[0x82])?.ok_or(KernelError::MissingMandatoryTag)?,
+    )?;
+    let afl_value =
+        tlv::find_unique_direct(children, &[0x94])?.ok_or(KernelError::MissingMandatoryTag)?;
     let afl = parse_afl(afl_value)?;
     Ok(GpoResponse {
         format: GpoResponseFormat::Template77,
@@ -143,6 +146,26 @@ mod tests {
         assert_eq!(
             parse_gpo_response(&[0x80, 0x01, 0x18]).unwrap_err(),
             KernelError::MissingMandatoryTag
+        );
+    }
+
+    #[test]
+    fn rejects_nested_or_duplicate_gpo_response_data() {
+        assert_eq!(
+            parse_gpo_response(&[
+                0x77, 0x0c, 0xa5, 0x0a, 0x82, 0x02, 0x18, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00,
+            ])
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
+        assert_eq!(
+            parse_gpo_response(&[
+                0x77, 0x0e, 0x82, 0x02, 0x18, 0x00, 0x82, 0x02, 0x20, 0x00, 0x94, 0x04, 0x10, 0x01,
+                0x01, 0x00,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
         );
     }
 }

@@ -81,6 +81,24 @@ pub fn find_first<'a>(tlvs: &'a [Tlv<'a>], tag: &[u8]) -> Option<&'a [u8]> {
     None
 }
 
+/// Returns one direct child value for `tag`.
+///
+/// This intentionally does not descend into constructed descendants. EMV
+/// response-template parsers use it when object provenance matters and duplicate
+/// response objects would make the card response ambiguous.
+pub fn find_unique_direct<'a>(tlvs: &'a [Tlv<'a>], tag: &[u8]) -> KernelResult<Option<&'a [u8]>> {
+    let mut found = None;
+    for tlv in tlvs {
+        if tlv.tag == tag {
+            if found.is_some() {
+                return Err(KernelError::ParseError);
+            }
+            found = Some(tlv.value);
+        }
+    }
+    Ok(found)
+}
+
 fn parse_sequence<'a>(
     input: &'a [u8],
     offset: &mut usize,
@@ -188,6 +206,32 @@ mod tests {
         let tlvs = parse_many(&bytes).expect("valid TLV");
         assert_eq!(find_first(&tlvs, &[0x84]), Some(&b"1PAY.SYS.DDF01"[..]));
         assert!(tlvs[0].constructed);
+    }
+
+    #[test]
+    fn finds_unique_direct_values_without_descending() {
+        let tlvs = parse_many(&[
+            0x77, 0x0d, 0xa5, 0x06, 0x9f, 0x26, 0x03, 0xaa, 0xbb, 0xcc, 0x9f, 0x36, 0x02, 0x00,
+            0x01,
+        ])
+        .unwrap();
+        assert_eq!(
+            find_unique_direct(&tlvs[0].children, &[0x9f, 0x36]).unwrap(),
+            Some(&[0x00, 0x01][..])
+        );
+        assert_eq!(
+            find_unique_direct(&tlvs[0].children, &[0x9f, 0x26]).unwrap(),
+            None
+        );
+
+        let duplicates = parse_many(&[
+            0x77, 0x0a, 0x9f, 0x36, 0x02, 0x00, 0x01, 0x9f, 0x36, 0x02, 0x00, 0x02,
+        ])
+        .unwrap();
+        assert_eq!(
+            find_unique_direct(&duplicates[0].children, &[0x9f, 0x36]).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]

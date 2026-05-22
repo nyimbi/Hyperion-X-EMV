@@ -4,6 +4,35 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:07:14Z
+
+- Increment completed: require response-template data objects to be direct and
+  unique when parsing GPO, GENERATE AC, and INTERNAL AUTHENTICATE responses.
+- Research note: public EMV transaction examples describe Template `77` as the
+  constructed response wrapper whose value contains the TLV-coded response data
+  objects; accepting mandatory objects from nested constructed subtrees weakens
+  response provenance and can hide malformed card responses.
+- Code impact: the TLV module now has a duplicate-detecting direct-child lookup
+  helper. GPO Template `77`, GENERATE AC Format 2, and INTERNAL AUTHENTICATE
+  parsers now reject nested mandatory response data and duplicate recognized
+  response objects instead of recursively accepting the first match.
+- Evidence updated: TLV, GPO, GAC, and ODA unit tests, traceability guards, and
+  both RTM annexes now cite direct-child and duplicate rejection coverage.
+- Verification: `cargo test rejects_nested_or_duplicate_gpo_response_data`,
+  `cargo test rejects_nested_or_duplicate_generate_ac_format_2_data`,
+  `cargo test rejects_nested_or_duplicate_internal_authenticate_data`,
+  `cargo test finds_unique_direct_values_without_descending`,
+  `cargo test krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates`,
+  `cargo test krn_cid_001_002_decodes_type_and_preserves_non_type_bits`,
+  `cargo test krn_dda_002_oda_006_requires_signed_dynamic_application_data`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`,
+  `cargo test rtm_promotes_gac_cdol_encoding_and_response_evidence`,
+  `cargo test rtm_promotes_dda_internal_authenticate_evidence`,
+  `cargo test rtm_promotes_tlv_catalogue_and_dol_classification_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T03:53:32Z
 
 - Increment completed: make issuer script parsing direct-child only inside

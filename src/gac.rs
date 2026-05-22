@@ -78,7 +78,7 @@ pub fn parse_generate_ac_response(input: &[u8]) -> KernelResult<GenerateAcRespon
 
     match tlvs[0].tag {
         [0x80] => parse_format_1(tlvs[0].value),
-        [0x77] => parse_format_2(&tlvs),
+        [0x77] => parse_format_2(&tlvs[0].children),
         _ => Err(KernelError::MissingMandatoryTag),
     }
 }
@@ -152,15 +152,16 @@ fn parse_format_1(value: &[u8]) -> KernelResult<GenerateAcResponse> {
     })
 }
 
-fn parse_format_2(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse> {
-    let cid = fixed::<1>(tlvs, &[0x9f, 0x27])?;
-    let application_cryptogram = fixed::<8>(tlvs, &[0x9f, 0x26])?;
-    let atc = fixed::<2>(tlvs, &[0x9f, 0x36])?;
-    let issuer_application_data =
-        tlv::find_first(tlvs, &[0x9f, 0x10]).map_or_else(Vec::new, |value| value.to_vec());
-    let icc_dynamic_number = tlv::find_first(tlvs, &[0x9f, 0x4c]).map(|value| value.to_vec());
+fn parse_format_2(children: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse> {
+    let cid = fixed::<1>(children, &[0x9f, 0x27])?;
+    let application_cryptogram = fixed::<8>(children, &[0x9f, 0x26])?;
+    let atc = fixed::<2>(children, &[0x9f, 0x36])?;
+    let issuer_application_data = tlv::find_unique_direct(children, &[0x9f, 0x10])?
+        .map_or_else(Vec::new, |value| value.to_vec());
+    let icc_dynamic_number =
+        tlv::find_unique_direct(children, &[0x9f, 0x4c])?.map(|value| value.to_vec());
     let signed_dynamic_application_data =
-        tlv::find_first(tlvs, &[0x9f, 0x4b]).map(|value| value.to_vec());
+        tlv::find_unique_direct(children, &[0x9f, 0x4b])?.map(|value| value.to_vec());
 
     Ok(GenerateAcResponse {
         cid: Cid::new(cid[0]),
@@ -172,8 +173,8 @@ fn parse_format_2(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse> {
     })
 }
 
-fn fixed<const N: usize>(tlvs: &[tlv::Tlv<'_>], tag: &[u8]) -> KernelResult<[u8; N]> {
-    let value = tlv::find_first(tlvs, tag).ok_or(KernelError::MissingMandatoryTag)?;
+fn fixed<const N: usize>(children: &[tlv::Tlv<'_>], tag: &[u8]) -> KernelResult<[u8; N]> {
+    let value = tlv::find_unique_direct(children, tag)?.ok_or(KernelError::MissingMandatoryTag)?;
     if value.len() != N {
         return Err(KernelError::ParseError);
     }
@@ -236,6 +237,38 @@ mod tests {
             ])
             .unwrap_err(),
             KernelError::MissingMandatoryTag
+        );
+    }
+
+    #[test]
+    fn rejects_nested_or_duplicate_generate_ac_format_2_data() {
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x77, 0x16, 0xa5, 0x14, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f,
+                0x26, 0x08, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+            ])
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x77, 0x1f, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x26, 0x08, 0x20, 0x21, 0x22,
+                0x23, 0x24, 0x25, 0x26, 0x27,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x77, 0x1c, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x10, 0x01, 0xaa, 0x9f, 0x10,
+                0x01, 0xbb,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
         );
     }
 

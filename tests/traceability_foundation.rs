@@ -828,6 +828,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(gpo_valid.contains("extracts_pdol_from_selected_application_fci"));
         assert!(gpo_valid.contains("parses_gpo_template_77_with_aip_and_afl"));
         assert!(gpo_valid.contains("parses_gpo_template_80_without_afl"));
+        assert!(gpo_valid.contains("rejects_nested_or_duplicate_gpo_response_data"));
         assert!(gpo_valid.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
         assert!(gpo_valid.contains("rtm_promotes_gpo_and_read_record_evidence"));
 
@@ -838,6 +839,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         );
         assert!(gpo_missing.contains("extracts_pdol_from_selected_application_fci"));
         assert!(gpo_missing.contains("rejects_gpo_without_mandatory_aip_afl"));
+        assert!(gpo_missing.contains("rejects_nested_or_duplicate_gpo_response_data"));
         assert!(gpo_missing.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
         assert!(gpo_missing.contains("rtm_promotes_gpo_and_read_record_evidence"));
 
@@ -2352,6 +2354,7 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
 
         let parser = csv_row_for_requirement(csv, "KRN-TLV-001").unwrap();
         assert!(parser.contains("parses_nested_fci_template"));
+        assert!(parser.contains("finds_unique_direct_values_without_descending"));
         assert!(parser.contains("tlv_parser_is_deterministic_for_valid_and_truncated_inputs"));
 
         let annex = csv_row_for_requirement(csv, "KRN-ANNEX-003").unwrap();
@@ -2434,6 +2437,9 @@ fn rtm_promotes_dda_internal_authenticate_evidence() {
         );
         assert!(
             signed_dynamic_data.contains("rejects_internal_authenticate_without_response_template")
+        );
+        assert!(
+            signed_dynamic_data.contains("rejects_nested_or_duplicate_internal_authenticate_data")
         );
         assert!(
             signed_dynamic_data.contains("runtime_oda_executes_dda_internal_authenticate_success")
@@ -2643,6 +2649,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         assert!(response.contains("parses_generate_ac_format_1_template_80"));
         assert!(response.contains("parses_generate_ac_format_2_template_77"));
         assert!(response.contains("rejects_generate_ac_without_single_supported_response_template"));
+        assert!(response.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
         assert!(response.contains("decodes_cryptogram_type_with_0xc0_mask"));
 
         let cdol1 = csv_row_for_requirement(csv, "KRN-GAC1-002").unwrap();
@@ -2660,6 +2667,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         let format = csv_row_for_requirement(csv, "KRN-GAC1-004").unwrap();
         assert!(format.contains("gac_parsing_uses_card_returned_cryptogram_for_online_handoff"));
         assert!(format.contains("rejects_generate_ac_without_single_supported_response_template"));
+        assert!(format.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
 
         let cda = csv_row_for_requirement(csv, "KRN-GAC1-005").unwrap();
         assert!(cda.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
@@ -3566,6 +3574,19 @@ fn krn_cid_001_002_decodes_type_and_preserves_non_type_bits() {
         .find(|object| object.tag == hex("9F27"))
         .expect("online package preserves CID object");
     assert_eq!(cid_object.value, vec![0x8f]);
+
+    assert_eq!(
+        parse_generate_ac_response(&hex("7716A5149F27018F9F360200099F26081112131415161718"))
+            .unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert_eq!(
+        parse_generate_ac_response(&hex(
+            "771F9F27018F9F360200099F260811121314151617189F26082021222324252627"
+        ))
+        .unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
 }
 
 #[test]
@@ -3759,6 +3780,14 @@ fn krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates() {
         parse_gpo_response(&hex("770482021800")).unwrap_err(),
         hyperion_emv::KernelError::MissingMandatoryTag
     );
+    assert_eq!(
+        parse_gpo_response(&hex("770CA50A82021800940410010100")).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert_eq!(
+        parse_gpo_response(&hex("770E8202180082022000940410010100")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
 }
 
 #[test]
@@ -3830,6 +3859,17 @@ fn krn_dda_002_oda_006_requires_signed_dynamic_application_data() {
     assert_eq!(
         parse_internal_authenticate_response(&hex("9F4B08A1A2A3A4A5A6A7A8")).unwrap_err(),
         hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert_eq!(
+        parse_internal_authenticate_response(&hex("770DA50B9F4B08A1A2A3A4A5A6A7A8")).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert_eq!(
+        parse_internal_authenticate_response(&hex(
+            "77169F4B08A1A2A3A4A5A6A7A89F4B08B1B2B3B4B5B6B7B8"
+        ))
+        .unwrap_err(),
+        hyperion_emv::KernelError::ParseError
     );
 }
 
