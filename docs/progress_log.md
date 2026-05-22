@@ -4,6 +4,18 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:20:41Z
+
+- Increment completed: harden signed profile and CAPK debug output.
+- Code impact: `ProfileSet`, `SchemeProfile`, `AidProfile`, and `Capk` now
+  expose only counts, lengths, source metadata, and non-sensitive selectors in
+  `Debug` output instead of CAPK bytes, action-code details, DOL bytes, or
+  full AID profile contents.
+- Evidence updated: KRN-LOG-003 now cites profile/CAPK debug redaction as part
+  of crash-safety coverage.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:17:08Z
 
 - Increment completed: harden ODA authentication-material debug output.

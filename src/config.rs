@@ -5,6 +5,7 @@ use crate::restrictions::EmvDate;
 use crate::sha1::{Sha1, SHA1_DIGEST_BYTES};
 use crate::taa::{ActionCodes, TaaProfile, TerminalAction};
 use crate::trm::TrmProfile;
+use core::fmt;
 use std::collections::BTreeMap;
 
 pub const MAX_JSON_DEPTH: usize = 24;
@@ -35,12 +36,27 @@ pub struct ConfigLoadPolicy {
     pub evaluation_date: EmvDate,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ProfileSet {
     pub version: u64,
     pub profile_class: ProfileClass,
     pub profile_source: ProfileSource,
     pub schemes: Vec<SchemeProfile>,
+}
+
+impl fmt::Debug for ProfileSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProfileSet")
+            .field("version", &self.version)
+            .field("profile_class", &self.profile_class)
+            .field("profile_source", &self.profile_source)
+            .field("scheme_count", &self.schemes.len())
+            .field(
+                "data_policy",
+                &"profile contents and CAPK material redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,7 +73,7 @@ pub struct ProfileSource {
     pub verification: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct SchemeProfile {
     pub scheme_name: String,
     pub rid: [u8; 5],
@@ -68,7 +84,24 @@ pub struct SchemeProfile {
     pub capks: Vec<Capk>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for SchemeProfile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SchemeProfile")
+            .field("scheme_name", &self.scheme_name)
+            .field("rid", &self.rid)
+            .field("kernel_type", &self.kernel_type)
+            .field("contact_kernel_type", &self.contact_kernel_type)
+            .field("aid_count", &self.aids.len())
+            .field("capk_count", &self.capks.len())
+            .field(
+                "data_policy",
+                &"AID profile details and CAPK material redacted for crash safety",
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct AidProfile {
     pub aid: Vec<u8>,
     pub priority: u8,
@@ -88,6 +121,29 @@ pub struct AidProfile {
     pub default_cdol1: Option<Vec<u8>>,
     pub critical_issuer_script_ins: Vec<u8>,
     pub relay_resistance: Option<RelayResistanceProfile>,
+}
+
+impl fmt::Debug for AidProfile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AidProfile")
+            .field("aid_len", &self.aid.len())
+            .field("priority", &self.priority)
+            .field("partial_selection", &self.partial_selection)
+            .field("interfaces", &self.interfaces)
+            .field("cda_supported", &self.cda_supported)
+            .field("cda_request_encoding", &self.cda_request_encoding)
+            .field(
+                "default_cdol1_len",
+                &self.default_cdol1.as_ref().map(Vec::len),
+            )
+            .field("critical_issuer_script_ins_count", &self.critical_issuer_script_ins.len())
+            .field("relay_resistance_present", &self.relay_resistance.is_some())
+            .field(
+                "data_policy",
+                &"AID values, action codes, limits, DOL bytes, and script policy bytes redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 impl AidProfile {
@@ -111,7 +167,7 @@ pub enum CdaRequestEncoding {
     P1LowBits(u8),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Capk {
     pub rid: [u8; 5],
     pub key_index: u8,
@@ -120,6 +176,24 @@ pub struct Capk {
     pub expiry: EmvDate,
     pub checksum: Vec<u8>,
     pub source: ProfileSource,
+}
+
+impl fmt::Debug for Capk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Capk")
+            .field("rid", &self.rid)
+            .field("key_index", &self.key_index)
+            .field("expiry", &self.expiry)
+            .field("modulus_len", &self.modulus.len())
+            .field("exponent_len", &self.exponent.len())
+            .field("checksum_len", &self.checksum.len())
+            .field("source", &self.source)
+            .field(
+                "data_policy",
+                &"CAPK modulus, exponent, and checksum bytes redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<ProfileSet> {
@@ -1138,6 +1212,31 @@ mod tests {
             Some(CdaRequestEncoding::InCdolData)
         );
         assert!(profiles.schemes[0].aids[0].cda_allowed_by_profile());
+    }
+
+    #[test]
+    fn profile_debug_redacts_capk_and_profile_material() {
+        let profiles = load_profile_set(VALID_PROFILE, &policy(SignatureStatus::Verified)).unwrap();
+        let scheme = &profiles.schemes[0];
+        let aid = &scheme.aids[0];
+        let capk = &scheme.capks[0];
+
+        for debug in [
+            format!("{profiles:?}"),
+            format!("{scheme:?}"),
+            format!("{aid:?}"),
+            format!("{capk:?}"),
+        ] {
+            assert!(debug.contains("redacted for crash safety"));
+            assert!(!debug.contains("modulus:"));
+            assert!(!debug.contains("exponent:"));
+            assert!(!debug.contains("checksum:"));
+            assert!(!debug.contains("action_codes"));
+            assert!(!debug.contains("default_cdol1:"));
+            for raw_byte in ["210", "229", "245", "179", "225", "167", "184", "201"] {
+                assert!(!debug.contains(raw_byte));
+            }
+        }
     }
 
     #[test]
