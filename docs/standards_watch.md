@@ -22,11 +22,20 @@ instructions prevail on conflict.
   but they are current public signals that the lab-selected contactless
   version, bulletin set, and scheme acceptance package must explicitly accept,
   exclude, or defer.
+- Public adjacent bulletin signals to keep out of direct code changes until the
+  licensed/lab package selects them: EMVCo public materials list SB 314,
+  "Update to TRMD", published 2026-05-07; DSB 324, "Updates to C-4", published
+  2026-04-16 with a 2026-05-22 comment period; and DSB 308, "Contact Features
+  Sunsetting P1", published 2026-03-31 with a 2026-05-01 comment-period end.
+  These items are watch-list inputs for profile selection, contact/contactless
+  scope control, and lab reconciliation. They do not authorize Hyperion to infer
+  unlicensed TRMD, C-4, or contact-feature behavior.
 - Repository action: keep C-8 v1.0 as the current engineering target until
   licensed review, scheme profile data, lab test package selection, and target
   device evidence confirm whether the submission target must move to v1.1 or
   incorporate SB 325 behavior. Treat SB 326, SB 327, and DSB 331 as
-  contactless-suite reconciliation inputs, not as direct Hyperion code changes,
+  contactless-suite reconciliation inputs, and treat SB 314, DSB 324, and
+  DSB 308 as adjacent watch-list inputs, not as direct Hyperion code changes,
   unless the licensed profile/lab package selects their behavior for the
   submitted binary.
 
@@ -87,6 +96,9 @@ submission package includes a licensed C-8 reconciliation note that states:
   and SB 327, that affect the target device or entry-point evidence;
 - any Kernel 2 relay-resistance or RRP constraints, including DSB 331, that are
   accepted, excluded, or declared out of scope for the claimed C-8 package; and
+- any adjacent contactless TRMD, C-4, or contact-feature bulletin constraints,
+  including SB 314, DSB 324, and DSB 308, that the lab or scheme requires for
+  the target device, profile set, or claimed contact/contactless scope; and
 - the laboratory test reports and Letter of Approval or equivalent scheme/lab
   approval artifact;
 - the masked APDU/outcome traces for the accepted profile and device set.

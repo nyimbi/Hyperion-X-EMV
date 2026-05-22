@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T20:52:18Z
+
+- Increment completed: refresh public standards drift tracking with adjacent
+  EMVCo bulletin watch-list items discovered during the latest public check.
+- Research note: EMVCo public listings still keep C-8 v1.1 / SB 325 and the
+  2026-05-21 Book A, Book B, and Kernel 2 RRP signals as the main contactless
+  reconciliation items. They also show adjacent SB 314 TRMD, DSB 324 C-4, and
+  DSB 308 Contact Features Sunsetting P1 signals that should be tracked without
+  driving direct code behavior absent licensed/lab direction.
+- Documentation impact: `standards_watch.md`, `certification_open_issues.md`,
+  and `lab_submission_manifest.md` now name the adjacent watch-list inputs and
+  keep them outside the repository-controlled implementation authority.
+- Evidence updated: the traceability guard now requires the SB 314 / DSB 324 /
+  DSB 308 watch-list language in the standards watch, manifest, and open-issues
+  register.
+- Remaining external blockers: certification still needs licensed/lab
+  reconciliation, scheme/lab-approved profile bundles, production CAPKs, device
+  integration evidence, official vectors, and lab reports before any public
+  bulletin can be treated as accepted scope.
+
 ## 2026-05-22T20:45:33Z
 
 - Increment completed: extend the generated pre-lab APDU trace pack with a
