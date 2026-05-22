@@ -15,14 +15,14 @@ const MAX_CAPK_RSA_EXPONENT_BYTES: usize = 3;
 const CAPK_CHECKSUM_ALGORITHM: &str = "sha1(rid || key_index || modulus || exponent)";
 const CAPK_CHECKSUM_SCOPE: [&str; 4] = ["rid", "key_index", "modulus_hex", "exponent_hex"];
 const PROFILE_SCHEMA_VERSION: &str = "1.0";
-const PROFILE_MATERIAL_STATUSES: [&str; 2] = [
-    "certification_format_fixture_pending_lab_signature",
-    "lab_signed_certification_profile",
-];
-const CAPK_MATERIAL_STATUSES: [&str; 2] = [
-    "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks",
-    "lab_signed_capks",
-];
+const PROFILE_STATUS_FIXTURE_PENDING: &str = "certification_format_fixture_pending_lab_signature";
+const PROFILE_STATUS_LAB_SIGNED: &str = "lab_signed_certification_profile";
+const CAPK_STATUS_FIXTURE_PENDING: &str =
+    "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks";
+const CAPK_STATUS_LAB_SIGNED: &str = "lab_signed_capks";
+const PROFILE_MATERIAL_STATUSES: [&str; 2] =
+    [PROFILE_STATUS_FIXTURE_PENDING, PROFILE_STATUS_LAB_SIGNED];
+const CAPK_MATERIAL_STATUSES: [&str; 2] = [CAPK_STATUS_FIXTURE_PENDING, CAPK_STATUS_LAB_SIGNED];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BuildMode {
@@ -241,7 +241,11 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
     )?;
     validate_profile_schema_version(object, policy.mode)?;
     let profile_class = parse_profile_class(object, policy.mode)?;
-    parse_certification_scope(object.get("certification_scope"), profile_class)?;
+    parse_certification_scope(
+        object.get("certification_scope"),
+        profile_class,
+        policy.mode,
+    )?;
     let profile_source =
         parse_profile_source(object, profile_class, policy.mode, policy.evaluation_date)?;
     let schemes_value = object
@@ -383,6 +387,7 @@ fn parse_source_object(
 fn parse_certification_scope(
     value: Option<&JsonValue>,
     profile_class: ProfileClass,
+    mode: BuildMode,
 ) -> KernelResult<()> {
     let Some(value) = value else {
         return match profile_class {
@@ -420,8 +425,16 @@ fn parse_certification_scope(
     if contactless_profile.is_empty() {
         return Err(KernelError::InvalidProfile);
     }
-    required_allowed_string(scope, "profile_material_status", &PROFILE_MATERIAL_STATUSES)?;
-    required_allowed_string(scope, "capk_material_status", &CAPK_MATERIAL_STATUSES)?;
+    let profile_material_status =
+        required_allowed_string(scope, "profile_material_status", &PROFILE_MATERIAL_STATUSES)?;
+    let capk_material_status =
+        required_allowed_string(scope, "capk_material_status", &CAPK_MATERIAL_STATUSES)?;
+    if mode == BuildMode::Production
+        && (profile_material_status != PROFILE_STATUS_LAB_SIGNED
+            || capk_material_status != CAPK_STATUS_LAB_SIGNED)
+    {
+        return Err(KernelError::InvalidProfile);
+    }
     if !required_bool(scope, "production_profile_bundle_required")? {
         return Err(KernelError::InvalidProfile);
     }
@@ -1684,6 +1697,35 @@ mod tests {
             .unwrap_err(),
             KernelError::InvalidProfile
         );
+    }
+
+    #[test]
+    fn production_rejects_fixture_pending_profile_material() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let production = ConfigLoadPolicy {
+            mode: BuildMode::Production,
+            ..policy(SignatureStatus::Verified)
+        };
+        assert_eq!(
+            load_profile_set(profile.as_bytes(), &production).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let lab_signed_profile_only = profile.replace(
+            r#""profile_material_status": "certification_format_fixture_pending_lab_signature""#,
+            r#""profile_material_status": "lab_signed_certification_profile""#,
+        );
+        assert_eq!(
+            load_profile_set(lab_signed_profile_only.as_bytes(), &production).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let lab_signed = lab_signed_profile_only.replace(
+            r#""capk_material_status": "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks""#,
+            r#""capk_material_status": "lab_signed_capks""#,
+        );
+        let profiles = load_profile_set(lab_signed.as_bytes(), &production).unwrap();
+        assert_eq!(profiles.profile_class, ProfileClass::Certification);
     }
 
     #[test]

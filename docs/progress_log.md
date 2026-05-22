@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:16:17Z
+
+- Increment completed: make production profile loading reject fixture-pending
+  signed-material statuses.
+- Research note: public EMVCo and PCI SSC pages were checked before this slice;
+  no repository-controlled licensed behavior was inferred from public bulletins.
+  The actionable local gap was keeping production policy stricter than
+  pre-lab certification policy for signed profile/CAPK material status.
+- Code impact: `BuildMode::Production` now requires certification scopes to
+  declare `lab_signed_certification_profile` and `lab_signed_capks`, while
+  certification/pre-lab loading can still accept fixture-pending markers for
+  controlled engineering evidence.
+- Evidence updated:
+  `config::tests::production_rejects_fixture_pending_profile_material` covers
+  fixture rejection, partial lab-signed rejection, and full lab-signed
+  acceptance. `docs/spec.md` now documents the production-only gate, both RTM
+  CSVs cite the regression under `KRN-CFG-002`, and the traceability foundation
+  asserts the citation.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:03:13Z
 
 - Increment completed: preserve signed-profile provenance retrieval dates in

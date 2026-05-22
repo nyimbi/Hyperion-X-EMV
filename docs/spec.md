@@ -211,6 +211,9 @@ It SHALL be valid JSON, declare `schema_version = "1.0"` and
 preserve valid ISO provenance retrieval dates where supplied, and include
 complete AID, TAC/IAC, limit, CDA-control, issuer-script, CAPK, checksum,
 expiry, and CAPK-source fields for each bundled scheme profile.
+Certification/pre-lab builds MAY carry fixture-pending material-status markers
+for controlled engineering evidence, but production policy SHALL reject those
+markers and require `lab_signed_certification_profile` and `lab_signed_capks`.
 
 C-8 contactless behavior is certified through the contactless kernel approval
 package and lab-supplied profile data. The certification scheme profile annex

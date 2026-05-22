@@ -2537,6 +2537,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_invalid_profile_schema_version"));
         assert!(row.contains("rejects_blank_certification_profile_source_metadata"));
         assert!(row.contains("preserves_and_validates_profile_source_retrieval_dates"));
+        assert!(row.contains("production_rejects_fixture_pending_profile_material"));
         assert!(row.contains("rejects_profile_json_depth_limit_overflow"));
         assert!(row.contains("rejects_profile_json_node_limit_overflow"));
         assert!(row.contains("rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces"));
