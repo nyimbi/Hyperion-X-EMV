@@ -258,12 +258,30 @@ impl RelayResistanceProfile {
         {
             return Err(KernelError::InvalidProfile);
         }
+        validate_relay_resistance_command_apdu(&command_apdu)?;
         Ok(Self {
             command_apdu,
             max_round_trip_ms,
             success_response,
             failure_outcome,
         })
+    }
+}
+
+fn validate_relay_resistance_command_apdu(command: &[u8]) -> KernelResult<()> {
+    if command.len() <= 5 {
+        return Ok(());
+    }
+
+    let lc = command[4] as usize;
+    if lc == 0 {
+        return Err(KernelError::InvalidProfile);
+    }
+    let data_end = 5usize.checked_add(lc).ok_or(KernelError::LengthOverflow)?;
+    if command.len() == data_end || command.len() == data_end + 1 {
+        Ok(())
+    } else {
+        Err(KernelError::InvalidProfile)
     }
 }
 
@@ -716,6 +734,38 @@ mod tests {
             RelayResistanceProfile::new(
                 vec![0x80, 0xca, 0x9f, 0x7a, 0x00],
                 0,
+                vec![0x90, 0x00],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_relay_resistance_command_apdus() {
+        assert!(RelayResistanceProfile::new(
+            vec![0x80, 0xca, 0x9f, 0x7a, 0x00],
+            50,
+            vec![0x90, 0x00],
+            RelayResistanceFailureOutcome::TryAgain,
+        )
+        .is_ok());
+
+        assert_eq!(
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f, 0x7a, 0x02, 0xaa],
+                50,
+                vec![0x90, 0x00],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f, 0x7a, 0x00, 0xaa],
+                50,
                 vec![0x90, 0x00],
                 RelayResistanceFailureOutcome::TryAgain,
             )

@@ -5986,6 +5986,7 @@ fn krn_cless_005_relay_resistance_is_profile_required_and_traced() {
         assert!(!row.contains("pending implementation evidence"));
         assert!(row.contains("relay_resistance_is_profile_gated_and_deterministic"));
         assert!(row.contains("rejects_incomplete_relay_resistance_profiles"));
+        assert!(row.contains("rejects_malformed_relay_resistance_command_apdus"));
         assert!(row.contains("rejects_relay_resistance_profiles_above_resource_limits"));
         assert!(row.contains("parses_profile_defined_relay_resistance_policy"));
         assert!(row.contains("contactless_relay_resistance_is_profile_required"));

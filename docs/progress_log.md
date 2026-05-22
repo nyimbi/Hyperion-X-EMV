@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:41:28Z
+
+- Increment completed: reject malformed profile-defined relay-resistance
+  command APDUs before contactless C-8 runtime handling.
+- Code impact: `RelayResistanceProfile::new` now validates the short-APDU
+  command layout, including Lc/data/optional-Le consistency, in addition to
+  the existing command length, response length, and timing bounds.
+- Evidence update: both RTM annexes cite
+  `c8::tests::rejects_malformed_relay_resistance_command_apdus` under
+  KRN-CLESS-005.
+- Verification: `cargo test rejects_malformed_relay_resistance_command_apdus`,
+  `cargo test krn_cless_005_relay_resistance_is_profile_required_and_traced`,
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T15:35:44Z
 
 - Increment completed: reject empty `9F4C` ICC Dynamic Number objects in DDA
