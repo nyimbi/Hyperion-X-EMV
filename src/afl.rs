@@ -182,6 +182,39 @@ mod tests {
     }
 
     #[test]
+    fn rejects_afl_lists_above_entry_limit() {
+        let mut afl = Vec::new();
+        for _ in 0..=MAX_AFL_ENTRIES {
+            afl.extend_from_slice(&[0x10, 0x01, 0x01, 0x00]);
+        }
+
+        assert_eq!(parse_afl(&afl).unwrap_err(), KernelError::LengthOverflow);
+    }
+
+    #[test]
+    fn rejects_record_plans_above_locator_limit() {
+        let entries = [
+            AflEntry {
+                sfi: 1,
+                first_record: 1,
+                last_record: 255,
+                offline_auth_record_count: 0,
+            },
+            AflEntry {
+                sfi: 2,
+                first_record: 1,
+                last_record: 255,
+                offline_auth_record_count: 0,
+            },
+        ];
+
+        assert_eq!(
+            record_plan(&entries).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn rejects_duplicate_afl_record_locators() {
         let entries = parse_afl(&[0x10, 0x01, 0x02, 0x00, 0x10, 0x02, 0x03, 0x00]).unwrap();
         assert_eq!(record_plan(&entries).unwrap_err(), KernelError::ParseError);

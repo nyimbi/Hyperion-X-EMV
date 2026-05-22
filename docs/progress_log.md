@@ -1871,3 +1871,23 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:46:59Z
+
+- Increment completed: make AFL entry and READ RECORD locator bounds
+  explicit and traceable.
+- Research note: scheme/lab GPO and READ RECORD packs remain external
+  certification evidence, but repository-controlled AFL expansion can prove
+  malformed or oversized record plans fail closed before APDU generation.
+- Code impact: AFL parsing now has a regression proving more than
+  `MAX_AFL_ENTRIES` fails with `KRN_ERR_LENGTH_OVERFLOW`, and record planning
+  has a regression proving more than `MAX_RECORD_LOCATORS` fails before READ
+  RECORD APDUs are generated.
+- Evidence updated: current and compatibility RTM annexes cite both AFL
+  resource-limit regressions for `KRN-RR-001`.
+- Verification: `cargo test rejects_afl_lists_above_entry_limit`,
+  `cargo test rejects_record_plans_above_locator_limit`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

@@ -856,6 +856,8 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(sfi.contains("validates_read_record_sfi"));
         assert!(sfi.contains("rejects_malformed_afl_entries"));
         assert!(sfi.contains("rejects_afl_sfi_bytes_with_nonzero_low_bits"));
+        assert!(sfi.contains("rejects_afl_lists_above_entry_limit"));
+        assert!(sfi.contains("rejects_record_plans_above_locator_limit"));
         assert!(sfi.contains("rejects_duplicate_afl_record_locators"));
         assert!(sfi.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data"));
         assert!(sfi.contains("rtm_promotes_gpo_and_read_record_evidence"));
