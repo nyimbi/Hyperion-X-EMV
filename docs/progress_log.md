@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:04:20Z
+
+- Increment completed: reject duplicate profile AID values and duplicate
+  CAPK RID/key-index identities inside a signed scheme profile.
+- Research note: scheme profile material binds terminal selection and CAPK
+  lookup behavior before transaction processing. Repeated identities in one
+  signed profile leave deterministic provenance ambiguous even when every
+  individual field and checksum is valid.
+- Code impact: profile loading now fails closed after decoding AID and CAPK
+  arrays if any scheme repeats a selectable AID or CAPK lookup identity.
+- Evidence updated: configuration regression coverage and both RTM annexes now
+  cite duplicate profile AID/CAPK identity rejection under `KRN-CFG-002`.
+- Verification: `cargo test rejects_duplicate_profile_aids_and_capk_indexes`,
+  `cargo test rejects_cfg_002_profile_schema_and_field_failures`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T05:55:33Z
 
 - Increment completed: reject constructed children inside INTERNAL AUTHENTICATE

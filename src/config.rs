@@ -390,6 +390,7 @@ fn parse_scheme(
     for aid_value in aids_array {
         aids.push(parse_aid(aid_value)?);
     }
+    reject_duplicate_aids(&aids)?;
 
     let capks_value = object.get("capks").ok_or(KernelError::InvalidProfile)?;
     let capks_array = capks_value.as_array()?;
@@ -406,6 +407,7 @@ fn parse_scheme(
             mode,
         )?);
     }
+    reject_duplicate_capk_identities(&capks)?;
 
     Ok(SchemeProfile {
         scheme_name: scheme_name.to_string(),
@@ -416,6 +418,27 @@ fn parse_scheme(
         aids,
         capks,
     })
+}
+
+fn reject_duplicate_aids(aids: &[AidProfile]) -> KernelResult<()> {
+    for (index, aid) in aids.iter().enumerate() {
+        if aids[..index].iter().any(|prior| prior.aid == aid.aid) {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+    Ok(())
+}
+
+fn reject_duplicate_capk_identities(capks: &[Capk]) -> KernelResult<()> {
+    for (index, capk) in capks.iter().enumerate() {
+        if capks[..index]
+            .iter()
+            .any(|prior| prior.rid == capk.rid && prior.key_index == capk.key_index)
+        {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+    Ok(())
 }
 
 fn parse_contact_kernel_type(object: &BTreeMap<String, JsonValue>) -> KernelResult<Option<String>> {
@@ -1168,6 +1191,38 @@ mod tests {
         }
     }
 
+    fn duplicate_first_array_object(profile: &str, array_name: &str) -> String {
+        let marker = format!(r#""{array_name}": ["#);
+        let array_start = profile.find(&marker).expect("profile array exists") + marker.len();
+        let object_start = array_start
+            + profile[array_start..]
+                .find('{')
+                .expect("array object exists");
+        let mut depth = 0usize;
+        let mut object_end = None;
+        for (offset, byte) in profile[object_start..].bytes().enumerate() {
+            match byte {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        object_end = Some(object_start + offset + 1);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let object_end = object_end.expect("array object closes");
+        let object = &profile[object_start..object_end];
+        let mut duplicated = String::with_capacity(profile.len() + object.len() + 2);
+        duplicated.push_str(&profile[..object_end]);
+        duplicated.push_str(", ");
+        duplicated.push_str(object);
+        duplicated.push_str(&profile[object_end..]);
+        duplicated
+    }
+
     #[test]
     fn loads_profile_annex_when_signature_is_verified() {
         let profiles = load_profile_set(VALID_PROFILE, &policy(SignatureStatus::Verified)).unwrap();
@@ -1273,6 +1328,28 @@ mod tests {
         assert_eq!(
             load_profile_set(
                 missing_command.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_profile_aids_and_capk_indexes() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+
+        let duplicate_aid = duplicate_first_array_object(profile, "aids");
+        assert_eq!(
+            load_profile_set(duplicate_aid.as_bytes(), &policy(SignatureStatus::Verified))
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let duplicate_capk = duplicate_first_array_object(profile, "capks");
+        assert_eq!(
+            load_profile_set(
+                duplicate_capk.as_bytes(),
                 &policy(SignatureStatus::Verified)
             )
             .unwrap_err(),
