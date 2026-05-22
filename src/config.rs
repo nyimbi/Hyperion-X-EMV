@@ -10,6 +10,8 @@ use std::collections::BTreeMap;
 
 pub const MAX_JSON_DEPTH: usize = 24;
 pub const MAX_JSON_NODES: usize = 4096;
+const MAX_CAPK_RSA_MODULUS_BYTES: usize = 256;
+const MAX_CAPK_RSA_EXPONENT_BYTES: usize = 3;
 const CAPK_CHECKSUM_ALGORITHM: &str = "sha1(rid || key_index || modulus || exponent)";
 const CAPK_CHECKSUM_SCOPE: [&str; 4] = ["rid", "key_index", "modulus_hex", "exponent_hex"];
 
@@ -729,10 +731,10 @@ fn parse_capk(
     let modulus = parse_hex_field(object, "modulus_hex")?;
     let exponent = parse_hex_field(object, "exponent_hex")?;
     let checksum = parse_hex_field(object, "checksum_hex")?;
-    if modulus.len() < 64 || exponent.is_empty() || checksum.len() < 16 {
+    if checksum.len() < 16 {
         return Err(KernelError::InvalidProfile);
     }
-    reject_dummy_bytes(&modulus)?;
+    validate_capk_public_key_components(&modulus, &exponent)?;
     reject_dummy_bytes(&checksum)?;
 
     if profile_class == ProfileClass::Certification {
@@ -929,9 +931,40 @@ fn reject_placeholder(value: &str) -> KernelResult<()> {
 }
 
 fn reject_dummy_bytes(value: &[u8]) -> KernelResult<()> {
-    if value.iter().all(|byte| *byte == 0) || value.iter().all(|byte| *byte == 0xff) {
+    if is_dummy_bytes(value) {
         return Err(KernelError::InvalidProfile);
     }
+    Ok(())
+}
+
+fn is_dummy_bytes(value: &[u8]) -> bool {
+    value.iter().all(|byte| *byte == 0) || value.iter().all(|byte| *byte == 0xff)
+}
+
+fn validate_capk_public_key_components(modulus: &[u8], exponent: &[u8]) -> KernelResult<()> {
+    if modulus.len() < 64
+        || modulus.len() > MAX_CAPK_RSA_MODULUS_BYTES
+        || modulus[0] == 0
+        || is_dummy_bytes(modulus)
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    if exponent.is_empty()
+        || exponent.len() > MAX_CAPK_RSA_EXPONENT_BYTES
+        || exponent[0] == 0
+        || is_dummy_bytes(exponent)
+    {
+        return Err(KernelError::InvalidProfile);
+    }
+    let mut value = 0u32;
+    for byte in exponent {
+        value = (value << 8) | u32::from(*byte);
+    }
+    if value < 3 || value % 2 == 0 {
+        return Err(KernelError::InvalidProfile);
+    }
+
     Ok(())
 }
 
@@ -1294,6 +1327,34 @@ mod tests {
         duplicated
     }
 
+    fn hex_upper(bytes: &[u8]) -> String {
+        let mut out = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            out.push_str(&format!("{byte:02X}"));
+        }
+        out
+    }
+
+    fn profile_with_capk_exponent(exponent_hex: &str) -> String {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let modulus = decode_hex(
+            "D2E5F5B3A1C8D4E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0",
+        )
+        .unwrap();
+        let exponent = decode_hex(exponent_hex).unwrap();
+        let checksum =
+            capk_checksum_components(&[0xa0, 0x00, 0x00, 0x00, 0x03], 1, &modulus, &exponent);
+        profile
+            .replace(
+                r#""exponent_hex": "010001""#,
+                &format!(r#""exponent_hex": "{exponent_hex}""#),
+            )
+            .replace(
+                r#""checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5""#,
+                &format!(r#""checksum_hex": "{}""#, hex_upper(&checksum)),
+            )
+    }
+
     #[test]
     fn loads_profile_annex_when_signature_is_verified() {
         let profiles = load_profile_set(VALID_PROFILE, &policy(SignatureStatus::Verified)).unwrap();
@@ -1503,6 +1564,30 @@ mod tests {
         );
         assert_eq!(
             load_profile_set(bad_scope.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_capk_public_key_components() {
+        for exponent_hex in ["01", "02", "000003", "01000103"] {
+            let profile = profile_with_capk_exponent(exponent_hex);
+            assert_eq!(
+                load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified))
+                    .unwrap_err(),
+                KernelError::InvalidProfile
+            );
+        }
+
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let leading_zero_modulus =
+            profile.replace(r#""modulus_hex": "D2E5F5"#, r#""modulus_hex": "00E5F5"#);
+        assert_eq!(
+            load_profile_set(
+                leading_zero_modulus.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
     }

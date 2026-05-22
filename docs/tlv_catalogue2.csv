@@ -32,7 +32,7 @@ Tag,Name,Format,Presence,Source
 9F0E,IAC Online,Primitive 5 bytes,From card,EMV Book 3
 9F0F,IAC Default,Primitive 5 bytes,From card,EMV Book 3
 9F10,Issuer Application Data,Primitive variable,Mandatory for host,EMV Book 3
-9F18,Issuer Script Identifier,Primitive variable,For scripts,EMV Book 3
+9F18,Issuer Script Identifier,Primitive 4 bytes,For scripts,EMV Book 3
 9F1A,Terminal Country Code,Primitive 2 bytes,Terminal sets,EMV Book 3
 9F1E,Interface Device Serial Number,Primitive variable,Optional,EMV Book 3
 9F26,Application Cryptogram,Primitive 8 bytes,From card,EMV Book 3

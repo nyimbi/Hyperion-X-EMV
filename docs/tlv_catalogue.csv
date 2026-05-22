@@ -36,7 +36,7 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 9F0E,IAC Online,Primitive,5 bytes,EMV Book 3,contact and contactless,all,From card,non-sensitive,UT-TLV-004
 9F0F,IAC Default,Primitive,5 bytes,EMV Book 3,contact and contactless,all,From card,non-sensitive,UT-TLV-004
 9F10,Issuer Application Data,Primitive,variable,EMV Book 3,contact and contactless,PROFILE-DEFINED,Mandatory for host,profile-defined,UT-TLV-005
-9F18,Issuer Script Identifier,Primitive,variable,EMV Book 3,contact and contactless,all,For scripts,non-sensitive,UT-TLV-004
+9F18,Issuer Script Identifier,Primitive,4 bytes,EMV Book 3,contact and contactless,all,For scripts,non-sensitive,UT-TLV-004
 9F1A,Terminal Country Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
 9F1E,Interface Device Serial Number,Primitive,variable,EMV Book 3,contact and contactless,all,Optional,device-identifier,UT-TLV-004
 9F26,Application Cryptogram,Primitive,8 bytes,EMV Book 3,contact and contactless,all,From card,cryptographic,UT-TLV-004

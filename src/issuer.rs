@@ -5,6 +5,7 @@ use core::fmt;
 
 pub const MAX_SCRIPT_COMMANDS: usize = 32;
 pub const MAX_SCRIPT_COMMAND_LEN: usize = 261;
+const ISSUER_SCRIPT_IDENTIFIER_LEN: usize = 4;
 const ISSUER_AUTHENTICATION_DATA_MIN_LEN: usize = 8;
 const ISSUER_AUTHENTICATION_DATA_MAX_LEN: usize = 16;
 
@@ -180,7 +181,7 @@ fn parse_script_template(
     for item in &template.children {
         match item.tag {
             [0x9f, 0x18] => {
-                if identifier.is_some() || item.value.is_empty() {
+                if identifier.is_some() || item.value.len() != ISSUER_SCRIPT_IDENTIFIER_LEN {
                     return Err(KernelError::ParseError);
                 }
                 identifier = Some(item.value.to_vec());
@@ -296,6 +297,25 @@ mod tests {
     fn rejects_script_templates_without_commands() {
         assert_eq!(
             parse_host_response(&[0x71, 0x06, 0x9f, 0x18, 0x03, 0x01, 0x02, 0x03]).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_issuer_script_identifier_lengths() {
+        assert_eq!(
+            parse_host_response(&[
+                0x71, 0x0c, 0x9f, 0x18, 0x01, 0xde, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x71, 0x10, 0x9f, 0x18, 0x05, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x86, 0x06, 0x00, 0xda,
+                0x00, 0x00, 0x01, 0xaa,
+            ])
+            .unwrap_err(),
             KernelError::ParseError
         );
     }

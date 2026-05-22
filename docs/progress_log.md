@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T08:07:11Z
+
+- Increment completed: require issuer script identifier tag `9F18` to be exactly
+  four bytes before accepting a host script template.
+- Research note: issuer script identifiers cross from the host into Level 2
+  script processing evidence. Accepting arbitrary non-empty identifier lengths
+  weakens deterministic template validation and can hide malformed host-response
+  fixtures until lab or acquirer review.
+- Code impact: issuer script parsing now rejects short and overlong `9F18`
+  values while preserving valid Template 71/72 command execution behavior.
+- Evidence updated: the TLV catalogue now records `9F18` as a four-byte
+  primitive, both RTM annexes cite the malformed identifier regression, and the
+  issuer-script RTM guard asserts that evidence remains present.
+- Verification: `cargo test rejects_malformed_issuer_script_identifier_lengths`,
+  `cargo test parses_arpc_arc_and_issuer_scripts`, and
+  `cargo test rtm_promotes_issuer_script_evidence` passed, followed by
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`.
+
 ## 2026-05-22T07:17:06Z
 
 - Increment completed: add a public standards-watch annex and wire it into the
@@ -1730,6 +1749,28 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test ffi_rejects_inconsistent_contactless_outcome_tuples`,
   `cargo test rtm_promotes_c8_kernel_outcome_evidence`,
   `cargo test rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
+## 2026-05-22T08:10:36Z
+
+- Increment completed: reject structurally invalid CAPK public-key
+  components during signed profile loading instead of deferring rejection until
+  ODA use.
+- Research note: CAPK authority remains external (`CERT-OPEN-003`), but the
+  repository-controlled loader can still reject degenerate or unbounded RSA
+  public key material before it enters a certification profile set.
+- Code impact: CAPK loading now bounds RSA modulus/exponent sizes, rejects
+  zero-prefixed or dummy modulus data, and requires a bounded odd public
+  exponent greater than one before checksum validation accepts the key record.
+- Evidence updated: current and compatibility RTM annexes cite the new CAPK
+  component rejection test for CAPK integrity, profile-shape, and configuration
+  schema rows.
+- Verification: `cargo test rejects_invalid_capk_public_key_components`,
+  `cargo test loads_profile_annex_when_signature_is_verified`,
+  `cargo test rtm_promotes_signed_profile_and_capk_validation_evidence`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.

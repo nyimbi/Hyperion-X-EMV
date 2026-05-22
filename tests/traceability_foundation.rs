@@ -2326,6 +2326,7 @@ fn rtm_promotes_signed_profile_and_capk_validation_evidence() {
         let capk_integrity = csv_row_for_requirement(csv, "KRN-CAPK-001").unwrap();
         assert!(capk_integrity
             .contains("rejects_certification_capk_checksum_mismatch_or_metadata_drift"));
+        assert!(capk_integrity.contains("rejects_invalid_capk_public_key_components"));
         assert!(capk_integrity
             .contains("krn_sec_003_oda_001_cert_profile_loader_rejects_capk_checksum_drift"));
         assert!(
@@ -2339,6 +2340,7 @@ fn rtm_promotes_signed_profile_and_capk_validation_evidence() {
         let capk_hex = csv_row_for_requirement(csv, "KRN-PROFILE-002").unwrap();
         assert!(capk_hex.contains("loads_profile_annex_when_signature_is_verified"));
         assert!(capk_hex.contains("rejects_certification_capk_checksum_mismatch_or_metadata_drift"));
+        assert!(capk_hex.contains("rejects_invalid_capk_public_key_components"));
         assert!(capk_hex.contains("krn_sec_003_oda_002_capks_retain_signed_public_provenance"));
     }
 }
@@ -2357,6 +2359,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_duplicate_scheme_rids"));
         assert!(row.contains("rejects_duplicate_profile_aids_and_capk_indexes"));
         assert!(row.contains("rejects_expired_capk"));
+        assert!(row.contains("rejects_invalid_capk_public_key_components"));
         assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
         assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
         assert!(row.contains("rtm_promotes_cfg_schema_and_terminal_param_evidence"));
@@ -6342,6 +6345,7 @@ fn rtm_promotes_issuer_script_evidence() {
         let parser = csv_row_for_requirement(csv, "KRN-SCR-001").unwrap();
         assert!(parser.contains("parses_arpc_arc_and_issuer_scripts"));
         assert!(parser.contains("rejects_script_templates_without_commands"));
+        assert!(parser.contains("rejects_malformed_issuer_script_identifier_lengths"));
         assert!(parser.contains("rejects_malformed_issuer_script_command_apdus"));
         assert!(parser.contains("rejects_nested_or_duplicate_issuer_script_objects"));
         assert!(parser.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
