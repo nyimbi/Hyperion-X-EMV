@@ -4,6 +4,7 @@ use core::fmt;
 
 pub const CONTACT_PSE: &[u8] = b"1PAY.SYS.DDF01";
 pub const CONTACTLESS_PPSE: &[u8] = b"2PAY.SYS.DDF01";
+pub const MAX_SHORT_APDU_DATA_LEN: usize = u8::MAX as usize;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Interface {
@@ -40,7 +41,7 @@ impl fmt::Debug for CommandApdu {
 
 impl CommandApdu {
     pub fn encode(&self) -> KernelResult<Vec<u8>> {
-        if self.data.len() > u8::MAX as usize {
+        if self.data.len() > MAX_SHORT_APDU_DATA_LEN {
             return Err(KernelError::LengthOverflow);
         }
 
@@ -132,7 +133,7 @@ pub fn read_record(record: u8, sfi: u8) -> KernelResult<CommandApdu> {
 }
 
 pub fn internal_authenticate(ddol_values: &[u8]) -> KernelResult<CommandApdu> {
-    if ddol_values.len() > u8::MAX as usize {
+    if ddol_values.len() > MAX_SHORT_APDU_DATA_LEN {
         return Err(KernelError::LengthOverflow);
     }
     Ok(CommandApdu {
@@ -154,9 +155,11 @@ pub fn internal_authenticate_from_ddol(
 }
 
 pub fn external_authenticate(issuer_authentication_data: &[u8]) -> KernelResult<CommandApdu> {
-    if issuer_authentication_data.is_empty() || issuer_authentication_data.len() > u8::MAX as usize
-    {
+    if issuer_authentication_data.is_empty() {
         return Err(KernelError::InvalidArgument);
+    }
+    if issuer_authentication_data.len() > MAX_SHORT_APDU_DATA_LEN {
+        return Err(KernelError::LengthOverflow);
     }
     Ok(CommandApdu {
         cla: 0x00,
@@ -184,7 +187,7 @@ pub fn generate_ac(
     cdol_values: &[u8],
     cda_control: CdaRequestControl,
 ) -> KernelResult<CommandApdu> {
-    if cdol_values.len() > u8::MAX as usize {
+    if cdol_values.len() > MAX_SHORT_APDU_DATA_LEN {
         return Err(KernelError::LengthOverflow);
     }
 
@@ -338,6 +341,41 @@ mod tests {
         for raw_byte in ["222", "173", "190", "239", "170", "187", "204", "221"] {
             assert!(!debug.contains(raw_byte));
         }
+    }
+
+    #[test]
+    fn rejects_command_payloads_above_short_apdu_lc_limit() {
+        let oversized = vec![0u8; MAX_SHORT_APDU_DATA_LEN + 1];
+        assert_eq!(
+            CommandApdu {
+                cla: 0x80,
+                ins: 0xae,
+                p1: 0x80,
+                p2: 0x00,
+                data: oversized.clone(),
+                le: Some(0x00),
+            }
+            .encode()
+            .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        assert_eq!(
+            internal_authenticate(&oversized).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        assert_eq!(
+            external_authenticate(&oversized).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        assert_eq!(
+            generate_ac(
+                CryptogramRequest::Arqc,
+                &oversized,
+                CdaRequestControl::NotRequested,
+            )
+            .unwrap_err(),
+            KernelError::LengthOverflow
+        );
     }
 
     #[test]

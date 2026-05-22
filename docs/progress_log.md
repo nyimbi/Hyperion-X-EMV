@@ -2201,3 +2201,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T10:18:09Z
+
+- Increment completed: make short APDU payload bounds explicit and
+  traceable.
+- Research note: EMV L2 approval evaluates kernel behavior against the EMV
+  specifications, so repository-controlled APDU construction evidence should
+  prove command builders respect the short APDU one-byte `Lc` domain instead
+  of relying on implicit encoder failures.
+- Code impact: APDU construction now exposes `MAX_SHORT_APDU_DATA_LEN` and
+  rejects oversized command data for raw command encoding, INTERNAL
+  AUTHENTICATE, EXTERNAL AUTHENTICATE, and GENERATE AC with `LengthOverflow`.
+- Evidence updated: current and compatibility RTM annexes cite the short APDU
+  payload-bound regression for `KRN-APDU-001`.
+- Verification: `cargo test rejects_command_payloads_above_short_apdu_lc_limit`,
+  `cargo test rtm_promotes_apdu_command_construction_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
