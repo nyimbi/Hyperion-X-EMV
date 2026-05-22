@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T22:05:12Z
+
+- Increment completed: harden AFL record admission against GAC and dynamic
+  authentication tag injection.
+- Code impact: `parse_read_record_body` now rejects Template 70 children that
+  try to seed Application Cryptogram (`9F26`), CID (`9F27`), ATC (`9F36`),
+  Signed Dynamic Application Data (`9F4B`), or ICC Dynamic Number (`9F4C`) into
+  the transaction data store outside their controlled response contexts.
+- Evidence updated:
+  `record::tests::rejects_generate_ac_and_dynamic_auth_record_tags_atomically`
+  proves rejection is atomic and does not overwrite existing response data, and
+  both RTM CSVs cite it under `KRN-TLV-006`.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T22:04:41Z
 
 - Increment completed: bring CDA dynamic-authentication trace handling into the

@@ -31,6 +31,14 @@ const HOST_OR_ISSUER_RESPONSE_RECORD_TAGS: &[&[u8]] = &[
     &[0x9f, 0x18], // Issuer Script Identifier
 ];
 
+const GENERATE_AC_OR_DYNAMIC_AUTH_RECORD_TAGS: &[&[u8]] = &[
+    &[0x9f, 0x26], // Application Cryptogram
+    &[0x9f, 0x27], // Cryptogram Information Data
+    &[0x9f, 0x36], // Application Transaction Counter
+    &[0x9f, 0x4b], // Signed Dynamic Application Data
+    &[0x9f, 0x4c], // ICC Dynamic Number
+];
+
 pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult<usize> {
     let parsed = tlv::parse_many(body)?;
     if parsed.len() != 1 || parsed[0].tag != [0x70] || !parsed[0].constructed {
@@ -67,6 +75,7 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
 fn is_non_card_record_tag(tag: &[u8]) -> bool {
     TERMINAL_OR_KERNEL_RECORD_TAGS.contains(&tag)
         || HOST_OR_ISSUER_RESPONSE_RECORD_TAGS.contains(&tag)
+        || GENERATE_AC_OR_DYNAMIC_AUTH_RECORD_TAGS.contains(&tag)
 }
 
 fn validate_cardholder_data_consistency(
@@ -339,6 +348,47 @@ mod tests {
                 data.get(forbidden_tag),
                 Some(&[0xa5][..]),
                 "host-response tag {forbidden_tag:02x?} must not overwrite existing host data"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_generate_ac_and_dynamic_auth_record_tags_atomically() {
+        for (forbidden_tag, forbidden_value) in [
+            (
+                &[0x9f, 0x26][..],
+                &[0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8][..],
+            ),
+            (&[0x9f, 0x27][..], &[0x80][..]),
+            (&[0x9f, 0x36][..], &[0x00, 0x09][..]),
+            (
+                &[0x9f, 0x4b][..],
+                &[0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8][..],
+            ),
+            (&[0x9f, 0x4c][..], &[0x01, 0x02, 0x03, 0x04][..]),
+        ] {
+            let mut data = DataStore::new();
+            data.put(forbidden_tag, forbidden_value).unwrap();
+
+            let record_len = 3 + forbidden_tag.len() + 1 + forbidden_value.len();
+            let mut record = vec![0x70, record_len as u8, 0x5a, 0x01, 0x12];
+            record.extend_from_slice(forbidden_tag);
+            record.push(forbidden_value.len() as u8);
+            record.resize(record.len() + forbidden_value.len(), 0x99);
+
+            assert_eq!(
+                parse_read_record_body(&record, &mut data).unwrap_err(),
+                KernelError::ParseError,
+                "GAC/dynamic-auth tag {forbidden_tag:02x?} should reject the record"
+            );
+            assert!(
+                data.get(&[0x5a]).is_none(),
+                "card data before GAC/dynamic-auth tag must not be partially stored"
+            );
+            assert_eq!(
+                data.get(forbidden_tag),
+                Some(forbidden_value),
+                "GAC/dynamic-auth tag {forbidden_tag:02x?} must not overwrite existing response data"
             );
         }
     }

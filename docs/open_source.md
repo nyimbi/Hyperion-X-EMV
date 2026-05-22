@@ -345,9 +345,10 @@ The following are adaptation candidates, ordered by near-term value:
 4. Maintain and extend the human-readable signed-profile dictionary generated
    from `docs/scheme_profiles.cert.json`, especially as lab-supplied profiles
    replace fixture material.
-5. Maintain card-originated TLV admission coverage for terminal/kernel-owned
-   tags and PAN/track consistency, and extend it toward private/proprietary tag
-   update rules as licensed profiles define those boundaries.
+5. Maintain card-originated TLV admission coverage for terminal/kernel-owned,
+   host-response-owned, GENERATE AC, and dynamic-authentication tags plus
+   PAN/track consistency, and extend it toward private/proprietary tag update
+   rules as licensed profiles define those boundaries.
 6. Maintain and extend the DOL source-precedence tests across transaction
    params, terminal data, ICC data, generated unpredictable numbers, and profile
    defaults; current coverage includes rejected card attempts to overwrite
