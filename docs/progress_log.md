@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:00:40Z
+
+- Increment completed: reject non-canonical JSON numbers with leading zeroes in
+  signed scheme/profile inputs.
+- Research note: the profile loader is a certification boundary for AID
+  priority, limits, CAPK metadata, and policy fields. Accepting `01` as `1`
+  weakens byte-level profile provenance and can hide malformed signed input.
+- Code impact: the internal JSON parser now rejects multi-digit numeric tokens
+  that start with `0` before profile schema validation consumes them.
+- Evidence updated: CFG schema rejection coverage now includes a profile
+  priority encoded as `01`; existing RTM rows already cite that test.
+- Verification: `cargo test rejects_cfg_002_profile_schema_and_field_failures`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`,
+  `cargo test`, `cargo test --examples`, and
+  `cargo clippy --all-targets --all-features`, `cargo fmt --check`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T04:54:19Z
 
 - Increment completed: reject malformed Static Data Authentication Tag List

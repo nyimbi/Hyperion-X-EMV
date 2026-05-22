@@ -1045,6 +1045,9 @@ impl<'a> JsonParser<'a> {
         }
         let digits = std::str::from_utf8(&self.input[start..self.offset])
             .map_err(|_| KernelError::ParseError)?;
+        if digits.len() > 1 && digits.starts_with('0') {
+            return Err(KernelError::ParseError);
+        }
         digits.parse().map_err(|_| KernelError::ParseError)
     }
 
@@ -1360,6 +1363,16 @@ mod tests {
         );
 
         let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let leading_zero_number = profile.replace(r#""priority": 10,"#, r#""priority": 010,"#);
+        assert_eq!(
+            load_profile_set(
+                leading_zero_number.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
         let unknown_root = profile.replace(
             r#""scheme_profiles": ["#,
             r#""mandatory_future_schema": true,
