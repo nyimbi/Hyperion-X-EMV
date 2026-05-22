@@ -56,6 +56,7 @@ use hyperion_emv::oda::{
 };
 use hyperion_emv::perf::{parse_performance_profile, PerfAccumulator, PerfStage};
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
+use hyperion_emv::quality::prelab_quality_gates_json;
 use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
@@ -95,6 +96,7 @@ const PERFORMANCE_PROFILE: &str = include_str!("../docs/performance_profile.csv"
 const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manifest.md");
 const CERTIFICATION_OPEN_ISSUES: &str = include_str!("../docs/certification_open_issues.md");
 const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
+const PRELAB_QUALITY_GATES: &str = include_str!("../docs/prelab_quality_gates.json");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -1309,6 +1311,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_apdu_trace_pack.jsonl"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_quality_gates.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
 
     let mut input_paths = vec![
         "Cargo.lock".to_string(),
@@ -1319,12 +1323,14 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/oda_test_vectors.json".to_string(),
         "docs/performance_profile.csv".to_string(),
         "docs/prelab_apdu_trace_pack.jsonl".to_string(),
+        "docs/prelab_quality_gates.json".to_string(),
         "docs/requirements_traceability.csv".to_string(),
         "docs/scheme_profiles.cert.json".to_string(),
         "docs/spec.md".to_string(),
         "docs/state_machine.csv".to_string(),
         "docs/tlv_catalogue.csv".to_string(),
         "examples/krn_build_manifest.rs".to_string(),
+        "examples/krn_prelab_quality_gates.rs".to_string(),
         "examples/krn_prelab_trace_pack.rs".to_string(),
     ];
     let mut source_paths = fs::read_dir("src")
@@ -1364,12 +1370,14 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/oda_test_vectors.json",
         "docs/performance_profile.csv",
         "docs/prelab_apdu_trace_pack.jsonl",
+        "docs/prelab_quality_gates.json",
         "docs/requirements_traceability.csv",
         "docs/scheme_profiles.cert.json",
         "docs/spec.md",
         "docs/state_machine.csv",
         "docs/tlv_catalogue.csv",
         "examples/krn_build_manifest.rs",
+        "examples/krn_prelab_quality_gates.rs",
         "examples/krn_prelab_trace_pack.rs",
     ] {
         assert!(
@@ -1425,6 +1433,7 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "Reproducible build provenance",
         "Trace identity metadata",
         "Pre-lab APDU trace fixture",
+        "Pre-lab quality gate manifest",
     ] {
         assert!(
             LAB_SUBMISSION_MANIFEST.contains(&format!("- [x] {attached}")),
@@ -1527,6 +1536,8 @@ fn certification_open_issues_register_tracks_external_blockers() {
         rows.iter().all(|row| row.contains("| Open |")),
         "external certification blockers must remain open until evidence is attached"
     );
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab quality gate manifest does not close"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("accepted report attachments"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab fixture does not close"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("Full lab trace pack is attached"));
 }
@@ -5131,6 +5142,57 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] APDU trace logs (masked) for all test cases"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-012"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab fixture does not close"));
+}
+
+#[test]
+fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
+    let generated = prelab_quality_gates_json(KRN_ABI_VERSION);
+
+    assert_eq!(PRELAB_QUALITY_GATES, generated);
+    assert!(PRELAB_QUALITY_GATES.contains("\"type\":\"prelab-quality-gates\""));
+    assert!(PRELAB_QUALITY_GATES.contains("\"abi_version\":2"));
+    assert!(PRELAB_QUALITY_GATES.contains("repository-controlled engineering gates only"));
+    for command in [
+        "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
+        "cargo test",
+        "cargo test --examples",
+        "cargo fmt --check",
+        "cargo clippy --all-targets --all-features",
+        "git diff --check",
+    ] {
+        assert!(
+            PRELAB_QUALITY_GATES.contains(command),
+            "pre-lab quality gate manifest missing command: {command}"
+        );
+    }
+    for blocker in ["CERT-OPEN-009", "CERT-OPEN-010"] {
+        assert!(
+            PRELAB_QUALITY_GATES.contains(blocker),
+            "pre-lab quality gate manifest must preserve {blocker}"
+        );
+    }
+    for pending_report in [
+        "Unit coverage report >=95%",
+        "Full EMV test-plan integration report",
+        "Static-analysis report accepted for the submission context",
+        "Fuzzing/no-crash report with tool versions and corpus",
+    ] {
+        assert!(
+            PRELAB_QUALITY_GATES.contains(pending_report),
+            "pre-lab quality gate manifest missing pending external report: {pending_report}"
+        );
+    }
+
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab quality gate manifest"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_quality_gates"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains(
+        "formal coverage, integration, static-analysis, and fuzzing reports remain pending"
+    ));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Unit test report"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Integration test report"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Static analysis report"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Fuzzing report"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab quality gate manifest does not close"));
 }
 
 #[test]

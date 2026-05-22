@@ -21,6 +21,7 @@ pub mod issuer;
 pub mod oda;
 pub mod perf;
 pub mod provenance;
+pub mod quality;
 pub mod record;
 pub mod restrictions;
 pub mod selection;
