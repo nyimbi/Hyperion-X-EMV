@@ -16,6 +16,7 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 72,Issuer Script Template 2,Constructed,variable,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-004
 82,Application Interchange Profile (AIP),Primitive,2 bytes,EMV Book 3,contact and contactless,all,Mandatory after GPO,non-sensitive,UT-TLV-004
 84,DF Name (PPSE),Primitive,variable,EMV Contactless,contactless,all,Contactless,public,UT-TLV-004
+86,Issuer Script Command,Primitive,0-261 bytes,EMV Book 3,contact and contactless,all,Inside 71 or 72,issuer-script-data,UT-TLV-004; UT-SCR-001
 8C,CDOL1,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
 8D,CDOL2,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
 8E,CVM List,Constructed,variable,EMV Book 3,contact and contactless,all,Mandatory,non-sensitive,UT-TLV-004
@@ -55,6 +56,7 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 9F4C,ICC Dynamic Number,Primitive,variable,EMV Book 3,contact and contactless,all,For CDA,cryptographic,UT-TLV-004
 9F4E,Merchant Category Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
 9F5A,Form Factor Indicator (FFI),Primitive,1 byte,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
+9F5B,Issuer Script Results / DSDOL,Primitive or Data Object List,profile-defined variable,EMV Book 3 and EMV Contactless,contact and contactless,PROFILE-DEFINED,Issuer-script result or contactless profile data,profile-defined,UT-TLV-005; UT-SCR-006
 9F6C,Card Transaction Qualifiers (CTQ),Primitive,1 byte,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
 9F66,Terminal Transaction Qualifiers (TTQ),Primitive,4 bytes,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
 9F6E,Form Factor Indicator (alternative),Primitive,1 byte,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005

@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:43:45Z
+
+- Increment completed: extend the executable TLV catalogue coverage for
+  issuer-script command and result objects without inventing a scheme-specific
+  `9F5B` value layout.
+- Research note: local reference review identifies tag `86` as Issuer Script
+  Command and tag `9F5B` as Issuer Script Results in contact contexts, while
+  contactless references also use `9F5B` as DSDOL; Hyperion records that
+  ambiguity as profile-defined catalogue metadata instead of hard-coding one
+  universal meaning.
+- Code impact: `docs/tlv_catalogue.csv` now covers tag `86` as issuer-script
+  command data and tag `9F5B` as profile-defined issuer-script-result/contactless
+  DSDOL metadata, preserving the current ABI SW1/SW2 reporting model.
+- Evidence update: `tlv_catalogue_contains_required_foundation_tags` now guards
+  `86`, `9F18`, and `9F5B`, and both RTM annexes cite that evidence under
+  KRN-SCR-006.
+- Verification: `cargo test tlv_catalogue_contains_required_foundation_tags`,
+  `cargo test tlv_catalogue_uses_required_schema_and_profile_defined_markers`,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo test
+  rtm_promotes_tlv_catalogue_and_dol_classification_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:34:54Z
 
 - Increment completed: correct the executable state-machine annex so the S11

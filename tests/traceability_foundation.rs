@@ -3353,7 +3353,7 @@ fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
 #[test]
 fn tlv_catalogue_contains_required_foundation_tags() {
     for row_prefix in [
-        "5F36,", "84,", "94,", "95,", "9B,", "9F26,", "9F27,", "9F37,",
+        "5F36,", "84,", "86,", "94,", "95,", "9B,", "9F18,", "9F26,", "9F27,", "9F37,", "9F5B,",
     ] {
         assert!(
             TLV_CATALOGUE
@@ -3362,6 +3362,22 @@ fn tlv_catalogue_contains_required_foundation_tags() {
             "missing TLV catalogue row {row_prefix}"
         );
     }
+
+    let script_command = TLV_CATALOGUE
+        .lines()
+        .find(|line| line.starts_with("86,"))
+        .unwrap();
+    assert!(script_command.contains("Issuer Script Command"));
+    assert!(script_command.contains("0-261 bytes"));
+    assert!(script_command.contains("issuer-script-data"));
+
+    let script_results = TLV_CATALOGUE
+        .lines()
+        .find(|line| line.starts_with("9F5B,"))
+        .unwrap();
+    assert!(script_results.contains("Issuer Script Results"));
+    assert!(script_results.contains("DSDOL"));
+    assert!(script_results.contains("PROFILE-DEFINED"));
 }
 
 #[test]
@@ -3504,7 +3520,7 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
     let rows = lines
         .map(|line| line.split(',').collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 59);
+    assert_eq!(rows.len(), 61);
     for row in &rows {
         assert_eq!(row.len(), expected_header.len(), "invalid TLV row {row:?}");
         assert!(row[0].chars().all(|ch| ch.is_ascii_hexdigit()));
@@ -3517,7 +3533,9 @@ fn tlv_catalogue_uses_required_schema_and_profile_defined_markers() {
         assert_eq!(row[3], "tag-length pairs");
     }
 
-    for tag in ["5F5A", "5F5D", "9F10", "9F5A", "9F6C", "9F66", "9F6E"] {
+    for tag in [
+        "5F5A", "5F5D", "9F10", "9F5A", "9F5B", "9F6C", "9F66", "9F6E",
+    ] {
         let row = rows.iter().find(|row| row[0] == tag).unwrap();
         assert_eq!(row[6], "PROFILE-DEFINED");
         assert_ne!(row[8], "non-sensitive");
@@ -6775,6 +6793,7 @@ fn rtm_promotes_issuer_script_evidence() {
             .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
         assert!(reporting.contains("critical_issuer_script_warning_continues_and_reports_results"));
         assert!(reporting.contains("critical_issuer_script_failure_stops_remaining_commands"));
+        assert!(reporting.contains("tlv_catalogue_contains_required_foundation_tags"));
     }
 }
 
