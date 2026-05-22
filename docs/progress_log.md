@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:18:54Z
+
+- Increment completed: adapt the open-source tooling pattern of tag-list
+  inspection without copying reference code by making Hyperion's own TLV parser
+  handle unique primitive tag lists.
+- Code impact: `tlv::parse_unique_primitive_tag_list` now centralizes bounded
+  primitive tag-list parsing, ODA static-authentication data assembly reuses it
+  for tag `9F4A`, and `krn_emv_decode tag-list` exposes masked pre-lab
+  inspection for SDA evidence.
+- Evidence updated: `docs/tlv_catalogue.csv` now classifies `9F4A` as a
+  primitive tag list, both RTM CSVs cite the parser and decoder regressions
+  under `KRN-ODA-005` and `KRN-TLV-004`, and the lab manifest/open-source
+  review name primitive tag-list triage explicitly.
+- Verification so far: focused TLV parser tests, ODA static-authentication
+  tag-list regression, `krn_emv_decode` tag-list tests, RTM promotion tests,
+  catalogue guard, `krn_emv_decode -- tag-list 829F375F2A`, and
+  `cargo fmt --check` passed.
+- Remaining external blockers: certification still needs licensed/lab
+  reconciliation, scheme/lab-approved profile bundles, production CAPKs, device
+  integration evidence, official vectors, full lab traces, and approval
+  reports.
+
 ## 2026-05-22T21:03:12Z
 
 - Increment completed: validate signed-profile `schema_version` values when

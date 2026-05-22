@@ -2608,6 +2608,9 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
             catalogue.contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers")
         );
         assert!(catalogue.contains("tlv_catalogue_contains_required_foundation_tags"));
+        assert!(catalogue.contains(
+            "krn_emv_decode::tests::tag_list_output_lists_primitive_tags_without_values"
+        ));
 
         let scheme_defined = csv_row_for_requirement(csv, "KRN-TLV-005").unwrap();
         assert!(scheme_defined
@@ -2788,6 +2791,13 @@ fn rtm_promotes_oda_capk_tvr_cda_evidence() {
         assert!(sda.contains("runtime_oda_maps_bad_sda_signature_to_tvr_failure"));
         assert!(sda.contains(
             "krn_oda_001_005_006_007_selects_method_and_sets_tvr_tsi_without_cda_fallback"
+        ));
+        assert!(sda.contains("tlv::tests::parses_unique_primitive_tag_lists"));
+        assert!(sda.contains(
+            "tlv::tests::rejects_malformed_constructed_duplicate_or_oversized_tag_lists"
+        ));
+        assert!(sda.contains(
+            "krn_emv_decode::tests::tag_list_output_lists_primitive_tags_without_values"
         ));
         assert!(sda.contains("rejects_malformed_static_authentication_tag_list"));
         assert!(sda.contains("rejects_static_authentication_tag_lists_above_limit"));
@@ -3476,6 +3486,13 @@ fn tlv_catalogue_contains_required_foundation_tags() {
     assert!(script_results.contains("Issuer Script Results"));
     assert!(script_results.contains("DSDOL"));
     assert!(script_results.contains("PROFILE-DEFINED"));
+
+    let static_authentication_tag_list = TLV_CATALOGUE
+        .lines()
+        .find(|line| line.starts_with("9F4A,"))
+        .unwrap();
+    assert!(static_authentication_tag_list.contains("Static Data Authentication Tag List"));
+    assert!(static_authentication_tag_list.contains(",Primitive,tag list,"));
 }
 
 #[test]

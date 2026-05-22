@@ -69,6 +69,31 @@ pub fn flatten<'a>(tlvs: &'a [Tlv<'a>]) -> Vec<FlatTlv<'a>> {
     out
 }
 
+pub fn parse_unique_primitive_tag_list(
+    input: &[u8],
+    max_tags: usize,
+) -> KernelResult<Vec<Vec<u8>>> {
+    if input.is_empty() || max_tags == 0 {
+        return Err(KernelError::ParseError);
+    }
+
+    let mut offset = 0usize;
+    let mut tags = Vec::new();
+    while offset < input.len() {
+        if tags.len() >= max_tags {
+            return Err(KernelError::LengthOverflow);
+        }
+        let start = offset;
+        let constructed = read_tag(input, &mut offset)?;
+        let tag = input[start..offset].to_vec();
+        if constructed || tags.iter().any(|existing| existing == &tag) {
+            return Err(KernelError::ParseError);
+        }
+        tags.push(tag);
+    }
+    Ok(tags)
+}
+
 pub fn find_first<'a>(tlvs: &'a [Tlv<'a>], tag: &[u8]) -> Option<&'a [u8]> {
     for tlv in tlvs {
         if tlv.tag == tag {
@@ -240,6 +265,33 @@ mod tests {
         assert_eq!(
             find_unique_direct(&duplicates[0].children, &[0x9f, 0x36]).unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn parses_unique_primitive_tag_lists() {
+        assert_eq!(
+            parse_unique_primitive_tag_list(&[0x82, 0x9f, 0x37, 0x5f, 0x2a], 8).unwrap(),
+            vec![vec![0x82], vec![0x9f, 0x37], vec![0x5f, 0x2a]]
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_constructed_duplicate_or_oversized_tag_lists() {
+        for input in [&[][..], &[0x00], &[0xff], &[0x9f, 0x80, 0x04], &[0xa5]] {
+            assert_eq!(
+                parse_unique_primitive_tag_list(input, 8).unwrap_err(),
+                KernelError::ParseError
+            );
+        }
+
+        assert_eq!(
+            parse_unique_primitive_tag_list(&[0x82, 0x82], 8).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_unique_primitive_tag_list(&[0x82, 0x95], 1).unwrap_err(),
+            KernelError::LengthOverflow
         );
     }
 

@@ -10,6 +10,8 @@ use hyperion_emv::trace::{mask_apdu_response, ApduTraceContext, LogPolicy, Maske
 use std::fmt::Write;
 use std::process;
 
+const MAX_DECODE_TAG_LIST_TAGS: usize = 64;
+
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     match run(&args[1..]) {
@@ -29,6 +31,7 @@ fn run(args: &[String]) -> Result<String, String> {
     match mode {
         "tlv" => decode_tlv(arg_hex(args, 1, "tlv")?),
         "dol" => decode_dol(arg_hex(args, 1, "dol")?),
+        "tag-list" => decode_tag_list(arg_hex(args, 1, "tag-list")?),
         "cvm-list" => decode_cvm_list(arg_hex(args, 1, "cvm-list")?),
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
@@ -63,7 +66,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -105,6 +108,19 @@ fn decode_dol(bytes: Vec<u8>) -> Result<String, String> {
     for entry in entries {
         let _ = writeln!(out, "tag={} len={}", hex_upper(&entry.tag), entry.length);
     }
+    Ok(out)
+}
+
+fn decode_tag_list(bytes: Vec<u8>) -> Result<String, String> {
+    let tags = tlv::parse_unique_primitive_tag_list(&bytes, MAX_DECODE_TAG_LIST_TAGS)
+        .map_err(|err| format!("tag-list parse failed: {}", err.name()))?;
+    let mut out = String::new();
+    let _ = writeln!(out, "type=tag-list");
+    let _ = writeln!(out, "count={}", tags.len());
+    for tag in tags {
+        let _ = writeln!(out, "tag={}", hex_upper(&tag));
+    }
+    let _ = writeln!(out, "value_policy=not-applicable");
     Ok(out)
 }
 
@@ -764,6 +780,29 @@ mod tests {
     }
 
     #[test]
+    fn tag_list_output_lists_primitive_tags_without_values() {
+        let out = decode_tag_list(decode_hex("829F375F2A").unwrap()).unwrap();
+
+        assert!(out.contains("type=tag-list"));
+        assert!(out.contains("count=3"));
+        assert!(out.contains("tag=82"));
+        assert!(out.contains("tag=9F37"));
+        assert!(out.contains("tag=5F2A"));
+        assert!(out.contains("value_policy=not-applicable"));
+        assert!(!out.contains("len="));
+    }
+
+    #[test]
+    fn tag_list_output_rejects_malformed_or_constructed_entries() {
+        assert!(decode_tag_list(decode_hex("A5").unwrap())
+            .unwrap_err()
+            .contains("KRN_ERR_PARSE_ERROR"));
+        assert!(decode_tag_list(decode_hex("8282").unwrap())
+            .unwrap_err()
+            .contains("KRN_ERR_PARSE_ERROR"));
+    }
+
+    #[test]
     fn cvm_list_output_names_rules_without_handles() {
         let out = decode_cvm_list(decode_hex("00000000000003E8430302031F03").unwrap()).unwrap();
 
@@ -1010,6 +1049,14 @@ mod tests {
         assert!(out.contains("response_format=format-1-template-80"));
         assert!(out.contains("cryptogram_type=tc"));
         assert!(!out.contains("1011121314151617"));
+    }
+
+    #[test]
+    fn cli_routes_tag_list_mode() {
+        let out = run(&[string_arg("tag-list"), string_arg("829F37")]).unwrap();
+
+        assert!(out.contains("type=tag-list"));
+        assert!(out.contains("tag=9F37"));
     }
 
     #[test]

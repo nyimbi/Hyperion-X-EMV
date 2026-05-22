@@ -840,51 +840,7 @@ fn append_authentication_data(out: &mut Vec<u8>, value: &[u8]) -> KernelResult<(
 }
 
 fn parse_static_authentication_tag_list(input: &[u8]) -> KernelResult<Vec<Vec<u8>>> {
-    if input.is_empty() {
-        return Err(KernelError::ParseError);
-    }
-    let mut offset = 0usize;
-    let mut tags = Vec::new();
-    while offset < input.len() {
-        if tags.len() >= MAX_STATIC_AUTH_TAG_LIST_TAGS {
-            return Err(KernelError::LengthOverflow);
-        }
-        let start = offset;
-        let constructed = read_oda_tag(input, &mut offset)?;
-        let tag = input[start..offset].to_vec();
-        if constructed || tags.iter().any(|existing| existing == &tag) {
-            return Err(KernelError::ParseError);
-        }
-        tags.push(tag);
-    }
-    Ok(tags)
-}
-
-fn read_oda_tag(input: &[u8], offset: &mut usize) -> KernelResult<bool> {
-    let first = *input.get(*offset).ok_or(KernelError::ParseError)?;
-    if first == 0x00 || first == 0xff {
-        return Err(KernelError::ParseError);
-    }
-    *offset += 1;
-    let constructed = first & 0x20 != 0;
-    if first & 0x1f == 0x1f {
-        let mut continuation_count = 0usize;
-        loop {
-            let byte = *input.get(*offset).ok_or(KernelError::ParseError)?;
-            *offset += 1;
-            continuation_count += 1;
-            if continuation_count == 1 && byte & 0x7f == 0 {
-                return Err(KernelError::ParseError);
-            }
-            if continuation_count > 3 {
-                return Err(KernelError::ParseError);
-            }
-            if byte & 0x80 == 0 {
-                break;
-            }
-        }
-    }
-    Ok(constructed)
+    tlv::parse_unique_primitive_tag_list(input, MAX_STATIC_AUTH_TAG_LIST_TAGS)
 }
 
 fn parse_rsa_public_exponent(exponent: &[u8]) -> KernelResult<u32> {

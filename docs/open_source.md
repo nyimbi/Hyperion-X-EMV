@@ -7,9 +7,10 @@ Hyperion remains a clean-room Rust kernel governed by `docs/spec.md`,
 `docs/eng_notes.md`, signed profile inputs, licensed EMVCo/scheme material, and
 lab evidence.
 
-Review date: 2026-05-22.
+Review date: 2026-05-23.
 
-Temporary clone roots inspected under `/private/tmp/hyperion-reference-review`:
+Temporary clone roots inspected under
+`/private/tmp/hyperion-reference-review-20260523`:
 
 | Project | Inspected revision or source | License posture observed | Review stance |
 | --- | --- | --- | --- |
@@ -19,7 +20,7 @@ Temporary clone roots inspected under `/private/tmp/hyperion-reference-review`:
 | `mrautio/emvpt` | `e9ee8894ac250457914d80d5bd1c7f261023331d` | zlib-style license in `LICENSE` | Rust harness/test ideas are useful; do not treat as L2 foundation. |
 | `openemv/emv-utils` | `661bf635caa340c063fdcfce45896c02e5dce521` | LGPL-2.1-or-later | Tooling and validation concepts only unless legal review approves linkage. |
 | `emerald79/libpay` | `18580a3d3ccbd68e1f443b756e7f0d8da29308ba` | LGPL-3.0-or-later | Entry-point/configuration ideas only; avoid direct reuse. |
-| Switstack Moka | Public product/docs pages only | Source-available commercial, not public open-source code | Process benchmark only; source review requires commercial access. |
+| Switstack Moka | Public product/docs pages only | Source available after onboarding/evaluation access; no public Moka source tree observed | Process benchmark only; source review requires controlled source access. |
 
 ## Cross-Project Takeaways
 
@@ -233,8 +234,9 @@ Useful ideas to adapt:
 - Tool-first validation is excellent. `emv-decode` supports ATR, SW1/SW2, BER,
   TLV, DOL, tag list, CVM list/results, TVR, TSI, IAD, TTQ, CTQ, terminal type,
   terminal capabilities, ISO country/currency/language, and other field
-  decoders. Hyperion should add a Rust CLI example for controlled TLV/DOL/APDU
-  decoding and masking.
+  decoders. Hyperion adapts this as controlled parser-backed decoding in
+  `krn_emv_decode`, including masked APDU/response handling and primitive
+  tag-list inspection for SDA evidence.
 - The high-level `emv_ctx_t` separates terminal transport, terminal config,
   transaction params, selected app, ICC data, terminal data, and ODA context.
   Hyperion already separates modules, but a single evidence-oriented
@@ -320,8 +322,9 @@ Useful ideas to adapt:
 
 Do not borrow:
 
-- No public source was inspected. Source review would require commercial access
-  and separate legal/process controls.
+- No public source was inspected. Public material describes source access after
+  onboarding/evaluation steps, so source review requires controlled access and
+  separate legal/process controls.
 - Marketing claims are not certification evidence for Hyperion.
 
 ## Hyperion Backlog Ideas
@@ -330,8 +333,9 @@ The following are adaptation candidates, ordered by near-term value:
 
 1. Maintain and extend the `krn_emv_decode` example so lab-trace triage stays
    parser-backed, masked by default, and covers operator-facing TLV, DOL, CVM,
-   bitmap, CID, GENERATE AC response, status-word, short command APDU, and
-   response APDU envelope decodes before formal test-tool execution.
+   primitive tag-list, bitmap, CID, GENERATE AC response, status-word, short
+   command APDU, and response APDU envelope decodes before formal test-tool
+   execution.
 2. Continue expanding `docs/prelab_apdu_trace_pack.jsonl` beyond the current
    scenario expectation records and maintained PAN, Track 2, cryptogram,
    issuer-authentication/script, and APDU follow-up masking coverage once

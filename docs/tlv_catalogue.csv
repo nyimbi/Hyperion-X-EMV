@@ -54,7 +54,7 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 9F47,ICC Public Key Exponent,Primitive,variable,EMV Book 3,contact and contactless,all,For DDA/CDA,public-key-material,UT-TLV-004
 9F48,ICC Public Key Remainder,Primitive,variable,EMV Book 3,contact and contactless,all,For DDA/CDA,public-key-material,UT-TLV-004
 9F49,DDOL,Data Object List,tag-length pairs,EMV Book 3,contact and contactless,all,If present,non-sensitive,UT-TLV-002
-9F4A,Static Data Authentication Tag List,Constructed,variable,EMV Book 3,contact and contactless,all,For SDA,non-sensitive,UT-TLV-004
+9F4A,Static Data Authentication Tag List,Primitive,tag list,EMV Book 3,contact and contactless,all,For SDA,non-sensitive,UT-TLV-004
 9F4C,ICC Dynamic Number,Primitive,variable,EMV Book 3,contact and contactless,all,For CDA,cryptographic,UT-TLV-004
 9F4E,Merchant Category Code,Primitive,2 bytes,EMV Book 3,contact and contactless,all,Terminal sets,non-sensitive,UT-TLV-004
 9F5A,Form Factor Indicator (FFI),Primitive,1 byte,EMV Contactless,contactless,PROFILE-DEFINED,Contactless,profile-defined,UT-TLV-005
