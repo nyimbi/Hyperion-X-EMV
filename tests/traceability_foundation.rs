@@ -2684,6 +2684,7 @@ fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
         assert!(replay.contains("replay_rejects_apdu_payloads_above_max_bytes"));
         assert!(replay.contains("generic_response_trace_rejects_malformed_tlv_payloads"));
         assert!(replay.contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl"));
+        assert!(replay.contains("prelab_apdu_trace_pack_is_replayable_masked_and_scoped"));
 
         let async_failures = csv_row_for_requirement(csv, "KRN-FSM-004").unwrap();
         assert!(async_failures.contains("asynchronous_failures_are_explicit_error_transitions"));
@@ -2732,6 +2733,7 @@ fn rtm_promotes_logging_policy_evidence() {
         assert!(
             identity.contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl")
         );
+        assert!(identity.contains("prelab_apdu_trace_pack_is_replayable_masked_and_scoped"));
     }
 }
 
@@ -3163,6 +3165,7 @@ fn rtm_promotes_deployment_profile_update_evidence() {
             .contains("replay_trace_identity_records_profile_version_without_unmasking_data"));
         assert!(trace_identity
             .contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl"));
+        assert!(trace_identity.contains("prelab_apdu_trace_pack_is_replayable_masked_and_scoped"));
         assert!(trace_identity.contains("rtm_promotes_deployment_profile_update_evidence"));
     }
 }
@@ -5373,21 +5376,96 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         ApduTraceContext::GenerateAcResponse,
     )
     .unwrap();
-    let script = ReplayScript::new(vec![select, record, first_gac]).unwrap();
+    let generate_ac_script = ReplayScript::new(vec![select, record, first_gac]).unwrap();
+    let external_authenticate = ReplayExchange::new(
+        &hex("00820000081122334455667788"),
+        &[],
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let issuer_script_warning = ReplayExchange::new(
+        &hex("80DA9F36020009"),
+        &[],
+        [0x63, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let issuer_auth_script =
+        ReplayScript::new(vec![external_authenticate, issuer_script_warning]).unwrap();
+    let gpo_requires_get_response = ReplayExchange::new(
+        &hex("80A8000002830000"),
+        &[],
+        [0x61, 0x0c],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let get_response = ReplayExchange::new(
+        &hex("00C000000C"),
+        &hex("770A82028000940410010100"),
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let generate_ac_retry_required = ReplayExchange::new(
+        &hex("80AE80000301020300"),
+        &[],
+        [0x6c, 0x1c],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let generate_ac_retry = ReplayExchange::new(
+        &hex("80AE8000030102031C"),
+        &hex("800B8000091112131415161718"),
+        [0x90, 0x00],
+        ApduTraceContext::GenerateAcResponse,
+    )
+    .unwrap();
+    let followup_status = ReplayScript::new(vec![
+        gpo_requires_get_response,
+        get_response,
+        generate_ac_retry_required,
+        generate_ac_retry,
+    ])
+    .unwrap();
     let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
-    let generated = format!(
-        "{}{}",
-        "{\"type\":\"trace-pack-metadata\",\"trace_pack_id\":\"PRELAB-MASKED-APDU-001\",\"scope\":\"repository-controlled pre-lab fixture\",\"case_id\":\"prelab.masking.generate-ac\",\"does_not_close\":\"CERT-OPEN-012\"}\n",
-        script
-            .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
-            .unwrap()
-    );
+    let mut generated = String::new();
+    for (case_id, script) in [
+        ("prelab.masking.generate-ac", generate_ac_script),
+        ("prelab.masking.issuer-auth-script", issuer_auth_script),
+        ("prelab.masking.follow-up-status", followup_status),
+    ] {
+        generated.push_str(
+            "{\"type\":\"trace-pack-metadata\",\"trace_pack_id\":\"PRELAB-MASKED-APDU-001\",\"scope\":\"repository-controlled pre-lab fixture\",\"case_id\":\"",
+        );
+        generated.push_str(case_id);
+        generated.push_str("\",\"does_not_close\":\"CERT-OPEN-012\"}\n");
+        generated.push_str(
+            &script
+                .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
+                .unwrap(),
+        );
+    }
 
     assert_eq!(PRELAB_APDU_TRACE_PACK, generated);
     assert!(PRELAB_APDU_TRACE_PACK.starts_with("{\"type\":\"trace-pack-metadata\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"trace_pack_id\":\"PRELAB-MASKED-APDU-001\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.generate-ac\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.issuer-auth-script\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.follow-up-status\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"does_not_close\":\"CERT-OPEN-012\""));
+    assert_eq!(
+        PRELAB_APDU_TRACE_PACK
+            .matches("\"type\":\"trace-pack-metadata\"")
+            .count(),
+        3
+    );
+    assert_eq!(
+        PRELAB_APDU_TRACE_PACK
+            .matches("\"type\":\"trace-identity\"")
+            .count(),
+        3
+    );
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"profile_version\":2"));
@@ -5398,12 +5476,21 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"context\":\"generate-ac-response\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f26\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"transaction-cryptogram\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"82\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"da\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6300\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"c0\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"610c\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6c1c\""));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012345"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("010203"));
+    assert!(!PRELAB_APDU_TRACE_PACK.contains("1122334455667788"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("1112131415161718"));
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab APDU trace fixture"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_trace_pack"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("issuer-authentication/script status evidence"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("APDU follow-up status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("full lab/test-tool trace pack remains pending"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] APDU trace logs (masked) for all test cases"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-012"));

@@ -6,3 +6,19 @@
 {"sequence":3,"direction":"response","context":"generic","sw":"9000","data":{"type":"suppressed","reason":"tag-masked"},"fields":[{"tag":"70","value":{"type":"suppressed","reason":"constructed"}},{"tag":"5a","value":{"type":"pan","value":"***********2345"}}]}
 {"sequence":4,"direction":"command","context":"generic","cla":"80","ins":"ae","p1":"80","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
 {"sequence":5,"direction":"response","context":"generate-ac-response","sw":"9000","data":{"type":"suppressed","reason":"tag-masked"},"fields":[{"tag":"9f27","value":{"type":"hex","value":"80"}},{"tag":"9f36","value":{"type":"hex","value":"0009"}},{"tag":"9f26","value":{"type":"suppressed","reason":"transaction-cryptogram"}}]}
+{"type":"trace-pack-metadata","trace_pack_id":"PRELAB-MASKED-APDU-001","scope":"repository-controlled pre-lab fixture","case_id":"prelab.masking.issuer-auth-script","does_not_close":"CERT-OPEN-012"}
+{"type":"trace-identity","kernel_name":"hyperion-emv","kernel_version":"0.1.0","abi_version":2,"profile_version":2,"log_build_mode":"production","support_authorization_verified":false}
+{"sequence":0,"direction":"command","context":"generic","cla":"00","ins":"82","p1":"00","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":1,"direction":"response","context":"generic","sw":"9000","data":{"type":"suppressed","reason":"unparsed-response"},"fields":[]}
+{"sequence":2,"direction":"command","context":"generic","cla":"80","ins":"da","p1":"9f","p2":"36","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":3,"direction":"response","context":"generic","sw":"6300","data":{"type":"suppressed","reason":"unparsed-response"},"fields":[]}
+{"type":"trace-pack-metadata","trace_pack_id":"PRELAB-MASKED-APDU-001","scope":"repository-controlled pre-lab fixture","case_id":"prelab.masking.follow-up-status","does_not_close":"CERT-OPEN-012"}
+{"type":"trace-identity","kernel_name":"hyperion-emv","kernel_version":"0.1.0","abi_version":2,"profile_version":2,"log_build_mode":"production","support_authorization_verified":false}
+{"sequence":0,"direction":"command","context":"generic","cla":"80","ins":"a8","p1":"00","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":1,"direction":"response","context":"generic","sw":"610c","data":{"type":"suppressed","reason":"unparsed-response"},"fields":[]}
+{"sequence":2,"direction":"command","context":"generic","cla":"00","ins":"c0","p1":"00","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":3,"direction":"response","context":"generic","sw":"9000","data":{"type":"suppressed","reason":"tag-masked"},"fields":[{"tag":"77","value":{"type":"suppressed","reason":"constructed"}},{"tag":"82","value":{"type":"hex","value":"8000"}},{"tag":"94","value":{"type":"hex","value":"10010100"}}]}
+{"sequence":4,"direction":"command","context":"generic","cla":"80","ins":"ae","p1":"80","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":5,"direction":"response","context":"generic","sw":"6c1c","data":{"type":"suppressed","reason":"unparsed-response"},"fields":[]}
+{"sequence":6,"direction":"command","context":"generic","cla":"80","ins":"ae","p1":"80","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":7,"direction":"response","context":"generate-ac-response","sw":"9000","data":{"type":"suppressed","reason":"tag-masked"},"fields":[{"tag":"9f27","value":{"type":"hex","value":"80"}},{"tag":"9f36","value":{"type":"hex","value":"0009"}},{"tag":"9f26","value":{"type":"suppressed","reason":"transaction-cryptogram"}}]}

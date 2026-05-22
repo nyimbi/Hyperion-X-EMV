@@ -2491,3 +2491,26 @@ decision record, while this file tracks work toward certification readiness.
   passed. `cargo fmt --check`, `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` also
   passed.
+
+## 2026-05-22T12:02:44Z
+
+- Increment completed: broaden the repository-controlled pre-lab APDU trace
+  fixture without claiming it closes the full lab trace-pack requirement.
+- Code impact: `examples/krn_prelab_trace_pack.rs` now emits a deterministic
+  three-case masked JSONL fixture covering the existing PAN/GENERATE AC
+  masking case, issuer-authentication/script status evidence, and APDU
+  follow-up status evidence for `61xx` GET RESPONSE and `6Cxx` Le retry paths.
+- Evidence updated: `docs/prelab_apdu_trace_pack.jsonl` now carries the three
+  case IDs while retaining `does_not_close = CERT-OPEN-012`. The lab manifest
+  describes the broader local fixture but keeps full lab/test-tool traces open.
+  Both RTM CSVs cite `prelab_apdu_trace_pack_is_replayable_masked_and_scoped`
+  under deterministic replay, trace identity, and production logging evidence.
+- Verification: `cargo fmt`,
+  `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`,
+  `cargo test rtm_promotes_fsm_annex_replay_and_error_transition_evidence`,
+  `cargo test rtm_promotes_logging_policy_evidence`,
+  `cargo test rtm_promotes_deployment_profile_update_evidence`, and
+  `cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -`
+  passed. `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` also
+  passed.
