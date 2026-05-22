@@ -4,6 +4,30 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T12:43:54Z
+
+- Increment completed: add a human-readable scheme profile dictionary generated
+  from `docs/scheme_profiles.cert.json` for profile review and lab handoff.
+- Code impact: `examples/krn_scheme_profile_dictionary.rs` loads the signed
+  profile bundle through the certification profile loader and renders AID,
+  kernel/interface, terminal capability/TTQ boundary, limit, CVM, TAA/TAC/IAC,
+  and CAPK provenance details without raw CAPK modulus or CDOL value disclosure.
+- Evidence update: `docs/scheme_profile_dictionary.md`, conformance inputs,
+  build provenance, quality gates, lab manifest, and traceability tests now
+  cover the generated dictionary while preserving `CERT-OPEN-002` and
+  `CERT-OPEN-003` for external profile/CAPK authority.
+- Verification: `cargo run --quiet --example krn_scheme_profile_dictionary |
+  diff -u docs/scheme_profile_dictionary.md -`, `cargo run --quiet --example
+  krn_abi_conformance_statement | diff -u docs/abi_conformance_statement.json
+  -`, `cargo run --quiet --example krn_prelab_quality_gates | diff -u
+  docs/prelab_quality_gates.json -`, `cargo test --example
+  krn_scheme_profile_dictionary`, `cargo test
+  scheme_profile_dictionary_is_generated_masked_and_scoped`, `cargo test
+  lab_manifest_and_provenance_cover_reproducible_build_artifacts`, `cargo test
+  prelab_quality_gates_are_reproducible_and_do_not_close_external_reports`,
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T12:33:24Z
 
 - Increment completed: extend the pre-lab APDU trace fixture from masked replay

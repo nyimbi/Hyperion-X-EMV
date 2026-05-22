@@ -75,6 +75,7 @@ const GENERATED_FROM: &[&str] = &[
     "docs/bitmap_catalogue.csv",
     "docs/performance_profile.csv",
     "docs/scheme_profiles.cert.json",
+    "docs/scheme_profile_dictionary.md",
     "docs/oda_test_vectors.json",
     "docs/prelab_apdu_trace_pack.jsonl",
     "docs/prelab_quality_gates.json",

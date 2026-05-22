@@ -90,6 +90,7 @@ const RTM: &str = concat!(
 );
 const ABI_CONFORMANCE_STATEMENT: &str = include_str!("../docs/abi_conformance_statement.json");
 const SCHEME_PROFILES: &str = include_str!("../docs/scheme_profiles.cert.json");
+const SCHEME_PROFILE_DICTIONARY: &str = include_str!("../docs/scheme_profile_dictionary.md");
 const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
 const ODA_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
@@ -1378,6 +1379,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Public standards watch"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("standards_watch.md"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Scheme profile dictionary"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_scheme_profile_dictionary"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("requirements-traceability-matrix.csv"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_apdu_trace_pack.jsonl"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
@@ -1386,7 +1389,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
 
     let mut input_paths = vec![
@@ -1403,6 +1406,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/requirements-traceability-matrix.csv".to_string(),
         "docs/requirements_traceability.csv".to_string(),
         "docs/scheme_profiles.cert.json".to_string(),
+        "docs/scheme_profile_dictionary.md".to_string(),
         "docs/spec.md".to_string(),
         "docs/standards_watch.md".to_string(),
         "docs/state_machine.csv".to_string(),
@@ -1410,6 +1414,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_abi_conformance_statement.rs".to_string(),
         "examples/krn_build_manifest.rs".to_string(),
         "examples/krn_emv_decode.rs".to_string(),
+        "examples/krn_scheme_profile_dictionary.rs".to_string(),
         "examples/krn_prelab_quality_gates.rs".to_string(),
         "examples/krn_prelab_trace_pack.rs".to_string(),
     ];
@@ -1455,6 +1460,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/requirements-traceability-matrix.csv",
         "docs/requirements_traceability.csv",
         "docs/scheme_profiles.cert.json",
+        "docs/scheme_profile_dictionary.md",
         "docs/spec.md",
         "docs/standards_watch.md",
         "docs/state_machine.csv",
@@ -1462,6 +1468,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_abi_conformance_statement.rs",
         "examples/krn_build_manifest.rs",
         "examples/krn_emv_decode.rs",
+        "examples/krn_scheme_profile_dictionary.rs",
         "examples/krn_prelab_quality_gates.rs",
         "examples/krn_prelab_trace_pack.rs",
     ] {
@@ -5545,8 +5552,9 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
     for command in [
         "cargo run --quiet --example krn_abi_conformance_statement | diff -u docs/abi_conformance_statement.json -",
         "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
+        "cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -5588,6 +5596,33 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Static analysis report"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Fuzzing report"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab quality gate manifest does not close"));
+}
+
+#[test]
+fn scheme_profile_dictionary_is_generated_masked_and_scoped() {
+    assert!(SCHEME_PROFILE_DICTIONARY.starts_with("# Scheme Profile Dictionary"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains(
+        "Generated from `docs/scheme_profiles.cert.json` by `cargo run --example krn_scheme_profile_dictionary`"
+    ));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("does not close `CERT-OPEN-002` or `CERT-OPEN-003`"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("## Visa"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("## Mastercard"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("Contactless kernel profile: c8_contactless"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("Interfaces: contact, contactless"));
+    assert!(SCHEME_PROFILE_DICTIONARY
+        .contains("Terminal capabilities: 9F33 is supplied through the ABI"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("TTQ: 9F66 is supplied through the ABI"));
+    assert!(SCHEME_PROFILE_DICTIONARY
+        .contains("TAC: denial=0000000000, online=E0F8C80000, default=8000000000"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("CAPK Provenance"));
+    assert!(SCHEME_PROFILE_DICTIONARY.contains("Source verification: external_signature_required"));
+    assert!(!SCHEME_PROFILE_DICTIONARY.contains("9D912248DE0A4E39"));
+    assert!(!SCHEME_PROFILE_DICTIONARY.contains("CB26FC830B43785B"));
+    assert!(!SCHEME_PROFILE_DICTIONARY.contains("9F370495059F02069A039C019F1A029F3403"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Scheme profile dictionary"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("without raw CAPK modulus disclosure"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-002"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-003"));
 }
 
 #[test]

@@ -329,10 +329,9 @@ The following are adaptation candidates, ordered by near-term value:
 3. Add a mock `ApduInterface` style adapter around the C ABI for deterministic
    request/response scripts, and keep PC/SC or mobile NFC adapters outside the
    kernel core.
-4. Generate a human-readable signed-profile dictionary from
-   `docs/scheme_profiles.cert.json`, covering AID/kernel/interface mappings,
-   TTQ/capabilities, limits, CVM thresholds, action codes, CAPK provenance, and
-   contact/contactless scope.
+4. Maintain and extend the human-readable signed-profile dictionary generated
+   from `docs/scheme_profiles.cert.json`, especially as lab-supplied profiles
+   replace fixture material.
 5. Add RTM rows or annex text for card-originated TLV admission policy:
    duplicate handling, parent-template restrictions, PAN/track consistency, and
    private/proprietary tag update rules.
