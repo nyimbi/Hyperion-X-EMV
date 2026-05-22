@@ -4,6 +4,30 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:34:54Z
+
+- Increment completed: correct the executable state-machine annex so the S11
+  host response path without tag `91` no longer claims that the second
+  GENERATE AC is skipped.
+- Research note: dcemv's contact-kernel flow stores host ARC (`8A`) and script
+  templates, skips issuer authentication when no issuer authentication data is
+  available, and still proceeds through before-final scripts before card action
+  analysis; Hyperion adapts the state-machine wording to match its own runtime
+  transition model.
+- Code impact: `docs/state_machine.csv` now labels the S11 no-`91` path as
+  skipping issuer authentication, and `fsm::parse_event`/`parse_action` accept
+  the corrected event/action wording.
+- Evidence update: both RTM annexes cite
+  `fsm::tests::host_response_without_issuer_authentication_does_not_claim_gac2_skip`
+  for KRN-ANNEX-002 and KRN-FSM-001.
+- Verification: `cargo test
+  host_response_without_issuer_authentication_does_not_claim_gac2_skip`, `cargo
+  test validates_machine_readable_state_annex`, `cargo test
+  rtm_promotes_state_machine_annex_validation_evidence`, `cargo test
+  rtm_promotes_fsm_annex_replay_and_error_transition_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:31:20Z
 
 - Increment completed: collapse the parsed host-response ARC from an optional

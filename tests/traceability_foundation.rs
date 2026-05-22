@@ -1044,6 +1044,11 @@ fn rtm_promotes_state_machine_annex_validation_evidence() {
             );
             assert!(row.contains("validates_machine_readable_state_annex"));
             assert!(row.contains("rejects_state_machine_annex_schema_and_semantic_drift"));
+            if id == "KRN-ANNEX-002" {
+                assert!(row.contains(
+                    "host_response_without_issuer_authentication_does_not_claim_gac2_skip"
+                ));
+            }
             assert!(row.contains("rtm_promotes_state_machine_annex_validation_evidence"));
         }
     }
@@ -2755,6 +2760,9 @@ fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
 
         let annex = csv_row_for_requirement(csv, "KRN-FSM-001").unwrap();
         assert!(annex.contains("validates_machine_readable_state_annex"));
+        assert!(
+            annex.contains("host_response_without_issuer_authentication_does_not_claim_gac2_skip")
+        );
         assert!(annex.contains("krn_fsm_001_002_004_validates_annex_and_error_transitions"));
 
         let fatal_vs_risk = csv_row_for_requirement(csv, "KRN-FSM-002").unwrap();

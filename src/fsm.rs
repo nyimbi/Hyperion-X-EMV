@@ -500,7 +500,9 @@ fn parse_event(value: &str) -> KernelResult<FsmEvent> {
         "CDA verification success" => Ok(FsmEvent::CdaSuccess),
         "CDA verification failure" => Ok(FsmEvent::CdaFailure),
         "host_response received with tag 91 issuer authentication data" => Ok(FsmEvent::HostArpc),
-        "host_response received with approval (no ARPC)" => Ok(FsmEvent::HostApprovalNoArpc),
+        "host_response received without tag 91 issuer authentication data" => {
+            Ok(FsmEvent::HostApprovalNoArpc)
+        }
         "host_response timeout" => Ok(FsmEvent::HostTimeout),
         "EXTERNAL AUTHENTICATE returns 9000" => Ok(FsmEvent::IssuerAuthenticationSuccess),
         "EXTERNAL AUTHENTICATE fails" => Ok(FsmEvent::IssuerAuthenticationFailure),
@@ -554,7 +556,7 @@ fn parse_action(from: FsmState, event: FsmEvent, value: &str) -> KernelResult<Fs
         "Build host request" => Ok(FsmAction::BuildHostRequest),
         "Verify CDA signature" => Ok(FsmAction::VerifyCda),
         "Process issuer authentication" => Ok(FsmAction::ProcessArpc),
-        "Skip second GENERATE AC, go to scripts"
+        "Skip issuer authentication, go to scripts"
         | "Set issuer-authentication TSI"
         | "Set issuer-authentication TSI and TVR failure bit"
         | "Execute next script"
@@ -656,6 +658,26 @@ mod tests {
         assert_eq!(
             validate_state_machine_annex(&wrong_action).unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn host_response_without_issuer_authentication_does_not_claim_gac2_skip() {
+        assert!(STATE_MACHINE.contains(
+            "\"S11\",\"host_response received without tag 91 issuer authentication data\",\"-\",\"S13\",\"Skip issuer authentication, go to scripts\",\"KRN_OK\""
+        ));
+        assert!(!STATE_MACHINE.contains("Skip second GENERATE AC, go to scripts"));
+
+        let no_issuer_auth = transition(FsmState::S11, FsmEvent::HostApprovalNoArpc).unwrap();
+        assert_eq!(no_issuer_auth.to, FsmState::S13);
+        assert_eq!(no_issuer_auth.action, FsmAction::ProcessIssuerScripts);
+
+        let no_more_before_final_scripts =
+            transition(FsmState::S13, FsmEvent::NoMoreScripts).unwrap();
+        assert_eq!(no_more_before_final_scripts.to, FsmState::S14);
+        assert_eq!(
+            no_more_before_final_scripts.action,
+            FsmAction::RequestFinalGenerateAc
         );
     }
 
