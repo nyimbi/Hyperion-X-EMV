@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:47:42Z
+
+- Increment completed: reject impossible CAPK expiry calendar dates in signed
+  scheme profiles instead of accepting every `YYYY-MM-DD` shape with day
+  `01` through `31`.
+- Code impact: profile date parsing now enforces month-specific day maxima,
+  rejects day zero, rejects month zero, and preserves permissive `02-29`
+  handling for the existing two-digit `EmvDate` year model.
+- Evidence update: both RTM annexes cite
+  `config::tests::rejects_invalid_capk_expiry_calendar_dates` under
+  KRN-CFG-002.
+- Verification: `cargo test rejects_invalid_capk_expiry_calendar_dates`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`, `cargo
+  fmt --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T15:41:28Z
 
 - Increment completed: reject malformed profile-defined relay-resistance

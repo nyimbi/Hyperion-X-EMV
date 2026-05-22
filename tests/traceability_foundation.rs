@@ -2460,6 +2460,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_duplicate_scheme_rids"));
         assert!(row.contains("rejects_duplicate_profile_aids_and_capk_indexes"));
         assert!(row.contains("rejects_expired_capk"));
+        assert!(row.contains("rejects_invalid_capk_expiry_calendar_dates"));
         assert!(row.contains("rejects_invalid_capk_public_key_components"));
         assert!(row.contains("rejects_invalid_or_duplicate_critical_script_ins_policy"));
         assert!(row.contains("rejects_inconsistent_contactless_limit_ordering"));
