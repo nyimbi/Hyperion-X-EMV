@@ -4,8 +4,12 @@ use crate::tlv;
 
 pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult<usize> {
     let parsed = tlv::parse_many(body)?;
+    if parsed.len() != 1 || parsed[0].tag != [0x70] || !parsed[0].constructed {
+        return Err(KernelError::MissingMandatoryTag);
+    }
+
     let mut stored = 0usize;
-    for item in tlv::flatten(&parsed) {
+    for item in tlv::flatten(&parsed[0].children) {
         if item.constructed {
             continue;
         }
@@ -50,5 +54,29 @@ mod tests {
             parse_read_record_body(&[0x70, 0x03, 0x5a, 0x08, 0x12], &mut data).unwrap_err(),
             KernelError::LengthOverflow
         );
+    }
+
+    #[test]
+    fn rejects_unwrapped_or_extra_record_data() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            parse_read_record_body(
+                &[0x5a, 0x08, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert!(data.get(&[0x5a]).is_none());
+
+        assert_eq!(
+            parse_read_record_body(
+                &[0x70, 0x03, 0x5a, 0x01, 0x12, 0x5f, 0x24, 0x03, 0x26, 0x12, 0x31],
+                &mut data
+            )
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert!(data.get(&[0x5a]).is_none());
     }
 }

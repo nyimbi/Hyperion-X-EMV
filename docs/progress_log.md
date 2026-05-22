@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T03:23:25Z
+
+- Increment completed: require READ RECORD bodies to use a single top-level
+  record template before storing card data.
+- Research note: the corrected kernel specification identifies tag `70` as the
+  READ RECORD response record template; accepting unwrapped primitive TLVs would
+  let malformed card data populate the transaction store as if it were a valid
+  application record.
+- Code impact: `parse_read_record_body` now rejects unwrapped primitives and
+  extra sibling TLVs, and stores only primitive children of the sole top-level
+  `70` record template.
+- Evidence updated: unit, traceability, and RTM rows now include
+  `record::tests::rejects_unwrapped_or_extra_record_data` alongside the valid
+  record-template parser and masked logging evidence.
+- Verification: `cargo test rejects_unwrapped_or_extra_record_data`,
+  `cargo test krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`,
+  `cargo test read_records_retains_ordered_offline_authentication_bodies`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T03:15:38Z
 
 - Increment completed: require a single supported GENERATE AC response

@@ -4362,7 +4362,7 @@ mod tests {
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
         let response = match count {
             0 => vec![0x70, 0x03, 0x5a, 0x01, 0x99, 0x90, 0x00],
-            _ => vec![0x5f, 0x20, 0x00, 0x90, 0x00],
+            _ => vec![0x70, 0x03, 0x5f, 0x20, 0x00, 0x90, 0x00],
         };
         let capacity = *resp_len;
         *resp_len = response.len();
@@ -5287,14 +5287,17 @@ mod tests {
             vec![0x70, 0x03, 0x5a, 0x01, 0x99]
         );
         assert_eq!(ctx.offline_auth_records[1].sfi, 11);
-        assert_eq!(ctx.offline_auth_records[1].body, vec![0x5f, 0x20, 0x00]);
+        assert_eq!(
+            ctx.offline_auth_records[1].body,
+            vec![0x70, 0x03, 0x5f, 0x20, 0x00]
+        );
 
         ctx.card_data.put(&[0x9f, 0x4a], &[0x82]).unwrap();
         ctx.card_data.put(&[0x82], &[0x80, 0x00]).unwrap();
         assert_eq!(
             crate::oda::build_static_authentication_data(&ctx.offline_auth_records, &ctx.card_data)
                 .unwrap(),
-            vec![0x5a, 0x01, 0x99, 0x5f, 0x20, 0x00, 0x80, 0x00]
+            vec![0x5a, 0x01, 0x99, 0x70, 0x03, 0x5f, 0x20, 0x00, 0x80, 0x00]
         );
     }
 
