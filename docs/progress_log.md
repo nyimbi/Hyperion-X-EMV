@@ -2086,3 +2086,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:45:59Z
+
+- Increment completed: make SDA static-authentication aggregate data bounds
+  explicit and traceable.
+- Research note: lab-supplied SDA vector packs remain external certification
+  evidence, but repository-controlled SDA data assembly can prove AFL record
+  bodies and optional static tag-list contributions cannot exceed the bounded
+  authentication-data buffer.
+- Code impact: ODA now has a regression proving static authentication data
+  above `MAX_ODA_AUTHENTICATION_DATA_BYTES` returns `LengthOverflow` before
+  signature verification.
+- Evidence updated: current and compatibility RTM annexes cite the aggregate
+  static-authentication data ceiling regression for `KRN-ODA-005`.
+- Verification: `cargo test rejects_static_authentication_data_above_aggregate_limit`,
+  `cargo test rtm_promotes_oda_capk_tvr_cda_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

@@ -1665,6 +1665,20 @@ mod tests {
     }
 
     #[test]
+    fn rejects_static_authentication_data_above_aggregate_limit() {
+        let records = [StaticAuthenticationRecord {
+            sfi: 11,
+            record: 1,
+            body: vec![0xaa; MAX_ODA_AUTHENTICATION_DATA_BYTES + 1],
+        }];
+
+        assert_eq!(
+            build_static_authentication_data(&records, &DataStore::new()).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn parses_recovered_public_key_certificate_material_with_remainder() {
         let recovered = decode_hex(
             "6A02\

@@ -2591,6 +2591,7 @@ fn rtm_promotes_oda_capk_tvr_cda_evidence() {
         ));
         assert!(sda.contains("rejects_malformed_static_authentication_tag_list"));
         assert!(sda.contains("rejects_static_authentication_tag_lists_above_limit"));
+        assert!(sda.contains("rejects_static_authentication_data_above_aggregate_limit"));
         assert!(sda.contains("krn_oda_005_static_authentication_data_uses_afl_order_and_tag_list"));
         assert!(sda.contains("krn_oda_005_006_007_recovers_and_verifies_signed_application_data"));
 
