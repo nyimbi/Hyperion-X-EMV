@@ -93,6 +93,7 @@ const STATE_MACHINE_CSV: &str = include_str!("../docs/state_machine.csv");
 const BITMAP_CATALOGUE: &str = include_str!("../docs/bitmap_catalogue.csv");
 const PERFORMANCE_PROFILE: &str = include_str!("../docs/performance_profile.csv");
 const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manifest.md");
+const CERTIFICATION_OPEN_ISSUES: &str = include_str!("../docs/certification_open_issues.md");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -1304,11 +1305,13 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Reproducible build provenance"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_build_manifest"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("every kernel source module"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
 
     let mut input_paths = vec![
         "Cargo.lock".to_string(),
         "Cargo.toml".to_string(),
         "docs/bitmap_catalogue.csv".to_string(),
+        "docs/certification_open_issues.md".to_string(),
         "docs/lab_submission_manifest.md".to_string(),
         "docs/oda_test_vectors.json".to_string(),
         "docs/performance_profile.csv".to_string(),
@@ -1351,6 +1354,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "Cargo.lock",
         "Cargo.toml",
         "docs/bitmap_catalogue.csv",
+        "docs/certification_open_issues.md",
         "docs/lab_submission_manifest.md",
         "docs/oda_test_vectors.json",
         "docs/performance_profile.csv",
@@ -1469,6 +1473,52 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         .contains("repository-controlled artifacts such as source code"));
     assert!(include_str!("../docs/eng_notes.md")
         .contains("device evidence, and approval artifacts are still external"));
+}
+
+#[test]
+fn certification_open_issues_register_tracks_external_blockers() {
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("# Certification Open-Issues Register"));
+    assert!(include_str!("../docs/eng_notes.md").contains("docs/certification_open_issues.md"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("certification_open_issues.md"));
+
+    for id in 1..=12 {
+        let issue_id = format!("CERT-OPEN-{id:03}");
+        assert!(
+            CERTIFICATION_OPEN_ISSUES.contains(&issue_id),
+            "open-issues register missing {issue_id}"
+        );
+    }
+
+    for blocker in [
+        "EMVCo/scheme laboratory execution",
+        "signed approval or LoA",
+        "Lab/scheme/acquirer-signed AID",
+        "Scheme/acquirer-approved CAPK set",
+        "Lab-supplied SDA, DDA, and CDA cryptographic vectors",
+        "C-8 approval package",
+        "Target terminal, contact interface, contactless reader",
+        "PCI PTS POI integration statement",
+        "Penetration test report",
+        "Unit coverage report",
+        "Static-analysis report",
+        "Signed EMVCo/lab conformance statement template",
+        "Masked APDU traces",
+    ] {
+        assert!(
+            CERTIFICATION_OPEN_ISSUES.contains(blocker),
+            "open-issues register missing blocker: {blocker}"
+        );
+    }
+
+    let rows = CERTIFICATION_OPEN_ISSUES
+        .lines()
+        .filter(|line| line.starts_with("| CERT-OPEN-"))
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 12);
+    assert!(
+        rows.iter().all(|row| row.contains("| Open |")),
+        "external certification blockers must remain open until evidence is attached"
+    );
 }
 
 #[test]

@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:36:45Z
+
+- Increment completed: add a controlled certification open-issues register.
+- Research note: `docs/eng_notes.md` requires a formal open-issues register so
+  external certification blockers are tracked explicitly instead of being
+  inferred from scattered manifest caveats.
+- Code impact: no runtime behavior changed; traceability coverage now requires
+  the register to enumerate external approval, profile, CAPK, ODA vector,
+  contactless, device, PCI/PED, security, report, conformance, and APDU-trace
+  blockers.
+- Evidence updated: the lab manifest now includes the open-issues register as a
+  controlled artifact and build provenance covers the new register.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:30:50Z
 
 - Increment completed: bound device and declaration claims in the lab manifest.

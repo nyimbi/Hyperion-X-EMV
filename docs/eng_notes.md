@@ -141,6 +141,10 @@ Hold final behavior for:
 It is strong enough as a **development scaffold**. It is not yet strong enough as the **single source of truth for a certifiable EMV L2 implementation**. The team should proceed, but with a formal **open-issues register** and a clear rule:
 
 > Any behavior involving ODA, CDA, CVM, scheme profiles, CAPKs, C-8, issuer scripts, or lab test evidence remains provisional until reconciled against licensed EMVCo/scheme documentation and lab-approved test data.
+
+The formal open-issues register is `docs/certification_open_issues.md`. Keep
+that register aligned with the lab submission manifest whenever external
+evidence is added, rejected, or superseded.
 Yes, **some data can be plugged in after the build**, but only if the kernel is deliberately architected as a **data-driven, profile-driven EMV engine**. Some items must be fixed in code before certification because they define protocol behavior, state transitions, security boundaries, or certified kernel logic.
 
 ## The right distinction

@@ -21,6 +21,7 @@
 - [x] ODA test vectors (`oda_test_vectors.json`) – syntactically validated with deterministic unit fixtures; lab-supplied SDA/DDA/CDA vectors still required for final certification
 - [x] Scheme profiles (`scheme_profiles.cert.json`) – structured with valid hex lengths, contains deterministic TAA keys; actual CAPK values to be replaced by lab
 - [x] Requirement traceability matrix (`requirements_traceability.csv`) – mapped to EMVCo test case categories
+- [x] Certification open-issues register (`certification_open_issues.md`) – controlled list of external evidence blockers and closure criteria
 - [x] Trace identity metadata – masked APDU logs retain ABI version and signed profile version
 - [x] Reproducible build provenance – `cargo run --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/...` emits canonical JSON with SHA-256 for every kernel source module, the manifest tool, lockfile, and controlled annexes
 - [x] Source code (under NDA)
