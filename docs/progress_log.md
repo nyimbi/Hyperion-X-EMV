@@ -4,6 +4,30 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T07:01:07Z
+
+- Increment completed: tighten the ABI conformance statement scope so the
+  generated JSON names the lab manifest, open-issues register, pre-lab trace
+  fixture, quality gates, bitmap catalogue, and performance profile alongside
+  the core specification annexes.
+- Research note: a repository-generated conformance statement is useful only
+  when it states its evidence boundary. The signed EMVCo/lab conformance
+  template remains an external certification artifact and must stay open as
+  `CERT-OPEN-011`.
+- Code impact: `baseline_conformance_statement` now includes the complete
+  repository-controlled evidence boundary and an explicit certification
+  condition that the ABI JSON does not close the signed-template requirement.
+- Evidence updated: `abi_conformance_statement.json` was regenerated, and
+  traceability guards now require the expanded evidence scope and open-issues
+  condition.
+- Verification: `cargo run --quiet --example krn_abi_conformance_statement |
+  diff -u docs/abi_conformance_statement.json -`,
+  `cargo test krn_ref_001_conformance_statement_declares_normative_hierarchy`,
+  and `cargo test conformance_statement_json_is_deterministic_and_scoped`
+  passed, followed by `cargo test`, `cargo test --examples`,
+  `cargo fmt --check`, `cargo clippy --all-targets --all-features`, and
+  `git diff --check`.
+
 ## 2026-05-22T06:57:08Z
 
 - Increment completed: extend the repository-generated pre-lab APDU trace

@@ -1602,6 +1602,10 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
         assert!(json.contains("\"normative_hierarchy\":\"licensed_external_standards_prevail\""));
         for required in [
             "docs/spec.md",
+            "docs/lab_submission_manifest.md",
+            "docs/certification_open_issues.md",
+            "docs/prelab_apdu_trace_pack.jsonl",
+            "docs/prelab_quality_gates.json",
             "docs/scheme_profiles.cert.json",
             "EMV-B1",
             "EMV-B2",
@@ -1613,6 +1617,8 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "LAB-TEST-PLANS",
             "Licensed external standards prevail",
             "docs/oda_test_vectors.json is a structural fixture annex unless vector_class is CERTIFICATION",
+            "docs/certification_open_issues.md remains the controlling register for external blockers",
+            "Repository ABI JSON does not close CERT-OPEN-011 signed EMVCo/lab conformance template requirement",
         ] {
             assert!(
                 json.contains(required),
