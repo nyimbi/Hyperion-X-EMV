@@ -2575,6 +2575,7 @@ fn rtm_promotes_oda_capk_tvr_cda_evidence() {
         for id in ["KRN-ODA-003", "KRN-ODA-004"] {
             let recovery = csv_row_for_requirement(csv, id).unwrap();
             assert!(recovery.contains("krn_oda_003_004_certificate_recovery_failures_set_tvr"));
+            assert!(recovery.contains("rejects_public_key_material_above_resource_limits"));
             assert!(recovery.contains(
                 "krn_oda_003_004_public_key_inputs_require_certificates_exponents_and_remainders"
             ));

@@ -2048,3 +2048,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:36:53Z
+
+- Increment completed: make ODA public-key material resource bounds explicit
+  and traceable.
+- Research note: lab-supplied SDA/DDA/CDA vector packs remain external
+  certification evidence, but repository-controlled ODA recovery can prove
+  oversized issuer/ICC public-key material fails closed before certificate
+  recovery or RSA exponentiation.
+- Code impact: ODA now has a regression proving issuer public-key remainders
+  above `MAX_ODA_REMAINDER_BYTES` and RSA moduli above
+  `MAX_ODA_RSA_MODULUS_BYTES` return `InvalidProfile`.
+- Evidence updated: current and compatibility RTM annexes cite the public-key
+  material resource-limit regression for `KRN-ODA-003` and `KRN-ODA-004`.
+- Verification: `cargo test rejects_public_key_material_above_resource_limits`,
+  `cargo test rtm_promotes_oda_capk_tvr_cda_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

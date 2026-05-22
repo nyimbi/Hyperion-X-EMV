@@ -1530,6 +1530,35 @@ mod tests {
     }
 
     #[test]
+    fn rejects_public_key_material_above_resource_limits() {
+        let mut data = DataStore::new();
+        data.put(
+            &[0x90],
+            &[
+                0x6a, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0xbc,
+            ],
+        )
+        .unwrap();
+        data.put(&[0x92], &vec![0x55; MAX_ODA_REMAINDER_BYTES + 1])
+            .unwrap();
+        data.put(&[0x9f, 0x32], &[0x03]).unwrap();
+
+        assert_eq!(
+            validate_issuer_public_key_inputs(&data).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut modulus = vec![0x80; MAX_ODA_RSA_MODULUS_BYTES + 1];
+        *modulus.last_mut().unwrap() = 0x81;
+        let signature = vec![0x01; modulus.len()];
+        assert_eq!(
+            recover_rsa_public_block(&signature, &modulus, &[0x03]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
     fn builds_static_authentication_data_from_afl_records_and_tag_list() {
         let mut data = DataStore::new();
         data.put(&[0x9f, 0x4a], &[0x82]).unwrap();
