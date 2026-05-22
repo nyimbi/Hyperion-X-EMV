@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:34:19Z
+
+- Increment completed: harden trace-layer debug output before crash capture.
+- Code impact: `MaskedValue`, `MaskedField`, and `ApduTrace` now expose only
+  trace metadata, value lengths, suppression reasons, and field counts in
+  `Debug` output while retaining `to_json()` as the explicit controlled log
+  emission path.
+- Evidence updated: KRN-LOG-003 now cites APDU trace debug redaction alongside
+  APDU command, C-8, TLV, profile/CAPK, CVM, data-store, GAC, issuer, ODA, and
+  replay crash-safety regressions.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:29:38Z
 
 - Increment completed: harden contactless C-8 debug output before crash

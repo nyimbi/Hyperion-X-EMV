@@ -74,7 +74,7 @@ impl LogPolicy {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum MaskedValue {
     Hex(String),
     Pan(String),
@@ -82,10 +82,45 @@ pub enum MaskedValue {
     DebugHash { len: usize, hash64: u64 },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for MaskedValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MaskedValue::Hex(hex) => f
+                .debug_struct("Hex")
+                .field("hex_len", &hex.len())
+                .field("data_policy", &"masked value redacted for crash safety")
+                .finish(),
+            MaskedValue::Pan(masked) => f
+                .debug_struct("Pan")
+                .field("masked_len", &masked.len())
+                .field("data_policy", &"masked PAN redacted for crash safety")
+                .finish(),
+            MaskedValue::Suppressed(reason) => f
+                .debug_struct("Suppressed")
+                .field("reason", reason)
+                .finish(),
+            MaskedValue::DebugHash { len, .. } => f
+                .debug_struct("DebugHash")
+                .field("len", len)
+                .field("data_policy", &"debug hash redacted for crash safety")
+                .finish(),
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct MaskedField {
     pub tag: Vec<u8>,
     pub value: MaskedValue,
+}
+
+impl fmt::Debug for MaskedField {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MaskedField")
+            .field("tag", &self.tag)
+            .field("value", &self.value)
+            .finish()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -100,7 +135,7 @@ pub enum ApduDirection {
     Response,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ApduTrace {
     pub sequence: u64,
     pub direction: ApduDirection,
@@ -112,6 +147,27 @@ pub struct ApduTrace {
     pub sw: Option<[u8; 2]>,
     pub data: MaskedValue,
     pub fields: Vec<MaskedField>,
+}
+
+impl fmt::Debug for ApduTrace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ApduTrace")
+            .field("sequence", &self.sequence)
+            .field("direction", &self.direction)
+            .field("context", &self.context)
+            .field("cla", &self.cla)
+            .field("ins", &self.ins)
+            .field("p1", &self.p1)
+            .field("p2", &self.p2)
+            .field("sw", &self.sw)
+            .field("data", &self.data)
+            .field("field_count", &self.fields.len())
+            .field(
+                "data_policy",
+                &"trace payloads redacted from Debug; use to_json for controlled log emission",
+            )
+            .finish()
+    }
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -725,6 +781,34 @@ mod tests {
 
         assert_eq!(event.data, MaskedValue::Suppressed("full-apdu-disabled"));
         assert!(!event.to_json().contains("830401020304"));
+    }
+
+    #[test]
+    fn apdu_trace_debug_redacts_masked_payloads_for_crash_safety() {
+        let event = mask_apdu_command(
+            1,
+            &[0x80, 0xca, 0x00, 0x00, 0x04, 0xde, 0xad, 0xbe, 0xef],
+            LogPolicy::certification_support(),
+        )
+        .unwrap();
+        assert!(matches!(event.data, MaskedValue::Hex(_)));
+        assert!(event.to_json().contains("deadbeef"));
+
+        let field = mask_tlv_value(
+            &[0x9f, 0x10],
+            &[0xde, 0xad, 0xbe, 0xef],
+            LogPolicy::certification_support(),
+        );
+        let value = MaskedValue::Hex("deadbeef".to_string());
+
+        for debug in [
+            format!("{:?}", event),
+            format!("{:?}", field),
+            format!("{:?}", value),
+        ] {
+            assert!(debug.contains("redacted for crash safety"));
+            assert!(!debug.contains("deadbeef"));
+        }
     }
 
     #[test]
