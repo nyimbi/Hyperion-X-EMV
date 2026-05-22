@@ -316,7 +316,7 @@ fn decode_response_apdu(context: ApduContext, bytes: Vec<u8>) -> Result<String, 
     let body_len = bytes.len() - 2;
     let body = &bytes[..body_len];
     let sw = StatusWord::new(bytes[body_len], bytes[body_len + 1]);
-    let trace_context = response_trace_context(context);
+    let trace_context = response_trace_context(context, body.is_empty());
     let trace = mask_apdu_response(
         0,
         trace_context,
@@ -457,9 +457,9 @@ fn context_name(context: ApduContext) -> &'static str {
     }
 }
 
-fn response_trace_context(context: ApduContext) -> ApduTraceContext {
-    match context {
-        ApduContext::GenerateAc => ApduTraceContext::GenerateAcResponse,
+fn response_trace_context(context: ApduContext, empty_body: bool) -> ApduTraceContext {
+    match (context, empty_body) {
+        (ApduContext::GenerateAc, false) => ApduTraceContext::GenerateAcResponse,
         _ => ApduTraceContext::Generic,
     }
 }
@@ -927,6 +927,21 @@ mod tests {
         assert!(out.contains("field_count=4"));
         assert!(!out.contains("1112131415161718"));
         assert!(!out.contains("AABBCC"));
+    }
+
+    #[test]
+    fn response_apdu_status_only_errors_do_not_require_body_parsing() {
+        let out =
+            decode_response_apdu(ApduContext::GenerateAc, decode_hex("6985").unwrap()).unwrap();
+
+        assert!(out.contains("type=response-apdu"));
+        assert!(out.contains("context=generate-ac"));
+        assert!(out.contains("trace_context=generic"));
+        assert!(out.contains("sw=6985"));
+        assert!(out.contains("action=fail error=KRN_ERR_CARD_REMOVED"));
+        assert!(out.contains("body_len=0"));
+        assert!(out.contains("field_count=0"));
+        assert!(out.contains("data_policy=response_body_values_suppressed"));
     }
 
     #[test]

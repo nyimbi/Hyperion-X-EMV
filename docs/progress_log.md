@@ -4,6 +4,31 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T20:23:12Z
+
+- Increment completed: allow response APDU triage to classify status-only
+  command failures without requiring a response-body parser.
+- Research note: lab trace triage must handle both successful response
+  templates and status-only card failures. The decoder should adapt the
+  tool-first reference pattern while preserving EMV state-specific SW handling
+  even when no TLV body exists.
+- Code impact: `krn_emv_decode response-apdu generate-ac 6985` now reports the
+  `GenerateAc` status action through the generic status-only trace path instead
+  of attempting to parse a missing GENERATE AC template body.
+- Evidence updated:
+  `krn_emv_decode::tests::response_apdu_status_only_errors_do_not_require_body_parsing`
+  covers the status-only failure path, while
+  `response_apdu_generate_ac_uses_gac_masking_policy` continues to prove
+  non-empty GENERATE AC responses use the GAC-specific masking parser.
+- Verification: `cargo fmt`,
+  `cargo test --example krn_emv_decode
+  response_apdu_status_only_errors_do_not_require_body_parsing`, `cargo test
+  --example krn_emv_decode response_apdu_generate_ac_uses_gac_masking_policy`,
+  and `cargo run --quiet --example krn_emv_decode -- response-apdu generate-ac
+  6985`, `cargo test --example krn_emv_decode`, `cargo test --examples`,
+  `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T20:18:01Z
 
 - Increment completed: extend the pre-lab decoder utility with response APDU
