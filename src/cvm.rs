@@ -1,10 +1,11 @@
 use crate::error::{KernelError, KernelResult};
 use crate::state::Tvr;
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
+use core::fmt;
 
 pub const MAX_CVM_RULES: usize = 64;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct PedPinHandle(u64);
 
 impl PedPinHandle {
@@ -17,6 +18,17 @@ impl PedPinHandle {
 
     pub fn raw(self) -> u64 {
         self.0
+    }
+}
+
+impl fmt::Debug for PedPinHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PedPinHandle")
+            .field(
+                "data_policy",
+                &"opaque PED handle redacted for crash safety",
+            )
+            .finish()
     }
 }
 
@@ -107,7 +119,7 @@ pub struct CvmContext {
     pub cdcvm_performed: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum CvmAction {
     NoCvm,
     OnlinePin,
@@ -117,10 +129,48 @@ pub enum CvmAction {
     Cdcvm,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+impl fmt::Debug for CvmAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoCvm => f.write_str("NoCvm"),
+            Self::OnlinePin => f.write_str("OnlinePin"),
+            Self::Signature => f.write_str("Signature"),
+            Self::OfflinePlaintextPin { .. } => f
+                .debug_struct("OfflinePlaintextPin")
+                .field("ped_handle", &"redacted")
+                .finish(),
+            Self::OfflineEncipheredPin { .. } => f
+                .debug_struct("OfflineEncipheredPin")
+                .field("ped_handle", &"redacted")
+                .finish(),
+            Self::Cdcvm => f.write_str("Cdcvm"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default, Eq, PartialEq)]
 pub struct CvmPinHandles {
     pub offline_plaintext: Option<PedPinHandle>,
     pub offline_enciphered: Option<PedPinHandle>,
+}
+
+impl fmt::Debug for CvmPinHandles {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CvmPinHandles")
+            .field(
+                "offline_plaintext_present",
+                &self.offline_plaintext.is_some(),
+            )
+            .field(
+                "offline_enciphered_present",
+                &self.offline_enciphered.is_some(),
+            )
+            .field(
+                "data_policy",
+                &"opaque PED handles redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 impl CvmPinHandles {
@@ -146,7 +196,7 @@ impl CvmPinHandles {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum CvmOutcome {
     Selected {
         action: CvmAction,
@@ -156,6 +206,33 @@ pub enum CvmOutcome {
         cvm_results: [u8; 3],
         tvr_bit: (usize, u8),
     },
+}
+
+impl fmt::Debug for CvmOutcome {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Selected {
+                action,
+                cvm_results,
+            } => f
+                .debug_struct("Selected")
+                .field("action", action)
+                .field("cvm_results", cvm_results)
+                .field(
+                    "data_policy",
+                    &"opaque PED handles redacted for crash safety",
+                )
+                .finish(),
+            Self::Failed {
+                cvm_results,
+                tvr_bit,
+            } => f
+                .debug_struct("Failed")
+                .field("cvm_results", cvm_results)
+                .field("tvr_bit", tvr_bit)
+                .finish(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -387,6 +464,29 @@ mod tests {
                 tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL
             }
         );
+    }
+
+    #[test]
+    fn offline_pin_debug_redacts_ped_handle_values() {
+        let handle = PedPinHandle::new(0xfeed_beef).unwrap();
+        let handles = CvmPinHandles::with_offline_plaintext(handle);
+        let action = CvmAction::OfflinePlaintextPin { ped_handle: handle };
+        let outcome = CvmOutcome::Selected {
+            action,
+            cvm_results: [0x01, 0x00, 0x02],
+        };
+
+        for debug in [
+            format!("{handle:?}"),
+            format!("{handles:?}"),
+            format!("{action:?}"),
+            format!("{outcome:?}"),
+        ] {
+            assert!(debug.contains("redacted"));
+            assert!(!debug.contains("feed"));
+            assert!(!debug.contains("beef"));
+            assert!(!debug.contains("4276993775"));
+        }
     }
 
     #[test]

@@ -1916,6 +1916,7 @@ fn rtm_promotes_logging_policy_evidence() {
         assert!(production.contains("replay_is_exact_order_and_evidence_is_masked"));
 
         let crash_dump = csv_row_for_requirement(csv, "KRN-LOG-003").unwrap();
+        assert!(crash_dump.contains("offline_pin_debug_redacts_ped_handle_values"));
         assert!(crash_dump.contains("datastore_debug_redacts_values_for_crash_safety"));
         assert!(crash_dump.contains("online_authorization_debug_redacts_cryptograms_and_card_data"));
         assert!(
@@ -2084,6 +2085,20 @@ fn rtm_promotes_pin_verify_warning_evidence() {
         assert!(row.contains("offline_pin_verify_status_updates_cvm_results_and_tvr_bits"));
         assert!(row.contains("krn_pin_004_verify_63cx_updates_try_counter_tvr_and_cvm_results"));
         assert!(row.contains("rtm_promotes_pin_verify_warning_evidence"));
+    }
+}
+
+#[test]
+fn rtm_promotes_ped_handle_boundary_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-PINAPI-001").expect("RTM row exists");
+        assert!(
+            !row.contains("pending implementation evidence"),
+            "KRN-PINAPI-001 should cite concrete PED handle boundary evidence"
+        );
+        assert!(row.contains("offline_pin_requires_ped_owned_opaque_handle"));
+        assert!(row.contains("offline_pin_debug_redacts_ped_handle_values"));
+        assert!(row.contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
     }
 }
 

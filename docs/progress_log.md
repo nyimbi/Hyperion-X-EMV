@@ -4,6 +4,17 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:11:05Z
+
+- Increment completed: harden PED offline PIN handle debug surfaces.
+- Code impact: `PedPinHandle`, `CvmAction`, `CvmPinHandles`, and `CvmOutcome`
+  now redact opaque secure-PIN handle values in `Debug` output while preserving
+  method, presence, CVM result, and TVR metadata needed for diagnostics.
+- Evidence updated: KRN-PINAPI-001 now cites concrete PED handle boundary tests,
+  and KRN-LOG-003 now includes offline PIN handle debug redaction evidence.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:05:56Z
 
 - Increment completed: harden crash/debug redaction for online authorization and
