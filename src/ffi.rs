@@ -1458,6 +1458,8 @@ unsafe fn read_transaction_params(
     if params.currency_exponent > 9 {
         return Err(KernelError::InvalidArgument);
     }
+    validate_three_digit_numeric_code(params.currency_code)?;
+    validate_three_digit_numeric_code(params.terminal_country_code)?;
     terminal_type_online_capable(params.terminal_type)?;
     if params.merchant_name_location_len > MAX_MERCHANT_NAME_LOCATION_LEN {
         return Err(KernelError::LengthOverflow);
@@ -1480,6 +1482,13 @@ unsafe fn read_transaction_params(
         interface_preference: params.interface_preference,
         merchant_name_location,
     })
+}
+
+fn validate_three_digit_numeric_code(value: u16) -> Result<(), KernelError> {
+    if value > 999 {
+        return Err(KernelError::InvalidArgument);
+    }
+    Ok(())
 }
 
 fn bool_flag(value: u8) -> Result<bool, KernelError> {
@@ -3749,6 +3758,61 @@ mod tests {
         assert_eq!(
             unsafe { read_transaction_params(&oversized_merchant).unwrap_err() },
             KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn transaction_params_reject_non_three_digit_numeric_codes() {
+        let merchant = b"HYPERION TEST MERCHANT";
+        let base = || KrnTxnParams {
+            struct_size: mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_234,
+            amount_other_minor: 56,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 2,
+            merchant_name_location: merchant.as_ptr(),
+            merchant_name_location_len: merchant.len(),
+        };
+
+        let stored = unsafe { read_transaction_params(&base()).unwrap() };
+        let data = transaction_data_store(
+            &stored,
+            [0x11, 0x22, 0x33, 0x44],
+            EmvDate {
+                year: 26,
+                month: 5,
+                day: 21,
+            },
+            Tvr::cleared(),
+            Tsi::cleared(),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(data.get(&[0x5f, 0x2a]), Some(&[0x08, 0x40][..]));
+        assert_eq!(data.get(&[0x9f, 0x1a]), Some(&[0x08, 0x40][..]));
+
+        let invalid_currency = KrnTxnParams {
+            currency_code: 1000,
+            ..base()
+        };
+        assert_eq!(
+            unsafe { read_transaction_params(&invalid_currency).unwrap_err() },
+            KernelError::InvalidArgument
+        );
+
+        let invalid_terminal_country = KrnTxnParams {
+            terminal_country_code: 1000,
+            ..base()
+        };
+        assert_eq!(
+            unsafe { read_transaction_params(&invalid_terminal_country).unwrap_err() },
+            KernelError::InvalidArgument
         );
     }
 

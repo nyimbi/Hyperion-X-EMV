@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:31:26Z
+
+- Increment completed: harden FFI transaction-parameter intake for numeric EMV
+  currency and terminal-country values.
+- Code impact: `read_transaction_params` now rejects `currency_code` and
+  `terminal_country_code` values that cannot fit the three-digit numeric code
+  shape encoded into fixed two-byte BCD tags `5F2A` and `9F1A`.
+- Evidence updated:
+  `ffi::tests::transaction_params_reject_non_three_digit_numeric_codes` covers
+  both rejection paths and the valid `840` BCD encoding, and both RTM CSV
+  annexes cite it under `KRN-API-003` and `KRN-CFG-002`.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T21:25:27Z
 
 - Increment completed: make the repository-controlled static-analysis quality

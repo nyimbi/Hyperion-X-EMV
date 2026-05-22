@@ -2540,6 +2540,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_inconsistent_contactless_limit_ordering"));
         assert!(row.contains("rejects_oversized_transaction_type_floor_limit_profiles"));
         assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
+        assert!(row.contains("transaction_params_reject_non_three_digit_numeric_codes"));
         assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
         assert!(row.contains("rtm_promotes_cfg_schema_and_terminal_param_evidence"));
     }
@@ -3142,6 +3143,7 @@ fn rtm_promotes_api_abi_and_callback_validation_evidence() {
         assert!(
             amount_currency.contains("transaction_params_bind_minor_units_to_currency_exponent")
         );
+        assert!(amount_currency.contains("transaction_params_reject_non_three_digit_numeric_codes"));
 
         let caller_buffers = csv_row_for_requirement(csv, "KRN-API-005").unwrap();
         assert!(
