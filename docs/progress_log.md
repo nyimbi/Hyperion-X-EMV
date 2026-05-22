@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T20:29:33Z
+
+- Increment completed: bound direct AID fallback candidates by the same
+  runtime selection cap used for PSE/PPSE directory candidates.
+- Research note: direct selection is the fallback path when PSE/PPSE is absent,
+  unsupported, or profile-directed. A signed profile bundle with too many
+  interface-matching AIDs should fail closed rather than build an unbounded
+  direct-selection list.
+- Code impact: `direct_profile_candidates` now returns `LengthOverflow` before
+  emitting more than `MAX_CANDIDATE_AIDS` contact or contactless candidates,
+  preserving deterministic sorting for bounded candidate sets.
+- Evidence updated:
+  `selection::tests::rejects_direct_profile_candidates_above_limit` covers the
+  direct-fallback resource limit, and both RTM CSV annexes cite it under
+  `KRN-SEL-003`; the runtime selection RTM guard now requires that citation.
+- Verification: `cargo fmt`, `cargo test
+  rejects_direct_profile_candidates_above_limit`, `cargo test
+  direct_candidates_are_sorted_by_signed_profile_priority`, and `cargo test
+  rtm_promotes_runtime_apdu_selection_status_policy_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T20:23:12Z
 
 - Increment completed: allow response APDU triage to classify status-only

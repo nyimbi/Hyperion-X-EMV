@@ -828,6 +828,16 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
                 ),
                 "{id} should cite runtime SELECT status-policy coverage"
             );
+            if id == "KRN-SEL-003" {
+                assert!(
+                    row.contains("direct_candidates_are_sorted_by_signed_profile_priority"),
+                    "{id} should cite direct candidate ordering evidence"
+                );
+                assert!(
+                    row.contains("rejects_direct_profile_candidates_above_limit"),
+                    "{id} should cite direct candidate resource-limit evidence"
+                );
+            }
             if id != "KRN-SEL-003" {
                 assert!(
                     row.contains("runtime_core_flow_resolves_gpo_record_and_gac_followups"),

@@ -61,6 +61,9 @@ pub fn direct_profile_candidates(
                 .iter()
                 .any(|item| item == interface_name(interface))
             {
+                if out.len() >= MAX_CANDIDATE_AIDS {
+                    return Err(KernelError::LengthOverflow);
+                }
                 out.push(SelectionCandidate {
                     aid: aid.aid.clone(),
                     select_aid: aid.aid.clone(),
@@ -380,6 +383,24 @@ mod tests {
             vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]
         );
         assert_eq!(candidates[0].select_aid, candidates[0].aid);
+    }
+
+    #[test]
+    fn rejects_direct_profile_candidates_above_limit() {
+        let mut profiles = profiles();
+        let template = profiles.schemes[0].aids[0].clone();
+        profiles.schemes[0].aids.clear();
+        for index in 0..=MAX_CANDIDATE_AIDS {
+            let mut aid = template.clone();
+            aid.aid = vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x20, index as u8];
+            aid.interfaces = vec!["contact".to_string()];
+            profiles.schemes[0].aids.push(aid);
+        }
+
+        assert_eq!(
+            direct_profile_candidates(&profiles, Interface::Contact).unwrap_err(),
+            KernelError::LengthOverflow
+        );
     }
 
     fn tlv_bytes(tag: &[u8], value: &[u8]) -> Vec<u8> {
