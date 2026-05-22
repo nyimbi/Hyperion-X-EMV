@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T03:07:56Z
+
+- Increment completed: make EXTERNAL AUTHENTICATE status handling explicitly
+  TVR-mediated.
+- Research note: the status-word policy skeleton says EXTERNAL AUTHENTICATE
+  failures should set the issuer authentication failed TVR bit if attempted,
+  rather than collapse into a generic argument error.
+- Code impact: the shared status classifier now returns
+  `ContinueWithTvr(TVR_B5_ISSUER_AUTHENTICATION_FAILED)` for failed EXTERNAL
+  AUTHENTICATE responses, and issuer-authentication runtime handling consumes
+  that classifier result before persisting TVR/TSI evidence.
+- Evidence updated: unit and traceability tests now require failed EXTERNAL
+  AUTHENTICATE status words to follow the issuer-authentication-failed TVR path
+  instead of a generic argument error.
+- Verification: `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T03:00:54Z
 
 - Increment completed: add a reproducible ABI conformance statement artifact.

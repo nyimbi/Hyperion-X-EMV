@@ -88,8 +88,8 @@ pub fn classify(context: ApduContext, sw: StatusWord) -> StatusAction {
         (ApduContext::InternalAuthenticate, _, _) => StatusAction::Fail {
             error: KernelError::InvalidProfile,
         },
-        (ApduContext::ExternalAuthenticate, _, _) => StatusAction::Fail {
-            error: KernelError::InvalidArgument,
+        (ApduContext::ExternalAuthenticate, _, _) => StatusAction::ContinueWithTvr {
+            bit: Tvr::B5_ISSUER_AUTHENTICATION_FAILED,
         },
         (ApduContext::IssuerScript { critical: false }, 0x63, _)
         | (ApduContext::IssuerScript { critical: false }, 0x6a, _)
@@ -192,8 +192,8 @@ mod tests {
         );
         assert_eq!(
             classify(ApduContext::ExternalAuthenticate, conditions_not_satisfied),
-            StatusAction::Fail {
-                error: KernelError::InvalidArgument
+            StatusAction::ContinueWithTvr {
+                bit: Tvr::B5_ISSUER_AUTHENTICATION_FAILED
             }
         );
     }
@@ -225,8 +225,8 @@ mod tests {
                 ApduContext::ExternalAuthenticate,
                 StatusWord::new(0x69, 0x85)
             ),
-            StatusAction::Fail {
-                error: KernelError::InvalidArgument
+            StatusAction::ContinueWithTvr {
+                bit: Tvr::B5_ISSUER_AUTHENTICATION_FAILED
             }
         );
     }

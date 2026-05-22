@@ -6274,6 +6274,15 @@ fn krn_apdu_009_010_status_handling_is_context_specific() {
             error: hyperion_emv::KernelError::CardRemoved
         }
     );
+    assert_eq!(
+        classify(
+            ApduContext::ExternalAuthenticate,
+            StatusWord::new(0x69, 0x85)
+        ),
+        StatusAction::ContinueWithTvr {
+            bit: Tvr::B5_ISSUER_AUTHENTICATION_FAILED
+        }
+    );
 }
 
 #[test]

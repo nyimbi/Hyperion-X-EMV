@@ -2536,11 +2536,23 @@ fn run_issuer_authentication(
     let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
 
     ctx.tsi.set(Tsi::ISSUER_AUTHENTICATION_PERFORMED);
-    let event = if sw.is_success() {
-        FsmEvent::IssuerAuthenticationSuccess
-    } else {
-        ctx.tvr.set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED);
-        FsmEvent::IssuerAuthenticationFailure
+    let event = match classify(ApduContext::ExternalAuthenticate, sw) {
+        StatusAction::Success => FsmEvent::IssuerAuthenticationSuccess,
+        StatusAction::ContinueWithTvr { bit } => {
+            ctx.tvr.set(bit);
+            FsmEvent::IssuerAuthenticationFailure
+        }
+        StatusAction::Fail { error } => return Err(error),
+        StatusAction::GetResponse { .. } | StatusAction::RetryWithLe { .. } => {
+            return Err(KernelError::InternalError);
+        }
+        StatusAction::FallbackToDirectAid
+        | StatusAction::TryNextAid
+        | StatusAction::EndOfRecords
+        | StatusAction::PinFailed { .. }
+        | StatusAction::ContinueAfterNonCriticalScriptFailure => {
+            return Err(KernelError::InternalError);
+        }
     };
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
