@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T12:14:48Z
+
+- Increment completed: review adjacent open-source/source-available EMV projects
+  for ideas Hyperion can adapt without copying code or importing uncertified
+  behavior.
+- Research note: public EMV projects are most useful as architecture, adapter,
+  trace-fixture, decoder, and process references. They are not certification
+  authorities, and their public CAPKs, test keys, mocks, and scheme behaviors
+  must stay outside Hyperion's certification evidence chain.
+- Documentation impact: `docs/open_source.md` now records inspected revisions,
+  license posture, project-specific borrowable ideas, "do not borrow" risks,
+  and a Hyperion backlog for CLI decoders, APDU scenario packs, adapter
+  boundaries, profile dictionaries, TLV admission policy, and DOL source
+  precedence tests.
+- Verification: `cargo fmt --check`, `git diff --check`, `cargo test`,
+  `cargo test --examples`, and `cargo clippy --all-targets --all-features`
+  passed.
+
 ## 2026-05-22T08:07:11Z
 
 - Increment completed: require issuer script identifier tag `9F18` to be exactly
