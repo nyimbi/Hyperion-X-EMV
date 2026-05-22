@@ -332,18 +332,24 @@ pub fn mask_tlv_value(tag: &[u8], value: &[u8], policy: LogPolicy) -> MaskedFiel
         } else {
             MaskedValue::Suppressed("track2")
         }
-    } else if tag == [0x9f, 0x26] || tag == [0x91] {
+    } else if tag == [0x9f, 0x26] {
         if policy.allows_transaction_cryptograms() {
             MaskedValue::Hex(to_hex(value))
         } else {
             MaskedValue::Suppressed("transaction-cryptogram")
         }
+    } else if tag == [0x91] {
+        MaskedValue::Suppressed("issuer-authentication-data")
     } else if tag == [0x9f, 0x10] {
         if policy.allows_profile_defined_trace_data() {
             MaskedValue::Hex(to_hex(value))
         } else {
             MaskedValue::Suppressed("issuer-application-data")
         }
+    } else if tag == [0x86] {
+        MaskedValue::Suppressed("issuer-script-command-data")
+    } else if tag == [0x9f, 0x18] {
+        MaskedValue::Suppressed("issuer-script-identifier")
     } else if tag == [0x99] {
         MaskedValue::Suppressed("pin-block")
     } else {
@@ -809,6 +815,57 @@ mod tests {
         assert!(json.contains("\"tag\":\"9f10\""));
         assert!(json.contains("issuer-application-data"));
         assert!(!json.contains("aabbcc"));
+    }
+
+    #[test]
+    fn production_suppresses_issuer_script_command_data() {
+        let issuer_auth = mask_tlv_value(
+            &[0x91],
+            &[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88],
+            LogPolicy::certification_support(),
+        );
+        assert_eq!(
+            issuer_auth.value,
+            MaskedValue::Suppressed("issuer-authentication-data")
+        );
+
+        let command = mask_tlv_value(
+            &[0x86],
+            &[0x00, 0xda, 0x00, 0x00, 0x01, 0xaa],
+            LogPolicy::production(),
+        );
+        assert_eq!(
+            command.value,
+            MaskedValue::Suppressed("issuer-script-command-data")
+        );
+
+        let stream = [
+            0x71, 0x0f, 0x9f, 0x18, 0x04, 0xde, 0xad, 0xbe, 0xef, 0x86, 0x06, 0x00, 0xda, 0x00,
+            0x00, 0x01, 0xaa,
+        ];
+        let fields = mask_tlv_stream(&stream, LogPolicy::production()).unwrap();
+        assert!(fields.iter().any(|field| {
+            field.tag == [0x9f, 0x18]
+                && field.value == MaskedValue::Suppressed("issuer-script-identifier")
+        }));
+        assert!(fields.iter().any(|field| {
+            field.tag == [0x86]
+                && field.value == MaskedValue::Suppressed("issuer-script-command-data")
+        }));
+
+        let json = mask_apdu_response(
+            11,
+            ApduTraceContext::Generic,
+            &stream,
+            [0x90, 0x00],
+            LogPolicy::production(),
+        )
+        .unwrap()
+        .to_json();
+        assert!(json.contains("issuer-script-command-data"));
+        assert!(json.contains("issuer-script-identifier"));
+        assert!(!json.contains("00da000001aa"));
+        assert!(!json.contains("deadbeef"));
     }
 
     #[test]

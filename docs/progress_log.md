@@ -4,6 +4,33 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T19:10:48Z
+
+- Increment completed: prevent issuer-script command data from leaking through
+  generic flattened TLV/APDU trace masking.
+- Research note: the pre-lab trace pack already asserted
+  `issuer-script-command-data-suppressed` for issuer-authentication/script
+  scenarios, while the generic TLV flattener would still have emitted tag `86`
+  issuer script command bytes as raw hex. The same stream could also expose tag
+  `9F18` issuer script identifiers, despite issuer script debug output being
+  explicitly crash-safe.
+- Code impact: `mask_tlv_value` now suppresses issuer authentication data
+  (`91`) under an explicit issuer-authentication reason, issuer script command
+  data (`86`), and issuer script identifiers (`9F18`) in controlled log
+  emission. The
+  `trace::tests::production_suppresses_issuer_script_command_data` proves the
+  Template `71` flattened-stream path does not emit raw script command or
+  identifier bytes.
+- Evidence update: `KRN-LOG-003` in both RTM annexes now cites the issuer
+  script command masking regression, and the RTM promotion guard requires that
+  evidence.
+- Verification: `cargo test
+  trace::tests::production_suppresses_issuer_script_command_data`, `cargo test
+  krn_log_001_masks_sensitive_tlv_and_gac_trace_values`, `cargo test
+  rtm_promotes_logging_policy_evidence`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, `cargo fmt --check`, and `git
+  diff --check` passed.
+
 ## 2026-05-22T19:01:04Z
 
 - Increment completed: prevent AFL record data from pre-seeding host-response

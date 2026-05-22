@@ -70,8 +70,8 @@ use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
 use hyperion_emv::tlv;
 use hyperion_emv::trace::{
-    mask_apdu_response, mask_tlv_value, ApduTraceContext, LogPolicy, MaskedValue, ReplayExchange,
-    ReplayScript, TraceIdentity,
+    mask_apdu_response, mask_tlv_stream, mask_tlv_value, ApduTraceContext, LogPolicy, MaskedValue,
+    ReplayExchange, ReplayScript, TraceIdentity,
 };
 use hyperion_emv::trm::{evaluate as evaluate_trm, OfflineCounter, TrmInput, TrmProfile};
 use std::collections::BTreeSet;
@@ -2847,6 +2847,7 @@ fn rtm_promotes_logging_policy_evidence() {
         );
         assert!(crash_dump.contains("oda_debug_redacts_recovered_authentication_material"));
         assert!(crash_dump.contains("tlv_debug_redacts_parsed_values"));
+        assert!(crash_dump.contains("production_suppresses_issuer_script_command_data"));
         assert!(crash_dump.contains("mask_tlv_stream_rejects_trace_field_overflow"));
         assert!(crash_dump.contains("apdu_trace_debug_redacts_masked_payloads_for_crash_safety"));
         assert!(crash_dump.contains("replay_debug_redacts_raw_apdu_bytes_for_crash_safety"));
@@ -5413,6 +5414,25 @@ fn krn_log_001_masks_sensitive_tlv_and_gac_trace_values() {
         iad.value,
         MaskedValue::Suppressed("issuer-application-data")
     );
+
+    let issuer_auth = mask_tlv_value(&[0x91], &hex("1122334455667788"), LogPolicy::production());
+    assert_eq!(
+        issuer_auth.value,
+        MaskedValue::Suppressed("issuer-authentication-data")
+    );
+
+    let issuer_script = mask_tlv_stream(
+        &hex("710F9F1804DEADBEEF860600DA000001AA"),
+        LogPolicy::production(),
+    )
+    .unwrap();
+    assert!(issuer_script.iter().any(|field| {
+        field.tag == [0x9f, 0x18]
+            && field.value == MaskedValue::Suppressed("issuer-script-identifier")
+    }));
+    assert!(issuer_script.iter().any(|field| {
+        field.tag == [0x86] && field.value == MaskedValue::Suppressed("issuer-script-command-data")
+    }));
 
     let response = hex("800B800001DEADBEEF00000001");
     let event = mask_apdu_response(
