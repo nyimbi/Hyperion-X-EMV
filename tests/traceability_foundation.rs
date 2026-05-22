@@ -765,6 +765,7 @@ fn rtm_external_lab_gates_are_explicit() {
         assert!(!vectors.contains("pending implementation evidence"));
         assert!(vectors.contains("validates_complete_vector_syntax_and_rejects_placeholders"));
         assert!(vectors.contains("certification_vector_coverage_is_method_specific"));
+        assert!(vectors.contains("certification_vector_ids_are_unique_and_method_scoped"));
         assert!(
             vectors.contains("krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode")
         );
@@ -6882,6 +6883,7 @@ fn krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         let row = csv_row_for_requirement(csv, "KRN-ODATV-001").unwrap();
         assert!(row.contains("certification_vector_coverage_is_method_specific"));
+        assert!(row.contains("certification_vector_ids_are_unique_and_method_scoped"));
         assert!(row.contains("validates_complete_vector_syntax_and_rejects_placeholders"));
         assert!(row.contains("krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode"));
     }

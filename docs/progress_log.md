@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:22:34Z
+
+- Increment completed: make ODA certification-vector IDs unique and
+  method-scoped.
+- Code impact: certification-mode ODA vector validation now rejects empty,
+  duplicate, or non-ODA-prefixed vector IDs before accepting lab-supplied SDA,
+  DDA, and CDA coverage. Structural fixture validation remains available for
+  parser and evidence-plumbing tests.
+- Evidence updated:
+  `oda::tests::certification_vector_ids_are_unique_and_method_scoped` covers
+  duplicate IDs and unknown method prefixes. `docs/spec.md` now documents the
+  vector-ID rule, both RTM CSVs cite the regression under `KRN-ODATV-001` and
+  `KRN-ANNEX-005`, and the traceability foundation asserts those citations.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:16:17Z
 
 - Increment completed: make production profile loading reject fixture-pending

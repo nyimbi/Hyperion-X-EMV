@@ -9,6 +9,7 @@ use core::fmt;
 
 pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
+const ODA_VECTOR_METHOD_PREFIXES: [&str; 3] = ["SDA", "DDA", "CDA"];
 pub const MAX_ODA_REMAINDER_BYTES: usize = 248;
 pub const MAX_ODA_RSA_MODULUS_BYTES: usize = 256;
 pub const MAX_ODA_AUTHENTICATION_DATA_BYTES: usize = 65_535;
@@ -982,6 +983,7 @@ pub fn validate_oda_vector_annex(json: &[u8], certification: bool) -> KernelResu
         }
     }
     if certification {
+        validate_certification_vector_ids(text)?;
         validate_certification_vector_coverage(text)?;
     }
 
@@ -1054,6 +1056,40 @@ fn validate_certification_vector_coverage(text: &str) -> KernelResult<()> {
         ],
     )?;
 
+    Ok(())
+}
+
+fn validate_certification_vector_ids(text: &str) -> KernelResult<()> {
+    let pattern = "\"id\"";
+    let mut ids = Vec::new();
+    let mut search_from = 0usize;
+
+    while let Some(relative) = text[search_from..].find(pattern) {
+        let key_start = search_from + relative;
+        let value_start = quoted_value_start(&text[key_start + pattern.len()..])
+            .map(|offset| key_start + pattern.len() + offset)
+            .ok_or(KernelError::ParseError)?;
+        let value_end = text[value_start..]
+            .find('"')
+            .map(|offset| value_start + offset)
+            .ok_or(KernelError::ParseError)?;
+        let id = &text[value_start..value_end];
+
+        if id.trim().is_empty()
+            || !ODA_VECTOR_METHOD_PREFIXES
+                .iter()
+                .any(|prefix| id.starts_with(prefix))
+            || ids.iter().any(|prior| prior == &id)
+        {
+            return Err(KernelError::InvalidProfile);
+        }
+        ids.push(id);
+        search_from = value_end + 1;
+    }
+
+    if ids.is_empty() {
+        return Err(KernelError::InvalidProfile);
+    }
     Ok(())
 }
 
@@ -2028,6 +2064,31 @@ mod tests {
         );
         assert_eq!(
             validate_oda_vector_annex(misbound.as_bytes(), true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn certification_vector_ids_are_unique_and_method_scoped() {
+        let complete = certification_shaped_annex();
+
+        let duplicate_id = complete.replacen(
+            "    {\n      \"id\": \"DDA_PASS\"",
+            "    {\n      \"id\": \"SDA_PASS\",\n      \"expected_tvr\": \"0000000000\",\n      \"expected_oda_result\": \"PASS\"\n    },\n    {\n      \"id\": \"DDA_PASS\"",
+            1,
+        );
+        assert_eq!(
+            validate_oda_vector_annex(duplicate_id.as_bytes(), true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let unknown_method_id = complete.replacen(
+            "    {\n      \"id\": \"DDA_PASS\"",
+            "    {\n      \"id\": \"XYZ_PASS\",\n      \"expected_tvr\": \"0000000000\",\n      \"expected_oda_result\": \"PASS\"\n    },\n    {\n      \"id\": \"DDA_PASS\"",
+            1,
+        );
+        assert_eq!(
+            validate_oda_vector_annex(unknown_method_id.as_bytes(), true).unwrap_err(),
             KernelError::InvalidProfile
         );
     }

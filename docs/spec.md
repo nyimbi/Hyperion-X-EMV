@@ -162,7 +162,9 @@ Tag,Name,Type,Length Rule,Source,Interface Applicability,Scheme Applicability,Pr
 `STRUCTURAL_FIXTURE` vectors are executable parser and evidence-plumbing fixtures
 only. Certification loading SHALL require `vector_class = "CERTIFICATION"` and
 complete lab-supplied cryptographic vectors with no placeholder, dummy, or
-fictitious material.
+fictitious material. Certification vector IDs SHALL be unique and SHALL use an
+ODA method prefix (`SDA`, `DDA`, or `CDA`) so lab evidence can be mapped
+unambiguously to method-specific coverage.
 
 ### Annex D – Trace Log Format Specification
 
