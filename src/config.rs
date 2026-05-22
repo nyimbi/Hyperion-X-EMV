@@ -242,12 +242,22 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
             policy.mode,
         )?);
     }
+    reject_duplicate_scheme_rids(&schemes)?;
     Ok(ProfileSet {
         version: policy.candidate_version,
         profile_class,
         profile_source,
         schemes,
     })
+}
+
+fn reject_duplicate_scheme_rids(schemes: &[SchemeProfile]) -> KernelResult<()> {
+    for (index, scheme) in schemes.iter().enumerate() {
+        if schemes[..index].iter().any(|prior| prior.rid == scheme.rid) {
+            return Err(KernelError::InvalidProfile);
+        }
+    }
+    Ok(())
 }
 
 fn parse_profile_class(
@@ -1350,6 +1360,21 @@ mod tests {
         assert_eq!(
             load_profile_set(
                 duplicate_capk.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_scheme_rids() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let duplicate_scheme = duplicate_first_array_object(profile, "scheme_profiles");
+
+        assert_eq!(
+            load_profile_set(
+                duplicate_scheme.as_bytes(),
                 &policy(SignatureStatus::Verified)
             )
             .unwrap_err(),

@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:08:49Z
+
+- Increment completed: reject duplicate scheme RIDs across signed profile
+  bundles before exposing profiles to selection or CAPK lookup.
+- Research note: RID is part of both AID ownership and CAPK lookup identity.
+  Allowing two scheme profiles with the same RID makes first-match CAPK
+  selection and profile provenance dependent on JSON array order.
+- Code impact: `load_profile_set` now fails closed when a signed profile bundle
+  contains repeated scheme RIDs, preserving one unambiguous profile namespace for
+  each RID.
+- Evidence updated: configuration regression coverage and both RTM annexes now
+  cite duplicate scheme RID rejection under `KRN-CFG-002`.
+- Verification: `cargo test rejects_duplicate_scheme_rids`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`,
+  `cargo test rejects_duplicate_profile_aids_and_capk_indexes`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T06:04:20Z
 
 - Increment completed: reject duplicate profile AID values and duplicate

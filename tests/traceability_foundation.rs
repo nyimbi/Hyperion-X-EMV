@@ -2315,6 +2315,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
             "KRN-CFG-002 should cite concrete configuration rejection evidence"
         );
         assert!(row.contains("rejects_cfg_002_profile_schema_and_field_failures"));
+        assert!(row.contains("rejects_duplicate_scheme_rids"));
         assert!(row.contains("rejects_duplicate_profile_aids_and_capk_indexes"));
         assert!(row.contains("rejects_expired_capk"));
         assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
