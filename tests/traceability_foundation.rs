@@ -6947,10 +6947,12 @@ fn rtm_promotes_terminal_action_analysis_evidence() {
 
         let order = csv_row_for_requirement(csv, "KRN-TAA-006").unwrap();
         assert!(order.contains("taa_uses_terminal_type_online_capability"));
+        assert!(order.contains("default_action_codes_are_ignored_while_online_capable"));
 
         let fallback = csv_row_for_requirement(csv, "KRN-TAA-007").unwrap();
         assert!(fallback.contains("scheme_profile_annex_contains_deterministic_taa_keys"));
         assert!(fallback.contains("offline_unable_default_match_uses_profile_fallback"));
+        assert!(fallback.contains("default_action_codes_are_ignored_while_online_capable"));
 
         let gac1 = csv_row_for_requirement(csv, "KRN-GAC1-003").unwrap();
         assert!(gac1.contains("taa_uses_terminal_type_online_capability"));

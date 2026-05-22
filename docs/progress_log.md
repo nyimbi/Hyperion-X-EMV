@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T18:34:19Z
+
+- Increment completed: prove that TAA default action-code masks are ignored
+  while the terminal is online-capable and only participate in the unable-online
+  fallback path.
+- Research note: the TAA engine already evaluated denial, online, and default
+  masks in the intended order; the local evidence gap was that the online
+  capable path had no direct regression proving a matching default mask cannot
+  override the configured online no-match policy.
+- Code impact: added
+  `taa::tests::default_action_codes_are_ignored_while_online_capable`, which
+  exercises the same default-mask TVR bit in both online-capable and
+  offline-unable contexts and asserts the distinct decision reasons.
+- Evidence update: KRN-TAA-006 and KRN-TAA-007 in both RTM annexes now cite the
+  new regression, and the RTM promotion guard requires it for both TAA ordering
+  and deterministic fallback evidence.
+- Verification: `cargo test
+  taa::tests::default_action_codes_are_ignored_while_online_capable`, `cargo
+  test rtm_promotes_terminal_action_analysis_evidence`, `cargo test`, `cargo
+  test --examples`, `cargo clippy --all-targets --all-features`, `cargo fmt
+  --check`, and `git diff --check` passed.
+
 ## 2026-05-22T18:27:56Z
 
 - Increment completed: make KRN-TRM-001's "per profile and transaction type"

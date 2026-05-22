@@ -200,6 +200,35 @@ mod tests {
     }
 
     #[test]
+    fn default_action_codes_are_ignored_while_online_capable() {
+        let mut tvr = Tvr::cleared();
+        tvr.set(Tvr::B1_ICC_DATA_MISSING);
+        let mut input = input(tvr);
+        input.iac.default = [0x20, 0, 0, 0, 0];
+        input.profile = TaaProfile::new(
+            TerminalAction::Tc,
+            TerminalAction::Arqc,
+            TerminalAction::Aac,
+        )
+        .unwrap();
+
+        let decision = decide(input);
+        assert_eq!(decision.action, TerminalAction::Arqc);
+        assert_eq!(
+            decision.reason,
+            "no action code matched while online capable"
+        );
+
+        input.terminal_online_capable = false;
+        let decision = decide(input);
+        assert_eq!(decision.action, TerminalAction::Tc);
+        assert_eq!(
+            decision.reason,
+            "default action code matched while unable online"
+        );
+    }
+
+    #[test]
     fn iac_values_participate_in_denial_online_and_default_decisions() {
         let mut tvr = Tvr::cleared();
         tvr.set(Tvr::B1_SDA_FAILED);
