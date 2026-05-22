@@ -849,6 +849,9 @@ fn parse_static_authentication_tag_list(input: &[u8]) -> KernelResult<Vec<Vec<u8
 
 fn read_oda_tag(input: &[u8], offset: &mut usize) -> KernelResult<bool> {
     let first = *input.get(*offset).ok_or(KernelError::ParseError)?;
+    if first == 0x00 || first == 0xff {
+        return Err(KernelError::ParseError);
+    }
     *offset += 1;
     let constructed = first & 0x20 != 0;
     if first & 0x1f == 0x1f {
@@ -1572,6 +1575,15 @@ mod tests {
             build_static_authentication_data(&records, &zero_prefixed_high_tag).unwrap_err(),
             KernelError::ParseError
         );
+
+        for tag_list in [[0x00].as_slice(), &[0xff]] {
+            let mut invalid_tag = DataStore::new();
+            invalid_tag.put(&[0x9f, 0x4a], tag_list).unwrap();
+            assert_eq!(
+                build_static_authentication_data(&records, &invalid_tag).unwrap_err(),
+                KernelError::ParseError
+            );
+        }
     }
 
     #[test]

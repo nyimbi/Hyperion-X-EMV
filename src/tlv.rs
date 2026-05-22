@@ -146,6 +146,9 @@ fn parse_sequence<'a>(
 
 fn read_tag(input: &[u8], offset: &mut usize) -> KernelResult<bool> {
     let first = *input.get(*offset).ok_or(KernelError::ParseError)?;
+    if first == 0x00 || first == 0xff {
+        return Err(KernelError::ParseError);
+    }
     *offset += 1;
     let constructed = first & 0x20 != 0;
 
@@ -265,6 +268,18 @@ mod tests {
     fn rejects_zero_prefixed_high_tag_numbers() {
         let err = parse_many(&[0x9f, 0x80, 0x04, 0x01, 0x00]).unwrap_err();
         assert_eq!(err, KernelError::ParseError);
+    }
+
+    #[test]
+    fn rejects_invalid_tag_field_bytes() {
+        assert_eq!(
+            parse_many(&[0x00, 0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_many(&[0xff, 0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]

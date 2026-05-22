@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:17:52Z
+
+- Increment completed: reject invalid BER-TLV tag field bytes before card or
+  DOL data reaches downstream EMV parsers.
+- Research note: ISO 7816 BER-TLV references reserve `00` and `FF` from tag
+  values. Those encodings otherwise create malformed or ambiguous tag identities
+  at parser boundaries.
+- Code impact: the TLV, DOL, and ODA static-authentication tag-list readers now
+  reject invalid first tag bytes while preserving valid EMV high-tag-number
+  tags such as `9F1E`.
+- Evidence updated: TLV/DOL unit tests, ODA malformed tag-list coverage, TLV RTM
+  guards, and both RTM annexes now cite invalid tag-field rejection.
+- Verification: `cargo test rejects_invalid_tag_field_bytes`,
+  `cargo test parses_and_builds_pdol_deterministically`,
+  `cargo test rejects_malformed_static_authentication_tag_list`,
+  `cargo test rtm_promotes_tlv_catalogue_and_dol_classification_evidence`,
+  `cargo test`, `cargo test --examples`, and
+  `cargo clippy --all-targets --all-features`, `cargo fmt --check`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T05:07:31Z
 
 - Increment completed: reject malformed high-tag-number encodings whose first

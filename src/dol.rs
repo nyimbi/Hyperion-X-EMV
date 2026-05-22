@@ -123,6 +123,9 @@ fn append_zero_padded(out: &mut Vec<u8>, value: &[u8], requested_len: usize) {
 
 fn read_dol_tag(input: &[u8], offset: &mut usize) -> KernelResult<()> {
     let first = *input.get(*offset).ok_or(KernelError::ParseError)?;
+    if first == 0x00 || first == 0xff {
+        return Err(KernelError::ParseError);
+    }
     *offset += 1;
 
     if first & 0x1f == 0x1f {
@@ -168,6 +171,18 @@ mod tests {
     fn rejects_zero_prefixed_high_tag_numbers() {
         assert_eq!(
             parse_dol(&[0x9f, 0x80, 0x04, 0x01]).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_tag_field_bytes() {
+        assert_eq!(
+            parse_dol(&[0x00, 0x01]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_dol(&[0xff, 0x01]).unwrap_err(),
             KernelError::ParseError
         );
     }
