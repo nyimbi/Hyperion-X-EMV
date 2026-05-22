@@ -2605,6 +2605,7 @@ fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
 
         let replay = csv_row_for_requirement(csv, "KRN-FSM-003").unwrap();
         assert!(replay.contains("replay_is_exact_order_and_evidence_is_masked"));
+        assert!(replay.contains("generic_response_trace_rejects_malformed_tlv_payloads"));
         assert!(replay.contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl"));
 
         let async_failures = csv_row_for_requirement(csv, "KRN-FSM-004").unwrap();

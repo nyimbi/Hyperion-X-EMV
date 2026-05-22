@@ -1624,3 +1624,19 @@ decision record, while this file tracks work toward certification readiness.
   lab-only gates will now fail the traceability suite.
 - Verification: `cargo test`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-22T07:23:51Z
+
+- Increment completed: reject malformed generic replay response TLVs instead
+  of silently downgrading them to unparsed response traces.
+- Research note: replay traces are certification evidence; status-only
+  responses can be represented without TLV fields, but nonempty response
+  bodies in generic TLV contexts must parse deterministically or fail closed.
+- Code impact: `mask_apdu_response` now propagates TLV parse errors for
+  nonempty generic response data while retaining status-only response support.
+- Evidence updated: KRN-FSM-003 RTM rows cite the malformed-response replay
+  trace regression.
+- Verification: `cargo test generic_response_trace_rejects_malformed_tlv_payloads`,
+  `cargo test rtm_promotes_fsm_annex_replay_and_error_transition_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

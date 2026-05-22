@@ -409,7 +409,8 @@ pub fn mask_apdu_response(
 ) -> KernelResult<ApduTrace> {
     validate_replay_apdu(response_data)?;
     let fields = match context {
-        ApduTraceContext::Generic => mask_tlv_stream(response_data, policy).unwrap_or_default(),
+        ApduTraceContext::Generic if response_data.is_empty() => Vec::new(),
+        ApduTraceContext::Generic => mask_tlv_stream(response_data, policy)?,
         ApduTraceContext::GenerateAcResponse => mask_generate_ac_response(response_data, policy)?,
     };
     let data = if fields.is_empty() {
@@ -866,6 +867,33 @@ mod tests {
         let jsonl = script.masked_jsonl(LogPolicy::production()).unwrap();
         assert!(jsonl.contains("***********2345"));
         assert!(!jsonl.contains("123456789012345"));
+    }
+
+    #[test]
+    fn generic_response_trace_rejects_malformed_tlv_payloads() {
+        let err = mask_apdu_response(
+            9,
+            ApduTraceContext::Generic,
+            &[0x9f],
+            [0x90, 0x00],
+            LogPolicy::production(),
+        )
+        .unwrap_err();
+        assert_eq!(err, KernelError::ParseError);
+
+        let status_only = mask_apdu_response(
+            10,
+            ApduTraceContext::Generic,
+            &[],
+            [0x6a, 0x82],
+            LogPolicy::production(),
+        )
+        .unwrap();
+        assert_eq!(
+            status_only.data,
+            MaskedValue::Suppressed("unparsed-response")
+        );
+        assert!(status_only.fields.is_empty());
     }
 
     #[test]
