@@ -650,4 +650,28 @@ mod tests {
             KernelError::InvalidProfile
         );
     }
+
+    #[test]
+    fn rejects_relay_resistance_profiles_above_resource_limits() {
+        assert_eq!(
+            RelayResistanceProfile::new(
+                vec![0x80; MAX_RELAY_RESISTANCE_APDU_LEN + 1],
+                50,
+                vec![0x90, 0x00],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f, 0x7a, 0x00],
+                50,
+                vec![0x90; MAX_RELAY_RESISTANCE_RESPONSE_LEN + 1],
+                RelayResistanceFailureOutcome::TryAgain,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
 }

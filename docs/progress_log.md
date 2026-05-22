@@ -2124,3 +2124,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:54:50Z
+
+- Increment completed: make contactless relay-resistance APDU and response
+  resource bounds explicit and traceable.
+- Research note: the licensed C-8 relay-resistance profile package remains
+  external certification evidence, but repository-controlled profile validation
+  can prove oversized relay-resistance command APDUs and success responses fail
+  closed before runtime contactless processing.
+- Code impact: C-8 relay-resistance profile validation now has a regression
+  proving inputs above `MAX_RELAY_RESISTANCE_APDU_LEN` and
+  `MAX_RELAY_RESISTANCE_RESPONSE_LEN` return `InvalidProfile`.
+- Evidence updated: current and compatibility RTM annexes cite the
+  relay-resistance resource-limit regression for `KRN-CLESS-005`.
+- Verification: `cargo test rejects_relay_resistance_profiles_above_resource_limits`,
+  `cargo test krn_cless_005_relay_resistance_is_profile_required_and_traced`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

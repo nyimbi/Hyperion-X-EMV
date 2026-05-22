@@ -5658,6 +5658,7 @@ fn krn_cless_005_relay_resistance_is_profile_required_and_traced() {
         let row = csv_row_for_requirement(csv, "KRN-CLESS-005").expect("RTM row exists");
         assert!(!row.contains("pending implementation evidence"));
         assert!(row.contains("relay_resistance_is_profile_gated_and_deterministic"));
+        assert!(row.contains("rejects_relay_resistance_profiles_above_resource_limits"));
         assert!(row.contains("parses_profile_defined_relay_resistance_policy"));
         assert!(row.contains("contactless_relay_resistance_is_profile_required"));
     }
