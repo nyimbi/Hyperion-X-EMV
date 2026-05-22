@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T03:53:32Z
+
+- Increment completed: make issuer script parsing direct-child only inside
+  host-provided Template `71`/`72` script templates.
+- Research note: issuer script sequencing remains a certification-sensitive
+  behavior in the engineering notes, so parser evidence should reject nested or
+  duplicate script objects instead of recursively accepting APDUs from arbitrary
+  constructed TLV subtrees.
+- Code impact: host response parsing now accepts script templates only at the
+  top level of the host response TLV stream, requires direct `86` command
+  children, allows at most one direct `9F18` identifier, and rejects unexpected
+  objects inside a script template.
+- Evidence updated: issuer-script unit tests, traceability guard, and both RTM
+  annexes now prove commandless, nested, duplicate, and misplaced issuer script
+  structures are not accepted as executable script commands.
+- Verification: `cargo test rejects_nested_or_duplicate_issuer_script_objects`,
+  `cargo test parses_arpc_arc_and_issuer_scripts`,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T03:48:39Z
 
 - Increment completed: constrain selected-application PDOL extraction to the

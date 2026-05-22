@@ -136,15 +136,17 @@ pub fn apply_script_results(
 
 fn collect_scripts(tlvs: &[tlv::Tlv<'_>], scripts: &mut Vec<IssuerScript>) -> KernelResult<()> {
     for item in tlvs {
-        let phase = match item.tag {
-            [0x71] => Some(ScriptPhase::BeforeFinalGenerateAc),
-            [0x72] => Some(ScriptPhase::AfterFinalGenerateAc),
-            _ => None,
-        };
-        if let Some(phase) = phase {
-            scripts.push(parse_script_template(item, phase)?);
+        match item.tag {
+            [0x71] => scripts.push(parse_script_template(
+                item,
+                ScriptPhase::BeforeFinalGenerateAc,
+            )?),
+            [0x72] => scripts.push(parse_script_template(
+                item,
+                ScriptPhase::AfterFinalGenerateAc,
+            )?),
+            _ => {}
         }
-        collect_scripts(&item.children, scripts)?;
     }
     Ok(())
 }
@@ -153,9 +155,32 @@ fn parse_script_template(
     template: &tlv::Tlv<'_>,
     phase: ScriptPhase,
 ) -> KernelResult<IssuerScript> {
-    let identifier = tlv::find_first(&template.children, &[0x9f, 0x18]).map(|value| value.to_vec());
+    let mut identifier = None;
     let mut commands = Vec::new();
-    collect_script_commands(&template.children, &mut commands)?;
+
+    for item in &template.children {
+        match item.tag {
+            [0x9f, 0x18] => {
+                if identifier.is_some() || item.value.is_empty() {
+                    return Err(KernelError::ParseError);
+                }
+                identifier = Some(item.value.to_vec());
+            }
+            [0x86] => {
+                if item.value.is_empty() || item.value.len() > MAX_SCRIPT_COMMAND_LEN {
+                    return Err(KernelError::ParseError);
+                }
+                if commands.len() >= MAX_SCRIPT_COMMANDS {
+                    return Err(KernelError::LengthOverflow);
+                }
+                commands.push(item.value.to_vec());
+            }
+            _ => {
+                return Err(KernelError::ParseError);
+            }
+        }
+    }
+
     if commands.is_empty() {
         return Err(KernelError::ParseError);
     }
@@ -164,22 +189,6 @@ fn parse_script_template(
         identifier,
         commands,
     })
-}
-
-fn collect_script_commands(tlvs: &[tlv::Tlv<'_>], commands: &mut Vec<Vec<u8>>) -> KernelResult<()> {
-    for item in tlvs {
-        if item.tag == [0x86] {
-            if item.value.is_empty() || item.value.len() > MAX_SCRIPT_COMMAND_LEN {
-                return Err(KernelError::ParseError);
-            }
-            if commands.len() >= MAX_SCRIPT_COMMANDS {
-                return Err(KernelError::LengthOverflow);
-            }
-            commands.push(item.value.to_vec());
-        }
-        collect_script_commands(&item.children, commands)?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -249,6 +258,31 @@ mod tests {
             parse_host_response(&[0x71, 0x06, 0x9f, 0x18, 0x03, 0x01, 0x02, 0x03]).unwrap_err(),
             KernelError::ParseError
         );
+    }
+
+    #[test]
+    fn rejects_nested_or_duplicate_issuer_script_objects() {
+        assert_eq!(
+            parse_host_response(&[
+                0x71, 0x0a, 0xa5, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x71, 0x12, 0x9f, 0x18, 0x02, 0x01, 0x02, 0x9f, 0x18, 0x02, 0x03, 0x04, 0x86, 0x06,
+                0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let nested = parse_host_response(&[
+            0x70, 0x0a, 0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+        ])
+        .unwrap();
+        assert!(nested.scripts.is_empty());
     }
 
     #[test]
