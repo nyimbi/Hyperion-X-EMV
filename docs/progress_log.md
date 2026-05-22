@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:36:39Z
+
+- Increment completed: extend parser-backed pre-lab decoding for EMV fixed
+  numeric code fields without importing public lookup tables.
+- Code impact: `krn_emv_decode numeric-code` now validates two-byte BCD values
+  as `0XXX` three-digit codes, reports only non-sensitive shape/output facts,
+  and leaves code authority to signed profiles or lab material.
+- Evidence updated:
+  `krn_emv_decode::tests::numeric_code_output_enforces_three_digit_bcd_shape`
+  covers valid `0840`, non-BCD nibbles, wrong lengths, and four-digit BCD
+  rejection; both RTM CSV annexes cite it under `KRN-TLV-004`, and the
+  open-source adaptation backlog now names numeric-code triage in the decoder
+  scope.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T21:31:26Z
 
 - Increment completed: harden FFI transaction-parameter intake for numeric EMV

@@ -2612,6 +2612,8 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         assert!(catalogue.contains(
             "krn_emv_decode::tests::tag_list_output_lists_primitive_tags_without_values"
         ));
+        assert!(catalogue
+            .contains("krn_emv_decode::tests::numeric_code_output_enforces_three_digit_bcd_shape"));
 
         let scheme_defined = csv_row_for_requirement(csv, "KRN-TLV-005").unwrap();
         assert!(scheme_defined

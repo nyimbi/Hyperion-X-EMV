@@ -32,6 +32,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "tlv" => decode_tlv(arg_hex(args, 1, "tlv")?),
         "dol" => decode_dol(arg_hex(args, 1, "dol")?),
         "tag-list" => decode_tag_list(arg_hex(args, 1, "tag-list")?),
+        "numeric-code" => decode_numeric_code(arg_hex(args, 1, "numeric-code")?),
         "cvm-list" => decode_cvm_list(arg_hex(args, 1, "cvm-list")?),
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
@@ -66,7 +67,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -122,6 +123,42 @@ fn decode_tag_list(bytes: Vec<u8>) -> Result<String, String> {
     }
     let _ = writeln!(out, "value_policy=not-applicable");
     Ok(out)
+}
+
+fn decode_numeric_code(bytes: Vec<u8>) -> Result<String, String> {
+    let raw: [u8; 2] = bytes
+        .try_into()
+        .map_err(|_| "numeric-code must be exactly 2 BCD bytes".to_string())?;
+    let digits =
+        bcd_digits(&raw).ok_or_else(|| "numeric-code contains non-BCD nibbles".to_string())?;
+    if digits[0] != 0 {
+        return Err("numeric-code must encode a three-digit value as 0XXX BCD".to_string());
+    }
+    let value = u16::from(digits[1]) * 100 + u16::from(digits[2]) * 10 + u16::from(digits[3]);
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=numeric-code");
+    let _ = writeln!(out, "raw={}", hex_upper(&raw));
+    let _ = writeln!(
+        out,
+        "digits={}{}{}{}",
+        digits[0], digits[1], digits[2], digits[3]
+    );
+    let _ = writeln!(out, "code={value:03}");
+    let _ = writeln!(out, "field_shape=three-digit-code-in-two-byte-bcd");
+    let _ = writeln!(out, "authority=profile-or-lab-defined");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn bcd_digits(bytes: &[u8; 2]) -> Option<[u8; 4]> {
+    let digits = [
+        bytes[0] >> 4,
+        bytes[0] & 0x0f,
+        bytes[1] >> 4,
+        bytes[1] & 0x0f,
+    ];
+    digits.iter().all(|digit| *digit <= 9).then_some(digits)
 }
 
 fn decode_cvm_list(bytes: Vec<u8>) -> Result<String, String> {
@@ -803,6 +840,32 @@ mod tests {
     }
 
     #[test]
+    fn numeric_code_output_enforces_three_digit_bcd_shape() {
+        let out = decode_numeric_code(decode_hex("0840").unwrap()).unwrap();
+
+        assert!(out.contains("type=numeric-code"));
+        assert!(out.contains("raw=0840"));
+        assert!(out.contains("digits=0840"));
+        assert!(out.contains("code=840"));
+        assert!(out.contains("field_shape=three-digit-code-in-two-byte-bcd"));
+        assert!(out.contains("authority=profile-or-lab-defined"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        assert_eq!(
+            decode_numeric_code(vec![0x08]).unwrap_err(),
+            "numeric-code must be exactly 2 BCD bytes"
+        );
+        assert_eq!(
+            decode_numeric_code(decode_hex("0A40").unwrap()).unwrap_err(),
+            "numeric-code contains non-BCD nibbles"
+        );
+        assert_eq!(
+            decode_numeric_code(decode_hex("1234").unwrap()).unwrap_err(),
+            "numeric-code must encode a three-digit value as 0XXX BCD"
+        );
+    }
+
+    #[test]
     fn cvm_list_output_names_rules_without_handles() {
         let out = decode_cvm_list(decode_hex("00000000000003E8430302031F03").unwrap()).unwrap();
 
@@ -1057,6 +1120,14 @@ mod tests {
 
         assert!(out.contains("type=tag-list"));
         assert!(out.contains("tag=9F37"));
+    }
+
+    #[test]
+    fn cli_routes_numeric_code_mode() {
+        let out = run(&[string_arg("numeric-code"), string_arg("0840")]).unwrap();
+
+        assert!(out.contains("type=numeric-code"));
+        assert!(out.contains("code=840"));
     }
 
     #[test]
