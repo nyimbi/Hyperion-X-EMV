@@ -2,6 +2,7 @@ use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::decode_hex;
 use hyperion_emv::cvm::{parse_cvm_list, CvmMethod};
 use hyperion_emv::dol::parse_dol;
+use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::tlv;
@@ -31,6 +32,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
         "cid" => decode_cid(arg_hex(args, 1, "cid")?),
+        "gac" | "generate-ac-response" => decode_gac_response(arg_hex(args, 1, "gac")?),
         "termcap" | "terminal-capabilities" => {
             decode_terminal_capabilities(arg_hex(args, 1, "termcap")?)
         }
@@ -51,7 +53,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|cid|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
      internal-authenticate, external-authenticate, issuer-script-critical,\n\
@@ -133,6 +135,56 @@ fn decode_cid(bytes: Vec<u8>) -> Result<String, String> {
     );
     let _ = writeln!(out, "advice_required={}", cid.advice_required());
     let _ = writeln!(out, "reason_advice_code=0x{:02X}", cid.reason_advice_code());
+    Ok(out)
+}
+
+fn decode_gac_response(bytes: Vec<u8>) -> Result<String, String> {
+    let response = parse_generate_ac_response(&bytes)
+        .map_err(|err| format!("GENERATE AC response parse failed: {}", err.name()))?;
+    let mut out = String::new();
+    let _ = writeln!(out, "type=generate-ac-response");
+    let _ = writeln!(
+        out,
+        "response_format={}",
+        match bytes.first().copied() {
+            Some(0x80) => "format-1-template-80",
+            Some(0x77) => "format-2-template-77",
+            _ => "unknown",
+        }
+    );
+    let _ = writeln!(out, "cid_raw=0x{:02X}", response.cid.raw());
+    let _ = writeln!(
+        out,
+        "cryptogram_type={}",
+        cryptogram_type_name(response.cid.cryptogram_type())
+    );
+    let _ = writeln!(out, "application_cryptogram_len=8");
+    let _ = writeln!(out, "atc_len=2");
+    let _ = writeln!(
+        out,
+        "issuer_application_data_len={}",
+        response.issuer_application_data.len()
+    );
+    let _ = writeln!(
+        out,
+        "icc_dynamic_number_len={}",
+        response
+            .icc_dynamic_number
+            .as_ref()
+            .map_or(0, |value| value.len())
+    );
+    let _ = writeln!(
+        out,
+        "signed_dynamic_application_data_len={}",
+        response
+            .signed_dynamic_application_data
+            .as_ref()
+            .map_or(0, |value| value.len())
+    );
+    let _ = writeln!(
+        out,
+        "data_policy=application_cryptogram_iad_dynamic_authentication_suppressed"
+    );
     Ok(out)
 }
 
@@ -719,6 +771,37 @@ mod tests {
     }
 
     #[test]
+    fn gac_response_output_parses_without_exposing_values() {
+        let out = decode_gac_response(
+            decode_hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC").unwrap(),
+        )
+        .unwrap();
+
+        assert!(out.contains("type=generate-ac-response"));
+        assert!(out.contains("response_format=format-2-template-77"));
+        assert!(out.contains("cid_raw=0x80"));
+        assert!(out.contains("cryptogram_type=arqc"));
+        assert!(out.contains("application_cryptogram_len=8"));
+        assert!(out.contains("atc_len=2"));
+        assert!(out.contains("issuer_application_data_len=3"));
+        assert!(out.contains("icc_dynamic_number_len=0"));
+        assert!(out.contains("signed_dynamic_application_data_len=0"));
+        assert!(out
+            .contains("data_policy=application_cryptogram_iad_dynamic_authentication_suppressed"));
+        assert!(!out.contains("1112131415161718"));
+        assert!(!out.contains("AABBCC"));
+    }
+
+    #[test]
+    fn gac_response_output_rejects_unwrapped_response_data() {
+        assert!(decode_gac_response(
+            decode_hex("9F2701809F360200099F260811121314151617189F1003AABBCC").unwrap()
+        )
+        .unwrap_err()
+        .contains("KRN_ERR_MISSING_MANDATORY_TAG"));
+    }
+
+    #[test]
     fn sw_output_is_context_specific() {
         let select = decode_status_word(ApduContext::SelectPse, StatusWord::new(0x6A, 0x82));
         let gpo = decode_status_word(ApduContext::Gpo, StatusWord::new(0x6A, 0x82));
@@ -765,6 +848,16 @@ mod tests {
 
         assert!(out.contains("type=cid"));
         assert!(out.contains("cryptogram_type=tc"));
+    }
+
+    #[test]
+    fn cli_routes_gac_mode() {
+        let out = run(&[string_arg("gac"), string_arg("800B4012341011121314151617")]).unwrap();
+
+        assert!(out.contains("type=generate-ac-response"));
+        assert!(out.contains("response_format=format-1-template-80"));
+        assert!(out.contains("cryptogram_type=tc"));
+        assert!(!out.contains("1011121314151617"));
     }
 
     #[test]

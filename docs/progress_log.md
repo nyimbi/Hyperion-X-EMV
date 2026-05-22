@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T20:01:07Z
+
+- Increment completed: extend the pre-lab decoder utility with masked GENERATE
+  AC response triage.
+- Code impact: `krn_emv_decode` now accepts `gac`/`generate-ac-response`,
+  parses template `80` and `77` responses through the kernel GAC parser, reports
+  response shape, CID classification, and sensitive object lengths, and
+  suppresses application cryptogram, IAD, and dynamic authentication values.
+- Evidence update: both RTM annexes now cite
+  `krn_emv_decode::tests::gac_response_output_parses_without_exposing_values`
+  under KRN-GAC-004 and KRN-GAC1-004, and the traceability guard requires that
+  decoder evidence.
+- Verification: pending in this working tree.
+
 ## 2026-05-22T19:10:48Z
 
 - Increment completed: prevent issuer-script command data from leaking through
@@ -3662,5 +3676,33 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_legacy_gac_cda_control_evidence`,
   `cargo test rejects_example_profile_in_certification_or_production_mode`,
   `cargo test capk_lookup_requires_verified_integrity_and_unexpired_key`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T20:00:23Z
+
+- Increment completed: extend the masked pre-lab decode tool to parse GENERATE
+  AC responses through Hyperion's own GAC parser.
+- Research note: the open-source reference review identifies tool-first EMV
+  trace triage as a useful pattern to adapt without importing external code.
+  This change applies that pattern to returned cryptogram evidence while keeping
+  cryptograms, issuer application data, ICC dynamic numbers, and signed dynamic
+  application data suppressed by default.
+- Code impact: `krn_emv_decode` now accepts `gac` /
+  `generate-ac-response`, reports response format, CID classification, and
+  value lengths, and maps malformed unwrapped response data through stable
+  kernel error names.
+- Evidence updated: `gac_response_output_parses_without_exposing_values`,
+  `gac_response_output_rejects_unwrapped_response_data`, and
+  `cli_routes_gac_mode` cover the new decode path. Both RTM CSVs cite the
+  masked decode evidence under `KRN-GAC-004` and `KRN-GAC1-004`, and
+  `rtm_promotes_gac_cdol_encoding_and_response_evidence` now guards those
+  citations. The open-source adaptation backlog now names GENERATE AC response
+  decoding as covered by the decode tool.
+- Verification: `cargo fmt`,
+  `cargo test --example krn_emv_decode gac_response_output_parses_without_exposing_values`,
+  `cargo test --example krn_emv_decode gac_response_output_rejects_unwrapped_response_data`,
+  `cargo test --example krn_emv_decode cli_routes_gac_mode`,
+  `cargo test rtm_promotes_gac_cdol_encoding_and_response_evidence`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

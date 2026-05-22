@@ -1436,6 +1436,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CID"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("GENERATE AC response"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
@@ -2918,6 +2919,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         assert!(response.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
         assert!(response.contains("rejects_malformed_dynamic_authentication_data_in_gac_response"));
         assert!(response.contains("decodes_cryptogram_type_with_0xc0_mask"));
+        assert!(response.contains("gac_response_output_parses_without_exposing_values"));
 
         let cdol1 = csv_row_for_requirement(csv, "KRN-GAC1-002").unwrap();
         assert!(cdol1.contains("krn_gac_001_gac1_002_cdol_data_matches_active_dol_definitions"));
@@ -2940,6 +2942,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
 
         let format = csv_row_for_requirement(csv, "KRN-GAC1-004").unwrap();
         assert!(format.contains("gac_parsing_uses_card_returned_cryptogram_for_online_handoff"));
+        assert!(format.contains("gac_response_output_parses_without_exposing_values"));
         assert!(format.contains("rejects_generate_ac_issuer_application_data_above_emv_bound"));
         assert!(format.contains("rejects_generate_ac_without_single_supported_response_template"));
         assert!(format.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
