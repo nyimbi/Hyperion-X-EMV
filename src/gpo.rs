@@ -55,6 +55,7 @@ pub fn parse_gpo_response(body: &[u8]) -> KernelResult<GpoResponse> {
 }
 
 fn parse_template_77(children: &[tlv::Tlv<'_>]) -> KernelResult<GpoResponse> {
+    reject_constructed_template_77_children(children)?;
     let aip = fixed_aip(
         tlv::find_unique_direct(children, &[0x82])?.ok_or(KernelError::MissingMandatoryTag)?,
     )?;
@@ -66,6 +67,13 @@ fn parse_template_77(children: &[tlv::Tlv<'_>]) -> KernelResult<GpoResponse> {
         aip,
         afl,
     })
+}
+
+fn reject_constructed_template_77_children(children: &[tlv::Tlv<'_>]) -> KernelResult<()> {
+    if children.iter().any(|child| child.constructed) {
+        return Err(KernelError::ParseError);
+    }
+    Ok(())
 }
 
 fn parse_template_80(value: &[u8]) -> KernelResult<GpoResponse> {
@@ -180,13 +188,24 @@ mod tests {
                 0x77, 0x0c, 0xa5, 0x0a, 0x82, 0x02, 0x18, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00,
             ])
             .unwrap_err(),
-            KernelError::MissingMandatoryTag
+            KernelError::ParseError
         );
 
         assert_eq!(
             parse_gpo_response(&[
                 0x77, 0x0e, 0x82, 0x02, 0x18, 0x00, 0x82, 0x02, 0x20, 0x00, 0x94, 0x04, 0x10, 0x01,
                 0x01, 0x00,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_constructed_gpo_response_children_even_with_mandatory_data() {
+        assert_eq!(
+            parse_gpo_response(&[
+                0x77, 0x0c, 0x82, 0x02, 0x18, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0xa5, 0x00,
             ])
             .unwrap_err(),
             KernelError::ParseError

@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:40:39Z
+
+- Increment completed: reject constructed direct children in GPO Template 77
+  responses instead of accepting nested discretionary objects once mandatory
+  AIP/AFL objects are present.
+- Code impact: GPO response parsing now applies the same direct-child
+  primitive-data admission stance used by other certification-critical response
+  parsers.
+- Evidence update: both RTM annexes cite the new constructed-child rejection
+  regression under KRN-GPO-001 and KRN-GPO-002.
+- Verification: `cargo test
+  rejects_constructed_gpo_response_children_even_with_mandatory_data`, `cargo
+  test rtm_promotes_gpo_and_read_record_evidence`, `cargo test
+  krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates`, `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T14:32:58Z
 
 - Increment completed: preserve the card directory ADF name for final SELECT

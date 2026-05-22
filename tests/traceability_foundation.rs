@@ -859,6 +859,8 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(gpo_valid.contains("parses_gpo_template_77_with_aip_and_afl"));
         assert!(gpo_valid.contains("parses_gpo_template_80_with_aip_and_afl"));
         assert!(gpo_valid.contains("rejects_nested_or_duplicate_gpo_response_data"));
+        assert!(gpo_valid
+            .contains("rejects_constructed_gpo_response_children_even_with_mandatory_data"));
         assert!(gpo_valid.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
         assert!(gpo_valid.contains("rtm_promotes_gpo_and_read_record_evidence"));
 
@@ -871,6 +873,8 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(gpo_missing.contains("rejects_duplicate_pdol_objects_in_selected_fci"));
         assert!(gpo_missing.contains("rejects_gpo_without_mandatory_aip_afl"));
         assert!(gpo_missing.contains("rejects_nested_or_duplicate_gpo_response_data"));
+        assert!(gpo_missing
+            .contains("rejects_constructed_gpo_response_children_even_with_mandatory_data"));
         assert!(gpo_missing.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
         assert!(gpo_missing.contains("rtm_promotes_gpo_and_read_record_evidence"));
 
@@ -4015,7 +4019,7 @@ fn krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates() {
     );
     assert_eq!(
         parse_gpo_response(&hex("770CA50A82021800940410010100")).unwrap_err(),
-        hyperion_emv::KernelError::MissingMandatoryTag
+        hyperion_emv::KernelError::ParseError
     );
     assert_eq!(
         parse_gpo_response(&hex("770E8202180082022000940410010100")).unwrap_err(),
