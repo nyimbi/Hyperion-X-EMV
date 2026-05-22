@@ -403,6 +403,13 @@ fn parse_scheme(
     }
     reject_aids_outside_scheme_rid(&rid, &aids)?;
     reject_duplicate_aids(&aids)?;
+    validate_scheme_interface_kernel_mapping(
+        &kernel_type,
+        contact_kernel_type.as_deref(),
+        &aids,
+        profile_class,
+        mode,
+    )?;
 
     let capks_value = object.get("capks").ok_or(KernelError::InvalidProfile)?;
     let capks_array = capks_value.as_array()?;
@@ -444,6 +451,41 @@ fn reject_duplicate_aids(aids: &[AidProfile]) -> KernelResult<()> {
         if aids[..index].iter().any(|prior| prior.aid == aid.aid) {
             return Err(KernelError::InvalidProfile);
         }
+    }
+    Ok(())
+}
+
+fn validate_scheme_interface_kernel_mapping(
+    kernel_type: &str,
+    contact_kernel_type: Option<&str>,
+    aids: &[AidProfile],
+    profile_class: ProfileClass,
+    mode: BuildMode,
+) -> KernelResult<()> {
+    if mode == BuildMode::Test && profile_class == ProfileClass::ExampleOnly {
+        return Ok(());
+    }
+    reject_placeholder(kernel_type)?;
+    if kernel_type.is_empty() {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let has_contactless = aids.iter().any(|aid| {
+        aid.interfaces
+            .iter()
+            .any(|interface| interface == "contactless")
+    });
+    if has_contactless && kernel_type != "c8_contactless" {
+        return Err(KernelError::InvalidProfile);
+    }
+
+    let has_contact = aids.iter().any(|aid| {
+        aid.interfaces
+            .iter()
+            .any(|interface| interface == "contact")
+    });
+    if has_contact && contact_kernel_type.is_none() {
+        return Err(KernelError::InvalidProfile);
     }
     Ok(())
 }
@@ -526,6 +568,11 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             .any(|item| item != "contact" && item != "contactless")
     {
         return Err(KernelError::InvalidProfile);
+    }
+    for (index, interface) in interfaces.iter().enumerate() {
+        if interfaces[..index].iter().any(|prior| prior == interface) {
+            return Err(KernelError::InvalidProfile);
+        }
     }
 
     let random_selection_percent = required_u64(object, "random_selection_percent")?;
@@ -1683,6 +1730,51 @@ mod tests {
         );
         assert_eq!(
             load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+
+        let missing_contact_kernel = profile.replace(
+            r#"        "contact_kernel_type": "legacy_visa",
+"#,
+            "",
+        );
+        assert_eq!(
+            load_profile_set(
+                missing_contact_kernel.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let non_c8_contactless = profile.replace(
+            r#""kernel_type": "c8_contactless""#,
+            r#""kernel_type": "legacy_contactless""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                non_c8_contactless.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let duplicate_interfaces = profile.replace(
+            r#""interfaces": ["contact", "contactless"]"#,
+            r#""interfaces": ["contact", "contact", "contactless"]"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                duplicate_interfaces.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
     }

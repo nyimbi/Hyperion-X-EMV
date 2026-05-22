@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:41:08Z
+
+- Increment completed: reject inconsistent interface/kernel mappings during
+  signed profile loading, before a transaction can select the affected AID.
+- Research note: C-8 is a contactless kernel path that co-exists with legacy
+  kernels during transition. Certification profiles that declare contactless
+  support therefore need an explicit C-8 mapping, while contact support needs a
+  separate non-C-8 contact kernel mapping.
+- Code impact: certification and production profile loading now fails closed
+  when a contactless AID is not mapped to `c8_contactless`, when a contact AID
+  omits its contact kernel mapping, or when an AID interface list repeats the
+  same interface name.
+- Evidence updated: configuration, C-8, and interface/kernel RTM rows now cite
+  load-time profile mapping rejection coverage alongside the existing runtime
+  selected-kernel guard.
+- Verification: `cargo test rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces`,
+  `cargo test krn_gac_010_cda_request_is_profile_defined_or_unsupported`,
+  `cargo test rtm_promotes_c8_kernel_outcome_evidence`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`,
+  `cargo test rtm_promotes_interface_kernel_mapping_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T06:28:04Z
 
 - Increment completed: derive runtime TAA online capability from EMV terminal

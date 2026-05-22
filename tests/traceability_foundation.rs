@@ -2161,6 +2161,7 @@ fn krn_sec_003_oda_002_capks_retain_signed_public_provenance() {
         "scheme_name": "Visa",
         "rid": "A000000003",
         "kernel_type": "c8_contactless",
+        "contact_kernel_type": "legacy_visa",
         "taa_fallback_when_offline_unable_online": "AAC",
         "taa_no_match_default_when_online_capable": "ARQC",
         "taa_no_match_default_when_offline_only": "AAC",
@@ -2315,6 +2316,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
             "KRN-CFG-002 should cite concrete configuration rejection evidence"
         );
         assert!(row.contains("rejects_cfg_002_profile_schema_and_field_failures"));
+        assert!(row.contains("rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces"));
         assert!(row.contains("rejects_aids_outside_scheme_rid_namespace"));
         assert!(row.contains("rejects_duplicate_scheme_rids"));
         assert!(row.contains("rejects_duplicate_profile_aids_and_capk_indexes"));
@@ -3072,6 +3074,7 @@ fn profile_loader_rejects_example_only_profiles_for_certification_policy() {
         "scheme_name": "Visa",
         "rid": "A000000003",
         "kernel_type": "c8_contactless",
+        "contact_kernel_type": "legacy_visa",
         "taa_fallback_when_offline_unable_online": "AAC",
         "taa_no_match_default_when_online_capable": "ARQC",
         "taa_no_match_default_when_offline_only": "AAC",
@@ -3465,6 +3468,7 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
         "scheme_name": "Visa",
         "rid": "A000000003",
         "kernel_type": "c8_contactless",
+        "contact_kernel_type": "legacy_visa",
         "taa_fallback_when_offline_unable_online": "AAC",
         "taa_no_match_default_when_online_capable": "ARQC",
         "taa_no_match_default_when_offline_only": "AAC",
@@ -5486,6 +5490,9 @@ fn rtm_promotes_c8_kernel_outcome_evidence() {
         assert!(interface.contains("krn_c8_001_002_003_uses_structured_contactless_only_outcomes"));
         assert!(interface.contains("selected_kernel_mapping_is_interface_specific"));
         assert!(interface.contains("rejects_contact_kernel_type_that_reuses_c8"));
+        assert!(
+            interface.contains("rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces")
+        );
         assert!(interface.contains("rtm_promotes_c8_kernel_outcome_evidence"));
     }
 }
@@ -5500,6 +5507,9 @@ fn rtm_promotes_interface_kernel_mapping_evidence() {
                 "{id} should cite concrete interface/kernel mapping evidence"
             );
             assert!(row.contains("selected_kernel_mapping_is_interface_specific"));
+            assert!(
+                row.contains("rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces")
+            );
             assert!(row.contains("rtm_promotes_interface_kernel_mapping_evidence"));
         }
         assert!(csv_row_for_requirement(csv, "KRN-INT-001")
