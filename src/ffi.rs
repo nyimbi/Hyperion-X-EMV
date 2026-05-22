@@ -199,6 +199,7 @@ pub struct KrnContext {
     terminal_capabilities: Option<[u8; 3]>,
     terminal_transaction_qualifiers: Option<[u8; 4]>,
     offline_counter: Option<OfflineCounter>,
+    trm_random_sample_basis_points: Option<u16>,
     last_unpredictable_number: Option<[u8; 4]>,
     runtime: Option<RuntimeCallbacks>,
     contactless_outcome_callback: Option<KrnContactlessOutcomeCallback>,
@@ -233,6 +234,7 @@ impl KrnContext {
             terminal_capabilities: None,
             terminal_transaction_qualifiers: None,
             offline_counter: None,
+            trm_random_sample_basis_points: None,
             last_unpredictable_number: None,
             runtime: None,
             contactless_outcome_callback: None,
@@ -264,6 +266,7 @@ impl KrnContext {
         self.terminal_capabilities = None;
         self.terminal_transaction_qualifiers = None;
         self.offline_counter = None;
+        self.trm_random_sample_basis_points = None;
     }
 
     fn set_result(&mut self, result: Result<usize, KernelError>) -> i32 {
@@ -423,6 +426,7 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.terminal_capabilities = None;
         ctx.terminal_transaction_qualifiers = None;
         ctx.offline_counter = None;
+        ctx.trm_random_sample_basis_points = None;
         ctx.state = KernelState::ParamsSet;
         ctx.fsm_state = transition.to;
         Ok(0usize)
@@ -507,6 +511,36 @@ pub unsafe extern "C" fn krn_set_nonvolatile_offline_counter(
     }
     ctx.offline_counter = Some(OfflineCounter::non_volatile(consecutive_offline_count));
     ctx.set_result(Ok(0usize))
+}
+
+/// Registers the certified-profile TRM random-selection sample.
+///
+/// The value is expressed in basis points (`0..=9999`). The kernel consumes it
+/// only when the active signed profile enables random transaction selection.
+/// The value is cleared whenever new transaction parameters are set.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_trm_random_selection_sample(
+    ctx: *mut KrnContext,
+    sample_basis_points: u16,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        if sample_basis_points > 9_999 {
+            return Err(KernelError::InvalidArgument);
+        }
+        ctx.trm_random_sample_basis_points = Some(sample_basis_points);
+        Ok(0usize)
+    })();
+    ctx.set_result(result)
 }
 
 /// Registers terminal/PED CVM capabilities for the current transaction.
@@ -2376,7 +2410,7 @@ fn run_terminal_risk_management(
             exception_file_match: false,
             merchant_forced_online: false,
             offline_counter: ctx.offline_counter,
-            random_sample_basis_points: None,
+            random_sample_basis_points: ctx.trm_random_sample_basis_points,
             profile,
         },
         ctx.tvr,
@@ -3997,6 +4031,63 @@ mod tests {
             .online = [0, 0, 0, 0x80, 0];
 
         let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(run_terminal_action_analysis(&mut ctx, &profiles), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S10);
+        assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Arqc));
+    }
+
+    #[test]
+    fn trm_random_selection_sample_drives_online_handoff() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.fsm_state = FsmState::S8;
+        ctx.state = KernelState::TerminalRiskManagement;
+        ctx.txn_params = Some(StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        });
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].floor_limit = 9_999;
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].random_selection_percent = 5;
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0]
+            .issuer_action_codes
+            .online = [0, 0, 0, 0x10, 0];
+
+        unsafe {
+            assert_eq!(
+                krn_set_trm_random_selection_sample(ptr::null_mut(), 499),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_trm_random_selection_sample(&mut ctx, 10_000),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_trm_random_selection_sample(&mut ctx, 499),
+                KernelError::Ok.code()
+            );
+        }
+
+        let profiles = ctx.profiles.clone().unwrap();
+        let params = ctx.txn_params.clone().unwrap();
+        assert_eq!(
+            run_terminal_risk_management(&mut ctx, &profiles, &params),
+            Ok(())
+        );
+        assert!(ctx
+            .tvr
+            .is_set(Tvr::B4_RANDOM_TRANSACTION_SELECTION_PERFORMED));
+        assert!(!ctx.tvr.is_set(Tvr::B4_FLOOR_LIMIT_EXCEEDED));
+        assert_eq!(ctx.fsm_state, FsmState::S9);
+        assert_eq!(ctx.state, KernelState::TerminalActionAnalysis);
+
         assert_eq!(run_terminal_action_analysis(&mut ctx, &profiles), Ok(()));
         assert_eq!(ctx.fsm_state, FsmState::S10);
         assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Arqc));

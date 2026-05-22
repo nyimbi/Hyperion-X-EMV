@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T18:17:02Z
+
+- Increment completed: expose runtime input for certified-profile TRM random
+  selection and prove it drives the online handoff through the C ABI path.
+- Research note: `src/trm.rs` already supported deterministic random-selection
+  samples, but the runtime path always passed `None`, so a profile percentage
+  could not trigger the random-selection TVR bit during an integrated
+  transaction.
+- Code impact: added `krn_set_trm_random_selection_sample`, stored the
+  transaction-scoped basis-point sample in `KrnContext`, cleared it on new
+  transaction parameters, and passed it into `evaluate_trm`.
+- Evidence update: KRN-TRM-002 in both RTM annexes now cites the ABI setter and
+  `ffi::tests::trm_random_selection_sample_drives_online_handoff`, which
+  verifies sample validation, TVR random-selection bit setting, S8 to S9 TRM
+  transition, and TAA ARQC handoff through IAC online matching.
+- Verification: `cargo test
+  ffi::tests::trm_random_selection_sample_drives_online_handoff`, `cargo test
+  trm::tests::random_selection_is_deterministic_from_external_sample`, `cargo
+  test rtm_promotes_trm_floor_random_and_tsi_evidence`, `cargo test`, `cargo
+  test --examples`, `cargo clippy --all-targets --all-features`, `cargo fmt
+  --check`, and `git diff --check` passed.
+
 ## 2026-05-22T18:08:18Z
 
 - Increment completed: promote TVR byte 5 bit 8 from an RFU placeholder to the

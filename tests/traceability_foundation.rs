@@ -2949,6 +2949,8 @@ fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
         assert!(random.contains("random_selection_is_deterministic_from_external_sample"));
         assert!(random.contains("rejects_invalid_profile_percent"));
         assert!(random.contains("rejects_out_of_range_random_selection_sample"));
+        assert!(random.contains("krn_set_trm_random_selection_sample"));
+        assert!(random.contains("trm_random_selection_sample_drives_online_handoff"));
 
         let tsi = csv_row_for_requirement(csv, "KRN-TRM-004").unwrap();
         assert!(tsi.contains("evaluates_floor_exception_velocity_random_and_merchant_bits"));
