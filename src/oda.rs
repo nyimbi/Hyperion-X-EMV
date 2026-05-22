@@ -1075,12 +1075,7 @@ fn validate_certification_vector_ids(text: &str) -> KernelResult<()> {
             .ok_or(KernelError::ParseError)?;
         let id = &text[value_start..value_end];
 
-        if id.trim().is_empty()
-            || !ODA_VECTOR_METHOD_PREFIXES
-                .iter()
-                .any(|prefix| id.starts_with(prefix))
-            || ids.iter().any(|prior| prior == &id)
-        {
+        if certification_vector_method(id).is_none() || ids.iter().any(|prior| prior == &id) {
             return Err(KernelError::InvalidProfile);
         }
         ids.push(id);
@@ -1091,6 +1086,28 @@ fn validate_certification_vector_ids(text: &str) -> KernelResult<()> {
         return Err(KernelError::InvalidProfile);
     }
     Ok(())
+}
+
+fn certification_vector_method(id: &str) -> Option<&'static str> {
+    for prefix in ODA_VECTOR_METHOD_PREFIXES {
+        let Some(suffix) = id.strip_prefix(prefix) else {
+            continue;
+        };
+        let Some(rest) = suffix
+            .strip_prefix('_')
+            .or_else(|| suffix.strip_prefix('-'))
+        else {
+            continue;
+        };
+        if !rest.is_empty()
+            && rest
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
+            return Some(prefix);
+        }
+    }
+    None
 }
 
 fn require_json_fields(text: &str, fields: &[&str]) -> KernelResult<()> {
@@ -2089,6 +2106,26 @@ mod tests {
         );
         assert_eq!(
             validate_oda_vector_annex(unknown_method_id.as_bytes(), true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let ambiguous_prefix_id = complete.replacen(
+            "    {\n      \"id\": \"DDA_PASS\"",
+            "    {\n      \"id\": \"SDAX_PASS\",\n      \"expected_tvr\": \"0000000000\",\n      \"expected_oda_result\": \"PASS\"\n    },\n    {\n      \"id\": \"DDA_PASS\"",
+            1,
+        );
+        assert_eq!(
+            validate_oda_vector_annex(ambiguous_prefix_id.as_bytes(), true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let bad_delimiter = complete.replacen(
+            "    {\n      \"id\": \"DDA_PASS\"",
+            "    {\n      \"id\": \"DDA PASS\",\n      \"expected_tvr\": \"0000000000\",\n      \"expected_oda_result\": \"PASS\"\n    },\n    {\n      \"id\": \"DDA_PASS\"",
+            1,
+        );
+        assert_eq!(
+            validate_oda_vector_annex(bad_delimiter.as_bytes(), true).unwrap_err(),
             KernelError::InvalidProfile
         );
     }

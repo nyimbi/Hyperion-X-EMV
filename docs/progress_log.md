@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:27:37Z
+
+- Increment completed: make ODA certification-vector method IDs
+  token-delimited.
+- Code impact: certification-mode ODA vector validation now accepts only
+  `SDA_`/`SDA-`, `DDA_`/`DDA-`, or `CDA_`/`CDA-` ID tokens with nonempty
+  alphanumeric/underscore/hyphen suffixes. Ambiguous prefixes such as
+  `SDAX_PASS` no longer satisfy the SDA gate.
+- Evidence updated:
+  `oda::tests::certification_vector_ids_are_unique_and_method_scoped` now
+  covers duplicate IDs, unknown method IDs, ambiguous prefixes, and invalid
+  delimiters. `docs/spec.md` documents the token shape.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:22:34Z
 
 - Increment completed: make ODA certification-vector IDs unique and
