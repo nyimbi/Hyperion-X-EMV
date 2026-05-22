@@ -1028,21 +1028,52 @@ pub fn validate_oda_vector_annex(json: &[u8], certification: bool) -> KernelResu
 }
 
 fn validate_certification_vector_coverage(text: &str) -> KernelResult<()> {
-    for prefix in ["SDA", "DDA", "CDA"] {
-        if !contains_json_string_field_value_with_prefix(text, "id", prefix)? {
-            return Err(KernelError::InvalidProfile);
-        }
-    }
-    for required in [
-        "\"issuer_certificate_hex\"",
-        "\"static_signature_hex\"",
-        "\"icc_certificate_hex\"",
-        "\"ddol_input_hex\"",
-        "\"internal_auth_response_hex\"",
-        "\"generate_ac_response_hex\"",
-        "\"cda_request_bit_used\"",
-    ] {
-        if !text.contains(required) {
+    let sda = required_json_object_with_string_field_prefix(text, "id", "SDA")?;
+    require_json_fields(
+        sda,
+        &[
+            "\"capk\"",
+            "\"issuer_certificate_hex\"",
+            "\"static_signature_hex\"",
+            "\"expected_tvr\"",
+            "\"expected_oda_result\"",
+        ],
+    )?;
+
+    let dda = required_json_object_with_string_field_prefix(text, "id", "DDA")?;
+    require_json_fields(
+        dda,
+        &[
+            "\"capk\"",
+            "\"issuer_certificate_hex\"",
+            "\"icc_certificate_hex\"",
+            "\"ddol_input_hex\"",
+            "\"internal_auth_response_hex\"",
+            "\"expected_tvr\"",
+            "\"expected_oda_result\"",
+        ],
+    )?;
+
+    let cda = required_json_object_with_string_field_prefix(text, "id", "CDA")?;
+    require_json_fields(
+        cda,
+        &[
+            "\"capk\"",
+            "\"issuer_certificate_hex\"",
+            "\"icc_certificate_hex\"",
+            "\"generate_ac_response_hex\"",
+            "\"cda_request_bit_used\"",
+            "\"expected_tvr\"",
+            "\"expected_oda_result\"",
+        ],
+    )?;
+
+    Ok(())
+}
+
+fn require_json_fields(text: &str, fields: &[&str]) -> KernelResult<()> {
+    for field in fields {
+        if !text.contains(field) {
             return Err(KernelError::InvalidProfile);
         }
     }
@@ -1086,11 +1117,11 @@ fn required_json_string_field<'a>(text: &'a str, key: &str) -> KernelResult<&'a 
     Ok(&text[value_start..value_end])
 }
 
-fn contains_json_string_field_value_with_prefix(
-    text: &str,
+fn required_json_object_with_string_field_prefix<'a>(
+    text: &'a str,
     key: &str,
     prefix: &str,
-) -> KernelResult<bool> {
+) -> KernelResult<&'a str> {
     let pattern = format!("\"{key}\"");
     let mut search_from = 0usize;
     while let Some(relative) = text[search_from..].find(&pattern) {
@@ -1103,11 +1134,49 @@ fn contains_json_string_field_value_with_prefix(
             .map(|offset| value_start + offset)
             .ok_or(KernelError::ParseError)?;
         if text[value_start..value_end].starts_with(prefix) {
-            return Ok(true);
+            let object_start = text[..key_start]
+                .rfind('{')
+                .ok_or(KernelError::ParseError)?;
+            let object_end = matching_json_object_end(text, object_start)?;
+            return Ok(&text[object_start..=object_end]);
         }
         search_from = value_end + 1;
     }
-    Ok(false)
+    Err(KernelError::InvalidProfile)
+}
+
+fn matching_json_object_end(text: &str, object_start: usize) -> KernelResult<usize> {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (relative, ch) in text[object_start..].char_indices() {
+        let absolute = object_start + relative;
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => in_string = true,
+            '{' => depth = depth.checked_add(1).ok_or(KernelError::LengthOverflow)?,
+            '}' => {
+                depth = depth.checked_sub(1).ok_or(KernelError::ParseError)?;
+                if depth == 0 {
+                    return Ok(absolute);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Err(KernelError::ParseError)
 }
 
 fn contains_forbidden_placeholder(text: &str) -> bool {
@@ -1760,6 +1829,31 @@ mod tests {
         let placeholder = br#"{"vector_class":"CERTIFICATION","test_vectors":[{"issuer_certificate_hex":"...","expected_tvr":"0000000000","expected_oda_result":"PASS"}]}"#;
         assert_eq!(
             validate_oda_vector_annex(placeholder, true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn certification_vector_coverage_is_method_specific() {
+        let complete = include_str!("../docs/oda_test_vectors.json").replace(
+            "\"vector_class\": \"STRUCTURAL_FIXTURE\"",
+            "\"vector_class\": \"CERTIFICATION\"",
+        );
+        validate_oda_vector_annex(complete.as_bytes(), true).unwrap();
+
+        let dda_auth_response =
+            "      \"internal_auth_response_hex\": \"9F4C2081A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9\",\n";
+        let misbound = complete.replace(dda_auth_response, "").replace(
+            "      \"cda_request_bit_used\": \"CDOL1_bit\",",
+            "      \"internal_auth_response_hex\": \"9F4C2081A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9\",\n      \"cda_request_bit_used\": \"CDOL1_bit\",",
+        );
+
+        assert!(
+            misbound.contains("\"internal_auth_response_hex\""),
+            "fixture must still contain the field globally"
+        );
+        assert_eq!(
+            validate_oda_vector_annex(misbound.as_bytes(), true).unwrap_err(),
             KernelError::InvalidProfile
         );
     }

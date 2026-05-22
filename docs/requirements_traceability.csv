@@ -44,7 +44,7 @@ KRN-ODA-007,CDA failure TVR and no fallback,UT-ODA-007,IT-ODA-007,EMV-L2-CONTACT
 KRN-ODA-008,CDA exact verification,UT-ODA-008,IT-ODA-008,EMV-L2-CONTACT-MC-047,CDA vector
 KRN-DDA-001,INTERNAL AUTHENTICATE for DDA uses DDOL values,UT-DDA-001,IT-DDA-001,EMV-L2-CONTACT-VID-074,INTERNAL AUTHENTICATE APDU trace
 KRN-DDA-002,DDA signed dynamic data verified with recovered ICC public key,UT-DDA-002,IT-DDA-002,EMV-L2-CONTACT-MC-048,SDAD verification trace
-KRN-ODATV-001,Reject placeholder malformed or incomplete ODA certification vectors,UT-ODATV-001,IT-ODATV-001,N/A,ODA vector annex validation
+KRN-ODATV-001,Reject placeholder malformed or incomplete ODA certification vectors,UT-ODATV-001,IT-ODATV-001,N/A,oda::tests::certification_vector_coverage_is_method_specific; oda::tests::validates_complete_vector_syntax_and_rejects_placeholders; traceability_foundation::krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode
 KRN-IAUTH-001,Process tag 91 issuer authentication data,UT-IAUTH-001,IT-IAUTH-001,EMV-L2-CONTACT-VID-080,EXTERNAL AUTHENTICATE APDU trace
 KRN-IAUTH-002,Set TSI only when issuer authentication is attempted,UT-IAUTH-002,IT-IAUTH-002,EMV-L2-CONTACT-VID-081,TSI after issuer authentication
 KRN-IAUTH-003,Set TVR issuer authentication failed on card failure,UT-IAUTH-003,IT-IAUTH-003,EMV-L2-CONTACT-MC-080,TVR after failed EXTERNAL AUTHENTICATE

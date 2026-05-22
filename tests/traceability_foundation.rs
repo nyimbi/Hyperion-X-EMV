@@ -4936,6 +4936,13 @@ fn krn_capk_001_002_lookup_requires_verified_profile_integrity() {
 
 #[test]
 fn krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let row = csv_row_for_requirement(csv, "KRN-ODATV-001").unwrap();
+        assert!(row.contains("certification_vector_coverage_is_method_specific"));
+        assert!(row.contains("validates_complete_vector_syntax_and_rejects_placeholders"));
+        assert!(row.contains("krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode"));
+    }
+
     assert!(ODA_VECTORS.contains("\"vector_class\": \"STRUCTURAL_FIXTURE\""));
     validate_oda_vector_annex(ODA_VECTORS.as_bytes(), false).unwrap();
     assert_eq!(

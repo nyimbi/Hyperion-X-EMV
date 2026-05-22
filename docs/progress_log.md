@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:39:47Z
+
+- Increment completed: tighten ODA certification vector coverage validation.
+- Code impact: certification-mode ODA vector validation now requires SDA, DDA,
+  and CDA vector objects to each carry their method-specific cryptographic
+  inputs and expected outputs instead of accepting required field names that
+  appear elsewhere in the annex.
+- Evidence updated: KRN-ODATV-001 now cites method-specific vector coverage,
+  placeholder rejection, and RTM enforcement tests while KRN-ANNEX-005 remains
+  pending for external lab-supplied complete cryptographic vectors.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:34:19Z
 
 - Increment completed: harden trace-layer debug output before crash capture.

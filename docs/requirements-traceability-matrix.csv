@@ -44,7 +44,7 @@ KRN-ODA-007,"CDA failure sets TVR_B1_CDA_FAILED; if CDA supported and fails, SHA
 KRN-ODA-008,Kernel SHALL verify CDA signed dynamic data against the first GENERATE AC cryptogram using profile-defined rules.,UT-ODA-008,IT-ODA-008,EMV-L2-CDA-003,CDA vector
 KRN-DDA-001,Kernel SHALL use INTERNAL AUTHENTICATE only for DDA where the AIP card data and profile require or allow it.,UT-DDA-001,IT-DDA-001,EMV-L2-DDA-002,INTERNAL AUTHENTICATE APDU trace
 KRN-DDA-002,Kernel SHALL verify signed dynamic application data using the recovered ICC public key.,UT-DDA-002,IT-DDA-002,EMV-L2-DDA-003,SDAD verification trace
-KRN-ODATV-001,Kernel SHALL reject ODA certification vectors containing placeholders truncated cryptographic material non-hex characters or missing expected outputs.,UT-ODATV-001,IT-ODATV-001,N/A,ODA vector annex validation
+KRN-ODATV-001,Kernel SHALL reject ODA certification vectors containing placeholders truncated cryptographic material non-hex characters or missing expected outputs.,UT-ODATV-001,IT-ODATV-001,N/A,oda::tests::certification_vector_coverage_is_method_specific; oda::tests::validates_complete_vector_syntax_and_rejects_placeholders; traceability_foundation::krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode
 KRN-IAUTH-001,Kernel SHALL process tag 91 issuer authentication data.,UT-IAUTH-001,IT-IAUTH-001,EMV-L2-IAUTH-001,EXTERNAL AUTHENTICATE APDU trace
 KRN-IAUTH-002,Kernel SHALL set TSI only when issuer authentication is attempted.,UT-IAUTH-002,IT-IAUTH-002,EMV-L2-IAUTH-002,TSI after issuer authentication
 KRN-IAUTH-003,Kernel SHALL set TVR issuer authentication failed on card failure.,UT-IAUTH-003,IT-IAUTH-003,EMV-L2-IAUTH-003,TVR after failed EXTERNAL AUTHENTICATE
