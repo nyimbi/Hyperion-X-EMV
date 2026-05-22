@@ -912,6 +912,8 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(record.contains("rejects_empty_or_malformed_record_templates"));
         assert!(record.contains("rejects_unwrapped_or_extra_record_data"));
         assert!(record.contains("rejects_duplicate_record_data_without_partial_store"));
+        assert!(record.contains("rejects_conflicting_record_data_rewrite_without_partial_store"));
+        assert!(record.contains("accepts_repeated_record_data_when_value_is_identical"));
         assert!(record.contains("rejects_nested_record_data_without_partial_store"));
         assert!(record.contains("apdu_trace_debug_redacts_masked_payloads_for_crash_safety"));
         assert!(
@@ -2534,6 +2536,8 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
 
         let admission = csv_row_for_requirement(csv, "KRN-TLV-006").unwrap();
         assert!(admission.contains("rejects_duplicate_record_data_without_partial_store"));
+        assert!(admission.contains("rejects_conflicting_record_data_rewrite_without_partial_store"));
+        assert!(admission.contains("accepts_repeated_record_data_when_value_is_identical"));
         assert!(admission.contains("rejects_nested_record_data_without_partial_store"));
         assert!(admission.contains("rejects_terminal_owned_record_data_without_partial_store"));
         assert!(admission

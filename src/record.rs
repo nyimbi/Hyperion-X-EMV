@@ -48,6 +48,7 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
     if entries.is_empty() {
         return Err(KernelError::MissingMandatoryTag);
     }
+    reject_conflicting_record_values(&entries, data)?;
     validate_cardholder_data_consistency(&entries, data)?;
     for (tag, value) in &entries {
         data.put(tag, value)?;
@@ -63,9 +64,6 @@ fn validate_cardholder_data_consistency(
     entries: &[(&[u8], &[u8])],
     data: &DataStore,
 ) -> KernelResult<()> {
-    reject_conflicting_cardholder_value(entries, data, &[0x5a])?;
-    reject_conflicting_cardholder_value(entries, data, &[0x57])?;
-
     let pan = record_or_store_value(entries, data, &[0x5a]);
     let track2 = record_or_store_value(entries, data, &[0x57]);
 
@@ -79,19 +77,17 @@ fn validate_cardholder_data_consistency(
     Ok(())
 }
 
-fn reject_conflicting_cardholder_value(
+fn reject_conflicting_record_values(
     entries: &[(&[u8], &[u8])],
     data: &DataStore,
-    tag: &[u8],
 ) -> KernelResult<()> {
-    let Some((_, record_value)) = entries.iter().find(|(entry_tag, _)| *entry_tag == tag) else {
-        return Ok(());
-    };
-    if data
-        .get(tag)
-        .is_some_and(|stored_value| stored_value != *record_value)
-    {
-        return Err(KernelError::ParseError);
+    for (tag, record_value) in entries {
+        if data
+            .get(tag)
+            .is_some_and(|stored_value| stored_value != *record_value)
+        {
+            return Err(KernelError::ParseError);
+        }
     }
     Ok(())
 }
@@ -345,6 +341,36 @@ mod tests {
             Some(&[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f][..])
         );
         assert!(data.get(&[0x5f, 0x24]).is_none());
+    }
+
+    #[test]
+    fn rejects_conflicting_record_data_rewrite_without_partial_store() {
+        let mut data = DataStore::new();
+        data.put(&[0x5f, 0x24], &[0x26, 0x12, 0x31]).unwrap();
+
+        assert_eq!(
+            parse_read_record_body(
+                &[0x70, 0x0b, 0x5f, 0x24, 0x03, 0x27, 0x01, 0x31, 0x5a, 0x03, 0x12, 0x34, 0x5f,],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(data.get(&[0x5f, 0x24]), Some(&[0x26, 0x12, 0x31][..]));
+        assert!(data.get(&[0x5a]).is_none());
+    }
+
+    #[test]
+    fn accepts_repeated_record_data_when_value_is_identical() {
+        let mut data = DataStore::new();
+        data.put(&[0x5f, 0x24], &[0x26, 0x12, 0x31]).unwrap();
+
+        assert_eq!(
+            parse_read_record_body(&[0x70, 0x06, 0x5f, 0x24, 0x03, 0x26, 0x12, 0x31], &mut data,)
+                .unwrap(),
+            1
+        );
+        assert_eq!(data.get(&[0x5f, 0x24]), Some(&[0x26, 0x12, 0x31][..]));
     }
 
     #[test]

@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:47:56Z
+
+- Increment completed: reject conflicting cross-record card data rewrites
+  before a later AFL record can replace an earlier accepted card-originated
+  tag value.
+- Code impact: READ RECORD admission now checks every direct primitive record
+  tag against the existing transaction data store before mutation, still
+  allowing identical repeated values while rejecting conflicting repeats
+  without partial store updates.
+- Evidence update: both RTM annexes cite the conflicting-rewrite regression
+  and identical-repeat regression under KRN-RR-003 and KRN-TLV-006.
+- Verification: `cargo test
+  rejects_conflicting_record_data_rewrite_without_partial_store`, `cargo test
+  accepts_repeated_record_data_when_value_is_identical`, `cargo test
+  rtm_promotes_gpo_and_read_record_evidence`, `cargo test
+  rtm_promotes_tlv_catalogue_and_dol_classification_evidence`, `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T14:40:39Z
 
 - Increment completed: reject constructed direct children in GPO Template 77
