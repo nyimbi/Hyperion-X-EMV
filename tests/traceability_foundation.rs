@@ -1923,6 +1923,7 @@ fn rtm_promotes_logging_policy_evidence() {
         assert!(
             crash_dump.contains("host_response_debug_redacts_issuer_authentication_and_scripts")
         );
+        assert!(crash_dump.contains("oda_debug_redacts_recovered_authentication_material"));
         assert!(crash_dump.contains("replay_debug_redacts_raw_apdu_bytes_for_crash_safety"));
         assert!(crash_dump.contains("replay_rejects_pin_verify_payload_custody"));
 

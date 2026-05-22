@@ -5,6 +5,7 @@ use crate::restrictions::EmvDate;
 use crate::sha1::{Sha1, SHA1_DIGEST_BYTES};
 use crate::state::{Tsi, Tvr};
 use crate::tlv;
+use core::fmt;
 
 pub const MIN_ODA_CERTIFICATE_BYTES: usize = 16;
 pub const MIN_ODA_SIGNATURE_BYTES: usize = 8;
@@ -105,27 +106,74 @@ impl RecoveredSignedDataKind {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct InternalAuthenticateResponse {
     pub signed_dynamic_application_data: Vec<u8>,
     pub icc_dynamic_number: Option<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for InternalAuthenticateResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InternalAuthenticateResponse")
+            .field(
+                "signed_dynamic_application_data_len",
+                &self.signed_dynamic_application_data.len(),
+            )
+            .field(
+                "icc_dynamic_number_len",
+                &self.icc_dynamic_number.as_ref().map(Vec::len),
+            )
+            .field(
+                "data_policy",
+                &"ODA authentication data redacted for crash safety",
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct PublicKeyInput {
     pub certificate: Vec<u8>,
     pub remainder: Vec<u8>,
     pub exponent: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for PublicKeyInput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PublicKeyInput")
+            .field("certificate_len", &self.certificate.len())
+            .field("remainder_len", &self.remainder.len())
+            .field("exponent_len", &self.exponent.len())
+            .field(
+                "data_policy",
+                &"ODA public-key input bytes redacted for crash safety",
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct StaticAuthenticationRecord {
     pub sfi: u8,
     pub record: u8,
     pub body: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for StaticAuthenticationRecord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StaticAuthenticationRecord")
+            .field("sfi", &self.sfi)
+            .field("record", &self.record)
+            .field("body_len", &self.body.len())
+            .field(
+                "data_policy",
+                &"static authentication record body redacted for crash safety",
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct RecoveredPublicKeyCertificate {
     pub kind: RecoveredCertificateKind,
     pub identifier: [u8; 10],
@@ -138,7 +186,27 @@ pub struct RecoveredPublicKeyCertificate {
     pub hash_result: [u8; SHA1_DIGEST_BYTES],
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for RecoveredPublicKeyCertificate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RecoveredPublicKeyCertificate")
+            .field("kind", &self.kind)
+            .field("expiration_date", &self.expiration_date)
+            .field("hash_algorithm_indicator", &self.hash_algorithm_indicator)
+            .field(
+                "public_key_algorithm_indicator",
+                &self.public_key_algorithm_indicator,
+            )
+            .field("public_key_len", &self.public_key.len())
+            .field("exponent_len", &self.exponent.len())
+            .field(
+                "data_policy",
+                &"certificate identifiers, serials, public-key bytes, and hash bytes redacted for crash safety",
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct RecoveredSignedApplicationData {
     pub kind: RecoveredSignedDataKind,
     pub hash_algorithm_indicator: u8,
@@ -146,6 +214,28 @@ pub struct RecoveredSignedApplicationData {
     pub icc_dynamic_data: Option<Vec<u8>>,
     pub padding: Vec<u8>,
     pub hash_result: [u8; SHA1_DIGEST_BYTES],
+}
+
+impl fmt::Debug for RecoveredSignedApplicationData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RecoveredSignedApplicationData")
+            .field("kind", &self.kind)
+            .field("hash_algorithm_indicator", &self.hash_algorithm_indicator)
+            .field(
+                "data_authentication_code_present",
+                &self.data_authentication_code.is_some(),
+            )
+            .field(
+                "icc_dynamic_data_len",
+                &self.icc_dynamic_data.as_ref().map(Vec::len),
+            )
+            .field("padding_len", &self.padding.len())
+            .field(
+                "data_policy",
+                &"signed application data and hash bytes redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 pub fn selection_input_from_aip(
@@ -1672,6 +1762,56 @@ mod tests {
             validate_oda_vector_annex(placeholder, true).unwrap_err(),
             KernelError::InvalidProfile
         );
+    }
+
+    #[test]
+    fn oda_debug_redacts_recovered_authentication_material() {
+        let internal_auth = InternalAuthenticateResponse {
+            signed_dynamic_application_data: vec![0xde, 0xad, 0xbe, 0xef],
+            icc_dynamic_number: Some(vec![0xaa, 0xbb]),
+        };
+        let public_key_input = PublicKeyInput {
+            certificate: vec![0xde, 0xad, 0xbe, 0xef],
+            remainder: vec![0xaa, 0xbb],
+            exponent: vec![0x01, 0x00, 0x01],
+        };
+        let static_record = StaticAuthenticationRecord {
+            sfi: 11,
+            record: 1,
+            body: vec![0xde, 0xad, 0xbe, 0xef],
+        };
+        let certificate = RecoveredPublicKeyCertificate {
+            kind: RecoveredCertificateKind::Icc,
+            identifier: [0xde; 10],
+            expiration_date: [0x30, 0x12],
+            serial_number: [0xad, 0xbe, 0xef],
+            hash_algorithm_indicator: 0x01,
+            public_key_algorithm_indicator: 0x01,
+            public_key: vec![0xaa, 0xbb, 0xcc, 0xdd],
+            exponent: vec![0x01, 0x00, 0x01],
+            hash_result: [0xef; SHA1_DIGEST_BYTES],
+        };
+        let signed_data = RecoveredSignedApplicationData {
+            kind: RecoveredSignedDataKind::DynamicApplicationData,
+            hash_algorithm_indicator: 0x01,
+            data_authentication_code: Some([0xde, 0xad]),
+            icc_dynamic_data: Some(vec![0xbe, 0xef]),
+            padding: vec![0xaa, 0xbb],
+            hash_result: [0xcc; SHA1_DIGEST_BYTES],
+        };
+
+        for debug in [
+            format!("{internal_auth:?}"),
+            format!("{public_key_input:?}"),
+            format!("{static_record:?}"),
+            format!("{certificate:?}"),
+            format!("{signed_data:?}"),
+        ] {
+            assert!(debug.contains("redacted for crash safety"));
+            for raw_byte in ["222", "173", "190", "239", "170", "187", "204", "221"] {
+                assert!(!debug.contains(raw_byte));
+            }
+        }
     }
 
     fn hex10(input: &str) -> [u8; 10] {

@@ -4,6 +4,17 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:17:08Z
+
+- Increment completed: harden ODA authentication-material debug output.
+- Code impact: recovered certificates, signed application data, public-key
+  inputs, internal authentication responses, and static authentication records
+  now expose only lengths and safe metadata in `Debug` output.
+- Evidence updated: KRN-LOG-003 now cites ODA debug redaction alongside APDU,
+  CVM, data-store, GAC, issuer, and replay crash-safety regressions.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:13:47Z
 
 - Increment completed: harden command APDU debug output before crash capture.
