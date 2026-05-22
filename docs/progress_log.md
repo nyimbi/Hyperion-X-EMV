@@ -2263,3 +2263,25 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T10:34:43Z
+
+- Increment completed: require GPO template `80` responses to carry both AIP
+  and AFL before the kernel accepts them as valid GPO output.
+- Research note: `KRN-GPO-002` requires GPO parsing to extract AIP and AFL or
+  fail with an explicit missing-mandatory-tag outcome; accepting a two-byte
+  template `80` body created an internal contradiction between runtime behavior
+  and the repository-controlled certification baseline.
+- Code impact: template `80` parsing now rejects AIP-only bodies with
+  `MissingMandatoryTag` and always parses the remaining bytes as AFL, preserving
+  valid template `80` coverage with an AIP-plus-AFL fixture.
+- Evidence updated: current and compatibility RTM annexes now cite
+  `gpo::tests::parses_gpo_template_80_with_aip_and_afl` as valid template `80`
+  evidence, while GPO missing-mandatory regressions prove AIP-only template `80`
+  bodies fail closed.
+- Verification: `cargo test parses_gpo_template_80_with_aip_and_afl`,
+  `cargo test rejects_gpo_without_mandatory_aip_afl`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`,
+  `cargo test krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

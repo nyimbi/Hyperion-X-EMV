@@ -69,15 +69,11 @@ fn parse_template_77(children: &[tlv::Tlv<'_>]) -> KernelResult<GpoResponse> {
 }
 
 fn parse_template_80(value: &[u8]) -> KernelResult<GpoResponse> {
-    if value.len() < 2 {
+    if value.len() <= 2 {
         return Err(KernelError::MissingMandatoryTag);
     }
     let aip = fixed_aip(&value[..2])?;
-    let afl = if value.len() == 2 {
-        Vec::new()
-    } else {
-        parse_afl(&value[2..])?
-    };
+    let afl = parse_afl(&value[2..])?;
     Ok(GpoResponse {
         format: GpoResponseFormat::Template80,
         aip,
@@ -154,11 +150,11 @@ mod tests {
     }
 
     #[test]
-    fn parses_gpo_template_80_without_afl() {
-        let parsed = parse_gpo_response(&[0x80, 0x02, 0x18, 0x00]).unwrap();
+    fn parses_gpo_template_80_with_aip_and_afl() {
+        let parsed = parse_gpo_response(&[0x80, 0x06, 0x18, 0x00, 0x10, 0x01, 0x01, 0x00]).unwrap();
         assert_eq!(parsed.format, GpoResponseFormat::Template80);
         assert_eq!(parsed.aip, [0x18, 0x00]);
-        assert!(parsed.afl.is_empty());
+        assert_eq!(parsed.afl.len(), 1);
     }
 
     #[test]
@@ -169,6 +165,10 @@ mod tests {
         );
         assert_eq!(
             parse_gpo_response(&[0x80, 0x01, 0x18]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_gpo_response(&[0x80, 0x02, 0x18, 0x00]).unwrap_err(),
             KernelError::MissingMandatoryTag
         );
     }

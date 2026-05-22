@@ -838,7 +838,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(gpo_valid.contains("extracts_pdol_from_selected_application_fci"));
         assert!(gpo_valid.contains("rejects_duplicate_pdol_objects_in_selected_fci"));
         assert!(gpo_valid.contains("parses_gpo_template_77_with_aip_and_afl"));
-        assert!(gpo_valid.contains("parses_gpo_template_80_without_afl"));
+        assert!(gpo_valid.contains("parses_gpo_template_80_with_aip_and_afl"));
         assert!(gpo_valid.contains("rejects_nested_or_duplicate_gpo_response_data"));
         assert!(gpo_valid.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
         assert!(gpo_valid.contains("rtm_promotes_gpo_and_read_record_evidence"));
@@ -3887,13 +3887,17 @@ fn krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates() {
     assert_eq!(template77.aip, [0x18, 0x00]);
     assert_eq!(template77.afl, parse_afl(&hex("10010100")).unwrap());
 
-    let template80 = parse_gpo_response(&hex("80021800")).unwrap();
+    let template80 = parse_gpo_response(&hex("8006180010010100")).unwrap();
     assert_eq!(template80.format, GpoResponseFormat::Template80);
     assert_eq!(template80.aip, [0x18, 0x00]);
-    assert!(template80.afl.is_empty());
+    assert_eq!(template80.afl, parse_afl(&hex("10010100")).unwrap());
 
     assert_eq!(
         parse_gpo_response(&hex("770482021800")).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert_eq!(
+        parse_gpo_response(&hex("80021800")).unwrap_err(),
         hyperion_emv::KernelError::MissingMandatoryTag
     );
     assert_eq!(
