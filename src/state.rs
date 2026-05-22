@@ -26,7 +26,7 @@ pub enum KernelState {
 pub struct Tvr([u8; 5]);
 
 impl Tvr {
-    pub const ALLOWED_MASKS: [u8; 5] = [0xfc, 0xf8, 0xfc, 0xf8, 0x70];
+    pub const ALLOWED_MASKS: [u8; 5] = [0xfc, 0xf8, 0xfc, 0xf8, 0xf0];
     pub const B1_OFFLINE_DATA_AUTH_NOT_PERFORMED: (usize, u8) = (0, 0x80);
     pub const B1_SDA_FAILED: (usize, u8) = (0, 0x40);
     pub const B1_ICC_DATA_MISSING: (usize, u8) = (0, 0x20);
@@ -49,6 +49,7 @@ impl Tvr {
     pub const B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED: (usize, u8) = (3, 0x20);
     pub const B4_RANDOM_TRANSACTION_SELECTION_PERFORMED: (usize, u8) = (3, 0x10);
     pub const B4_MERCHANT_FORCED_TRANSACTION_ONLINE: (usize, u8) = (3, 0x08);
+    pub const B5_DEFAULT_TDOL_USED: (usize, u8) = (4, 0x80);
     pub const B5_ISSUER_AUTHENTICATION_FAILED: (usize, u8) = (4, 0x40);
     pub const B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC: (usize, u8) = (4, 0x20);
     pub const B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC: (usize, u8) = (4, 0x10);
@@ -150,13 +151,17 @@ mod tests {
     fn tvr_and_tsi_mutation_masks_rfu_bits() {
         let mut tvr = Tvr::cleared();
         tvr.set((0, 0x03));
-        tvr.set((4, 0x8f));
+        tvr.set((4, 0x0f));
         tvr.set((9, 0xff));
         assert_eq!(tvr.bytes(), [0, 0, 0, 0, 0]);
         assert!(!tvr.has_rfu_bits());
 
+        tvr.set(Tvr::B5_DEFAULT_TDOL_USED);
+        assert_eq!(tvr.bytes(), [0, 0, 0, 0, 0x80]);
+        assert!(tvr.is_set(Tvr::B5_DEFAULT_TDOL_USED));
+
         tvr.set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED);
-        assert_eq!(tvr.bytes(), [0, 0, 0, 0, 0x40]);
+        assert_eq!(tvr.bytes(), [0, 0, 0, 0, 0xc0]);
         assert!(!tvr.is_set((9, 0xff)));
 
         let mut tsi = Tsi::cleared();

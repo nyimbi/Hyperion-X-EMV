@@ -31,7 +31,7 @@ TVR,4,4,0x08,B4_MERCHANT_FORCED_TRANSACTION_ONLINE,Merchant forced transaction o
 TVR,4,3,0x04,RFU_TVR_B4_B3,RFU never set without licensed profile definition,RFU,KRN-BIT-001
 TVR,4,2,0x02,RFU_TVR_B4_B2,RFU never set without licensed profile definition,RFU,KRN-BIT-001
 TVR,4,1,0x01,RFU_TVR_B4_B1,RFU never set without licensed profile definition,RFU,KRN-BIT-001
-TVR,5,8,0x80,RFU_TVR_B5_B8,Default TDOL used not implemented by this kernel baseline,DOL,KRN-BIT-001
+TVR,5,8,0x80,B5_DEFAULT_TDOL_USED,Default TDOL used,DOL,KRN-BIT-001
 TVR,5,7,0x40,B5_ISSUER_AUTHENTICATION_FAILED,Issuer authentication failed,Issuer authentication,KRN-BIT-001
 TVR,5,6,0x20,B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC,Script processing failed before final GENERATE AC,Issuer scripts,KRN-BIT-001
 TVR,5,5,0x10,B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC,Script processing failed after final GENERATE AC,Issuer scripts,KRN-BIT-001

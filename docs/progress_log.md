@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T18:08:18Z
+
+- Increment completed: promote TVR byte 5 bit 8 from an RFU placeholder to the
+  symbolic `B5_DEFAULT_TDOL_USED` bit in code and the executable bitmap
+  catalogue.
+- Research note: the TDOL evidence pass exposed a stale local mask: byte 5 bit
+  8 represents "Default TDOL used", so treating it as RFU made the bitmap
+  catalogue and runtime TVR mask stricter than the claimed EMV bit model.
+- Code impact: `Tvr::ALLOWED_MASKS` now permits byte 5 bit 8, `Tvr` exposes a
+  named `B5_DEFAULT_TDOL_USED` constant, and RFU regression tests still reject
+  the true reserved low nibble and out-of-range byte indexes.
+- Evidence update: `bitmap_catalogue_defines_tvr_tsi_symbols_and_rfu_masks`
+  now requires the `B5_DEFAULT_TDOL_USED` catalogue symbol and cross-checks the
+  bitmap catalogue against the runtime TVR masks.
+- Verification: `cargo test state::tests::tvr_and_tsi_mutation_masks_rfu_bits`,
+  `cargo test bitmap_catalogue_defines_tvr_tsi_symbols_and_rfu_masks`, `cargo
+  test krn_tvr_003_tsi_001_state_bits_are_defined_and_rfu_safe`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T18:01:16Z
 
 - Increment completed: add tag `97` Transaction Certificate Data Object List

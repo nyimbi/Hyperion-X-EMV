@@ -3497,6 +3497,7 @@ fn bitmap_catalogue_defines_tvr_tsi_symbols_and_rfu_masks() {
         "B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED",
         "B4_RANDOM_TRANSACTION_SELECTION_PERFORMED",
         "B4_MERCHANT_FORCED_TRANSACTION_ONLINE",
+        "B5_DEFAULT_TDOL_USED",
         "B5_ISSUER_AUTHENTICATION_FAILED",
         "B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC",
         "B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC",
@@ -6639,7 +6640,7 @@ fn krn_tvr_003_tsi_001_state_bits_are_defined_and_rfu_safe() {
     tvr.set((1, 0x07));
     tvr.set((2, 0x03));
     tvr.set((3, 0x07));
-    tvr.set((4, 0x8f));
+    tvr.set((4, 0x0f));
     tvr.set((9, 0xff));
     assert_eq!(tvr.bytes(), [0; 5]);
     assert!(!tvr.has_rfu_bits());
@@ -6667,6 +6668,7 @@ fn krn_tvr_003_tsi_001_state_bits_are_defined_and_rfu_safe() {
         Tvr::B4_UPPER_CONSECUTIVE_OFFLINE_LIMIT_EXCEEDED,
         Tvr::B4_RANDOM_TRANSACTION_SELECTION_PERFORMED,
         Tvr::B4_MERCHANT_FORCED_TRANSACTION_ONLINE,
+        Tvr::B5_DEFAULT_TDOL_USED,
         Tvr::B5_ISSUER_AUTHENTICATION_FAILED,
         Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC,
         Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC,
