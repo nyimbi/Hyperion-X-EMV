@@ -122,7 +122,7 @@ pub fn evaluate(input: TrmInput, mut tvr: Tvr, mut tsi: Tsi) -> KernelResult<Trm
     if random_selection_triggered(
         input.profile.random_selection_percent,
         input.random_sample_basis_points,
-    ) {
+    )? {
         tvr.set(Tvr::B4_RANDOM_TRANSACTION_SELECTION_PERFORMED);
         force_online = true;
     }
@@ -155,15 +155,18 @@ fn offline_count_for_profile(
     Ok(Some(counter.count))
 }
 
-fn random_selection_triggered(percent: u8, sample_basis_points: Option<u16>) -> bool {
+fn random_selection_triggered(percent: u8, sample_basis_points: Option<u16>) -> KernelResult<bool> {
+    if sample_basis_points.is_some_and(|sample| sample > 9_999) {
+        return Err(KernelError::InvalidProfile);
+    }
     if percent == 0 {
-        return false;
+        return Ok(false);
     }
     let Some(sample) = sample_basis_points else {
-        return false;
+        return Ok(false);
     };
     let threshold = (percent as u16) * 100;
-    sample < threshold
+    Ok(sample < threshold)
 }
 
 #[cfg(test)]
@@ -253,6 +256,27 @@ mod tests {
     fn rejects_invalid_profile_percent() {
         assert!(TrmProfile::new(0, 101, None, None).is_none());
         assert!(TrmProfile::new(0, 0, Some(3), Some(2)).is_none());
+    }
+
+    #[test]
+    fn rejects_out_of_range_random_selection_sample() {
+        let profile = TrmProfile::new(10_000, 1, None, None).unwrap();
+        assert_eq!(
+            evaluate(
+                TrmInput {
+                    amount_authorized: 1,
+                    exception_file_match: false,
+                    merchant_forced_online: false,
+                    offline_counter: None,
+                    random_sample_basis_points: Some(10_000),
+                    profile,
+                },
+                Tvr::cleared(),
+                Tsi::cleared(),
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
     }
 
     #[test]

@@ -2182,3 +2182,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T10:12:09Z
+
+- Increment completed: make TRM random-selection sample bounds executable
+  and traceable.
+- Research note: public EMVCo contactless materials still require licensed C-8
+  reconciliation for contactless claims, but this repo-controlled TRM slice
+  focuses on the local EMV/profile rule that random-selection parameters must
+  be certified and interpreted in the documented basis-point domain.
+- Code impact: TRM evaluation now rejects supplied random-selection samples
+  above `9999` basis points with `InvalidProfile` instead of silently treating
+  them as not selected.
+- Evidence updated: current and compatibility RTM annexes cite the random
+  sample bound regression for `KRN-TRM-002`.
+- Verification: `cargo test rejects_out_of_range_random_selection_sample`,
+  `cargo test rtm_promotes_trm_floor_random_and_tsi_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
