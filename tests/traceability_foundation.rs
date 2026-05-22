@@ -2605,6 +2605,7 @@ fn rtm_promotes_dol_construction_policy_evidence() {
         let exact_lengths = csv_row_for_requirement(csv, "KRN-DOL-001").unwrap();
         assert!(exact_lengths.contains("parses_and_builds_pdol_deterministically"));
         assert!(exact_lengths.contains("rejects_dol_lists_above_entry_limit"));
+        assert!(exact_lengths.contains("datastore_rejects_invalid_tags_and_resource_limits"));
         assert!(exact_lengths.contains("builds_gpo_with_tag_83_pdol_values"));
         assert!(exact_lengths.contains("builds_gpo_tag_83_with_ber_long_form_length_at_boundary"));
         assert!(

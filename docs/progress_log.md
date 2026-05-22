@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T17:29:43Z
+
+- Increment completed: bound and validate the shared EMV data store before
+  values can feed DOL construction, ODA, GAC parsing, or online authorization
+  packaging.
+- Research note: the open-source reference review favors strict source
+  admission and bounded fixture-heavy validation; this slice adapts that
+  approach locally by enforcing BER tag shape and resource limits at the shared
+  store boundary rather than only at individual parsers.
+- Code impact: `DataStore::put` now rejects invalid EMV tag encodings, values
+  above 4096 bytes, and more than 512 stored tag/value objects while preserving
+  existing overwrite semantics for valid tags.
+- Evidence update: `dol::tests::datastore_rejects_invalid_tags_and_resource_limits`
+  covers invalid tags, oversized values, and entry-count overflow; both RTM
+  annexes cite that evidence under KRN-DOL-001.
+- Verification: `cargo test dol::tests`, `cargo test
+  rtm_promotes_dol_construction_policy_evidence`, `cargo test`, `cargo test
+  --examples`, `cargo clippy --all-targets --all-features`, `cargo fmt
+  --check`, and `git diff --check` passed.
+
 ## 2026-05-22T17:19:31Z
 
 - Increment completed: suppress profile-defined issuer application data (`9F10`)

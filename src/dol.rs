@@ -3,6 +3,8 @@ use core::fmt;
 
 pub const MAX_DOL_ENTRIES: usize = 128;
 pub const MAX_DOL_OUTPUT: usize = 252;
+pub const MAX_DATASTORE_ENTRIES: usize = 512;
+pub const MAX_DATASTORE_VALUE_LEN: usize = 4096;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DolEntry {
@@ -38,13 +40,17 @@ impl DataStore {
     }
 
     pub fn put(&mut self, tag: &[u8], value: &[u8]) -> KernelResult<()> {
-        if tag.is_empty() || tag.len() > 4 {
-            return Err(KernelError::InvalidArgument);
+        validate_data_tag(tag)?;
+        if value.len() > MAX_DATASTORE_VALUE_LEN {
+            return Err(KernelError::LengthOverflow);
         }
         if let Some((_, existing)) = self.entries.iter_mut().find(|(stored, _)| stored == tag) {
             existing.clear();
             existing.extend_from_slice(value);
         } else {
+            if self.entries.len() >= MAX_DATASTORE_ENTRIES {
+                return Err(KernelError::LengthOverflow);
+            }
             self.entries.push((tag.to_vec(), value.to_vec()));
         }
         Ok(())
@@ -56,6 +62,37 @@ impl DataStore {
             .find(|(stored, _)| stored == tag)
             .map(|(_, value)| value.as_slice())
     }
+}
+
+fn validate_data_tag(tag: &[u8]) -> KernelResult<()> {
+    if tag.is_empty() || tag.len() > 4 {
+        return Err(KernelError::InvalidArgument);
+    }
+    let first = tag[0];
+    if first == 0x00 || first == 0xff {
+        return Err(KernelError::ParseError);
+    }
+    if first & 0x1f != 0x1f {
+        return if tag.len() == 1 {
+            Ok(())
+        } else {
+            Err(KernelError::ParseError)
+        };
+    }
+    if tag.len() == 1 || tag[1] & 0x7f == 0 {
+        return Err(KernelError::ParseError);
+    }
+    for (idx, byte) in tag[1..].iter().enumerate() {
+        let is_last = idx + 2 == tag.len();
+        if is_last {
+            if byte & 0x80 != 0 {
+                return Err(KernelError::ParseError);
+            }
+        } else if byte & 0x80 == 0 {
+            return Err(KernelError::ParseError);
+        }
+    }
+    Ok(())
 }
 
 pub fn parse_dol(input: &[u8]) -> KernelResult<Vec<DolEntry>> {
@@ -271,6 +308,38 @@ mod tests {
         assert_eq!(
             build_dol_with_policy(&entries, &data, DolPaddingPolicy::RequireExactValues)
                 .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn datastore_rejects_invalid_tags_and_resource_limits() {
+        let mut data = DataStore::new();
+        for tag in [
+            &[][..],
+            &[0x9f, 0x37, 0x01][..],
+            &[0x9f, 0x80, 0x04][..],
+            &[0x9f, 0x81][..],
+            &[0x00][..],
+            &[0xff][..],
+        ] {
+            assert!(
+                data.put(tag, &[0x00]).is_err(),
+                "accepted invalid tag {tag:?}"
+            );
+        }
+        assert_eq!(
+            data.put(&[0x9f, 0x37], &vec![0xaa; MAX_DATASTORE_VALUE_LEN + 1])
+                .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        for index in 0..MAX_DATASTORE_ENTRIES {
+            let tag = [0x9f, 0x81 + (index / 127) as u8, (index % 127) as u8 + 1];
+            data.put(&tag, &[index as u8]).unwrap();
+        }
+        assert_eq!(
+            data.put(&[0x9f, 0x86, 0x01], &[0xff]).unwrap_err(),
             KernelError::LengthOverflow
         );
     }
