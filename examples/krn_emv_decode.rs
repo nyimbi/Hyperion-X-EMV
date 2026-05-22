@@ -31,6 +31,11 @@ fn run(args: &[String]) -> Result<String, String> {
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
         "cid" => decode_cid(arg_hex(args, 1, "cid")?),
+        "termcap" | "terminal-capabilities" => {
+            decode_terminal_capabilities(arg_hex(args, 1, "termcap")?)
+        }
+        "ttq" => decode_profile_defined_bitmap("ttq", arg_hex(args, 1, "ttq")?, 4),
+        "ctq" => decode_profile_defined_bitmap("ctq", arg_hex(args, 1, "ctq")?, 1),
         "sw" => {
             if args.len() != 3 {
                 return Err("sw mode requires <context> <SW1SW2>".to_string());
@@ -46,7 +51,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|cid|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|cid|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
      internal-authenticate, external-authenticate, issuer-script-critical,\n\
@@ -131,6 +136,40 @@ fn decode_cid(bytes: Vec<u8>) -> Result<String, String> {
     Ok(out)
 }
 
+fn decode_terminal_capabilities(bytes: Vec<u8>) -> Result<String, String> {
+    let raw: [u8; 3] = bytes
+        .try_into()
+        .map_err(|_| "Terminal Capabilities must be exactly 3 bytes".to_string())?;
+    let mut out = String::new();
+    let _ = writeln!(out, "type=terminal-capabilities");
+    let _ = writeln!(out, "raw={}", hex_upper(&raw));
+    let _ = writeln!(
+        out,
+        "rfu_bits={}",
+        raw.iter()
+            .zip(TERMINAL_CAPABILITY_ALLOWED_MASKS)
+            .any(|(byte, allowed)| byte & !allowed != 0)
+    );
+    append_set_bits(&mut out, &raw, &TERMINAL_CAPABILITY_BITS);
+    Ok(out)
+}
+
+fn decode_profile_defined_bitmap(
+    kind: &'static str,
+    bytes: Vec<u8>,
+    expected_len: usize,
+) -> Result<String, String> {
+    if bytes.len() != expected_len {
+        return Err(format!("{kind} must be exactly {expected_len} bytes"));
+    }
+    let mut out = String::new();
+    let _ = writeln!(out, "type={kind}");
+    let _ = writeln!(out, "raw={}", hex_upper(&bytes));
+    let _ = writeln!(out, "scheme_policy=profile-defined");
+    append_profile_defined_bits(&mut out, &bytes);
+    Ok(out)
+}
+
 fn decode_tvr(bytes: Vec<u8>) -> Result<String, String> {
     let raw: [u8; 5] = bytes
         .try_into()
@@ -174,6 +213,22 @@ fn append_set_bits(out: &mut String, raw: &[u8], bits: &[BitName]) {
         {
             let _ = writeln!(out, "bit={}", bit.name);
             count += 1;
+        }
+    }
+    if count == 0 {
+        let _ = writeln!(out, "bit_count=0");
+    }
+}
+
+fn append_profile_defined_bits(out: &mut String, raw: &[u8]) {
+    let mut count = 0usize;
+    for (byte_idx, byte) in raw.iter().enumerate() {
+        for bit_idx in 0..8 {
+            let mask = 0x80 >> bit_idx;
+            if byte & mask != 0 {
+                let _ = writeln!(out, "bit=byte{}.b{}", byte_idx + 1, bit_idx + 1);
+                count += 1;
+            }
         }
     }
     if count == 0 {
@@ -504,6 +559,59 @@ const TSI_BITS: [BitName; 6] = [
     },
 ];
 
+const TERMINAL_CAPABILITY_ALLOWED_MASKS: [u8; 3] = [0xe0, 0xf8, 0xe8];
+
+const TERMINAL_CAPABILITY_BITS: [BitName; 12] = [
+    BitName {
+        position: (0, 0x80),
+        name: "manual-key-entry",
+    },
+    BitName {
+        position: (0, 0x40),
+        name: "magnetic-stripe",
+    },
+    BitName {
+        position: (0, 0x20),
+        name: "icc-with-contacts",
+    },
+    BitName {
+        position: (1, 0x80),
+        name: "plaintext-pin-for-icc-verification",
+    },
+    BitName {
+        position: (1, 0x40),
+        name: "enciphered-pin-for-online-verification",
+    },
+    BitName {
+        position: (1, 0x20),
+        name: "signature-paper",
+    },
+    BitName {
+        position: (1, 0x10),
+        name: "enciphered-pin-for-offline-verification",
+    },
+    BitName {
+        position: (1, 0x08),
+        name: "no-cvm-required",
+    },
+    BitName {
+        position: (2, 0x80),
+        name: "sda-supported",
+    },
+    BitName {
+        position: (2, 0x40),
+        name: "dda-supported",
+    },
+    BitName {
+        position: (2, 0x20),
+        name: "card-capture-supported",
+    },
+    BitName {
+        position: (2, 0x08),
+        name: "cda-supported",
+    },
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -559,6 +667,43 @@ mod tests {
         assert!(tvr.contains("bit=issuer-authentication-failed"));
         assert!(tsi.contains("bit=cardholder-verification-performed"));
         assert!(tsi.contains("bit=issuer-authentication-performed"));
+    }
+
+    #[test]
+    fn terminal_capabilities_output_names_standard_bits_and_flags_rfu() {
+        let out = decode_terminal_capabilities(decode_hex("E0B0C8").unwrap()).unwrap();
+
+        assert!(out.contains("type=terminal-capabilities"));
+        assert!(out.contains("raw=E0B0C8"));
+        assert!(out.contains("rfu_bits=false"));
+        assert!(out.contains("bit=manual-key-entry"));
+        assert!(out.contains("bit=icc-with-contacts"));
+        assert!(out.contains("bit=plaintext-pin-for-icc-verification"));
+        assert!(out.contains("bit=signature-paper"));
+        assert!(out.contains("bit=cda-supported"));
+
+        let rfu = decode_terminal_capabilities(decode_hex("010001").unwrap()).unwrap();
+        assert!(rfu.contains("rfu_bits=true"));
+    }
+
+    #[test]
+    fn ttq_and_ctq_output_profile_defined_bitmaps() {
+        let ttq = decode_profile_defined_bitmap("ttq", decode_hex("36004000").unwrap(), 4).unwrap();
+        let ctq = decode_profile_defined_bitmap("ctq", decode_hex("20").unwrap(), 1).unwrap();
+
+        assert!(ttq.contains("type=ttq"));
+        assert!(ttq.contains("scheme_policy=profile-defined"));
+        assert!(ttq.contains("bit=byte1.b3"));
+        assert!(ttq.contains("bit=byte1.b4"));
+        assert!(ttq.contains("bit=byte3.b2"));
+        assert!(ctq.contains("type=ctq"));
+        assert!(ctq.contains("scheme_policy=profile-defined"));
+        assert!(ctq.contains("bit=byte1.b3"));
+
+        assert_eq!(
+            decode_profile_defined_bitmap("ttq", decode_hex("3600").unwrap(), 4).unwrap_err(),
+            "ttq must be exactly 4 bytes"
+        );
     }
 
     #[test]
@@ -620,6 +765,14 @@ mod tests {
 
         assert!(out.contains("type=cid"));
         assert!(out.contains("cryptogram_type=tc"));
+    }
+
+    #[test]
+    fn cli_routes_profile_bitmap_modes() {
+        let out = run(&[string_arg("ttq"), string_arg("36004000")]).unwrap();
+
+        assert!(out.contains("type=ttq"));
+        assert!(out.contains("scheme_policy=profile-defined"));
     }
 
     #[test]

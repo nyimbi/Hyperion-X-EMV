@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:15:18Z
+
+- Increment completed: extend the pre-lab decoder with operator-facing
+  capability bitmap triage for Terminal Capabilities, TTQ, and CTQ.
+- Code impact: `krn_emv_decode` now decodes `termcap`/`terminal-capabilities`
+  with standard 9F33 capability names and RFU detection, while decoding TTQ and
+  CTQ as profile-defined bitmaps without importing scheme-specific semantics.
+- Evidence update: both RTM annexes now cite decoder regressions for 9F33 and
+  9F66 trace triage alongside the existing ABI/DOL handoff evidence.
+- Verification: `cargo test --example krn_emv_decode
+  terminal_capabilities_output_names_standard_bits_and_flags_rfu`, `cargo test
+  --example krn_emv_decode ttq_and_ctq_output_profile_defined_bitmaps`, `cargo
+  test rtm_promotes_terminal_capability_and_ttq_evidence`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T14:08:29Z
 
 - Increment completed: extend the pre-lab decoder's CVM-list output with

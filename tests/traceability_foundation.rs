@@ -2461,6 +2461,9 @@ fn rtm_promotes_terminal_capability_and_ttq_evidence() {
             "KRN-TERMCAP-001 should cite executable 9F33 PDOL and handoff evidence"
         );
         assert!(termcap.contains("krn_termcap_001_supplies_9f33_to_pdol_and_online_handoff"));
+        assert!(termcap.contains(
+            "krn_emv_decode::tests::terminal_capabilities_output_names_standard_bits_and_flags_rfu"
+        ));
         assert!(termcap.contains("rtm_promotes_terminal_capability_and_ttq_evidence"));
 
         let ttq = csv_row_for_requirement(csv, "KRN-TTQ-001").expect("RTM row exists");
@@ -2469,6 +2472,7 @@ fn rtm_promotes_terminal_capability_and_ttq_evidence() {
             "KRN-TTQ-001 should cite executable 9F66 contactless PDOL evidence"
         );
         assert!(ttq.contains("krn_ttq_001_supplies_9f66_to_contactless_pdol_and_online_handoff"));
+        assert!(ttq.contains("krn_emv_decode::tests::ttq_and_ctq_output_profile_defined_bitmaps"));
         assert!(ttq.contains("rtm_promotes_terminal_capability_and_ttq_evidence"));
     }
 }
