@@ -1439,6 +1439,9 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "**EMV Level 2 Contact:** Yes",
         "**EMV Level 2 Contactless (C‑8):** Yes",
         "**PCI PTS POI v7.0 alignment:** Yes",
+        "certified contactless readers",
+        "All artifacts are structurally complete",
+        "has been developed in accordance",
     ] {
         assert!(
             !LAB_SUBMISSION_MANIFEST.contains(overstatement),
@@ -1452,12 +1455,20 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "EMV Level 2 Contactless (C‑8):** In scope for pre-certification hardening",
         "final claim requires the unified kernel approval package and lab-supplied profile data",
         "PCI PTS POI v7.0 alignment:** Alignment target pending PED integration statement",
+        "Target Device:** Hyperion MP35P terminal and contactless readers pending device/L1 certification evidence",
+        "Repository-controlled artifacts marked complete are structurally complete",
+        "subject to licensed review, scheme validation, and laboratory approval",
     ] {
         assert!(
             LAB_SUBMISSION_MANIFEST.contains(scoped_claim),
             "manifest missing bounded scope statement: {scoped_claim}"
         );
     }
+
+    assert!(include_str!("../docs/eng_notes.md")
+        .contains("repository-controlled artifacts such as source code"));
+    assert!(include_str!("../docs/eng_notes.md")
+        .contains("device evidence, and approval artifacts are still external"));
 }
 
 #[test]

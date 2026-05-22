@@ -4,7 +4,7 @@
 - **Product Name:** Hyperion EMV Kernel
 - **Version:** 6.0
 - **Vendor:** Hyperion-X
-- **Target Device:** Hyperion MP35P terminal and certified contactless readers
+- **Target Device:** Hyperion MP35P terminal and contactless readers pending device/L1 certification evidence
 - **Submission Date:** [To be filled by lab]
 
 ## Certification Scope
@@ -43,4 +43,4 @@
 - **Email:** [email to be filled]
 
 ## Declaration
-This document serves as a **certification baseline template**. All artifacts are structurally complete and syntactically correct, with deterministic executable fixtures where bundled. Lab-supplied cryptographic values, CAPKs, and scheme certification vectors must be supplied during the submission process. The kernel implementation has been developed in accordance with EMV Contact Chip Specifications v4.4 and EMV Contactless Kernel Specification Book C‑8 v1.0.
+This document serves as a **certification baseline template**. Repository-controlled artifacts marked complete are structurally complete and syntactically correct, with deterministic executable fixtures where bundled. Lab-supplied cryptographic values, CAPKs, scheme certification vectors, device evidence, and approval artifacts must be supplied during the submission process. The kernel implementation is intended to align with EMV Contact Chip Specifications v4.4 and EMV Contactless Kernel Specification Book C‑8 v1.0, subject to licensed review, scheme validation, and laboratory approval.

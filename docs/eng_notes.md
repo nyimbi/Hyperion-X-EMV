@@ -39,7 +39,12 @@ The ODA vectors are explicitly described as **placeholders for lab-supplied cryp
 
 The scheme profile file has the right shape, including deterministic TAA fallback keys, but it still uses synthetic-looking CAPKs and profile values that require replacement or validation against real scheme/lab data. 
 
-The lab manifest also states that the source code, unit test report, integration report, static analysis report, fuzzing report, PCI PTS integration statement, conformance statement, and APDU traces are still “to be attached.” 
+The lab manifest now treats repository-controlled artifacts such as source code,
+the ABI conformance JSON, and reproducible-build provenance as available, but
+the unit test report, integration report, static analysis report, fuzzing
+report, PCI PTS integration statement, signed EMVCo/lab conformance template,
+APDU traces, device evidence, and approval artifacts are still external
+attachments.
 
 So the engineering team cannot yet claim:
 

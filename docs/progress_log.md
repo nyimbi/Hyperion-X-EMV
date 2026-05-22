@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:30:50Z
+
+- Increment completed: bound device and declaration claims in the lab manifest.
+- Research note: the draft manifest should not imply certified readers or full
+  EMV specification conformance while device evidence, licensed review, scheme
+  validation, and laboratory approval remain external.
+- Code impact: no runtime behavior changed; traceability guards now reject
+  device and declaration overclaims in the lab manifest.
+- Evidence updated: the lab manifest now identifies contactless readers as
+  pending device/L1 evidence and frames EMV/C-8 alignment as intended behavior
+  subject to licensed review and lab approval; engineering notes now match the
+  current attachment boundary.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:27:19Z
 
 - Increment completed: bound lab-manifest certification scope claims.
