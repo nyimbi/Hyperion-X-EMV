@@ -76,6 +76,8 @@ pub const MAX_HOST_RESPONSE_LEN: usize = 1024;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
 pub const KRN_PIN_METHOD_OFFLINE_PLAINTEXT: u8 = 1;
 pub const KRN_PIN_METHOD_OFFLINE_ENCIPHERED: u8 = 2;
+pub const KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC: u8 = 1;
+pub const KRN_SCRIPT_PHASE_AFTER_FINAL_GAC: u8 = 2;
 const MAX_APDU_FOLLOWUPS: usize = 4;
 
 #[repr(C)]
@@ -192,6 +194,7 @@ pub struct KrnContext {
     online_authorization_data: Option<Vec<u8>>,
     host_response: Option<HostResponse>,
     issuer_script_results: Vec<ScriptCommandResult>,
+    issuer_script_result_phases: Vec<ScriptPhase>,
     card_data: DataStore,
     offline_auth_records: Vec<StaticAuthenticationRecord>,
     cvm_pin_handles: CvmPinHandles,
@@ -227,6 +230,7 @@ impl KrnContext {
             online_authorization_data: None,
             host_response: None,
             issuer_script_results: Vec::new(),
+            issuer_script_result_phases: Vec::new(),
             card_data: DataStore::new(),
             offline_auth_records: Vec::new(),
             cvm_pin_handles: CvmPinHandles::none(),
@@ -259,6 +263,7 @@ impl KrnContext {
         self.online_authorization_data = None;
         self.host_response = None;
         self.issuer_script_results.clear();
+        self.issuer_script_result_phases.clear();
         self.card_data = DataStore::new();
         self.offline_auth_records.clear();
         self.cvm_pin_handles = CvmPinHandles::none();
@@ -1083,6 +1088,43 @@ pub unsafe extern "C" fn krn_get_issuer_script_result(
         unsafe {
             *sw1 = result.sw1;
             *sw2 = result.sw2;
+        }
+        Ok(0usize)
+    })();
+    ctx.set_result(result)
+}
+
+/// Copies one captured issuer script command phase to caller storage.
+///
+/// The returned phase is `KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC` for Template 71
+/// commands and `KRN_SCRIPT_PHASE_AFTER_FINAL_GAC` for Template 72 commands.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `phase` must point
+/// to a writable byte.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_issuer_script_result_phase(
+    ctx: *mut KrnContext,
+    index: usize,
+    phase: *mut u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        if phase.is_null() {
+            return Err(KernelError::InvalidArgument);
+        }
+        let result_phase = ctx
+            .issuer_script_result_phases
+            .get(index)
+            .ok_or(KernelError::InvalidArgument)?;
+        unsafe {
+            *phase = script_phase_code(*result_phase);
         }
         Ok(0usize)
     })();
@@ -2749,6 +2791,7 @@ fn run_issuer_scripts_for_phase(
             };
             script_results.push(result);
             ctx.issuer_script_results.push(result);
+            ctx.issuer_script_result_phases.push(script.phase);
             match classify(script_context, sw) {
                 StatusAction::Success
                 | StatusAction::ContinueAfterScriptWarning
@@ -2845,6 +2888,13 @@ fn state_after_script_phase(phase: ScriptPhase) -> KernelState {
     match phase {
         ScriptPhase::BeforeFinalGenerateAc => KernelState::SecondGenerateAc,
         ScriptPhase::AfterFinalGenerateAc => KernelState::FinalOutcome,
+    }
+}
+
+fn script_phase_code(phase: ScriptPhase) -> u8 {
+    match phase {
+        ScriptPhase::BeforeFinalGenerateAc => KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
+        ScriptPhase::AfterFinalGenerateAc => KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
     }
 }
 
@@ -6425,6 +6475,20 @@ mod tests {
                 sw2: 0x80
             }]
         );
+        assert_eq!(
+            ctx.issuer_script_result_phases,
+            vec![ScriptPhase::BeforeFinalGenerateAc]
+        );
+        let mut phase = 0u8;
+        assert_eq!(
+            unsafe { krn_get_issuer_script_result_phase(&mut ctx, 0, &mut phase) },
+            KernelError::Ok.code()
+        );
+        assert_eq!(phase, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC);
+        assert_eq!(
+            unsafe { krn_get_issuer_script_result_phase(&mut ctx, 1, &mut phase) },
+            KernelError::InvalidArgument.code()
+        );
         assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
         assert!(ctx
             .tvr
@@ -6687,6 +6751,16 @@ mod tests {
                 sw2: 0x85
             }]
         );
+        assert_eq!(
+            ctx.issuer_script_result_phases,
+            vec![ScriptPhase::AfterFinalGenerateAc]
+        );
+        let mut phase = 0u8;
+        assert_eq!(
+            unsafe { krn_get_issuer_script_result_phase(&mut ctx, 0, &mut phase) },
+            KernelError::Ok.code()
+        );
+        assert_eq!(phase, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC);
         assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
         assert!(ctx
             .tvr
@@ -6695,6 +6769,45 @@ mod tests {
         assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
         SCRIPT_SW1.store(0x90, Ordering::SeqCst);
         SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn issuer_script_result_phase_api_reports_template_phase() {
+        let mut ctx = KrnContext::new();
+        ctx.issuer_script_results.extend([
+            ScriptCommandResult {
+                sw1: 0x90,
+                sw2: 0x00,
+            },
+            ScriptCommandResult {
+                sw1: 0x69,
+                sw2: 0x85,
+            },
+        ]);
+        ctx.issuer_script_result_phases.extend([
+            ScriptPhase::BeforeFinalGenerateAc,
+            ScriptPhase::AfterFinalGenerateAc,
+        ]);
+
+        let mut phase = 0u8;
+        assert_eq!(
+            unsafe { krn_get_issuer_script_result_phase(&mut ctx, 0, &mut phase) },
+            KernelError::Ok.code()
+        );
+        assert_eq!(phase, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC);
+        assert_eq!(
+            unsafe { krn_get_issuer_script_result_phase(&mut ctx, 1, &mut phase) },
+            KernelError::Ok.code()
+        );
+        assert_eq!(phase, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC);
+        assert_eq!(
+            unsafe { krn_get_issuer_script_result_phase(&mut ctx, 2, &mut phase) },
+            KernelError::InvalidArgument.code()
+        );
+        assert_eq!(
+            unsafe { krn_get_issuer_script_result_phase(&mut ctx, 0, ptr::null_mut()) },
+            KernelError::InvalidArgument.code()
+        );
     }
 
     #[test]

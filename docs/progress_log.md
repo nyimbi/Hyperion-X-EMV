@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T22:34:48Z
+
+- Increment completed: make issuer-script result reporting phase-aware without
+  hard-coding a profile-specific `9F5B` layout.
+- Code impact: the FFI context now records each script command result with its
+  Template 71 before-final-GAC or Template 72 after-final-GAC phase and exposes
+  `krn_get_issuer_script_result_phase` alongside the existing SW1/SW2 getter.
+- Evidence updated:
+  `ffi::tests::issuer_script_result_phase_api_reports_template_phase` and the
+  runtime traceability flow prove phase reporting for Level 3 host reporting;
+  both RTM CSVs now cite the phase-aware result evidence under `KRN-SCR-006`.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T22:18:20Z
 
 - Increment completed: extend DOL source-precedence evidence into final

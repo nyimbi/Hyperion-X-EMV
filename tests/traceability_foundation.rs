@@ -26,15 +26,16 @@ use hyperion_emv::ffi::{
     krn_build_select_environment, krn_context_free, krn_context_new, krn_error_code_at,
     krn_error_description, krn_error_name, krn_error_table_len, krn_get_conformance_statement_json,
     krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
-    krn_get_issuer_script_result_count, krn_get_last_error, krn_get_online_authorization_data,
-    krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_mask_apdu_command_json,
-    krn_mask_apdu_response_json, krn_process_final_generate_ac, krn_process_issuer_authentication,
-    krn_process_issuer_scripts, krn_process_post_final_issuer_scripts, krn_reset,
-    krn_run_transaction, krn_set_cvm_capabilities, krn_set_nonvolatile_offline_counter,
-    krn_set_offline_pin_handle, krn_set_terminal_capabilities,
-    krn_set_terminal_transaction_qualifiers, krn_set_transaction_params, KrnConfigBlob, KrnOutcome,
-    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
-    KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
+    krn_get_issuer_script_result_count, krn_get_issuer_script_result_phase, krn_get_last_error,
+    krn_get_online_authorization_data, krn_get_profile_version, krn_init,
+    krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
+    krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
+    krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
+    krn_set_cvm_capabilities, krn_set_nonvolatile_offline_counter, krn_set_offline_pin_handle,
+    krn_set_terminal_capabilities, krn_set_terminal_transaction_qualifiers,
+    krn_set_transaction_params, KrnConfigBlob, KrnOutcome, KrnRuntime, KrnTxnParams,
+    KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
+    KRN_SCRIPT_PHASE_AFTER_FINAL_GAC, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -5304,6 +5305,12 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!((sw1, sw2), (0x90, 0x00));
+        let mut phase = 0u8;
+        assert_eq!(
+            krn_get_issuer_script_result_phase(ctx, 0, &mut phase),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(phase, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC);
         assert_eq!(
             krn_process_final_generate_ac(ctx),
             hyperion_emv::KernelError::Ok.code()
@@ -5338,6 +5345,11 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!((sw1, sw2), (0x90, 0x00));
+        assert_eq!(
+            krn_get_issuer_script_result_phase(ctx, 1, &mut phase),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(phase, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC);
         assert_eq!(
             krn_get_final_outcome(ctx),
             KrnOutcome::ApprovedOnline as i32
@@ -7169,6 +7181,7 @@ fn rtm_promotes_issuer_script_evidence() {
             .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
         assert!(reporting.contains("critical_issuer_script_warning_continues_and_reports_results"));
         assert!(reporting.contains("critical_issuer_script_failure_stops_remaining_commands"));
+        assert!(reporting.contains("issuer_script_result_phase_api_reports_template_phase"));
         assert!(reporting.contains("tlv_catalogue_contains_required_foundation_tags"));
     }
 }

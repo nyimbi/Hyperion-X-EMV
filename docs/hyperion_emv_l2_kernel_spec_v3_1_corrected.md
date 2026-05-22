@@ -978,7 +978,7 @@ Issuer scripts are host-provided APDU command sequences in EMV issuer script tem
 
 **KRN-SCR-005 SHALL** set TVR Byte 5 Bit 5 when script processing fails after final GENERATE AC.
 
-**KRN-SCR-006 SHALL** report script results to Level 3 for host reporting according to acquirer/scheme rules.
+**KRN-SCR-006 SHALL** report script phase and SW1/SW2 results to Level 3 for host reporting according to acquirer/scheme rules.
 
 ---
 
