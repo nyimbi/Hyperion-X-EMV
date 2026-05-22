@@ -99,9 +99,11 @@ pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
     };
     let mut scripts = Vec::new();
     collect_scripts(&tlvs, &mut scripts)?;
+    let authorization_response_code =
+        authorization_response_code.ok_or(KernelError::MissingMandatoryTag)?;
 
     Ok(HostResponse {
-        authorization_response_code,
+        authorization_response_code: Some(authorization_response_code),
         issuer_authentication_data,
         scripts,
     })
@@ -447,6 +449,20 @@ mod tests {
                 .unwrap()
                 .authorization_response_code,
             Some([b' ', b'0'])
+        );
+    }
+
+    #[test]
+    fn rejects_host_response_without_authorization_response_code() {
+        assert_eq!(
+            parse_host_response(&[0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
+                .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_host_response(&[0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa])
+                .unwrap_err(),
+            KernelError::MissingMandatoryTag
         );
     }
 

@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:23:09Z
+
+- Increment completed: require Level 3 online host responses to carry
+  Authorization Response Code (`8A`) before issuer-authentication or script data
+  can be accepted.
+- Research note: public reference metadata identifies `8A` as a fixed two-byte
+  authorisation/authorization response code, and the existing Hyperion ABI
+  contract already states host responses contain at least `8A`; this slice
+  aligns the parser with that fail-closed boundary.
+- Code impact: `parse_host_response` now rejects host responses missing `8A`
+  with `MissingMandatoryTag` after validating any malformed script data, while
+  preserving strict ARC character validation and existing issuer-auth/script
+  parsing bounds.
+- Evidence update: both RTM annexes cite
+  `issuer::tests::rejects_host_response_without_authorization_response_code`
+  under KRN-ONL-002 and KRN-IAUTH-001.
+- Verification: `cargo test
+  rejects_host_response_without_authorization_response_code`, `cargo test
+  rtm_promotes_online_boundary_evidence`, `cargo test
+  rtm_promotes_issuer_authentication_and_final_gac_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, `cargo
+  fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:16:40Z
 
 - Increment completed: bound GENERATE AC Issuer Application Data (`9F10`)

@@ -3905,6 +3905,7 @@ fn rtm_promotes_online_boundary_evidence() {
 
         let host = csv_row_for_requirement(csv, "KRN-ONL-002").unwrap();
         assert!(host.contains("parses_arpc_arc_and_issuer_scripts"));
+        assert!(host.contains("rejects_host_response_without_authorization_response_code"));
         assert!(host.contains("rejects_malformed_issuer_authentication_data"));
         assert!(host.contains("rejects_non_alphanumeric_authorization_response_codes"));
         assert!(host.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
@@ -6669,6 +6670,7 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
         let issuer_auth = csv_row_for_requirement(csv, "KRN-IAUTH-001").unwrap();
         assert!(issuer_auth.contains("builds_external_authenticate_for_issuer_authentication_data"));
         assert!(issuer_auth.contains("parses_arpc_arc_and_issuer_scripts"));
+        assert!(issuer_auth.contains("rejects_host_response_without_authorization_response_code"));
         assert!(issuer_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
         assert!(issuer_auth.contains("issuer_authentication_resolves_get_response_followup"));
 
