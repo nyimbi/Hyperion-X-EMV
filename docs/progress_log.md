@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:18:31Z
+
+- Increment completed: require issuer host-response ARC (`8A`) and issuer
+  authentication data (`91`) to be direct, unique top-level response objects.
+- Research note: public processor integration material identifies ARC `8A`,
+  issuer authentication data `91`, and optional issuer scripts `71`/`72` as EMV
+  response tags passed back to the kernel. The kernel should not recursively
+  mine issuer authentication material from unrelated constructed templates.
+- Code impact: `parse_host_response` now uses duplicate-detecting direct-child
+  lookup for `8A` and `91`, rejects nested `8A`/`91` objects, and preserves the
+  existing direct-only issuer script template policy.
+- Evidence updated: issuer unit tests, host-response traceability guards, and
+  both RTM annexes now prove nested or duplicate host-response authentication
+  objects are rejected.
+- Verification: `cargo test rejects_nested_or_duplicate_host_response_auth_objects`,
+  `cargo test parses_arpc_arc_and_issuer_scripts`,
+  `cargo test host_response_extracts_arpc_and_phase_specific_script_results`,
+  `cargo test rtm_promotes_online_boundary_evidence`,
+  `cargo test rtm_promotes_issuer_authentication_and_final_gac_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T04:07:14Z
 
 - Increment completed: require response-template data objects to be direct and

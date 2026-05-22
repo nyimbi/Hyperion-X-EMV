@@ -3671,6 +3671,7 @@ fn rtm_promotes_online_boundary_evidence() {
         let host = csv_row_for_requirement(csv, "KRN-ONL-002").unwrap();
         assert!(host.contains("parses_arpc_arc_and_issuer_scripts"));
         assert!(host.contains("rejects_malformed_issuer_authentication_data"));
+        assert!(host.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
         assert!(host.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
     }
 }
@@ -6159,6 +6160,7 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
         let issuer_auth = csv_row_for_requirement(csv, "KRN-IAUTH-001").unwrap();
         assert!(issuer_auth.contains("builds_external_authenticate_for_issuer_authentication_data"));
         assert!(issuer_auth.contains("parses_arpc_arc_and_issuer_scripts"));
+        assert!(issuer_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
 
         let issuer_auth_failure = csv_row_for_requirement(csv, "KRN-IAUTH-003").unwrap();
         assert!(issuer_auth_failure
@@ -6166,6 +6168,8 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
 
         let cdol2 = csv_row_for_requirement(csv, "KRN-GAC2-001").unwrap();
         assert!(cdol2.contains("final_generate_ac_builds_cdol2_from_host_response_and_state"));
+        let cdol2_auth = csv_row_for_requirement(csv, "KRN-GAC2-002").unwrap();
+        assert!(cdol2_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
 
         let final_outcome = csv_row_for_requirement(csv, "KRN-GAC2-004").unwrap();
         assert!(final_outcome
@@ -6618,6 +6622,22 @@ fn host_response_extracts_arpc_and_phase_specific_script_results() {
     assert_eq!(host.scripts.len(), 2);
     assert_eq!(host.scripts[0].phase, ScriptPhase::BeforeFinalGenerateAc);
     assert_eq!(host.scripts[1].phase, ScriptPhase::AfterFinalGenerateAc);
+    assert_eq!(
+        parse_host_response(&hex("70048A023030")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_host_response(&hex("700A91081122334455667788")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_host_response(&hex("8A0230308A023035")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_host_response(&hex("9108112233445566778891082122232425262728")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
 
     let before = apply_script_results(
         ScriptPhase::BeforeFinalGenerateAc,

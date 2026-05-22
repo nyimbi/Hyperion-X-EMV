@@ -80,12 +80,14 @@ pub struct ScriptExecutionSummary {
 
 pub fn parse_host_response(input: &[u8]) -> KernelResult<HostResponse> {
     let tlvs = tlv::parse_many(input)?;
-    let authorization_response_code = match tlv::find_first(&tlvs, &[0x8a]) {
+    reject_nested_host_response_objects(&tlvs)?;
+
+    let authorization_response_code = match tlv::find_unique_direct(&tlvs, &[0x8a])? {
         Some(value) if value.len() == 2 => Some([value[0], value[1]]),
         Some(_) => return Err(KernelError::ParseError),
         None => None,
     };
-    let issuer_authentication_data = match tlv::find_first(&tlvs, &[0x91]) {
+    let issuer_authentication_data = match tlv::find_unique_direct(&tlvs, &[0x91])? {
         Some(value)
             if (ISSUER_AUTHENTICATION_DATA_MIN_LEN..=ISSUER_AUTHENTICATION_DATA_MAX_LEN)
                 .contains(&value.len()) =>
@@ -147,6 +149,23 @@ fn collect_scripts(tlvs: &[tlv::Tlv<'_>], scripts: &mut Vec<IssuerScript>) -> Ke
             )?),
             _ => {}
         }
+    }
+    Ok(())
+}
+
+fn reject_nested_host_response_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
+    for item in tlvs {
+        reject_nested_auth_objects(&item.children)?;
+    }
+    Ok(())
+}
+
+fn reject_nested_auth_objects(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<()> {
+    for item in tlvs {
+        if matches!(item.tag, [0x8a] | [0x91]) {
+            return Err(KernelError::ParseError);
+        }
+        reject_nested_auth_objects(&item.children)?;
     }
     Ok(())
 }
@@ -298,6 +317,33 @@ mod tests {
         ];
         assert_eq!(
             parse_host_response(&too_long).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_nested_or_duplicate_host_response_auth_objects() {
+        assert_eq!(
+            parse_host_response(&[0x70, 0x04, 0x8a, 0x02, b'0', b'0']).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x70, 0x0a, 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b'0', b'0', 0x8a, 0x02, b'0', b'5']).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x91, 0x08, 0x21, 0x22,
+                0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
+            ])
+            .unwrap_err(),
             KernelError::ParseError
         );
     }
