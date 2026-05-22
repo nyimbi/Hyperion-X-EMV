@@ -4,6 +4,30 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T17:52:09Z
+
+- Increment completed: align EXTERNAL AUTHENTICATE APDU construction with the
+  issuer-authentication data length domain already enforced at the host-response
+  parser boundary.
+- Research note: local evidence review found a bypass in direct internal tests:
+  tag `91` host responses were constrained to 8-16 bytes, but the lower APDU
+  builder and direct issuer-authentication fixtures still accepted four-byte
+  payloads.
+- Code impact: `external_authenticate` now rejects issuer-authentication data
+  outside 8-16 bytes before APDU encoding; FFI issuer-authentication
+  regressions now use eight-byte payloads and assert the longer command length.
+- Evidence update: existing KRN-IAUTH-001 evidence
+  `apdu::tests::builds_external_authenticate_for_issuer_authentication_data`
+  now covers too-short and too-long issuer-authentication data rejection as well
+  as valid APDU construction.
+- Verification: `cargo test
+  apdu::tests::builds_external_authenticate_for_issuer_authentication_data`,
+  `cargo test apdu::tests::encodes_kernel_command_apdu_matrix`, `cargo test
+  ffi::tests::issuer_authentication_failure_sets_tvr_and_reaches_scripts`,
+  `cargo test ffi::tests::issuer_authentication_resolves_get_response_followup`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T17:45:56Z
 
 - Increment completed: prove that an applied host-response Authorization Code

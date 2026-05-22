@@ -8,6 +8,8 @@ pub const MIN_AID_LEN: usize = 5;
 pub const MAX_AID_LEN: usize = 16;
 pub const MAX_SHORT_APDU_DATA_LEN: usize = u8::MAX as usize;
 pub const MAX_GPO_PDOL_VALUE_LEN: usize = MAX_SHORT_APDU_DATA_LEN - 3;
+pub const MIN_ISSUER_AUTHENTICATION_DATA_LEN: usize = 8;
+pub const MAX_ISSUER_AUTHENTICATION_DATA_LEN: usize = 16;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Interface {
@@ -158,11 +160,13 @@ pub fn internal_authenticate_from_ddol(
 }
 
 pub fn external_authenticate(issuer_authentication_data: &[u8]) -> KernelResult<CommandApdu> {
-    if issuer_authentication_data.is_empty() {
-        return Err(KernelError::InvalidArgument);
-    }
     if issuer_authentication_data.len() > MAX_SHORT_APDU_DATA_LEN {
         return Err(KernelError::LengthOverflow);
+    }
+    if !(MIN_ISSUER_AUTHENTICATION_DATA_LEN..=MAX_ISSUER_AUTHENTICATION_DATA_LEN)
+        .contains(&issuer_authentication_data.len())
+    {
+        return Err(KernelError::InvalidArgument);
     }
     Ok(CommandApdu {
         cla: 0x00,
@@ -318,11 +322,11 @@ mod tests {
             [0x00, 0x88, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04, 0x00]
         );
         assert_eq!(
-            external_authenticate(&[0x11, 0x22, 0x33, 0x44])
+            external_authenticate(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
                 .unwrap()
                 .encode()
                 .unwrap(),
-            [0x00, 0x82, 0x00, 0x00, 0x04, 0x11, 0x22, 0x33, 0x44]
+            [0x00, 0x82, 0x00, 0x00, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
         );
         assert_eq!(
             generate_ac(
@@ -538,14 +542,22 @@ mod tests {
     #[test]
     fn builds_external_authenticate_for_issuer_authentication_data() {
         assert_eq!(
-            external_authenticate(&[0x12, 0x34, 0x56, 0x78])
+            external_authenticate(&[0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0])
                 .unwrap()
                 .encode()
                 .unwrap(),
-            [0x00, 0x82, 0x00, 0x00, 0x04, 0x12, 0x34, 0x56, 0x78]
+            [0x00, 0x82, 0x00, 0x00, 0x08, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]
         );
         assert_eq!(
             external_authenticate(&[]).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            external_authenticate(&[0x12, 0x34, 0x56, 0x78]).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            external_authenticate(&[0; MAX_ISSUER_AUTHENTICATION_DATA_LEN + 1]).unwrap_err(),
             KernelError::InvalidArgument
         );
     }

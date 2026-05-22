@@ -6166,7 +6166,7 @@ mod tests {
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
             authorization_code: None,
-            issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44]),
+            issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]),
             scripts: Vec::new(),
         });
         let runtime = RuntimeCallbacks {
@@ -6181,7 +6181,7 @@ mod tests {
         ISSUER_AUTH_SW2.store(0x85, Ordering::SeqCst);
         assert_eq!(run_issuer_authentication(&mut ctx, runtime), Ok(()));
         assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0x82);
-        assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 9);
+        assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 13);
         assert_eq!(ctx.fsm_state, FsmState::S13);
         assert_eq!(ctx.state, KernelState::IssuerScripts);
         assert!(ctx.tsi.is_set(Tsi::ISSUER_AUTHENTICATION_PERFORMED));
@@ -6201,7 +6201,7 @@ mod tests {
         ctx.host_response = Some(HostResponse {
             authorization_response_code: [b'0', b'0'],
             authorization_code: None,
-            issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44]),
+            issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]),
             scripts: Vec::new(),
         });
         let runtime = RuntimeCallbacks {
