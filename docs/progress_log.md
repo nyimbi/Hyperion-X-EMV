@@ -3543,6 +3543,33 @@ decision record, while this file tracks work toward certification readiness.
   `cargo clippy --all-targets --all-features`, and `git diff --check` also
   passed.
 
+## 2026-05-22T19:26:34Z
+
+- Increment completed: add explicit masked host-response TLV stream evidence
+  to the repository-controlled pre-lab trace pack.
+- Research note: APDU replay suppression proves command payload custody, but
+  issuer host-response data enters through the Level 3 boundary. The pre-lab
+  fixture now carries a distinct TLV-stream record proving tag-level masking
+  for issuer authentication data and issuer script data without treating it as
+  card APDU replay.
+- Code impact: added `TlvStreamTrace` and `mask_tlv_stream_trace` to the trace
+  layer, reused the existing masked-field JSON emitter for APDU and TLV-stream
+  evidence, and taught `krn_prelab_trace_pack` to emit one host-response stream
+  for the issuer-authentication/script case.
+- Evidence updated: `docs/prelab_apdu_trace_pack.jsonl` now includes
+  `expected_tlv_stream_count` per scenario and one `tlv-stream` line for tag
+  `91`, template `71`, tag `9F18`, and tag `86`. The traceability test checks
+  those suppression reasons and rejects raw issuer-authentication bytes,
+  issuer-script command APDU bytes, and issuer-script identifier bytes. The lab
+  manifest now calls out the masked host-response TLV evidence while leaving
+  full lab/test-tool traces open.
+- Verification: `cargo fmt`,
+  `cargo test trace::tests::production_suppresses_issuer_script_command_data`,
+  `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`,
+  `cargo test --example krn_prelab_trace_pack`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T12:02:44Z
 
 - Increment completed: broaden the repository-controlled pre-lab APDU trace

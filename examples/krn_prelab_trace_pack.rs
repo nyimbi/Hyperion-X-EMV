@@ -1,7 +1,8 @@
 use hyperion_emv::config::decode_hex;
 use hyperion_emv::ffi::KRN_ABI_VERSION;
 use hyperion_emv::trace::{
-    ApduTraceContext, LogPolicy, ReplayExchange, ReplayScript, TraceIdentity,
+    mask_tlv_stream_trace, ApduTraceContext, LogPolicy, ReplayExchange, ReplayScript,
+    TlvTraceContext, TraceIdentity,
 };
 use hyperion_emv::KernelResult;
 use std::process;
@@ -33,12 +34,14 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             ],
             expected_status_actions: &[],
             expected_terminal_outcome: "online-authorization-request",
+            expected_tlv_stream_count: 0,
             masking_assertions: &[
                 "full-apdu-disabled",
                 "pan-last-four-only",
                 "transaction-cryptogram-suppressed",
                 "issuer-application-data-suppressed",
             ],
+            masked_tlv_streams: &[],
         },
     )?;
     append_case(
@@ -55,11 +58,17 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             ],
             expected_status_actions: &[],
             expected_terminal_outcome: "continue-to-final-generate-ac",
+            expected_tlv_stream_count: 1,
             masking_assertions: &[
                 "full-apdu-disabled",
                 "issuer-authentication-data-suppressed",
                 "issuer-script-command-data-suppressed",
             ],
+            masked_tlv_streams: &[PrelabMaskedTlvStream {
+                sequence: 4,
+                context: TlvTraceContext::HostResponse,
+                input_hex: "8A02303091081122334455667788710F9F1804DEADBEEF860600DA000001AA",
+            }],
         },
     )?;
     append_case(
@@ -76,11 +85,13 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             ],
             expected_status_actions: &["RetryWithCorrectLe6cxx"],
             expected_terminal_outcome: "issuer-script-warning-recorded",
+            expected_tlv_stream_count: 0,
             masking_assertions: &[
                 "full-apdu-disabled",
                 "issuer-script-command-data-suppressed",
                 "issuer-script-retry-status-recorded",
             ],
+            masked_tlv_streams: &[],
         },
     )?;
     append_case(
@@ -93,7 +104,9 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             expected_fsm_actions: &["ReadRecords"],
             expected_status_actions: &[],
             expected_terminal_outcome: "record-data-collected",
+            expected_tlv_stream_count: 0,
             masking_assertions: &["full-apdu-disabled", "track2-suppressed"],
+            masked_tlv_streams: &[],
         },
     )?;
     append_case(
@@ -106,11 +119,13 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             expected_fsm_actions: &["BuildGpo", "RequestFirstGenerateAc", "BuildHostRequest"],
             expected_status_actions: &["GetResponse61xx", "RetryWithCorrectLe6cxx"],
             expected_terminal_outcome: "first-generate-ac-complete",
+            expected_tlv_stream_count: 0,
             masking_assertions: &[
                 "full-apdu-disabled",
                 "follow-up-response-tag-masked",
                 "transaction-cryptogram-suppressed",
             ],
+            masked_tlv_streams: &[],
         },
     )?;
     Ok(out)
@@ -124,7 +139,15 @@ struct PrelabTraceCase {
     expected_fsm_actions: &'static [&'static str],
     expected_status_actions: &'static [&'static str],
     expected_terminal_outcome: &'static str,
+    expected_tlv_stream_count: usize,
     masking_assertions: &'static [&'static str],
+    masked_tlv_streams: &'static [PrelabMaskedTlvStream],
+}
+
+struct PrelabMaskedTlvStream {
+    sequence: u64,
+    context: TlvTraceContext,
+    input_hex: &'static str,
 }
 
 fn append_case(out: &mut String, case: PrelabTraceCase) -> KernelResult<()> {
@@ -143,6 +166,16 @@ fn append_case(out: &mut String, case: PrelabTraceCase) -> KernelResult<()> {
             .script
             .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)?,
     );
+    for stream in case.masked_tlv_streams {
+        let masked = mask_tlv_stream_trace(
+            stream.sequence,
+            stream.context,
+            &decode_hex(stream.input_hex)?,
+            LogPolicy::production(),
+        )?;
+        out.push_str(&masked.to_json());
+        out.push('\n');
+    }
     Ok(())
 }
 
@@ -159,7 +192,9 @@ fn append_scenario(out: &mut String, case: &PrelabTraceCase) {
     append_string_array(out, case.expected_status_actions);
     out.push_str(",\"expected_terminal_outcome\":\"");
     out.push_str(case.expected_terminal_outcome);
-    out.push_str("\",\"masking_assertions\":");
+    out.push_str("\",\"expected_tlv_stream_count\":");
+    out.push_str(&case.expected_tlv_stream_count.to_string());
+    out.push_str(",\"masking_assertions\":");
     append_string_array(out, case.masking_assertions);
     out.push_str("}\n");
 }

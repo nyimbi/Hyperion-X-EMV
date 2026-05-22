@@ -134,6 +134,11 @@ pub enum ApduTraceContext {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TlvTraceContext {
+    HostResponse,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ApduDirection {
     Command,
     Response,
@@ -153,6 +158,13 @@ pub struct ApduTrace {
     pub fields: Vec<MaskedField>,
 }
 
+#[derive(Clone, Eq, PartialEq)]
+pub struct TlvStreamTrace {
+    pub sequence: u64,
+    pub context: TlvTraceContext,
+    pub fields: Vec<MaskedField>,
+}
+
 impl fmt::Debug for ApduTrace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ApduTrace")
@@ -165,6 +177,20 @@ impl fmt::Debug for ApduTrace {
             .field("p2", &self.p2)
             .field("sw", &self.sw)
             .field("data", &self.data)
+            .field("field_count", &self.fields.len())
+            .field(
+                "data_policy",
+                &"trace payloads redacted from Debug; use to_json for controlled log emission",
+            )
+            .finish()
+    }
+}
+
+impl fmt::Debug for TlvStreamTrace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TlvStreamTrace")
+            .field("sequence", &self.sequence)
+            .field("context", &self.context)
             .field("field_count", &self.fields.len())
             .field(
                 "data_policy",
@@ -384,6 +410,19 @@ pub fn mask_tlv_stream(input: &[u8], policy: LogPolicy) -> KernelResult<Vec<Mask
     Ok(out)
 }
 
+pub fn mask_tlv_stream_trace(
+    sequence: u64,
+    context: TlvTraceContext,
+    input: &[u8],
+    policy: LogPolicy,
+) -> KernelResult<TlvStreamTrace> {
+    Ok(TlvStreamTrace {
+        sequence,
+        context,
+        fields: mask_tlv_stream(input, policy)?,
+    })
+}
+
 pub fn mask_apdu_command(
     sequence: u64,
     command: &[u8],
@@ -485,18 +524,29 @@ impl ApduTrace {
         }
         out.push(',');
         push_masked_value(out, "data", &self.data);
-        out.push_str(",\"fields\":[");
-        for (idx, field) in self.fields.iter().enumerate() {
-            if idx > 0 {
-                out.push(',');
-            }
-            out.push('{');
-            push_json_str(out, "tag", &to_hex(&field.tag));
-            out.push(',');
-            push_masked_value(out, "value", &field.value);
-            out.push('}');
-        }
-        out.push_str("]}");
+        out.push(',');
+        push_fields_json(out, "fields", &self.fields);
+        out.push('}');
+    }
+}
+
+impl TlvStreamTrace {
+    pub fn to_json(&self) -> String {
+        let mut out = String::new();
+        self.push_json(&mut out);
+        out
+    }
+
+    fn push_json(&self, out: &mut String) {
+        out.push('{');
+        push_json_str(out, "type", "tlv-stream");
+        out.push(',');
+        push_json_number(out, "sequence", self.sequence);
+        out.push(',');
+        push_json_str(out, "context", tlv_trace_context_name(self.context));
+        out.push(',');
+        push_fields_json(out, "fields", &self.fields);
+        out.push('}');
     }
 }
 
@@ -663,6 +713,12 @@ fn context_name(context: ApduTraceContext) -> &'static str {
     }
 }
 
+fn tlv_trace_context_name(context: TlvTraceContext) -> &'static str {
+    match context {
+        TlvTraceContext::HostResponse => "host-response",
+    }
+}
+
 fn push_json_number(out: &mut String, key: &str, value: u64) {
     push_json_key(out, key);
     out.push_str(&value.to_string());
@@ -716,6 +772,22 @@ fn push_masked_value(out: &mut String, key: &str, value: &MaskedValue) {
             out.push('}');
         }
     }
+}
+
+fn push_fields_json(out: &mut String, key: &str, fields: &[MaskedField]) {
+    push_json_key(out, key);
+    out.push('[');
+    for (idx, field) in fields.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(out, "tag", &to_hex(&field.tag));
+        out.push(',');
+        push_masked_value(out, "value", &field.value);
+        out.push('}');
+    }
+    out.push(']');
 }
 
 fn push_json_key(out: &mut String, key: &str) {
@@ -819,6 +891,27 @@ mod tests {
 
     #[test]
     fn production_suppresses_issuer_script_command_data() {
+        let host_response = mask_tlv_stream_trace(
+            4,
+            TlvTraceContext::HostResponse,
+            &[
+                0x8a, 0x02, b'0', b'0', 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                0x71, 0x0f, 0x9f, 0x18, 0x04, 0xde, 0xad, 0xbe, 0xef, 0x86, 0x06, 0x00, 0xda, 0x00,
+                0x00, 0x01, 0xaa,
+            ],
+            LogPolicy::production(),
+        )
+        .unwrap();
+        let host_json = host_response.to_json();
+        assert!(host_json.contains("\"type\":\"tlv-stream\""));
+        assert!(host_json.contains("\"context\":\"host-response\""));
+        assert!(host_json.contains("issuer-authentication-data"));
+        assert!(host_json.contains("issuer-script-command-data"));
+        assert!(host_json.contains("issuer-script-identifier"));
+        assert!(!host_json.contains("1122334455667788"));
+        assert!(!host_json.contains("00da000001aa"));
+        assert!(!host_json.contains("deadbeef"));
+
         let issuer_auth = mask_tlv_value(
             &[0x91],
             &[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88],
