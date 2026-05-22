@@ -2543,6 +2543,70 @@ fn rtm_promotes_api_abi_and_callback_validation_evidence() {
 }
 
 #[test]
+fn rtm_promotes_api_error_boundary_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let reentrant = csv_row_for_requirement(csv, "KRN-API-004").expect("RTM row exists");
+        assert!(
+            !reentrant.contains("Concurrency test"),
+            "KRN-API-004 should cite executable reentrancy evidence"
+        );
+        assert!(reentrant.contains("krn_api_004_rejects_reentrant_mutating_entrypoints"));
+        assert!(reentrant
+            .contains("krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded"));
+        assert!(reentrant.contains("rtm_promotes_api_error_boundary_evidence"));
+
+        let callbacks = csv_row_for_requirement(csv, "KRN-API-006").expect("RTM row exists");
+        assert!(
+            !callbacks.contains("Callback timeout trace"),
+            "KRN-API-006 should cite executable callback timeout and runtime evidence"
+        );
+        assert!(callbacks
+            .contains("krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded"));
+        assert!(callbacks.contains(
+            "krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks"
+        ));
+        assert!(
+            callbacks.contains("krn_api_007_err_002_preserves_callback_error_codes_fail_closed")
+        );
+        assert!(callbacks.contains("rtm_promotes_api_error_boundary_evidence"));
+
+        let last_error = csv_row_for_requirement(csv, "KRN-API-007").expect("RTM row exists");
+        assert!(
+            !last_error.contains("Last-error ABI query"),
+            "KRN-API-007 should cite executable last-error evidence"
+        );
+        assert!(last_error.contains(
+            "krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks"
+        ));
+        assert!(
+            last_error.contains("krn_api_007_err_002_preserves_callback_error_codes_fail_closed")
+        );
+        assert!(last_error.contains("krn_err_001_exposes_stable_abi_error_table"));
+        assert!(last_error.contains("rtm_promotes_api_error_boundary_evidence"));
+
+        let error_table = csv_row_for_requirement(csv, "KRN-ERR-001").expect("RTM row exists");
+        assert!(
+            !error_table.contains("ABI error table query"),
+            "KRN-ERR-001 should cite executable stable error table evidence"
+        );
+        assert!(error_table.contains("krn_err_001_exposes_stable_abi_error_table"));
+        assert!(error_table.contains("ffi_exposes_stable_error_table"));
+        assert!(error_table.contains("rtm_promotes_api_error_boundary_evidence"));
+
+        let fail_closed = csv_row_for_requirement(csv, "KRN-ERR-002").expect("RTM row exists");
+        assert!(
+            !fail_closed.contains("Callback failure injection"),
+            "KRN-ERR-002 should cite executable fail-closed callback evidence"
+        );
+        assert!(
+            fail_closed.contains("krn_api_007_err_002_preserves_callback_error_codes_fail_closed")
+        );
+        assert!(fail_closed.contains("asynchronous_failures_are_explicit_error_transitions"));
+        assert!(fail_closed.contains("rtm_promotes_api_error_boundary_evidence"));
+    }
+}
+
+#[test]
 fn krn_dpl_001_002_003_profile_updates_are_monotonic_and_atomic() {
     unsafe {
         let ctx = krn_context_new();

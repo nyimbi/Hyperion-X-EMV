@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:54:05Z
+
+- Increment completed: promote API and error-boundary evidence.
+- Research note: ABI and callback-failure claims should cite executable
+  reentrancy, timeout, last-error, stable-error-table, and fail-closed
+  regressions rather than broad concurrency or callback-trace labels.
+- Code impact: no runtime behavior changed; existing API, FFI, FSM, and error
+  table tests are now first-class RTM evidence for the older API/error rows.
+- Evidence updated: KRN-API-004/006/007 and KRN-ERR-001/002 now cite concrete
+  API/error regressions and an RTM guard in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:49:38Z
 
 - Increment completed: promote CVM/PIN capability and custody evidence.
