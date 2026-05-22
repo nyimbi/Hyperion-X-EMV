@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:38:17Z
+
+- Increment completed: promote TVR clearing, RFU masking, and TSI bit evidence.
+- Research note: TVR/TSI certification claims need executable bit-state
+  controls rather than generic trace labels, especially where reserved bits and
+  phase-specific indicators define the observable transaction state.
+- Code impact: no runtime behavior changed; existing TVR clearing, RFU-mask,
+  TSI allowed-bit, and phase-gating regressions are now first-class RTM
+  evidence for the older TVR/TSI rows.
+- Evidence updated: KRN-TVR-002/003 and KRN-TSI-001 now cite concrete state,
+  traceability, and RTM guard regressions in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:36:20Z
 
 - Increment completed: promote legacy GAC/CDA-control evidence.

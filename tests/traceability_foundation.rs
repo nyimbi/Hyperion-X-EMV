@@ -946,6 +946,39 @@ fn rtm_promotes_tvr_and_cvm_table_evidence() {
 }
 
 #[test]
+fn rtm_promotes_tvr_clearing_and_tsi_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let cleared = csv_row_for_requirement(csv, "KRN-TVR-002").expect("RTM row exists");
+        assert!(
+            !cleared.contains("Unit test log"),
+            "KRN-TVR-002 should cite executable TVR clearing evidence"
+        );
+        assert!(cleared.contains("tvr_starts_cleared_for_each_transaction"));
+        assert!(cleared.contains("krn_tvr_001_002_tvr_is_symbolic_and_cleared"));
+        assert!(cleared.contains("rtm_promotes_tvr_clearing_and_tsi_evidence"));
+
+        let rfu = csv_row_for_requirement(csv, "KRN-TVR-003").expect("RTM row exists");
+        assert!(
+            !rfu.contains("TVR trace"),
+            "KRN-TVR-003 should cite executable RFU masking evidence"
+        );
+        assert!(rfu.contains("tvr_and_tsi_mutation_masks_rfu_bits"));
+        assert!(rfu.contains("krn_tvr_003_tsi_001_state_bits_are_defined_and_rfu_safe"));
+        assert!(rfu.contains("rtm_promotes_tvr_clearing_and_tsi_evidence"));
+
+        let tsi = csv_row_for_requirement(csv, "KRN-TSI-001").expect("RTM row exists");
+        assert!(
+            !tsi.contains("TSI trace"),
+            "KRN-TSI-001 should cite executable TSI bit evidence"
+        );
+        assert!(tsi.contains("tvr_and_tsi_mutation_masks_rfu_bits"));
+        assert!(tsi.contains("krn_tvr_003_tsi_001_state_bits_are_defined_and_rfu_safe"));
+        assert!(tsi.contains("tsi_bits_are_set_only_after_corresponding_processing"));
+        assert!(tsi.contains("rtm_promotes_tvr_clearing_and_tsi_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_cvm_outcome_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         let parsing = csv_row_for_requirement(csv, "KRN-CVM-001").expect("RTM row exists");
