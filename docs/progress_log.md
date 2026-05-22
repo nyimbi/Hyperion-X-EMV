@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:34:18Z
+
+- Increment completed: reject whitespace-only certification-scope strings.
+- Code impact: certification profile loading now treats trimmed-blank bundled
+  scheme names, lab-required scheme names, and contactless kernel profile labels
+  as invalid signed scope material.
+- Evidence updated:
+  `config::tests::rejects_invalid_certification_scope_boundaries` now covers
+  whitespace-only scope values alongside missing scope, overlapping bundled/lab
+  scheme names, unsupported material statuses, and missing production-bundle
+  requirements.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:27:37Z
 
 - Increment completed: make ODA certification-vector method IDs

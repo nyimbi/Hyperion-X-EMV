@@ -422,7 +422,7 @@ fn parse_certification_scope(
     }
     let contactless_profile = required_string(scope, "contactless_kernel_profile")?;
     reject_placeholder(contactless_profile)?;
-    if contactless_profile.is_empty() {
+    if contactless_profile.trim().is_empty() {
         return Err(KernelError::InvalidProfile);
     }
     let profile_material_status =
@@ -1003,7 +1003,7 @@ fn required_string_set(
         .map(|item| {
             let value = item.as_string()?;
             reject_placeholder(value)?;
-            if value.is_empty() {
+            if value.trim().is_empty() {
                 return Err(KernelError::InvalidProfile);
             }
             Ok(value.to_string())
@@ -1669,6 +1669,45 @@ mod tests {
         );
         assert_eq!(
             load_profile_set(overlap.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let blank_bundled_scheme = profile.replace(
+            r#""bundled_scheme_profiles": ["Visa"]"#,
+            r#""bundled_scheme_profiles": ["   "]"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                blank_bundled_scheme.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let blank_lab_required_scheme = profile.replace(
+            r#""lab_supplied_scheme_profiles_required": ["Mastercard"]"#,
+            r#""lab_supplied_scheme_profiles_required": ["   "]"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                blank_lab_required_scheme.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let blank_contactless_profile = profile.replace(
+            r#""contactless_kernel_profile": "C-8 lab approval package""#,
+            r#""contactless_kernel_profile": "   ""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                blank_contactless_profile.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
 
