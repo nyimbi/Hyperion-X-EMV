@@ -2285,3 +2285,26 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T10:41:14Z
+
+- Increment completed: fail closed on malformed dynamic-authentication data in
+  GENERATE AC format 2 responses.
+- Research note: CDA evidence depends on treating `9F4B` as signed dynamic
+  application data before CDA verification, and `9F4C` as an ICC dynamic number
+  only when it is actually present. Accepting undersized signatures or empty
+  dynamic-number TLVs lets malformed authentication material flow into card
+  data and later ODA/CDA phases.
+- Code impact: `parse_generate_ac_response` now rejects format 2 responses with
+  a present-but-too-short `9F4B` using `InvalidProfile` and rejects empty `9F4C`
+  using `ParseError`, while preserving valid format 2 parsing and existing CDA
+  verification paths.
+- Evidence updated: current and compatibility RTM annexes cite
+  `gac::tests::rejects_malformed_dynamic_authentication_data_in_gac_response`
+  for `KRN-GAC-004`, `KRN-GAC1-004`, `KRN-GAC1-005`, and `KRN-ODA-008`.
+- Verification: `cargo test rejects_malformed_dynamic_authentication_data_in_gac_response`,
+  `cargo test parses_generate_ac_format_2_template_77`,
+  `cargo test rtm_promotes_gac_cdol_encoding_and_response_evidence`,
+  `cargo test rtm_promotes_oda_capk_tvr_cda_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

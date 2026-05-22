@@ -2619,6 +2619,7 @@ fn rtm_promotes_oda_capk_tvr_cda_evidence() {
         ));
 
         let cda_exact = csv_row_for_requirement(csv, "KRN-ODA-008").unwrap();
+        assert!(cda_exact.contains("rejects_malformed_dynamic_authentication_data_in_gac_response"));
         assert!(cda_exact.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
         assert!(cda_exact
             .contains("runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff"));
@@ -2743,6 +2744,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         assert!(response.contains("parses_generate_ac_format_2_template_77"));
         assert!(response.contains("rejects_generate_ac_without_single_supported_response_template"));
         assert!(response.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
+        assert!(response.contains("rejects_malformed_dynamic_authentication_data_in_gac_response"));
         assert!(response.contains("decodes_cryptogram_type_with_0xc0_mask"));
 
         let cdol1 = csv_row_for_requirement(csv, "KRN-GAC1-002").unwrap();
@@ -2761,8 +2763,10 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         assert!(format.contains("gac_parsing_uses_card_returned_cryptogram_for_online_handoff"));
         assert!(format.contains("rejects_generate_ac_without_single_supported_response_template"));
         assert!(format.contains("rejects_nested_or_duplicate_generate_ac_format_2_data"));
+        assert!(format.contains("rejects_malformed_dynamic_authentication_data_in_gac_response"));
 
         let cda = csv_row_for_requirement(csv, "KRN-GAC1-005").unwrap();
+        assert!(cda.contains("rejects_malformed_dynamic_authentication_data_in_gac_response"));
         assert!(cda.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
         assert!(cda.contains("runtime_cda_failure_sets_tvr_without_falling_back_to_dda"));
         assert!(cda.contains("runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff"));

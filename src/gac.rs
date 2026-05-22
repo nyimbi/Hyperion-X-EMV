@@ -1,6 +1,7 @@
 use crate::cid::Cid;
 use crate::dol::DataStore;
 use crate::error::{KernelError, KernelResult};
+use crate::oda::MIN_ODA_SIGNATURE_BYTES;
 use crate::tlv;
 use core::fmt;
 
@@ -159,10 +160,9 @@ fn parse_format_2(children: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse>
     let atc = fixed::<2>(children, &[0x9f, 0x36])?;
     let issuer_application_data = tlv::find_unique_direct(children, &[0x9f, 0x10])?
         .map_or_else(Vec::new, |value| value.to_vec());
-    let icc_dynamic_number =
-        tlv::find_unique_direct(children, &[0x9f, 0x4c])?.map(|value| value.to_vec());
+    let icc_dynamic_number = optional_non_empty(children, &[0x9f, 0x4c])?;
     let signed_dynamic_application_data =
-        tlv::find_unique_direct(children, &[0x9f, 0x4b])?.map(|value| value.to_vec());
+        optional_signed_dynamic_application_data(children, &[0x9f, 0x4b])?;
 
     Ok(GenerateAcResponse {
         cid: Cid::new(cid[0]),
@@ -189,6 +189,25 @@ fn fixed<const N: usize>(children: &[tlv::Tlv<'_>], tag: &[u8]) -> KernelResult<
     let mut out = [0u8; N];
     out.copy_from_slice(value);
     Ok(out)
+}
+
+fn optional_non_empty(children: &[tlv::Tlv<'_>], tag: &[u8]) -> KernelResult<Option<Vec<u8>>> {
+    match tlv::find_unique_direct(children, tag)? {
+        Some([]) => Err(KernelError::ParseError),
+        Some(value) => Ok(Some(value.to_vec())),
+        None => Ok(None),
+    }
+}
+
+fn optional_signed_dynamic_application_data(
+    children: &[tlv::Tlv<'_>],
+    tag: &[u8],
+) -> KernelResult<Option<Vec<u8>>> {
+    match tlv::find_unique_direct(children, tag)? {
+        Some(value) if value.len() < MIN_ODA_SIGNATURE_BYTES => Err(KernelError::InvalidProfile),
+        Some(value) => Ok(Some(value.to_vec())),
+        None => Ok(None),
+    }
 }
 
 #[cfg(test)]
@@ -285,6 +304,27 @@ mod tests {
                 0x77, 0x1c, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x10, 0x01, 0xaa, 0x9f, 0x10,
                 0x01, 0xbb,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_dynamic_authentication_data_in_gac_response() {
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x77, 0x19, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x4b, 0x02, 0xaa, 0xbb,
+            ])
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x77, 0x17, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x4c, 0x00,
             ])
             .unwrap_err(),
             KernelError::ParseError
