@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:25:27Z
+
+- Increment completed: make the repository-controlled static-analysis quality
+  gate fail closed on clippy warnings.
+- Code impact: `prelab_quality_gates_json` now records
+  `cargo clippy --all-targets --all-features -- -D warnings` for
+  `PRELAB-STATIC`, matching the verification gate used for completed slices.
+- Evidence updated: regenerated `docs/prelab_quality_gates.json`, tightened the
+  traceability guard to require the warnings-as-failures command, and updated
+  the lab manifest to name the stricter local lint gate while preserving
+  external static-analysis/fuzzing reports as open certification evidence.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T21:18:54Z
 
 - Increment completed: adapt the open-source tooling pattern of tag-list

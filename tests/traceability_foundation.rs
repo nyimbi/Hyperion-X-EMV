@@ -5985,7 +5985,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
-        "cargo clippy --all-targets --all-features",
+        "cargo clippy --all-targets --all-features -- -D warnings",
         "git diff --check",
     ] {
         assert!(
@@ -6013,6 +6013,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab quality gate manifest"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_quality_gates"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("warnings-as-failures static lint gate"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("payload suppression"));
     assert!(LAB_SUBMISSION_MANIFEST.contains(

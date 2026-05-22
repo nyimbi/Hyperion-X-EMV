@@ -49,8 +49,8 @@ const QUALITY_GATES: &[QualityGate] = &[
     },
     QualityGate {
         id: "PRELAB-STATIC",
-        command: "cargo clippy --all-targets --all-features",
-        purpose: "run the repository static-analysis lint gate",
+        command: "cargo clippy --all-targets --all-features -- -D warnings",
+        purpose: "run the repository static-analysis lint gate with warnings as failures",
     },
     QualityGate {
         id: "PRELAB-DIFF",
