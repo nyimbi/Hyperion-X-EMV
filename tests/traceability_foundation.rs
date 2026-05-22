@@ -1303,83 +1303,81 @@ fn corrected_spec_contains_api_transaction_runner_requirements() {
 fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Reproducible build provenance"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_build_manifest"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("every kernel source module"));
 
-    let manifest = build_provenance_manifest(
-        KRN_ABI_VERSION,
-        &[
-            Artifact {
-                name: "Cargo.lock",
-                bytes: include_bytes!("../Cargo.lock"),
-            },
-            Artifact {
-                name: "Cargo.toml",
-                bytes: include_bytes!("../Cargo.toml"),
-            },
-            Artifact {
-                name: "docs/bitmap_catalogue.csv",
-                bytes: BITMAP_CATALOGUE.as_bytes(),
-            },
-            Artifact {
-                name: "docs/lab_submission_manifest.md",
-                bytes: LAB_SUBMISSION_MANIFEST.as_bytes(),
-            },
-            Artifact {
-                name: "docs/oda_test_vectors.json",
-                bytes: ODA_VECTORS.as_bytes(),
-            },
-            Artifact {
-                name: "docs/performance_profile.csv",
-                bytes: PERFORMANCE_PROFILE.as_bytes(),
-            },
-            Artifact {
-                name: "docs/requirements_traceability.csv",
-                bytes: include_bytes!("../docs/requirements_traceability.csv"),
-            },
-            Artifact {
-                name: "docs/scheme_profiles.cert.json",
-                bytes: SCHEME_PROFILES.as_bytes(),
-            },
-            Artifact {
-                name: "docs/spec.md",
-                bytes: include_bytes!("../docs/spec.md"),
-            },
-            Artifact {
-                name: "docs/state_machine.csv",
-                bytes: STATE_MACHINE_CSV.as_bytes(),
-            },
-            Artifact {
-                name: "docs/tlv_catalogue.csv",
-                bytes: TLV_CATALOGUE.as_bytes(),
-            },
-            Artifact {
-                name: "src/lib.rs",
-                bytes: include_bytes!("../src/lib.rs"),
-            },
-        ],
-    )
-    .unwrap();
+    let mut input_paths = vec![
+        "Cargo.lock".to_string(),
+        "Cargo.toml".to_string(),
+        "docs/bitmap_catalogue.csv".to_string(),
+        "docs/lab_submission_manifest.md".to_string(),
+        "docs/oda_test_vectors.json".to_string(),
+        "docs/performance_profile.csv".to_string(),
+        "docs/requirements_traceability.csv".to_string(),
+        "docs/scheme_profiles.cert.json".to_string(),
+        "docs/spec.md".to_string(),
+        "docs/state_machine.csv".to_string(),
+        "docs/tlv_catalogue.csv".to_string(),
+        "examples/krn_build_manifest.rs".to_string(),
+    ];
+    let mut source_paths = fs::read_dir("src")
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    source_paths.sort();
+    input_paths.extend(source_paths.iter().cloned());
+
+    let owned_inputs = input_paths
+        .iter()
+        .map(|path| (path.clone(), fs::read(path).unwrap()))
+        .collect::<Vec<_>>();
+    let artifacts = owned_inputs
+        .iter()
+        .map(|(name, bytes)| Artifact {
+            name: name.as_str(),
+            bytes: bytes.as_slice(),
+        })
+        .collect::<Vec<_>>();
+    let manifest = build_provenance_manifest(KRN_ABI_VERSION, &artifacts).unwrap();
 
     let names = manifest
         .artifacts
         .iter()
         .map(|artifact| artifact.name.as_str())
         .collect::<Vec<_>>();
+    let name_set = names.iter().copied().collect::<BTreeSet<_>>();
+    for required in [
+        "Cargo.lock",
+        "Cargo.toml",
+        "docs/bitmap_catalogue.csv",
+        "docs/lab_submission_manifest.md",
+        "docs/oda_test_vectors.json",
+        "docs/performance_profile.csv",
+        "docs/requirements_traceability.csv",
+        "docs/scheme_profiles.cert.json",
+        "docs/spec.md",
+        "docs/state_machine.csv",
+        "docs/tlv_catalogue.csv",
+        "examples/krn_build_manifest.rs",
+    ] {
+        assert!(
+            name_set.contains(required),
+            "provenance manifest missing required artifact {required}"
+        );
+    }
+    let manifest_sources = names
+        .iter()
+        .copied()
+        .filter(|name| name.starts_with("src/"))
+        .collect::<BTreeSet<_>>();
+    let expected_sources = source_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
     assert_eq!(
-        names,
-        vec![
-            "Cargo.lock",
-            "Cargo.toml",
-            "docs/bitmap_catalogue.csv",
-            "docs/lab_submission_manifest.md",
-            "docs/oda_test_vectors.json",
-            "docs/performance_profile.csv",
-            "docs/requirements_traceability.csv",
-            "docs/scheme_profiles.cert.json",
-            "docs/spec.md",
-            "docs/state_machine.csv",
-            "docs/tlv_catalogue.csv",
-            "src/lib.rs",
-        ]
+        manifest_sources, expected_sources,
+        "build provenance must cover every kernel source module"
     );
     let scheme_digest = manifest
         .artifacts

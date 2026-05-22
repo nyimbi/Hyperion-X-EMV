@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:23:49Z
+
+- Increment completed: widen reproducible-build provenance to the source tree.
+- Research note: certification packaging evidence should not rely on a digest of
+  one Rust entrypoint when the kernel behavior is spread across source modules;
+  provenance needs stable coverage for all kernel source files and controlled
+  annexes.
+- Code impact: `krn_build_manifest` now accepts directory arguments and expands
+  them deterministically, so `src` can be included as one provenance root.
+- Evidence updated: the lab manifest now states that provenance covers every
+  kernel source module, and traceability tests compare provenance source entries
+  against the current `src/*.rs` set.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed; `cargo run --example
+  krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md
+  docs/lab_submission_manifest.md docs/requirements_traceability.csv
+  docs/scheme_profiles.cert.json docs/oda_test_vectors.json
+  docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv
+  docs/performance_profile.csv examples/krn_build_manifest.rs` emitted canonical
+  provenance covering every `src/*.rs` module.
+
 ## 2026-05-22T02:18:46Z
 
 - Increment completed: make EMV Level 2 approval evidence boundary explicit.
