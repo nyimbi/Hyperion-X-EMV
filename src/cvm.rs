@@ -432,6 +432,33 @@ mod tests {
     }
 
     #[test]
+    fn maps_certified_cvm_method_code_table_and_masks_continue_bit() {
+        for (code, method) in [
+            (0x01, CvmMethod::OfflinePlaintextPin),
+            (0x02, CvmMethod::OnlinePin),
+            (0x03, CvmMethod::OfflinePlaintextPinAndSignature),
+            (0x04, CvmMethod::OfflineEncipheredPin),
+            (0x05, CvmMethod::OfflineEncipheredPinAndSignature),
+            (0x06, CvmMethod::Signature),
+            (0x1e, CvmMethod::FailCvmProcessing),
+            (0x1f, CvmMethod::NoCvmRequired),
+            (0x20, CvmMethod::SchemeSpecific(0x20)),
+            (0x3f, CvmMethod::SchemeSpecific(0x3f)),
+        ] {
+            assert_eq!(CvmMethod::from_code(code), method);
+            assert_eq!(CvmMethod::from_code(code | 0x40), method);
+        }
+
+        assert_eq!(CvmMethod::from_code(0x00), CvmMethod::Unknown(0x00));
+        assert_eq!(CvmMethod::from_code(0x07), CvmMethod::Unknown(0x07));
+
+        let list = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x42, 0x00]).unwrap();
+        let rule = list.rules[0];
+        assert_eq!(rule.method, CvmMethod::OnlinePin);
+        assert!(rule.continue_on_failure());
+    }
+
+    #[test]
     fn offline_pin_requires_ped_owned_opaque_handle() {
         let list = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x00]).unwrap();
         let failed = evaluate(&list, context(), CvmPinHandles::none());

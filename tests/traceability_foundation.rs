@@ -16,7 +16,7 @@ use hyperion_emv::config::{
 };
 use hyperion_emv::cvm::{
     apply_offline_pin_verify_status, evaluate as evaluate_cvm, parse_cvm_list, CvmAction,
-    CvmContext, CvmOutcome, CvmPinHandles, Interface as CvmInterface, PedPinHandle,
+    CvmContext, CvmMethod, CvmOutcome, CvmPinHandles, Interface as CvmInterface, PedPinHandle,
 };
 use hyperion_emv::dol::{build_dol_with_policy, parse_dol, DataStore, DolPaddingPolicy};
 use hyperion_emv::ffi::{
@@ -849,6 +849,32 @@ fn rtm_promotes_bitmap_catalogue_evidence() {
         assert!(row.contains("bitmap_catalogue_defines_tvr_tsi_symbols_and_rfu_masks"));
         assert!(row.contains("implementation_uses_symbolic_bitmap_setters"));
         assert!(row.contains("rtm_promotes_bitmap_catalogue_evidence"));
+    }
+}
+
+#[test]
+fn rtm_promotes_tvr_and_cvm_table_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let tvr = csv_row_for_requirement(csv, "KRN-TVR-001").expect("RTM row exists");
+        assert!(
+            !tvr.contains("Code review"),
+            "KRN-TVR-001 should cite executable bitmap evidence"
+        );
+        assert!(tvr.contains("state::tests::uses_symbolic_tvr_bits"));
+        assert!(tvr.contains("bitmap_catalogue_defines_tvr_tsi_symbols_and_rfu_masks"));
+        assert!(tvr.contains("implementation_uses_symbolic_bitmap_setters"));
+        assert!(tvr.contains("rtm_promotes_tvr_and_cvm_table_evidence"));
+
+        let cvm = csv_row_for_requirement(csv, "KRN-CVM-003").expect("RTM row exists");
+        assert!(
+            !cvm.contains("Code review"),
+            "KRN-CVM-003 should cite executable CVM table evidence"
+        );
+        assert!(cvm.contains("maps_certified_cvm_method_code_table_and_masks_continue_bit"));
+        assert!(cvm.contains("parses_cvm_list_amounts_and_certified_method_codes"));
+        assert!(cvm.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
+        assert!(cvm.contains("contactless_cdcvm_is_not_hardcoded_to_cvm_code_0x05"));
+        assert!(cvm.contains("rtm_promotes_tvr_and_cvm_table_evidence"));
     }
 }
 
@@ -5405,6 +5431,21 @@ fn krn_apdu_009_010_status_handling_is_context_specific() {
 
 #[test]
 fn krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin() {
+    for (code, expected) in [
+        (0x01, CvmMethod::OfflinePlaintextPin),
+        (0x02, CvmMethod::OnlinePin),
+        (0x03, CvmMethod::OfflinePlaintextPinAndSignature),
+        (0x04, CvmMethod::OfflineEncipheredPin),
+        (0x05, CvmMethod::OfflineEncipheredPinAndSignature),
+        (0x06, CvmMethod::Signature),
+        (0x1e, CvmMethod::FailCvmProcessing),
+        (0x1f, CvmMethod::NoCvmRequired),
+        (0x20, CvmMethod::SchemeSpecific(0x20)),
+        (0x3f, CvmMethod::SchemeSpecific(0x3f)),
+    ] {
+        assert_eq!(CvmMethod::from_code(code), expected);
+    }
+
     let cvm_list = parse_cvm_list(&[
         0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x01, 0x00, 0x02, 0x07, 0x1f, 0x00,
     ])

@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:08:36Z
+
+- Increment completed: promote TVR and CVM table evidence.
+- Research note: public EMVCo process material continues to tie kernel
+  approval to ICS-backed specification conformance and accredited laboratory
+  testing, so RTM rows for low-level tables should cite deterministic tests
+  rather than generic code-review labels.
+- Code impact: CVM method decoding now has explicit coverage for the
+  certification table codes, continuation-bit masking, scheme-specific range,
+  and unknown-code handling.
+- Evidence updated: KRN-TVR-001 and KRN-CVM-003 now cite executable bitmap
+  catalogue, symbolic setter, CVM table, and contactless CDCVM boundary
+  regressions in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:01:06Z
 
 - Increment completed: promote security trust-boundary evidence.
