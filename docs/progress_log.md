@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T03:48:39Z
+
+- Increment completed: constrain selected-application PDOL extraction to the
+  FCI proprietary template before building GPO input data.
+- Research note: public EMV references identify tag `9F38` as the PDOL in the
+  selected ADF FCI, and public decoded examples place it under the top-level
+  `6F` FCI template inside `A5`; accepting an arbitrary flattened `9F38`
+  weakens GPO input provenance.
+- Code impact: `parse_pdol_from_fci` now requires a single top-level `6F`
+  template and only uses direct `9F38` children of `A5`; unwrapped FCI is
+  rejected and misplaced PDOL-like data is ignored so GPO construction falls
+  back to an empty PDOL.
+- Evidence updated: GPO unit, traceability, and both RTM annexes now prove
+  valid PDOL extraction and rejection/ignoring of unwrapped or misplaced PDOL
+  data.
+- Verification: `cargo test extracts_pdol_from_selected_application_fci`,
+  `cargo test krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T03:37:54Z
 
 - Increment completed: require PSE/PPSE candidate AIDs to come from directory

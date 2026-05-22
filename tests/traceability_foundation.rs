@@ -825,6 +825,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
             !gpo_valid.contains("GPO response parser evidence"),
             "KRN-GPO-001 should cite executable GPO parser evidence"
         );
+        assert!(gpo_valid.contains("extracts_pdol_from_selected_application_fci"));
         assert!(gpo_valid.contains("parses_gpo_template_77_with_aip_and_afl"));
         assert!(gpo_valid.contains("parses_gpo_template_80_without_afl"));
         assert!(gpo_valid.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
@@ -835,6 +836,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
             !gpo_missing.contains("GPO state transition evidence"),
             "KRN-GPO-002 should cite executable missing-mandatory GPO evidence"
         );
+        assert!(gpo_missing.contains("extracts_pdol_from_selected_application_fci"));
         assert!(gpo_missing.contains("rejects_gpo_without_mandatory_aip_afl"));
         assert!(gpo_missing.contains("krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates"));
         assert!(gpo_missing.contains("rtm_promotes_gpo_and_read_record_evidence"));
@@ -3735,6 +3737,13 @@ fn krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates() {
     assert_eq!(pdol.len(), 1);
     assert_eq!(pdol[0].tag, hex("9F37"));
     assert_eq!(pdol[0].length, 4);
+    assert_eq!(
+        parse_pdol_from_fci(&hex("9F38039F3704")).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert!(parse_pdol_from_fci(&hex("6F0BA509BF0C069F38039F3704"))
+        .unwrap()
+        .is_empty());
 
     let template77 = parse_gpo_response(&hex("770A82021800940410010100")).unwrap();
     assert_eq!(template77.format, GpoResponseFormat::Template77);
