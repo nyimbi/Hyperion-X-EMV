@@ -10,13 +10,14 @@ decision record, while this file tracks work toward certification readiness.
   the loaded profile model and generated review dictionary.
 - Code impact: `ProfileSource` now carries the optional `retrieved` date,
   validates it as an ISO date when present, rejects blank/placeholder retrieval
-  metadata, and renders bundle/CAPK retrieval dates in
-  `docs/scheme_profile_dictionary.md`.
+  metadata or dates after the evaluated bundle date, and renders bundle/CAPK
+  retrieval dates in `docs/scheme_profile_dictionary.md`.
 - Evidence updated:
   `config::tests::preserves_and_validates_profile_source_retrieval_dates` covers
-  retained and rejected provenance dates, `krn_scheme_profile_dictionary`
-  asserts the rendered retrieval fields without exposing raw CAPK/CDOL material,
-  and both RTM CSVs cite the retrieval-date regression under `KRN-CFG-002`.
+  retained, malformed, blank, and future-dated provenance dates,
+  `krn_scheme_profile_dictionary` asserts the rendered retrieval fields without
+  exposing raw CAPK/CDOL material, and both RTM CSVs cite the retrieval-date
+  regression under `KRN-CFG-002`.
 - Remaining external blockers: certification still needs accepted coverage,
   full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
   scheme/CAPK/profile authority, device/PED evidence, and approval reports.

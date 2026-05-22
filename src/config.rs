@@ -242,7 +242,8 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
     validate_profile_schema_version(object, policy.mode)?;
     let profile_class = parse_profile_class(object, policy.mode)?;
     parse_certification_scope(object.get("certification_scope"), profile_class)?;
-    let profile_source = parse_profile_source(object, profile_class, policy.mode)?;
+    let profile_source =
+        parse_profile_source(object, profile_class, policy.mode, policy.evaluation_date)?;
     let schemes_value = object
         .get("scheme_profiles")
         .ok_or(KernelError::InvalidProfile)?;
@@ -320,6 +321,7 @@ fn parse_profile_source(
     object: &BTreeMap<String, JsonValue>,
     profile_class: ProfileClass,
     mode: BuildMode,
+    evaluation_date: EmvDate,
 ) -> KernelResult<ProfileSource> {
     let Some(value) = object.get("profile_source") else {
         return match (mode, profile_class) {
@@ -333,12 +335,13 @@ fn parse_profile_source(
             _ => Err(KernelError::InvalidProfile),
         };
     };
-    parse_source_object(value.as_object()?, profile_class)
+    parse_source_object(value.as_object()?, profile_class, evaluation_date)
 }
 
 fn parse_source_object(
     source: &BTreeMap<String, JsonValue>,
     profile_class: ProfileClass,
+    evaluation_date: EmvDate,
 ) -> KernelResult<ProfileSource> {
     reject_unknown_fields(
         source,
@@ -357,6 +360,11 @@ fn parse_source_object(
         reject_placeholder(verification)?;
         if owner.trim().is_empty() || document.trim().is_empty() || version.trim().is_empty() {
             return Err(KernelError::InvalidProfile);
+        }
+        if let Some(retrieved) = retrieved {
+            if retrieved > evaluation_date {
+                return Err(KernelError::InvalidProfile);
+            }
         }
         if verification != "external_signature_required" {
             return Err(KernelError::InvalidProfile);
@@ -862,7 +870,7 @@ fn parse_capk(
         return Err(KernelError::InvalidProfile);
     }
     let source = match object.get("source") {
-        Some(value) => parse_source_object(value.as_object()?, profile_class)?,
+        Some(value) => parse_source_object(value.as_object()?, profile_class, evaluation_date)?,
         None => match (mode, profile_class) {
             (BuildMode::Test, ProfileClass::ExampleOnly) => ProfileSource {
                 owner: "unspecified_test_capk".to_string(),
@@ -1465,6 +1473,7 @@ mod tests {
             "owner": "scheme_or_acquirer",
             "document": "signed_certification_capk_bundle",
             "version": "2",
+            "retrieved": "2026-05-21",
             "verification": "external_signature_required"
           }
         }]
@@ -2156,6 +2165,14 @@ mod tests {
                 day: 21
             })
         );
+        assert_eq!(
+            profiles.schemes[0].capks[0].source.retrieved,
+            Some(EmvDate {
+                year: 26,
+                month: 5,
+                day: 21
+            })
+        );
 
         let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
         let bad_retrieved = profile.replace(r#""retrieved": "2026-05-21""#, r#""retrieved": """#);
@@ -2176,6 +2193,37 @@ mod tests {
             )
             .unwrap_err(),
             KernelError::ParseError
+        );
+
+        let future_profile_retrieved = profile.replacen(
+            r#""retrieved": "2026-05-21""#,
+            r#""retrieved": "2026-05-22""#,
+            1,
+        );
+        assert_eq!(
+            load_profile_set(
+                future_profile_retrieved.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let future_capk_retrieved = profile.replace(
+            r#""document": "signed_certification_capk_bundle",
+            "version": "2",
+            "retrieved": "2026-05-21""#,
+            r#""document": "signed_certification_capk_bundle",
+            "version": "2",
+            "retrieved": "2026-05-22""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                future_capk_retrieved.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
         );
     }
 
