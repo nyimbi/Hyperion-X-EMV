@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:07:58Z
+
+- Increment completed: align Application Usage Control (`9F07`) service checks
+  with terminal-channel and region-specific cashback bits.
+- Code impact: `ApplicationUsageControl::allows` now checks the EMV AUC
+  terminal-channel bits alongside service bits: non-ATM cash/goods/services and
+  cashback require `valid other than ATM`, ATM transactions require `valid at
+  ATM`, and cashback uses domestic/international byte-2 bits.
+- Evidence update: both RTM annexes cite
+  `restrictions::tests::auc_enforces_terminal_channel_and_region_specific_cashback_bits`
+  under KRN-REST-002.
+- Verification: `cargo test
+  auc_enforces_terminal_channel_and_region_specific_cashback_bits`, `cargo test
+  evaluates_version_dates_auc_and_new_card_bits`, `cargo test
+  rtm_promotes_processing_restriction_evidence`, `cargo fmt --check`, `cargo
+  test`, `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  and `git diff --check` passed.
+
 ## 2026-05-22T15:57:33Z
 
 - Increment completed: reject impossible card-supplied BCD dates used by

@@ -2976,6 +2976,8 @@ fn rtm_promotes_processing_restriction_evidence() {
         assert!(order.contains("evaluates_version_dates_auc_and_new_card_bits"));
 
         let non_standard = csv_row_for_requirement(csv, "KRN-REST-002").unwrap();
+        assert!(non_standard
+            .contains("auc_enforces_terminal_channel_and_region_specific_cashback_bits"));
         assert!(non_standard.contains("does_not_set_non_standard_bits_for_allowed_transaction"));
     }
 }
