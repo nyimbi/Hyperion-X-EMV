@@ -1,10 +1,12 @@
+use core::fmt;
+
 use crate::error::{KernelError, KernelResult};
 
 pub const MAX_TLV_DEPTH: usize = 8;
 pub const MAX_TLV_NODES: usize = 512;
 pub const MAX_TLV_VALUE_LENGTH: usize = 4096;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Tlv<'a> {
     pub tag: &'a [u8],
     pub value: &'a [u8],
@@ -12,11 +14,34 @@ pub struct Tlv<'a> {
     pub children: Vec<Tlv<'a>>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct FlatTlv<'a> {
     pub tag: &'a [u8],
     pub value: &'a [u8],
     pub constructed: bool,
+}
+
+impl fmt::Debug for Tlv<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Tlv")
+            .field("tag", &self.tag)
+            .field("value_len", &self.value.len())
+            .field("constructed", &self.constructed)
+            .field("child_count", &self.children.len())
+            .field("data_policy", &"TLV value bytes redacted for crash safety")
+            .finish()
+    }
+}
+
+impl fmt::Debug for FlatTlv<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FlatTlv")
+            .field("tag", &self.tag)
+            .field("value_len", &self.value.len())
+            .field("constructed", &self.constructed)
+            .field("data_policy", &"TLV value bytes redacted for crash safety")
+            .finish()
+    }
 }
 
 pub fn parse_many(input: &[u8]) -> KernelResult<Vec<Tlv<'_>>> {
@@ -163,6 +188,24 @@ mod tests {
         let tlvs = parse_many(&bytes).expect("valid TLV");
         assert_eq!(find_first(&tlvs, &[0x84]), Some(&b"1PAY.SYS.DDF01"[..]));
         assert!(tlvs[0].constructed);
+    }
+
+    #[test]
+    fn tlv_debug_redacts_parsed_values() {
+        let tlvs = parse_many(&[
+            0x77, 0x11, 0x5a, 0x08, 0xde, 0xad, 0xbe, 0xef, 0xaa, 0xbb, 0xcc, 0xdd, 0x9f, 0x26,
+            0x04, 0x11, 0x22, 0x33, 0x44,
+        ])
+        .unwrap();
+        let flat = flatten(&tlvs);
+
+        for debug in [format!("{:?}", tlvs[0]), format!("{:?}", flat[1])] {
+            assert!(debug.contains("redacted for crash safety"));
+            assert!(debug.contains("value_len"));
+            for raw_value_byte in ["222", "173", "190", "239", "170", "187", "204", "221"] {
+                assert!(!debug.contains(raw_value_byte));
+            }
+        }
     }
 
     #[test]

@@ -4,6 +4,18 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:24:34Z
+
+- Increment completed: harden parsed TLV debug output before crash capture.
+- Code impact: `Tlv` and `FlatTlv` now expose tag, value length,
+  constructed flag, and child count metadata in `Debug` output without
+  printing raw TLV values.
+- Evidence updated: KRN-LOG-003 now cites TLV parser debug redaction in
+  addition to APDU, profile/CAPK, CVM, data-store, GAC, issuer, ODA, and
+  replay crash-safety regressions.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:20:41Z
 
 - Increment completed: harden signed profile and CAPK debug output.
