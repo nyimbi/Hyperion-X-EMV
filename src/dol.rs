@@ -131,6 +131,9 @@ fn read_dol_tag(input: &[u8], offset: &mut usize) -> KernelResult<()> {
             let byte = *input.get(*offset).ok_or(KernelError::ParseError)?;
             *offset += 1;
             continuation_count += 1;
+            if continuation_count == 1 && byte & 0x7f == 0 {
+                return Err(KernelError::ParseError);
+            }
             if continuation_count > 3 {
                 return Err(KernelError::ParseError);
             }
@@ -158,6 +161,14 @@ mod tests {
         assert_eq!(
             built,
             vec![0x36, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn rejects_zero_prefixed_high_tag_numbers() {
+        assert_eq!(
+            parse_dol(&[0x9f, 0x80, 0x04, 0x01]).unwrap_err(),
+            KernelError::ParseError
         );
     }
 

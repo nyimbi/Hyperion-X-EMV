@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:07:31Z
+
+- Increment completed: reject malformed high-tag-number encodings whose first
+  continuation byte carries a zero tag-number group.
+- Research note: ISO 7816 BER-TLV tag rules reserve the high-tag-number form
+  for tag numbers whose first subsequent byte has a non-zero tag-number group.
+  Accepting `9F 80 04` would allow a non-canonical tag spelling into card and
+  DOL parser boundaries.
+- Code impact: the TLV, DOL, and ODA static-authentication tag-list readers now
+  fail closed on zero-prefixed high-tag-number encodings.
+- Evidence updated: TLV/DOL unit tests, ODA malformed tag-list coverage, TLV RTM
+  guards, and both RTM annexes now cite zero-prefixed high-tag rejection.
+- Verification: `cargo test rejects_zero_prefixed_high_tag_numbers`,
+  `cargo test rejects_malformed_static_authentication_tag_list`,
+  `cargo test rtm_promotes_tlv_catalogue_and_dol_classification_evidence`,
+  `cargo test`, `cargo test --examples`, and
+  `cargo clippy --all-targets --all-features`, `cargo fmt --check`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T05:00:40Z
 
 - Increment completed: reject non-canonical JSON numbers with leading zeroes in

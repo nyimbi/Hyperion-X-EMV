@@ -857,6 +857,9 @@ fn read_oda_tag(input: &[u8], offset: &mut usize) -> KernelResult<bool> {
             let byte = *input.get(*offset).ok_or(KernelError::ParseError)?;
             *offset += 1;
             continuation_count += 1;
+            if continuation_count == 1 && byte & 0x7f == 0 {
+                return Err(KernelError::ParseError);
+            }
             if continuation_count > 3 {
                 return Err(KernelError::ParseError);
             }
@@ -1558,6 +1561,15 @@ mod tests {
         constructed_tag.put(&[0x9f, 0x4a], &[0xa5]).unwrap();
         assert_eq!(
             build_static_authentication_data(&records, &constructed_tag).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut zero_prefixed_high_tag = DataStore::new();
+        zero_prefixed_high_tag
+            .put(&[0x9f, 0x4a], &[0x9f, 0x80, 0x04])
+            .unwrap();
+        assert_eq!(
+            build_static_authentication_data(&records, &zero_prefixed_high_tag).unwrap_err(),
             KernelError::ParseError
         );
     }

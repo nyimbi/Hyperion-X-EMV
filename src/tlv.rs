@@ -155,6 +155,9 @@ fn read_tag(input: &[u8], offset: &mut usize) -> KernelResult<bool> {
             let byte = *input.get(*offset).ok_or(KernelError::ParseError)?;
             *offset += 1;
             continuation_count += 1;
+            if continuation_count == 1 && byte & 0x7f == 0 {
+                return Err(KernelError::ParseError);
+            }
             if continuation_count > 3 {
                 return Err(KernelError::ParseError);
             }
@@ -255,6 +258,12 @@ mod tests {
     #[test]
     fn rejects_indefinite_lengths_for_fuzzability() {
         let err = parse_many(&[0x5a, 0x80, 0x00, 0x00]).unwrap_err();
+        assert_eq!(err, KernelError::ParseError);
+    }
+
+    #[test]
+    fn rejects_zero_prefixed_high_tag_numbers() {
+        let err = parse_many(&[0x9f, 0x80, 0x04, 0x01, 0x00]).unwrap_err();
         assert_eq!(err, KernelError::ParseError);
     }
 
