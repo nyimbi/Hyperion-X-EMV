@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:44:28Z
+
+- Increment completed: align the lab manifest's decoder coverage statement
+  with the current `krn_emv_decode` command surface.
+- Documentation impact: the pre-lab decoder utility line now names
+  `numeric-code` alongside TLV, DOL, primitive tag-list, CVM-list, bitmap,
+  CID, GENERATE AC, status-word, command APDU, and response APDU triage.
+- Evidence updated: the traceability foundation guard now requires the lab
+  manifest to mention `numeric-code`, preventing future drift between decoder
+  functionality and submission-facing coverage language.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T21:41:34Z
 
 - Increment completed: make the repository-controlled pre-lab trace scenarios

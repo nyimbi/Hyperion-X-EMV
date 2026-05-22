@@ -1448,6 +1448,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("numeric-code"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CID"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("GENERATE AC response"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
