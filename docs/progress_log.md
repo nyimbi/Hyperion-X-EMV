@@ -2105,3 +2105,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:49:47Z
+
+- Increment completed: make performance counter overflow handling explicit
+  and traceable.
+- Research note: formal performance reports remain external certification
+  evidence, but repository-controlled timing evidence can prove ODA crypto, TLV,
+  and APDU timing accumulators fail closed instead of wrapping impossible
+  microsecond totals.
+- Code impact: performance accumulation now has a regression proving per-stage
+  counter overflow, aggregate `kernel_only_micros` overflow, and target
+  evaluation overflow all return `LengthOverflow`.
+- Evidence updated: current and compatibility RTM annexes cite the performance
+  counter overflow regression for `KRN-PERF-001`.
+- Verification: `cargo test rejects_performance_counter_overflow`,
+  `cargo test rtm_promotes_performance_profile_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

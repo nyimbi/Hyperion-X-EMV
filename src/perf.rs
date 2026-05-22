@@ -160,6 +160,41 @@ mod tests {
     }
 
     #[test]
+    fn rejects_performance_counter_overflow() {
+        let mut stage_overflow = PerfAccumulator::new();
+        stage_overflow.record(PerfStage::OdaRsa, u64::MAX).unwrap();
+        assert_eq!(
+            stage_overflow.record(PerfStage::OdaRsa, 1).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        let mut total_overflow = PerfAccumulator::new();
+        total_overflow.record(PerfStage::OdaRsa, u64::MAX).unwrap();
+        total_overflow.record(PerfStage::TlvParsing, 1).unwrap();
+        assert_eq!(
+            total_overflow.kernel_only_micros().unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        let permissive_target = PerformanceTarget {
+            profile_id: "overflow-harness".to_string(),
+            tier: "test".to_string(),
+            device_class: "test harness".to_string(),
+            oda_rsa_us_max: u64::MAX,
+            oda_ecc_us_max: u64::MAX,
+            tlv_parse_us_max: u64::MAX,
+            apdu_overhead_us_max: u64::MAX,
+            kernel_only_us_max: u64::MAX,
+            test_id: "KRN-PERF-001;KRN-PERF-002".to_string(),
+        };
+        assert_eq!(
+            total_overflow
+                .within_target(&permissive_target)
+                .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn validates_product_performance_profile_targets() {
         let targets = parse_performance_profile(PERFORMANCE_PROFILE).unwrap();
         assert_eq!(targets.len(), 2);

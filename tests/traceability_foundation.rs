@@ -1214,6 +1214,7 @@ fn rtm_promotes_performance_profile_evidence() {
             "KRN-PERF-001 should cite concrete performance bucket evidence"
         );
         assert!(buckets.contains("records_oda_crypto_tlv_and_apdu_buckets_separately"));
+        assert!(buckets.contains("rejects_performance_counter_overflow"));
         assert!(buckets.contains("performance_profile_defines_product_targets_and_buckets"));
         assert!(buckets.contains("rtm_promotes_performance_profile_evidence"));
 
