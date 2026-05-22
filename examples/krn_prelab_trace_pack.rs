@@ -64,6 +64,19 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
     append_case(
         &mut out,
         PrelabTraceCase {
+            case_id: "prelab.masking.track2-record",
+            script: track2_record_masking_script()?,
+            expected_step_count: 1,
+            expected_fsm_events: &["RecordRead"],
+            expected_fsm_actions: &["ReadRecords"],
+            expected_status_actions: &[],
+            expected_terminal_outcome: "record-data-collected",
+            masking_assertions: &["full-apdu-disabled", "track2-suppressed"],
+        },
+    )?;
+    append_case(
+        &mut out,
+        PrelabTraceCase {
             case_id: "prelab.masking.follow-up-status",
             script: followup_status_masking_script()?,
             expected_step_count: 4,
@@ -178,6 +191,16 @@ fn issuer_auth_script_masking_script() -> KernelResult<ReplayScript> {
         ApduTraceContext::Generic,
     )?;
     ReplayScript::new(vec![external_authenticate, issuer_script_warning])
+}
+
+fn track2_record_masking_script() -> KernelResult<ReplayScript> {
+    let track2_record = ReplayExchange::new(
+        &decode_hex("00B2021400")?,
+        &decode_hex("7010570E123456789012D25122012345678F")?,
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )?;
+    ReplayScript::new(vec![track2_record])
 }
 
 fn followup_status_masking_script() -> KernelResult<ReplayScript> {

@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:38:25Z
+
+- Increment completed: expand the repository-controlled pre-lab APDU trace pack
+  with Track 2 masking coverage for READ RECORD responses.
+- Code impact: `examples/krn_prelab_trace_pack.rs` now emits a
+  `prelab.masking.track2-record` case with deterministic scenario metadata,
+  trace identity, a READ RECORD command, and a Template `70` response carrying
+  tag `57`; production masking suppresses Track 2 data before JSONL emission.
+- Evidence update: `docs/prelab_apdu_trace_pack.jsonl` regenerates exactly
+  from the example, traceability assertions prove four scoped trace-pack cases
+  and reject raw Track 2 substrings, the lab manifest now names Track 2
+  suppression, and the open-source adaptation backlog records it as maintained
+  trace-pack coverage without closing `CERT-OPEN-012`.
+- Verification: `cargo run --quiet --example krn_prelab_trace_pack | diff -u
+  docs/prelab_apdu_trace_pack.jsonl -`, `cargo test
+  prelab_apdu_trace_pack_is_replayable_masked_and_scoped`, `cargo test
+  lab_manifest_and_provenance_cover_reproducible_build_artifacts`, `cargo test`,
+  `cargo fmt --check`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T13:32:09Z
 
 - Increment completed: extend the pre-lab decoder utility with CID inspection
