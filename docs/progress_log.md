@@ -4,6 +4,44 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T07:17:06Z
+
+- Increment completed: add a public standards-watch annex and wire it into the
+  lab manifest, open-issues register, ABI conformance statement, quality gates,
+  and build-provenance command.
+- Research note: the EMVCo public specifications surface now shows Book C-8
+  Kernel Specification v1.1 and SB 325 updates to Book C-8 v1.0. The repository
+  remains scoped to C-8 v1.0 until licensed review and lab target selection, so
+  public drift is now tracked explicitly instead of silently broadening the
+  contactless claim.
+- Code impact: `baseline_conformance_statement` and
+  `prelab_quality_gates_json` now include `docs/standards_watch.md`, and
+  `CERT-OPEN-005` requires licensed v1.0/v1.1 and SB 325 reconciliation before
+  any final C-8 certification claim.
+- Evidence updated: `standards_watch.md`, `spec.md`, the lab manifest, the
+  open-issues register, generated ABI JSON, generated quality gates, and
+  traceability guards now preserve the current public-standard drift boundary.
+- Verification: `cargo run --quiet --example krn_abi_conformance_statement |
+  diff -u docs/abi_conformance_statement.json -`,
+  `cargo run --quiet --example krn_prelab_quality_gates | diff -u
+  docs/prelab_quality_gates.json -`, `cargo run --quiet --example
+  krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md
+  docs/lab_submission_manifest.md docs/requirements_traceability.csv
+  docs/scheme_profiles.cert.json docs/oda_test_vectors.json
+  docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv
+  docs/performance_profile.csv docs/abi_conformance_statement.json
+  docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json
+  docs/certification_open_issues.md docs/standards_watch.md
+  examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs
+  examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs`,
+  `cargo test certification_open_issues_register_tracks_external_blockers`,
+  `cargo test lab_manifest_and_provenance_cover_reproducible_build_artifacts`,
+  `cargo test krn_ref_001_conformance_statement_declares_normative_hierarchy`,
+  and `cargo test prelab_quality_gates_are_reproducible_and_do_not_close_external_reports`
+  passed, followed by `cargo test`, `cargo test --examples`,
+  `cargo fmt --check`, `cargo clippy --all-targets --all-features`, and
+  `git diff --check`.
+
 ## 2026-05-22T07:10:05Z
 
 - Increment completed: make the pre-lab GENERATE AC replay fixture use a

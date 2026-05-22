@@ -9,7 +9,9 @@
 files, forms a controlled pre-certification engineering baseline. Licensed
 EMVCo, scheme, acquirer, PCI PTS, and laboratory documents prevail on conflict,
 and final certification requires signed profiles, lab-supplied cryptographic
-vectors, conformance traces, and approval artifacts.
+vectors, conformance traces, and approval artifacts. Public standards drift is
+tracked in `docs/standards_watch.md`; it does not override the licensed review
+or laboratory target selected for submission.
 
 ---
 

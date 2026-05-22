@@ -69,6 +69,7 @@ const GENERATED_FROM: &[&str] = &[
     "docs/requirements-traceability-matrix.csv",
     "docs/lab_submission_manifest.md",
     "docs/certification_open_issues.md",
+    "docs/standards_watch.md",
     "docs/tlv_catalogue.csv",
     "docs/state_machine.csv",
     "docs/bitmap_catalogue.csv",
@@ -84,6 +85,7 @@ const CERTIFICATION_CONDITIONS: &[&str] = &[
     "Licensed external standards prevail over docs/spec.md and annexes on conflict.",
     "docs/oda_test_vectors.json is a structural fixture annex unless vector_class is CERTIFICATION.",
     "docs/certification_open_issues.md remains the controlling register for external blockers.",
+    "docs/standards_watch.md records public standards drift but does not replace licensed review.",
     "Repository ABI JSON does not close CERT-OPEN-011 signed EMVCo/lab conformance template requirement.",
     "Production certification requires signed configuration, scheme profiles, CAPKs, traces, and lab approval.",
 ];

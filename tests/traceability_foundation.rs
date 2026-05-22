@@ -97,6 +97,7 @@ const BITMAP_CATALOGUE: &str = include_str!("../docs/bitmap_catalogue.csv");
 const PERFORMANCE_PROFILE: &str = include_str!("../docs/performance_profile.csv");
 const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manifest.md");
 const CERTIFICATION_OPEN_ISSUES: &str = include_str!("../docs/certification_open_issues.md");
+const STANDARDS_WATCH: &str = include_str!("../docs/standards_watch.md");
 const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
 const PRELAB_QUALITY_GATES: &str = include_str!("../docs/prelab_quality_gates.json");
 
@@ -1332,12 +1333,14 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("abi_conformance_statement.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_abi_conformance_statement"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Public standards watch"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("standards_watch.md"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_apdu_trace_pack.jsonl"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_quality_gates.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
 
     let mut input_paths = vec![
@@ -1354,6 +1357,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/requirements_traceability.csv".to_string(),
         "docs/scheme_profiles.cert.json".to_string(),
         "docs/spec.md".to_string(),
+        "docs/standards_watch.md".to_string(),
         "docs/state_machine.csv".to_string(),
         "docs/tlv_catalogue.csv".to_string(),
         "examples/krn_abi_conformance_statement.rs".to_string(),
@@ -1403,6 +1407,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/requirements_traceability.csv",
         "docs/scheme_profiles.cert.json",
         "docs/spec.md",
+        "docs/standards_watch.md",
         "docs/state_machine.csv",
         "docs/tlv_catalogue.csv",
         "examples/krn_abi_conformance_statement.rs",
@@ -1543,6 +1548,7 @@ fn certification_open_issues_register_tracks_external_blockers() {
         "Scheme/acquirer-approved CAPK set",
         "Lab-supplied SDA, DDA, and CDA cryptographic vectors",
         "C-8 approval package",
+        "licensed v1.0/v1.1 and SB 325 reconciliation",
         "Target terminal, contact interface, contactless reader",
         "PCI PTS POI integration statement",
         "Penetration test report",
@@ -1571,6 +1577,11 @@ fn certification_open_issues_register_tracks_external_blockers() {
     assert!(CERTIFICATION_OPEN_ISSUES.contains("ABI JSON statement does not close"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab fixture does not close"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("Full lab trace pack is attached"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("lab-selected C-8 version/bulletin set"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("C-8 v1.1 / SB 325"));
+    assert!(STANDARDS_WATCH.contains("Book C-8 Kernel Specification v1.1"));
+    assert!(STANDARDS_WATCH.contains("SB 325"));
+    assert!(STANDARDS_WATCH.contains("Do not close `CERT-OPEN-005`"));
 }
 
 #[test]
@@ -1605,6 +1616,7 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "docs/spec.md",
             "docs/lab_submission_manifest.md",
             "docs/certification_open_issues.md",
+            "docs/standards_watch.md",
             "docs/prelab_apdu_trace_pack.jsonl",
             "docs/prelab_quality_gates.json",
             "docs/scheme_profiles.cert.json",
@@ -1619,6 +1631,7 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "Licensed external standards prevail",
             "docs/oda_test_vectors.json is a structural fixture annex unless vector_class is CERTIFICATION",
             "docs/certification_open_issues.md remains the controlling register for external blockers",
+            "docs/standards_watch.md records public standards drift but does not replace licensed review",
             "Repository ABI JSON does not close CERT-OPEN-011 signed EMVCo/lab conformance template requirement",
         ] {
             assert!(
@@ -5310,7 +5323,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_abi_conformance_statement | diff -u docs/abi_conformance_statement.json -",
         "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
