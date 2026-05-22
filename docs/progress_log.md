@@ -2442,3 +2442,25 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T11:42:06Z
+
+- Increment completed: separate offline PIN facility capability from
+  PED-owned offline PIN handles in the stable FFI surface.
+- Code impact: added an additive `krn_set_offline_pin_capability` ABI setter
+  while preserving the existing `krn_set_cvm_capabilities` signature. Runtime
+  CVM processing now treats offline PIN as supported when either the declared
+  facility flag is set or a method-specific PED handle is present.
+- Evidence updated: `ffi::tests::offline_pin_capability_is_separate_from_ped_handle`
+  proves the new setter is boolean-validated and call-order safe with the
+  existing CVM capability setter. `ffi::tests::cvm_processing_persists_pin_not_entered_tvr_when_handle_missing`
+  proves a terminal with offline PIN capability but no entered PIN preserves
+  `B3_PIN_NOT_ENTERED` in tag `95` while a later online PIN succeeds. Both RTM
+  CSVs cite the evidence under `KRN-CVMCAP-001` and `KRN-CVM-002`.
+- Verification: `cargo fmt`,
+  `cargo test offline_pin_capability_is_separate_from_ped_handle`,
+  `cargo test cvm_processing_persists_pin_not_entered_tvr_when_handle_missing`,
+  `cargo test rtm_promotes_cvm_outcome_evidence`, and
+  `cargo test rtm_promotes_cvm_pin_capability_evidence`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

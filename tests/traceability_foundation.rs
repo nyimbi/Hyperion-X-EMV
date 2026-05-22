@@ -1113,6 +1113,7 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(outcome.contains("pin_cvm_unavailable_sets_specific_tvr_bits"));
         assert!(outcome.contains("cvm_processing_persists_unrecognized_tvr_on_later_success"));
         assert!(outcome.contains("cvm_processing_persists_missing_pin_pad_tvr_on_later_success"));
+        assert!(outcome.contains("cvm_processing_persists_pin_not_entered_tvr_when_handle_missing"));
         assert!(outcome.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(outcome.contains("rtm_promotes_cvm_outcome_evidence"));
     }
@@ -1130,6 +1131,7 @@ fn rtm_promotes_cvm_pin_capability_evidence() {
         assert!(
             capabilities.contains("terminal_support_condition_matches_candidate_cvm_capability")
         );
+        assert!(capabilities.contains("offline_pin_capability_is_separate_from_ped_handle"));
         assert!(capabilities.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(capabilities.contains("rtm_promotes_cvm_pin_capability_evidence"));
 

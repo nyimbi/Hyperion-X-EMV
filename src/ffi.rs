@@ -166,6 +166,7 @@ struct SelectedApplication {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct RuntimeCvmCapabilities {
+    offline_pin_supported: bool,
     online_pin_supported: bool,
     signature_supported: bool,
     cdcvm_performed: bool,
@@ -535,10 +536,38 @@ pub unsafe extern "C" fn krn_set_cvm_capabilities(
         let signature_supported = bool_flag(signature_supported)?;
         let cdcvm_performed = bool_flag(cdcvm_performed)?;
         ctx.cvm_capabilities = RuntimeCvmCapabilities {
+            offline_pin_supported: ctx.cvm_capabilities.offline_pin_supported,
             online_pin_supported,
             signature_supported,
             cdcvm_performed,
         };
+        Ok(0usize)
+    })();
+    ctx.set_result(result)
+}
+
+/// Registers whether an offline PIN facility is available for the transaction.
+///
+/// This capability is separate from PED-owned PIN handles: a terminal can have
+/// an offline PIN pad but receive no entered PIN for a specific transaction.
+/// The flag is cleared whenever new transaction parameters are set.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_offline_pin_capability(
+    ctx: *mut KrnContext,
+    offline_pin_supported: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        ctx.cvm_capabilities.offline_pin_supported = bool_flag(offline_pin_supported)?;
         Ok(0usize)
     })();
     ctx.set_result(result)
@@ -2094,7 +2123,8 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
             } else {
                 CvmInterface::Contact
             },
-            offline_pin_supported: ctx.cvm_pin_handles.offline_plaintext.is_some()
+            offline_pin_supported: ctx.cvm_capabilities.offline_pin_supported
+                || ctx.cvm_pin_handles.offline_plaintext.is_some()
                 || ctx.cvm_pin_handles.offline_enciphered.is_some(),
             online_pin_supported: ctx.cvm_capabilities.online_pin_supported,
             signature_supported: ctx.cvm_capabilities.signature_supported,
@@ -3719,6 +3749,7 @@ mod tests {
             .put(&[0x8e], &[0, 0, 0, 0, 0, 0, 0, 0, 0x47, 0x00, 0x02, 0x00])
             .unwrap();
         ctx.cvm_capabilities = RuntimeCvmCapabilities {
+            offline_pin_supported: false,
             online_pin_supported: true,
             signature_supported: false,
             cdcvm_performed: false,
@@ -3754,6 +3785,39 @@ mod tests {
     }
 
     #[test]
+    fn offline_pin_capability_is_separate_from_ped_handle() {
+        unsafe {
+            let ctx = krn_context_new();
+            assert!(!ctx.is_null());
+
+            assert_eq!(
+                krn_set_offline_pin_capability(ptr::null_mut(), 0),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_offline_pin_capability(ctx, 2),
+                KernelError::InvalidArgument.code()
+            );
+            assert!(!(*ctx).cvm_capabilities.offline_pin_supported);
+
+            assert_eq!(
+                krn_set_offline_pin_capability(ctx, 1),
+                KernelError::Ok.code()
+            );
+            assert!((*ctx).cvm_capabilities.offline_pin_supported);
+
+            assert_eq!(
+                krn_set_cvm_capabilities(ctx, 1, 0, 0),
+                KernelError::Ok.code()
+            );
+            assert!((*ctx).cvm_capabilities.offline_pin_supported);
+            assert!((*ctx).cvm_capabilities.online_pin_supported);
+
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
     fn cvm_processing_persists_missing_pin_pad_tvr_on_later_success() {
         let mut ctx = KrnContext::new();
         ctx.fsm_state = FsmState::S7;
@@ -3762,6 +3826,7 @@ mod tests {
             .put(&[0x8e], &[0, 0, 0, 0, 0, 0, 0, 0, 0x41, 0x00, 0x02, 0x00])
             .unwrap();
         ctx.cvm_capabilities = RuntimeCvmCapabilities {
+            offline_pin_supported: false,
             online_pin_supported: true,
             signature_supported: false,
             cdcvm_performed: false,
@@ -3793,6 +3858,51 @@ mod tests {
         assert_eq!(
             ctx.card_data.get(&[0x95]),
             Some(&[0x00, 0x00, 0x14, 0x00, 0x00][..])
+        );
+    }
+
+    #[test]
+    fn cvm_processing_persists_pin_not_entered_tvr_when_handle_missing() {
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S7;
+        ctx.state = KernelState::Cvm;
+        ctx.card_data
+            .put(&[0x8e], &[0, 0, 0, 0, 0, 0, 0, 0, 0x41, 0x00, 0x02, 0x00])
+            .unwrap();
+        ctx.cvm_capabilities = RuntimeCvmCapabilities {
+            offline_pin_supported: true,
+            online_pin_supported: true,
+            signature_supported: false,
+            cdcvm_performed: false,
+        };
+        let params = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        };
+
+        assert_eq!(run_cvm_processing(&mut ctx, &params), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S8);
+        assert!(ctx.tvr.is_set(Tvr::B3_PIN_NOT_ENTERED));
+        assert!(ctx.tvr.is_set(Tvr::B3_ONLINE_PIN_ENTERED));
+        assert!(!ctx.tvr.is_set(Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING));
+        assert!(!ctx
+            .tvr
+            .is_set(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL));
+        assert_eq!(
+            ctx.card_data.get(&[0x9f, 0x34]),
+            Some(&[0x02, 0x00, 0x02][..])
+        );
+        assert_eq!(
+            ctx.card_data.get(&[0x95]),
+            Some(&[0x00, 0x00, 0x0c, 0x00, 0x00][..])
         );
     }
 
