@@ -3706,3 +3706,33 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_gac_cdol_encoding_and_response_evidence`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T20:10:50Z
+
+- Increment completed: retain every eligible card ADF name that matches a
+  partial signed-profile AID during PSE/PPSE candidate matching.
+- Research note: public standards drift was rechecked against official EMVCo
+  and PCI SSC sources before selecting this slice; the standards-watch annex
+  already guards the current public C-8 and PCI PTS boundary. The runtime gap
+  addressed here is repository-controlled: partial-selection matching must not
+  silently drop card applications that share the same certified profile prefix.
+- Code impact: `match_profile_candidates` now rejects duplicate card candidate
+  inputs before profile matching, emits one `SelectionCandidate` per matching
+  card ADF/profile pair, and preserves deterministic ordering through the
+  existing candidate sorter. The final SELECT AID remains the full card ADF
+  name while the signed profile AID continues to identify the certified rule
+  set.
+- Evidence updated:
+  `partial_selection_retains_all_matching_card_adf_names` covers multi-ADF
+  partial matches, `rejects_duplicate_card_candidates_before_profile_matching`
+  covers defensive duplicate rejection, and
+  `krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles` now
+  checks the traceability-level multi-candidate case. Both RTM CSVs cite the new
+  selection evidence under `KRN-SEL-001` and `KRN-SEL-002`.
+- Verification: `cargo fmt`,
+  `cargo test partial_selection_retains_all_matching_card_adf_names`,
+  `cargo test rejects_duplicate_card_candidates_before_profile_matching`,
+  `cargo test krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles`,
+  `cargo test rtm_promotes_runtime_apdu_selection_status_policy_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

@@ -800,6 +800,8 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
             assert!(row.contains("rejects_duplicate_adf_names_in_directory_entries"));
             assert!(row.contains("rejects_duplicate_adf_names_across_directory_entries"));
             assert!(row.contains("rejects_candidate_aid_lists_above_limit"));
+            assert!(row.contains("partial_selection_retains_all_matching_card_adf_names"));
+            assert!(row.contains("rejects_duplicate_card_candidates_before_profile_matching"));
             assert!(row.contains("krn_sel_001_exact_pse_ppse_apdus_are_stable"));
             assert!(
                 row.contains("krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles")
@@ -811,6 +813,7 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
         assert!(
             pse_selection.contains("partial_selection_preserves_card_adf_name_for_final_select")
         );
+        assert!(pse_selection.contains("partial_selection_retains_all_matching_card_adf_names"));
         assert!(pse_selection.contains("runtime_partial_selection_uses_card_adf_name_for_select"));
 
         for id in ["KRN-APDU-002", "KRN-APDU-003", "KRN-SEL-003"] {
@@ -4110,6 +4113,32 @@ fn krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles() {
         .unwrap()
         .remove(0);
     assert_eq!(selected.aid, hex("A0000000031010"));
+
+    let mut partial_profiles = profiles.clone();
+    partial_profiles.schemes[0].aids[0].aid = hex("A000000003");
+    partial_profiles.schemes[0].aids[0].partial_selection = true;
+    let partial = match_profile_candidates(
+        &partial_profiles,
+        Interface::Contact,
+        &[
+            hex("A0000000032020"),
+            hex("A0000000031010"),
+            hex("A0000000041010"),
+        ],
+    )
+    .unwrap();
+    let visa_partial = partial
+        .iter()
+        .filter(|candidate| candidate.aid == hex("A000000003"))
+        .collect::<Vec<_>>();
+    assert_eq!(visa_partial.len(), 2);
+    assert_eq!(
+        visa_partial
+            .iter()
+            .map(|candidate| candidate.select_aid.clone())
+            .collect::<Vec<_>>(),
+        vec![hex("A0000000031010"), hex("A0000000032020")]
+    );
 }
 
 #[test]

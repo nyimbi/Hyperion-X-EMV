@@ -87,6 +87,7 @@ pub fn match_profile_candidates(
     if card_candidates.len() > MAX_CANDIDATE_AIDS {
         return Err(KernelError::LengthOverflow);
     }
+    reject_duplicate_card_candidates(card_candidates)?;
 
     let mut out = Vec::new();
     for (scheme_index, scheme) in profiles.schemes.iter().enumerate() {
@@ -98,13 +99,16 @@ pub fn match_profile_candidates(
             {
                 continue;
             }
-            if let Some(card_aid) = card_candidates
+            for card_aid in card_candidates
                 .iter()
-                .find(|card| aid_matches(card, &aid.aid, aid.partial_selection))
+                .filter(|card| aid_matches(card, &aid.aid, aid.partial_selection))
             {
+                if out.len() >= MAX_CANDIDATE_AIDS {
+                    return Err(KernelError::LengthOverflow);
+                }
                 out.push(SelectionCandidate {
                     aid: aid.aid.clone(),
-                    select_aid: (*card_aid).clone(),
+                    select_aid: card_aid.clone(),
                     scheme_index,
                     aid_index,
                     priority: aid.priority,
@@ -118,6 +122,18 @@ pub fn match_profile_candidates(
         return Err(KernelError::NoCommonAid);
     }
     Ok(out)
+}
+
+fn reject_duplicate_card_candidates(card_candidates: &[Vec<u8>]) -> KernelResult<()> {
+    for (index, candidate) in card_candidates.iter().enumerate() {
+        if card_candidates[..index]
+            .iter()
+            .any(|prior| prior == candidate)
+        {
+            return Err(KernelError::ParseError);
+        }
+    }
+    Ok(())
 }
 
 fn push_unique_aid(out: &mut Vec<Vec<u8>>, aid: &[u8]) -> KernelResult<()> {
@@ -304,6 +320,54 @@ mod tests {
         assert_eq!(
             candidates[0].select_aid,
             vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]
+        );
+    }
+
+    #[test]
+    fn partial_selection_retains_all_matching_card_adf_names() {
+        let mut profiles = profiles();
+        profiles.schemes[0].aids[0].aid = vec![0xa0, 0x00, 0x00, 0x00, 0x03];
+        profiles.schemes[0].aids[0].partial_selection = true;
+
+        let candidates = match_profile_candidates(
+            &profiles,
+            Interface::Contact,
+            &[
+                vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x20, 0x20],
+                vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10],
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates
+            .iter()
+            .all(|candidate| candidate.aid == vec![0xa0, 0x00, 0x00, 0x00, 0x03]));
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.select_aid.as_slice())
+                .collect::<Vec<_>>(),
+            vec![
+                &[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10][..],
+                &[0xa0, 0x00, 0x00, 0x00, 0x03, 0x20, 0x20][..],
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_card_candidates_before_profile_matching() {
+        assert_eq!(
+            match_profile_candidates(
+                &profiles(),
+                Interface::Contact,
+                &[
+                    vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10],
+                    vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10],
+                ],
+            )
+            .unwrap_err(),
+            KernelError::ParseError
         );
     }
 
