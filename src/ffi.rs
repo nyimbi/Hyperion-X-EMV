@@ -669,10 +669,10 @@ pub unsafe extern "C" fn krn_load_profiles_verified(
 
 /// Runs a transaction through the stable ABI entrypoint.
 ///
-/// The full callback-driven runner is not complete yet. Until mandatory
-/// transport/runtime callbacks are registered by a future initialization API,
-/// this function fails explicitly and leaves the context in the error state
-/// rather than returning a synthetic payment outcome.
+/// The runner requires a context created by [`krn_init`] with mandatory runtime
+/// callbacks and a verified profile set. Missing callbacks, parameters, or
+/// profiles fail explicitly and leave the context in the error state rather
+/// than returning a synthetic payment outcome.
 ///
 /// # Safety
 ///
@@ -1634,7 +1634,12 @@ fn read_application_records(
     for (index, locator) in plan.iter().enumerate() {
         ctx.state = KernelState::ReadRecords;
         let command = apdu::read_record(locator.record, locator.sfi)?.encode()?;
-        let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
+        let response = transmit_apdu_with_followups(
+            runtime,
+            &command,
+            APDU_TRANSMIT_TIMEOUT_MS,
+            ApduContext::ReadRecord,
+        )?;
         if response.len() < 2 {
             return Err(KernelError::ParseError);
         }
@@ -2454,7 +2459,12 @@ fn run_first_generate_ac(
     )?;
     let cda_control = cda_request_control_for_first_gac(ctx)?;
     let command = apdu::generate_ac(request, &cdol_values, cda_control)?.encode()?;
-    let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
+    let response = transmit_apdu_with_followups(
+        runtime,
+        &command,
+        APDU_TRANSMIT_TIMEOUT_MS,
+        ApduContext::GenerateAc,
+    )?;
     if response.len() < 2 {
         return Err(KernelError::ParseError);
     }
@@ -2593,7 +2603,12 @@ fn run_issuer_authentication(
         .and_then(|response| response.issuer_authentication_data.as_deref())
         .ok_or(KernelError::InvalidArgument)?;
     let command = apdu::external_authenticate(issuer_authentication_data)?.encode()?;
-    let response = transmit_apdu(runtime, &command, APDU_TRANSMIT_TIMEOUT_MS)?;
+    let response = transmit_apdu_with_followups(
+        runtime,
+        &command,
+        APDU_TRANSMIT_TIMEOUT_MS,
+        ApduContext::ExternalAuthenticate,
+    )?;
     if response.len() < 2 {
         return Err(KernelError::ParseError);
     }
@@ -3167,7 +3182,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     };
-    let gpo_response = match transmit_apdu(runtime, &gpo, APDU_TRANSMIT_TIMEOUT_MS) {
+    let gpo_response = match transmit_apdu_with_followups(
+        runtime,
+        &gpo,
+        APDU_TRANSMIT_TIMEOUT_MS,
+        ApduContext::Gpo,
+    ) {
         Ok(response) => response,
         Err(err) => {
             ctx.last_error = err;
@@ -4694,6 +4714,17 @@ mod tests {
                 5 => first_gac_arqc_response(),
                 _ => vec![0x6a, 0x80],
             },
+            3 => match count {
+                0 => pse_directory_response(),
+                1 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]),
+                2 => vec![0x61, (gpo_aip_afl_response().len() - 2) as u8],
+                3 => gpo_aip_afl_response(),
+                4 => vec![0x61, (application_record_response().len() - 2) as u8],
+                5 => application_record_response(),
+                6 => vec![0x6c, (first_gac_arqc_response().len() - 2) as u8],
+                7 => first_gac_arqc_response(),
+                _ => vec![0x6a, 0x80],
+            },
             _ => vec![0x6a, 0x80],
         };
         let capacity = *resp_len;
@@ -4819,6 +4850,8 @@ mod tests {
             2 if count == 0 => vec![0x6c, 0x02],
             2 if command[1] == 0xda && command.last() == Some(&0x02) => vec![0x90, 0x00],
             3 => vec![0x61, 0x02],
+            4 if command[1] == 0x82 => vec![0x61, 0x02],
+            4 if command[1] == 0xc0 => vec![0x90, 0x00],
             _ => vec![0x6a, 0x80],
         };
         let capacity = *resp_len;
@@ -5492,6 +5525,70 @@ mod tests {
     }
 
     #[test]
+    fn runtime_core_flow_resolves_gpo_record_and_gac_followups() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        unsafe {
+            let script = SelectionStatusPolicyScript {
+                counter: AtomicUsize::new(0),
+                mode: 3,
+                commands: Mutex::new(Vec::new()),
+            };
+            let mut ctx = ptr::null_mut();
+            let runtime = KrnRuntime {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnRuntime>() as u32,
+                transmit_apdu: Some(capture_selection_status_policy_apdu),
+                get_unpredictable_number: Some(fill_unpredictable_number),
+                contactless_outcome: None,
+                user_data: &script as *const SelectionStatusPolicyScript as *mut c_void,
+            };
+            assert_eq!(
+                krn_init(ptr::null(), &runtime, &mut ctx),
+                KernelError::Ok.code()
+            );
+            let profiles = include_bytes!("../docs/scheme_profiles.cert.json");
+            assert_eq!(
+                krn_load_profiles_verified(ctx, profiles.as_ptr(), profiles.len(), 1, 2, 26, 5, 21),
+                KernelError::Ok.code()
+            );
+            let params = KrnTxnParams {
+                struct_size: mem::size_of::<KrnTxnParams>() as u32,
+                amount_authorised_minor: 2_000,
+                amount_other_minor: 0,
+                currency_code: 840,
+                currency_exponent: 2,
+                terminal_country_code: 840,
+                transaction_type: 0,
+                terminal_type: 0x22,
+                merchant_category_code: [0x53, 0x11],
+                interface_preference: 1,
+                merchant_name_location: ptr::null(),
+                merchant_name_location_len: 0,
+            };
+            assert_eq!(
+                krn_set_transaction_params(ctx, &params),
+                KernelError::Ok.code()
+            );
+
+            assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired.code());
+            assert_eq!(krn_get_last_error(ctx), KernelError::Ok.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::S11.code());
+
+            let commands = script.commands.lock().unwrap();
+            assert_eq!(commands.len(), 8);
+            assert_eq!(commands[2][1], 0xa8);
+            assert_eq!(commands[3], vec![0x00, 0xc0, 0x00, 0x00, 0x0c]);
+            assert_eq!(commands[4][1], 0xb2);
+            assert_eq!(commands[5][1], 0xc0);
+            assert_eq!(commands[6][1], 0xae);
+            assert_eq!(*commands[7].last().unwrap(), 0x1c);
+            assert_eq!(commands[7][1], 0xae);
+            drop(commands);
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
     fn ffi_reports_loaded_profile_version_for_log_identity() {
         unsafe {
             let ctx = krn_context_new();
@@ -5855,6 +5952,36 @@ mod tests {
         assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
         ISSUER_AUTH_SW1.store(0x90, Ordering::SeqCst);
         ISSUER_AUTH_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn issuer_authentication_resolves_get_response_followup() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S12;
+        ctx.state = KernelState::IssuerAuthentication;
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: Some(vec![0x11, 0x22, 0x33, 0x44]),
+            scripts: Vec::new(),
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_script_followup_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        FOLLOWUP_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        SCRIPT_FOLLOWUP_MODE.store(4, Ordering::SeqCst);
+        assert_eq!(run_issuer_authentication(&mut ctx, runtime), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S13);
+        assert_eq!(ctx.state, KernelState::IssuerScripts);
+        assert!(ctx.tsi.is_set(Tsi::ISSUER_AUTHENTICATION_PERFORMED));
+        assert!(!ctx.tvr.is_set(Tvr::B5_ISSUER_AUTHENTICATION_FAILED));
+        assert_eq!(FOLLOWUP_TRANSMIT_COUNT.load(Ordering::SeqCst), 2);
+        assert_eq!(FOLLOWUP_TRANSMITTED_INS.load(Ordering::SeqCst), 0xc0);
+        SCRIPT_FOLLOWUP_MODE.store(0, Ordering::SeqCst);
     }
 
     #[test]

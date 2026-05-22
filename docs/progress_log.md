@@ -2464,3 +2464,30 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_cvm_pin_capability_evidence`, `cargo fmt --check`,
   `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T11:53:49Z
+
+- Increment completed: resolve APDU transport follow-ups across core runtime
+  commands instead of only SELECT, internal-authenticate, scripts, and final
+  GENERATE AC.
+- Code impact: READ RECORD, GPO, first GENERATE AC, and EXTERNAL AUTHENTICATE
+  now use the bounded `transmit_apdu_with_followups` path, so `61xx` GET
+  RESPONSE and `6Cxx` Le retry handling occurs before command-specific parser
+  and status-word logic. The `krn_run_transaction` API comment now reflects
+  the current callback-driven runner instead of the old future-runner caveat.
+- Evidence updated: `ffi::tests::runtime_core_flow_resolves_gpo_record_and_gac_followups`
+  proves a full transaction resolves GPO GET RESPONSE, READ RECORD GET
+  RESPONSE, and GENERATE AC Le retry follow-ups before reaching online handoff.
+  `ffi::tests::issuer_authentication_resolves_get_response_followup` proves
+  EXTERNAL AUTHENTICATE GET RESPONSE handling reaches issuer-script processing
+  without setting issuer-authentication-failed TVR evidence. Both RTM CSVs cite
+  the new tests under APDU status/follow-up and issuer-authentication rows.
+- Verification: `cargo fmt`,
+  `cargo test runtime_core_flow_resolves_gpo_record_and_gac_followups`,
+  `cargo test issuer_authentication_resolves_get_response_followup`,
+  `cargo test rtm_promotes_apdu_status_word_evidence`,
+  `cargo test rtm_promotes_runtime_apdu_selection_status_policy_evidence`, and
+  `cargo test rtm_promotes_issuer_authentication_and_final_gac_evidence`
+  passed. `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` also
+  passed.

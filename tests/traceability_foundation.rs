@@ -805,6 +805,16 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
                 ),
                 "{id} should cite runtime SELECT status-policy coverage"
             );
+            if id != "KRN-SEL-003" {
+                assert!(
+                    row.contains("runtime_core_flow_resolves_gpo_record_and_gac_followups"),
+                    "{id} should cite runtime core APDU follow-up coverage"
+                );
+                assert!(
+                    row.contains("issuer_authentication_resolves_get_response_followup"),
+                    "{id} should cite issuer-authentication follow-up coverage"
+                );
+            }
         }
     }
 }
@@ -921,6 +931,8 @@ fn rtm_promotes_apdu_status_word_evidence() {
         assert!(
             non_generic.contains("handles_success_and_transport_followups_before_context_rules")
         );
+        assert!(non_generic.contains("runtime_core_flow_resolves_gpo_record_and_gac_followups"));
+        assert!(non_generic.contains("issuer_authentication_resolves_get_response_followup"));
         assert!(non_generic.contains("transmit_apdu_followups_rejects_chains_above_limit"));
         assert!(non_generic
             .contains("read_record_status_words_continue_or_end_without_generic_failure"));
@@ -932,6 +944,8 @@ fn rtm_promotes_apdu_status_word_evidence() {
         let categories = csv_row_for_requirement(csv, "KRN-APDU-003").expect("RTM row exists");
         assert!(categories.contains("handles_success_and_transport_followups_before_context_rules"));
         assert!(categories.contains("transmit_apdu_followups_rejects_chains_above_limit"));
+        assert!(categories.contains("runtime_core_flow_resolves_gpo_record_and_gac_followups"));
+        assert!(categories.contains("issuer_authentication_resolves_get_response_followup"));
     }
 }
 
@@ -6373,6 +6387,7 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
         assert!(issuer_auth.contains("builds_external_authenticate_for_issuer_authentication_data"));
         assert!(issuer_auth.contains("parses_arpc_arc_and_issuer_scripts"));
         assert!(issuer_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
+        assert!(issuer_auth.contains("issuer_authentication_resolves_get_response_followup"));
 
         let issuer_auth_failure = csv_row_for_requirement(csv, "KRN-IAUTH-003").unwrap();
         assert!(issuer_auth_failure
