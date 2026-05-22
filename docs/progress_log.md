@@ -2240,3 +2240,26 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T10:28:02Z
+
+- Increment completed: make GPO tag `83` PDOL length encoding
+  certification-grade at the short-APDU boundary.
+- Research note: `docs/spec.md` requires the kernel to build PDOL and send GPO
+  after application selection, while the corrected engineering baseline states
+  GPO command data is `83 || L || PDOL_values`; repository-controlled evidence
+  should therefore prove `L` is BER-TLV encoded rather than a raw byte for
+  values above 127 bytes.
+- Code impact: GPO construction now encodes tag `83` lengths in BER short form
+  for `0..=127` bytes and `0x81 <len>` long form for `128..=252` bytes, and
+  exposes the short-APDU PDOL-value ceiling as `MAX_GPO_PDOL_VALUE_LEN`.
+- Evidence updated: current and compatibility RTM annexes cite the long-form
+  GPO tag `83` boundary regression and PDOL ceiling regression for
+  `KRN-APDU-001` and `KRN-DOL-001`.
+- Verification: `cargo test builds_gpo_tag_83_with_ber_long_form_length_at_boundary`,
+  `cargo test rejects_gpo_pdol_values_above_short_apdu_template_capacity`,
+  `cargo test rtm_promotes_apdu_command_construction_evidence`,
+  `cargo test rtm_promotes_dol_construction_policy_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

@@ -821,6 +821,8 @@ fn rtm_promotes_apdu_command_construction_evidence() {
         assert!(row.contains("validates_read_record_sfi"));
         assert!(row.contains("rejects_select_aids_outside_emv_length_domain"));
         assert!(row.contains("rejects_command_payloads_above_short_apdu_lc_limit"));
+        assert!(row.contains("builds_gpo_tag_83_with_ber_long_form_length_at_boundary"));
+        assert!(row.contains("rejects_gpo_pdol_values_above_short_apdu_template_capacity"));
         assert!(row.contains("rtm_promotes_apdu_command_construction_evidence"));
     }
 }
@@ -2475,6 +2477,10 @@ fn rtm_promotes_dol_construction_policy_evidence() {
         assert!(exact_lengths.contains("parses_and_builds_pdol_deterministically"));
         assert!(exact_lengths.contains("rejects_dol_lists_above_entry_limit"));
         assert!(exact_lengths.contains("builds_gpo_with_tag_83_pdol_values"));
+        assert!(exact_lengths.contains("builds_gpo_tag_83_with_ber_long_form_length_at_boundary"));
+        assert!(
+            exact_lengths.contains("rejects_gpo_pdol_values_above_short_apdu_template_capacity")
+        );
         assert!(exact_lengths.contains("builds_internal_authenticate_from_ddol_values"));
 
         let padding_policy = csv_row_for_requirement(csv, "KRN-DOL-002").unwrap();

@@ -7,6 +7,7 @@ pub const CONTACTLESS_PPSE: &[u8] = b"2PAY.SYS.DDF01";
 pub const MIN_AID_LEN: usize = 5;
 pub const MAX_AID_LEN: usize = 16;
 pub const MAX_SHORT_APDU_DATA_LEN: usize = u8::MAX as usize;
+pub const MAX_GPO_PDOL_VALUE_LEN: usize = MAX_SHORT_APDU_DATA_LEN - 3;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Interface {
@@ -101,13 +102,13 @@ pub fn select_aid(aid: &[u8], p2: u8) -> KernelResult<CommandApdu> {
 
 pub fn get_processing_options(pdol: &[DolEntry], data: &DataStore) -> KernelResult<CommandApdu> {
     let pdol_values = build_dol_with_policy(pdol, data, DolPaddingPolicy::ZeroPadMissingAndShort)?;
-    if pdol_values.len() > 252 {
+    if pdol_values.len() > MAX_GPO_PDOL_VALUE_LEN {
         return Err(KernelError::LengthOverflow);
     }
 
-    let mut template = Vec::with_capacity(2 + pdol_values.len());
+    let mut template = Vec::with_capacity(3 + pdol_values.len());
     template.push(0x83);
-    template.push(pdol_values.len() as u8);
+    append_ber_length(&mut template, pdol_values.len())?;
     template.extend_from_slice(&pdol_values);
 
     Ok(CommandApdu {
@@ -227,6 +228,15 @@ fn select_by_name(name: &[u8], p2: u8) -> CommandApdu {
         data: name.to_vec(),
         le: Some(0x00),
     }
+}
+
+fn append_ber_length(out: &mut Vec<u8>, len: usize) -> KernelResult<()> {
+    match len {
+        0..=0x7f => out.push(len as u8),
+        0x80..=0xff => out.extend_from_slice(&[0x81, len as u8]),
+        _ => return Err(KernelError::LengthOverflow),
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -430,6 +440,41 @@ mod tests {
                 .encode()
                 .unwrap(),
             [0x80, 0xa8, 0x00, 0x00, 0x06, 0x83, 0x04, 0x36, 0x00, 0x40, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn builds_gpo_tag_83_with_ber_long_form_length_at_boundary() {
+        let pdol = vec![DolEntry {
+            tag: vec![0x9f, 0x37],
+            length: 128,
+        }];
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x37], &[0xaa; 128]).unwrap();
+
+        let encoded = get_processing_options(&pdol, &data)
+            .unwrap()
+            .encode()
+            .unwrap();
+        assert_eq!(&encoded[..7], &[0x80, 0xa8, 0x00, 0x00, 0x83, 0x83, 0x81]);
+        assert_eq!(encoded[7], 0x80);
+        assert_eq!(encoded.len(), 137);
+        assert_eq!(encoded.last(), Some(&0x00));
+    }
+
+    #[test]
+    fn rejects_gpo_pdol_values_above_short_apdu_template_capacity() {
+        let pdol = vec![DolEntry {
+            tag: vec![0x9f, 0x37],
+            length: MAX_GPO_PDOL_VALUE_LEN + 1,
+        }];
+        let mut data = DataStore::new();
+        data.put(&[0x9f, 0x37], &vec![0xaa; MAX_GPO_PDOL_VALUE_LEN + 1])
+            .unwrap();
+
+        assert_eq!(
+            get_processing_options(&pdol, &data).unwrap_err(),
+            KernelError::LengthOverflow
         );
     }
 
