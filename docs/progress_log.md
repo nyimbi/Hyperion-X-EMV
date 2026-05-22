@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T22:18:20Z
+
+- Increment completed: extend DOL source-precedence evidence into final
+  GENERATE AC host-response data.
+- Code impact: added an FFI regression proving a rejected AFL record containing
+  host-response-owned tags (`89`/`8A`) remains atomic, does not seed card data,
+  and cannot poison later CDOL2 construction from the accepted Level 3 host
+  response.
+- Evidence updated:
+  `ffi::tests::final_gac_preserves_host_response_sources_after_rejected_record_tags`
+  now appears in both RTM CSVs under `KRN-GAC2-001`, `KRN-GAC2-002`,
+  `KRN-DOL-001`, and `KRN-TLV-006`, with traceability guards preventing drift.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T22:05:12Z
 
 - Increment completed: harden AFL record admission against GAC and dynamic

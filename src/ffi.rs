@@ -6560,6 +6560,59 @@ mod tests {
     }
 
     #[test]
+    fn final_gac_preserves_host_response_sources_after_rejected_record_tags() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S11;
+        ctx.state = KernelState::OnlineAuthorization;
+        ctx.card_data
+            .put(&[0x8d], &[0x8a, 0x02, 0x89, 0x06, 0x95, 0x05, 0x9b, 0x02])
+            .unwrap();
+        let record_with_card_and_host_data = [
+            0x70, 0x0f, 0x5a, 0x01, 0x12, 0x89, 0x06, b'B', b'A', b'D', b'9', b'9', b'9', 0x8a,
+            0x02, b'0', b'5',
+        ];
+        assert_eq!(
+            parse_read_record_body(&record_with_card_and_host_data, &mut ctx.card_data)
+                .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(ctx.card_data.get(&[0x5a]).is_none());
+        assert!(ctx.card_data.get(&[0x89]).is_none());
+        assert!(ctx.card_data.get(&[0x8a]).is_none());
+
+        let host = [
+            0x8a, 0x02, b'0', b'0', 0x89, 0x06, b'A', b'P', b'P', b'R', b'0', b'1',
+        ];
+        assert_eq!(apply_host_response(&mut ctx, &host), Ok(()));
+        assert_eq!(ctx.card_data.get(&[0x8a]), Some(&b"00"[..]));
+        assert_eq!(ctx.card_data.get(&[0x89]), Some(&b"APPR01"[..]));
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(run_issuer_scripts(&mut ctx, runtime), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S14);
+
+        TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        assert_eq!(run_final_generate_ac(&mut ctx, runtime), Ok(()));
+
+        let command = LAST_TRANSMITTED_COMMAND.lock().unwrap().clone();
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+        assert_eq!(&command[..5], &[0x80, 0xae, 0x40, 0x00, 0x0f]);
+        assert_eq!(&command[5..7], b"00");
+        assert_eq!(&command[7..13], b"APPR01");
+        assert_eq!(&command[13..18], &Tvr::cleared().bytes());
+        assert_eq!(&command[18..20], &Tsi::cleared().bytes());
+        assert_eq!(command[20], 0x00);
+        assert_eq!(ctx.fsm_state, FsmState::S15);
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::ApprovedOnline));
+    }
+
+    #[test]
     fn final_gac_rejects_missing_cdol2_source_without_zero_padding() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
         let mut ctx = KrnContext::new();

@@ -352,7 +352,9 @@ The following are adaptation candidates, ordered by near-term value:
 6. Maintain and extend the DOL source-precedence tests across transaction
    params, terminal data, ICC data, generated unpredictable numbers, and profile
    defaults; current coverage includes rejected card attempts to overwrite
-   terminal amount data and generated `9F37` values before first GAC.
+   terminal amount data and generated `9F37` values before first GAC, plus
+   rejected card attempts to seed host-response ARC/auth-code values before
+   final GAC.
 7. Keep public-reference review out of the lab evidence closure path: update
    open issues only when licensed/lab evidence arrives, not when an open-source
    reference demonstrates similar behavior.

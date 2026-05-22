@@ -2641,6 +2641,8 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         assert!(admission.contains(
             "first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags"
         ));
+        assert!(admission
+            .contains("final_gac_preserves_host_response_sources_after_rejected_record_tags"));
 
         let malformed = csv_row_for_requirement(csv, "KRN-TLV-003").unwrap();
         assert!(malformed.contains("rejects_indefinite_lengths_for_fuzzability"));
@@ -2685,6 +2687,8 @@ fn rtm_promotes_dol_construction_policy_evidence() {
         assert!(exact_lengths.contains(
             "first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags"
         ));
+        assert!(exact_lengths
+            .contains("final_gac_preserves_host_response_sources_after_rejected_record_tags"));
 
         let padding_policy = csv_row_for_requirement(csv, "KRN-DOL-002").unwrap();
         assert!(padding_policy.contains("zero_padding_policy_is_explicit_and_deterministic"));
@@ -7069,12 +7073,17 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
         assert!(
             cdol2.contains("final_generate_ac_uses_authorization_code_from_applied_host_response")
         );
+        assert!(
+            cdol2.contains("final_gac_preserves_host_response_sources_after_rejected_record_tags")
+        );
         assert!(cdol2.contains("final_gac_rejects_missing_cdol2_source_without_zero_padding"));
         assert!(cdol2.contains("rejects_host_response_record_tags_atomically"));
         let cdol2_auth = csv_row_for_requirement(csv, "KRN-GAC2-002").unwrap();
         assert!(cdol2_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
         assert!(cdol2_auth
             .contains("final_generate_ac_uses_authorization_code_from_applied_host_response"));
+        assert!(cdol2_auth
+            .contains("final_gac_preserves_host_response_sources_after_rejected_record_tags"));
         assert!(cdol2_auth.contains("final_gac_rejects_missing_cdol2_source_without_zero_padding"));
         assert!(cdol2_auth.contains("rejects_host_response_record_tags_atomically"));
 
