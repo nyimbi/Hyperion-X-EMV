@@ -1551,7 +1551,9 @@ fn request_unpredictable_number(
     if status != KernelError::Ok.code() {
         return Err(KernelError::RngFailure);
     }
-    if unpredictable_number.iter().all(|byte| *byte == 0) || previous == Some(unpredictable_number)
+    if unpredictable_number.iter().all(|byte| *byte == 0)
+        || unpredictable_number.iter().all(|byte| *byte == 0xff)
+        || previous == Some(unpredictable_number)
     {
         return Err(KernelError::RngFailure);
     }

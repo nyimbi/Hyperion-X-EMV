@@ -450,6 +450,17 @@ unsafe extern "C" fn it_zero_unpredictable_number(
     hyperion_emv::KernelError::Ok.code()
 }
 
+unsafe extern "C" fn it_ff_unpredictable_number(
+    out: *mut u8,
+    out_len: usize,
+    _user_data: *mut c_void,
+) -> i32 {
+    for idx in 0..out_len {
+        *out.add(idx) = 0xff;
+    }
+    hyperion_emv::KernelError::Ok.code()
+}
+
 unsafe extern "C" fn it_fixed_unpredictable_number(
     out: *mut u8,
     out_len: usize,
@@ -995,6 +1006,7 @@ fn rtm_promotes_rng_callback_evidence() {
         assert!(
             rejection.contains("krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers")
         );
+        assert!(rejection.contains("all-FF"));
         assert!(rejection.contains("krn_err_001_exposes_stable_abi_error_table"));
         assert!(rejection.contains("rtm_promotes_rng_callback_evidence"));
     }
@@ -5320,6 +5332,17 @@ fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
         );
         assert_eq!(krn_get_fsm_state(zero_ctx), FsmState::Se.code());
         krn_context_free(zero_ctx);
+
+        let ff_apdu_counter = AtomicUsize::new(0);
+        let ff_ctx = init_with_rng(it_ff_unpredictable_number, &ff_apdu_counter);
+        set_params(ff_ctx);
+        assert_eq!(krn_run_transaction(ff_ctx), KrnOutcome::Error as i32);
+        assert_eq!(
+            krn_get_last_error(ff_ctx),
+            hyperion_emv::KernelError::RngFailure.code()
+        );
+        assert_eq!(krn_get_fsm_state(ff_ctx), FsmState::Se.code());
+        krn_context_free(ff_ctx);
 
         let repeated_apdu_counter = AtomicUsize::new(0);
         let repeated_ctx = init_with_rng(it_fixed_unpredictable_number, &repeated_apdu_counter);

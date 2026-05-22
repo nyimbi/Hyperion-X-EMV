@@ -3616,3 +3616,25 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_external_lab_gates_are_explicit`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T19:42:33Z
+
+- Increment completed: reject all-`FF` unpredictable numbers from the platform
+  RNG callback in addition to all-zero and repeated outputs.
+- Research note: the unpredictable number feeds DOL construction and online
+  cryptogram requests. A callback that returns a sentinel all-`FF` value is a
+  weak platform failure mode, not usable transaction entropy, so the kernel now
+  fails closed with the same stable RNG error path used for all-zero and
+  repeated outputs.
+- Code impact: `request_unpredictable_number` rejects all-`FF` four-byte
+  outputs before storing tag `9F37`. The FFI traceability test now exercises
+  all-zero, all-`FF`, repeated, and accepted callback outputs through
+  `krn_run_transaction`.
+- Evidence updated: both RTM CSV annexes now define `KRN-RNG-002` as rejecting
+  all-zero, all-`FF`, or repeated unpredictable numbers, and
+  `rtm_promotes_rng_callback_evidence` enforces that wording.
+- Verification: `cargo fmt`,
+  `cargo test krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers`,
+  `cargo test rtm_promotes_rng_callback_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
