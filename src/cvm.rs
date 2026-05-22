@@ -137,6 +137,8 @@ pub enum CvmAction {
     Signature,
     OfflinePlaintextPin { ped_handle: PedPinHandle },
     OfflineEncipheredPin { ped_handle: PedPinHandle },
+    OfflinePlaintextPinAndSignature { ped_handle: PedPinHandle },
+    OfflineEncipheredPinAndSignature { ped_handle: PedPinHandle },
     Cdcvm,
 }
 
@@ -152,6 +154,14 @@ impl fmt::Debug for CvmAction {
                 .finish(),
             Self::OfflineEncipheredPin { .. } => f
                 .debug_struct("OfflineEncipheredPin")
+                .field("ped_handle", &"redacted")
+                .finish(),
+            Self::OfflinePlaintextPinAndSignature { .. } => f
+                .debug_struct("OfflinePlaintextPinAndSignature")
+                .field("ped_handle", &"redacted")
+                .finish(),
+            Self::OfflineEncipheredPinAndSignature { .. } => f
+                .debug_struct("OfflineEncipheredPinAndSignature")
                 .field("ped_handle", &"redacted")
                 .finish(),
             Self::Cdcvm => f.write_str("Cdcvm"),
@@ -372,14 +382,14 @@ fn action_for_method(
         {
             pin_handles
                 .offline_plaintext
-                .map(|ped_handle| CvmAction::OfflinePlaintextPin { ped_handle })
+                .map(|ped_handle| CvmAction::OfflinePlaintextPinAndSignature { ped_handle })
         }
         CvmMethod::OfflineEncipheredPinAndSignature
             if context.offline_pin_supported && context.signature_supported =>
         {
             pin_handles
                 .offline_enciphered
-                .map(|ped_handle| CvmAction::OfflineEncipheredPin { ped_handle })
+                .map(|ped_handle| CvmAction::OfflineEncipheredPinAndSignature { ped_handle })
         }
         CvmMethod::SchemeSpecific(_)
             if context.interface == Interface::Contactless && context.cdcvm_performed =>
@@ -591,10 +601,58 @@ mod tests {
     }
 
     #[test]
+    fn offline_pin_and_signature_selects_composite_actions() {
+        let handle = PedPinHandle::new(0xfeed_beef).unwrap();
+        let plaintext_and_signature =
+            parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x03, 0x00]).unwrap();
+        assert_eq!(
+            evaluate(
+                &plaintext_and_signature,
+                context(),
+                CvmPinHandles::with_offline_plaintext(handle)
+            ),
+            CvmOutcome::Selected {
+                action: CvmAction::OfflinePlaintextPinAndSignature { ped_handle: handle },
+                cvm_results: [0x03, 0x00, 0x02],
+                tvr_bit: None,
+            }
+        );
+
+        let enciphered_and_signature =
+            parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x05, 0x00]).unwrap();
+        assert_eq!(
+            evaluate(
+                &enciphered_and_signature,
+                context(),
+                CvmPinHandles::with_offline_enciphered(handle)
+            ),
+            CvmOutcome::Selected {
+                action: CvmAction::OfflineEncipheredPinAndSignature { ped_handle: handle },
+                cvm_results: [0x05, 0x00, 0x02],
+                tvr_bit: None,
+            }
+        );
+
+        let mut no_signature = context();
+        no_signature.signature_supported = false;
+        assert_eq!(
+            evaluate(
+                &plaintext_and_signature,
+                no_signature,
+                CvmPinHandles::with_offline_plaintext(handle)
+            ),
+            CvmOutcome::Failed {
+                cvm_results: [0x03, 0x00, 0x01],
+                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,
+            }
+        );
+    }
+
+    #[test]
     fn offline_pin_debug_redacts_ped_handle_values() {
         let handle = PedPinHandle::new(0xfeed_beef).unwrap();
         let handles = CvmPinHandles::with_offline_plaintext(handle);
-        let action = CvmAction::OfflinePlaintextPin { ped_handle: handle };
+        let action = CvmAction::OfflinePlaintextPinAndSignature { ped_handle: handle };
         let outcome = CvmOutcome::Selected {
             action,
             cvm_results: [0x01, 0x00, 0x02],

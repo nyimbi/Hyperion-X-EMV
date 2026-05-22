@@ -1122,6 +1122,7 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(parsing.contains("transaction_type_conditions_select_only_matching_rules"));
         assert!(parsing.contains("cvm_transaction_type_uses_terminal_and_transaction_tags"));
         assert!(parsing.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
+        assert!(parsing.contains("offline_pin_and_signature_selects_composite_actions"));
         assert!(parsing.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(parsing.contains("rtm_promotes_cvm_outcome_evidence"));
 
@@ -1178,6 +1179,7 @@ fn rtm_promotes_cvm_pin_capability_evidence() {
         );
         assert!(methods.contains("maps_certified_cvm_method_code_table_and_masks_continue_bit"));
         assert!(methods.contains("offline_pin_requires_ped_owned_opaque_handle"));
+        assert!(methods.contains("offline_pin_and_signature_selects_composite_actions"));
         assert!(
             methods.contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles")
         );

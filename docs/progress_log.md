@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:04:45Z
+
+- Increment completed: preserve PIN-and-signature CVM methods as composite
+  internal actions instead of collapsing them to PIN-only actions.
+- Code impact: `CvmAction` now distinguishes offline plaintext PIN plus
+  signature and offline enciphered PIN plus signature, while keeping PED handles
+  opaque and redacted in debug output. New CVM coverage proves both composite
+  actions require the matching offline PIN handle and signature capability.
+- Evidence update: both RTM annexes now cite the composite CVM regression for
+  CVM list evaluation and PIN-method distinction, and the traceability guard
+  requires those citations.
+- Verification: `cargo test offline_pin_and_signature_selects_composite_actions`,
+  `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test
+  rtm_promotes_cvm_pin_capability_evidence`, `cargo fmt --check`, `cargo
+  test`, `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  and `git diff --check` passed.
+
 ## 2026-05-22T13:58:14Z
 
 - Increment completed: lock critical issuer-script failure handling so a failed
