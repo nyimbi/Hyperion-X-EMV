@@ -1867,6 +1867,47 @@ fn rtm_promotes_dol_construction_policy_evidence() {
 }
 
 #[test]
+fn rtm_promotes_dda_internal_authenticate_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in ["KRN-DDA-001", "KRN-DDA-002", "KRN-ODA-006"] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete DDA evidence"
+            );
+            assert!(
+                row.contains("rtm_promotes_dda_internal_authenticate_evidence"),
+                "{id} should cite this RTM guard"
+            );
+        }
+
+        let internal_authenticate = csv_row_for_requirement(csv, "KRN-DDA-001").unwrap();
+        assert!(internal_authenticate.contains("builds_internal_authenticate_from_ddol_values"));
+        assert!(internal_authenticate
+            .contains("runtime_oda_executes_dda_internal_authenticate_success"));
+        assert!(
+            internal_authenticate.contains("krn_dda_001_internal_authenticate_uses_ddol_values")
+        );
+
+        let signed_dynamic_data = csv_row_for_requirement(csv, "KRN-DDA-002").unwrap();
+        assert!(
+            signed_dynamic_data.contains("recovers_parses_and_verifies_signed_application_data")
+        );
+        assert!(
+            signed_dynamic_data.contains("runtime_oda_executes_dda_internal_authenticate_success")
+        );
+        assert!(signed_dynamic_data.contains("runtime_oda_maps_bad_dda_signature_to_tvr_failure"));
+        assert!(signed_dynamic_data
+            .contains("krn_dda_002_oda_006_requires_signed_dynamic_application_data"));
+
+        let dda_failure = csv_row_for_requirement(csv, "KRN-ODA-006").unwrap();
+        assert!(dda_failure.contains("runtime_oda_maps_bad_dda_signature_to_tvr_failure"));
+        assert!(dda_failure
+            .contains("krn_oda_005_006_007_recovers_and_verifies_signed_application_data"));
+    }
+}
+
+#[test]
 fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in ["KRN-FSM-001", "KRN-FSM-002", "KRN-FSM-003", "KRN-FSM-004"] {

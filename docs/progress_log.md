@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:50:59Z
+
+- Increment completed: promote DDA INTERNAL AUTHENTICATE evidence.
+- Code impact: the runtime DDA regression now captures and asserts the exact
+  INTERNAL AUTHENTICATE APDU bytes built from the card DDOL, proving the DDA
+  path transmits kernel-assembled DDOL data rather than checking only INS and
+  command length.
+- Evidence updated: KRN-DDA-001, KRN-DDA-002, and KRN-ODA-006 now cite
+  concrete DDOL APDU, signed-dynamic-data parsing, ICC-key verification, and
+  bad-signature TVR regressions in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:47:13Z
 
 - Increment completed: promote issuer authentication and final GENERATE AC

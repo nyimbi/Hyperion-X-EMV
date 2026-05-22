@@ -3918,6 +3918,7 @@ mod tests {
         TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
         TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
         TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
         let mut signed_dynamic_data = hex_bytes(
             "A826FBA6E8D7C0548D2E05551AFEEE0512C8AB02F33055BC389BECD93026B69F\
@@ -3955,6 +3956,7 @@ mod tests {
         };
 
         TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
         DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
         let profiles = ctx.profiles.clone().unwrap();
         assert_eq!(
@@ -3968,6 +3970,10 @@ mod tests {
         assert_eq!(
             TRANSMIT_TIMEOUT_MS.load(Ordering::SeqCst),
             APDU_TRANSMIT_TIMEOUT_MS
+        );
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x00, 0x88, 0x00, 0x00, 0x04, 0x11, 0x22, 0x33, 0x44, 0x00]
         );
         assert_eq!(ctx.fsm_state, FsmState::S6);
         assert!(ctx.tsi.is_set(Tsi::OFFLINE_DATA_AUTHENTICATION_PERFORMED));
