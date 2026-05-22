@@ -4,6 +4,36 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T20:18:01Z
+
+- Increment completed: extend the pre-lab decoder utility with response APDU
+  envelope triage.
+- Research note: the open-source reference review's strongest borrowable
+  pattern remains tool-first trace inspection, not imported kernel logic. This
+  slice adapts that idea by decoding complete response envelopes through
+  Hyperion's own status classifier and trace masking paths.
+- Code impact: `krn_emv_decode` now accepts `response-apdu` / `rapdu` with an
+  APDU context and response-body-plus-SW input, splits SW1/SW2 from the body,
+  reports the context-specific status action, and lists masked response TLV
+  fields without exposing PAN, cryptograms, IAD, or other response-body values.
+- Evidence updated:
+  `krn_emv_decode::tests::response_apdu_output_masks_tlv_fields_and_classifies_status`,
+  `krn_emv_decode::tests::response_apdu_generate_ac_uses_gac_masking_policy`,
+  `krn_emv_decode::tests::malformed_response_apdu_is_rejected`, and
+  `krn_emv_decode::tests::cli_routes_response_apdu_mode` cover the new route.
+  The open-source adaptation backlog and lab submission manifest now name
+  response APDU envelope decoding explicitly.
+- Verification: `cargo fmt`,
+  `cargo test --example krn_emv_decode
+  response_apdu_output_masks_tlv_fields_and_classifies_status`, `cargo test
+  --example krn_emv_decode response_apdu_generate_ac_uses_gac_masking_policy`,
+  `cargo test --example krn_emv_decode malformed_response_apdu_is_rejected`,
+  `cargo test --example krn_emv_decode cli_routes_response_apdu_mode`, `cargo
+  test --example krn_emv_decode`, `cargo test --examples`, `cargo test`,
+  `cargo run --quiet --example krn_emv_decode -- response-apdu generate-ac
+  800B40123410111213141516179000`, `cargo fmt --check`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T20:01:07Z
 
 - Increment completed: extend the pre-lab decoder utility with masked GENERATE

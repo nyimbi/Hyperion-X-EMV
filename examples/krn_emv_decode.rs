@@ -6,6 +6,7 @@ use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::tlv;
+use hyperion_emv::trace::{mask_apdu_response, ApduTraceContext, LogPolicy, MaskedValue};
 use std::fmt::Write;
 use std::process;
 
@@ -47,6 +48,15 @@ fn run(args: &[String]) -> Result<String, String> {
             Ok(decode_status_word(context, sw))
         }
         "apdu" => decode_apdu(arg_hex(args, 1, "apdu")?),
+        "rapdu" | "response-apdu" => {
+            if args.len() != 3 {
+                return Err("response-apdu mode requires <context> <response-hex>".to_string());
+            }
+            let context = parse_context(&args[1])?;
+            let bytes = decode_hex(&args[2])
+                .map_err(|err| format!("invalid hex for response-apdu: {}", err.name()))?;
+            decode_response_apdu(context, bytes)
+        }
         "help" | "--help" | "-h" => Ok(format!("{}\n", usage())),
         _ => Err(format!("unknown decode mode: {mode}")),
     }
@@ -55,6 +65,7 @@ fn run(args: &[String]) -> Result<String, String> {
 fn usage() -> &'static str {
     "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
+     usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
      internal-authenticate, external-authenticate, issuer-script-critical,\n\
      issuer-script-noncritical"
@@ -298,6 +309,43 @@ fn decode_status_word(context: ApduContext, sw: StatusWord) -> String {
     out
 }
 
+fn decode_response_apdu(context: ApduContext, bytes: Vec<u8>) -> Result<String, String> {
+    if bytes.len() < 2 {
+        return Err("response-apdu requires at least SW1SW2".to_string());
+    }
+    let body_len = bytes.len() - 2;
+    let body = &bytes[..body_len];
+    let sw = StatusWord::new(bytes[body_len], bytes[body_len + 1]);
+    let trace_context = response_trace_context(context);
+    let trace = mask_apdu_response(
+        0,
+        trace_context,
+        body,
+        [sw.sw1, sw.sw2],
+        LogPolicy::production(),
+    )
+    .map_err(|err| format!("APDU response parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=response-apdu");
+    let _ = writeln!(out, "context={}", context_name(context));
+    let _ = writeln!(out, "trace_context={}", trace_context_name(trace_context));
+    let _ = writeln!(out, "sw={:02X}{:02X}", sw.sw1, sw.sw2);
+    let _ = writeln!(out, "action={}", action_name(classify(context, sw)));
+    let _ = writeln!(out, "body_len={body_len}");
+    let _ = writeln!(out, "field_count={}", trace.fields.len());
+    for field in &trace.fields {
+        let _ = writeln!(
+            out,
+            "field={} value_policy={}",
+            hex_upper(&field.tag),
+            masked_value_policy(&field.value)
+        );
+    }
+    let _ = writeln!(out, "data_policy=response_body_values_suppressed");
+    Ok(out)
+}
+
 fn decode_apdu(bytes: Vec<u8>) -> Result<String, String> {
     let apdu = ShortCommandApdu::parse(&bytes).map_err(|err| err.to_string())?;
     let mut out = String::new();
@@ -409,6 +457,20 @@ fn context_name(context: ApduContext) -> &'static str {
     }
 }
 
+fn response_trace_context(context: ApduContext) -> ApduTraceContext {
+    match context {
+        ApduContext::GenerateAc => ApduTraceContext::GenerateAcResponse,
+        _ => ApduTraceContext::Generic,
+    }
+}
+
+fn trace_context_name(context: ApduTraceContext) -> &'static str {
+    match context {
+        ApduTraceContext::Generic => "generic",
+        ApduTraceContext::GenerateAcResponse => "generate-ac-response",
+    }
+}
+
 fn action_name(action: StatusAction) -> String {
     match action {
         StatusAction::Success => "success".to_string(),
@@ -428,6 +490,15 @@ fn action_name(action: StatusAction) -> String {
             "continue-after-noncritical-script-failure".to_string()
         }
         StatusAction::Fail { error } => format!("fail error={}", error.name()),
+    }
+}
+
+fn masked_value_policy(value: &MaskedValue) -> &'static str {
+    match value {
+        MaskedValue::Hex(_) => "hex-suppressed",
+        MaskedValue::Pan(_) => "pan-masked-suppressed",
+        MaskedValue::Suppressed(reason) => reason,
+        MaskedValue::DebugHash { .. } => "debug-hash-suppressed",
     }
 }
 
@@ -823,6 +894,56 @@ mod tests {
     }
 
     #[test]
+    fn response_apdu_output_masks_tlv_fields_and_classifies_status() {
+        let out = decode_response_apdu(
+            ApduContext::ReadRecord,
+            decode_hex("700A5A08123456789012345F9000").unwrap(),
+        )
+        .unwrap();
+
+        assert!(out.contains("type=response-apdu"));
+        assert!(out.contains("context=read-record"));
+        assert!(out.contains("trace_context=generic"));
+        assert!(out.contains("sw=9000"));
+        assert!(out.contains("action=success"));
+        assert!(out.contains("body_len=12"));
+        assert!(out.contains("field=70 value_policy=constructed"));
+        assert!(out.contains("field=5A value_policy=pan-masked-suppressed"));
+        assert!(out.contains("data_policy=response_body_values_suppressed"));
+        assert!(!out.contains("123456789012345F"));
+    }
+
+    #[test]
+    fn response_apdu_generate_ac_uses_gac_masking_policy() {
+        let out = decode_response_apdu(
+            ApduContext::GenerateAc,
+            decode_hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC9000").unwrap(),
+        )
+        .unwrap();
+
+        assert!(out.contains("trace_context=generate-ac-response"));
+        assert!(out.contains("field=9F26 value_policy=transaction-cryptogram"));
+        assert!(out.contains("field=9F10 value_policy=issuer-application-data"));
+        assert!(out.contains("field_count=4"));
+        assert!(!out.contains("1112131415161718"));
+        assert!(!out.contains("AABBCC"));
+    }
+
+    #[test]
+    fn malformed_response_apdu_is_rejected() {
+        assert_eq!(
+            decode_response_apdu(ApduContext::ReadRecord, vec![0x90]).unwrap_err(),
+            "response-apdu requires at least SW1SW2"
+        );
+        assert!(decode_response_apdu(
+            ApduContext::ReadRecord,
+            decode_hex("700A5A08123456789012345F00").unwrap()
+        )
+        .unwrap_err()
+        .contains("KRN_ERR_LENGTH_OVERFLOW"));
+    }
+
+    #[test]
     fn malformed_apdu_is_rejected() {
         assert_eq!(
             ShortCommandApdu::parse(&[0x80, 0xAE, 0x80]).unwrap_err(),
@@ -840,6 +961,22 @@ mod tests {
 
         assert!(out.contains("context=verify"));
         assert!(out.contains("action=pin-failed tries_remaining=2"));
+    }
+
+    #[test]
+    fn cli_routes_response_apdu_mode() {
+        let out = run(&[
+            string_arg("response-apdu"),
+            string_arg("generate-ac"),
+            string_arg("800B40123410111213141516179000"),
+        ])
+        .unwrap();
+
+        assert!(out.contains("type=response-apdu"));
+        assert!(out.contains("trace_context=generate-ac-response"));
+        assert!(out.contains("sw=9000"));
+        assert!(out.contains("action=success"));
+        assert!(!out.contains("1011121314151617"));
     }
 
     #[test]
