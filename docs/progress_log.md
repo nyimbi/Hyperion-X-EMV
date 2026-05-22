@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:40:34Z
+
+- Increment completed: reject whitespace-only signed scheme identity fields.
+- Code impact: certification profile loading now treats trimmed-blank
+  `scheme_name`, `kernel_type`, and `contact_kernel_type` values as invalid
+  signed scheme metadata before interface/kernel mapping can accept them.
+- Evidence updated:
+  `config::tests::rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces`
+  now covers whitespace-only scheme names and kernel mapping labels alongside
+  missing contact kernels, C-8 contact-kernel misuse, invalid contactless
+  kernel mappings, and duplicate interfaces.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:34:18Z
 
 - Increment completed: reject whitespace-only certification-scope strings.

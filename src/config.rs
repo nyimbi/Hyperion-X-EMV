@@ -464,6 +464,9 @@ fn parse_scheme(
     )?;
     let scheme_name = required_string(object, "scheme_name")?;
     reject_placeholder(scheme_name)?;
+    if scheme_name.trim().is_empty() {
+        return Err(KernelError::InvalidProfile);
+    }
     let rid_vec = parse_hex_field(object, "rid")?;
     let rid = fixed_vec::<5>(rid_vec)?;
     reject_dummy_bytes(&rid)?;
@@ -559,7 +562,7 @@ fn validate_scheme_interface_kernel_mapping(
         return Ok(());
     }
     reject_placeholder(kernel_type)?;
-    if kernel_type.is_empty() {
+    if kernel_type.trim().is_empty() {
         return Err(KernelError::InvalidProfile);
     }
 
@@ -601,7 +604,7 @@ fn parse_contact_kernel_type(object: &BTreeMap<String, JsonValue>) -> KernelResu
     };
     let contact_kernel_type = value.as_string()?;
     reject_placeholder(contact_kernel_type)?;
-    if contact_kernel_type.is_empty() || contact_kernel_type == "c8_contactless" {
+    if contact_kernel_type.trim().is_empty() || contact_kernel_type == "c8_contactless" {
         return Err(KernelError::InvalidProfile);
     }
     Ok(Some(contact_kernel_type.to_string()))
@@ -2440,6 +2443,43 @@ mod tests {
         assert_eq!(
             load_profile_set(
                 missing_contact_kernel.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let blank_scheme_name =
+            profile.replace(r#""scheme_name": "Visa""#, r#""scheme_name": "   ""#);
+        assert_eq!(
+            load_profile_set(
+                blank_scheme_name.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let blank_kernel_type = profile.replace(
+            r#""kernel_type": "c8_contactless""#,
+            r#""kernel_type": "   ""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                blank_kernel_type.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let blank_contact_kernel_type = profile.replace(
+            r#""contact_kernel_type": "legacy_visa""#,
+            r#""contact_kernel_type": "   ""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                blank_contact_kernel_type.as_bytes(),
                 &policy(SignatureStatus::Verified)
             )
             .unwrap_err(),
