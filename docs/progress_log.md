@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:16:05Z
+
+- Increment completed: promote ODA vector-annex boundary evidence.
+- Research note: KRN-ANNEX-005 should not remain a generic pending row when the
+  repository already enforces complete vector syntax, method-specific coverage,
+  and placeholder rejection; it still must retain the lab-supplied SDA/DDA/CDA
+  vector boundary for certification use.
+- Code impact: no runtime behavior changed; traceability guards now require the
+  vector-annex row to cite executable ODA vector validation evidence.
+- Evidence updated: KRN-ANNEX-005 now points at complete-vector syntax,
+  SDA/DDA/CDA coverage, and certification-mode placeholder rejection tests while
+  explicitly preserving the lab-supplied vector requirement.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:12:20Z
 
 - Increment completed: promote penetration-boundary evidence.

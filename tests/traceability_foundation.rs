@@ -734,13 +734,19 @@ fn rtm_pending_evidence_is_limited_to_external_lab_gates() {
             .collect::<Vec<_>>();
         assert_eq!(
             pending,
-            vec!["KRN-ANNEX-005", "KRN-CERT-001"],
+            vec!["KRN-CERT-001"],
             "{name} has unexpected pending evidence rows"
         );
 
         let vectors = csv_row_for_requirement(csv, "KRN-ANNEX-005").unwrap();
         assert!(vectors.contains("complete cryptographic vectors"));
-        assert!(vectors.contains("pending implementation evidence"));
+        assert!(!vectors.contains("pending implementation evidence"));
+        assert!(vectors.contains("validates_complete_vector_syntax_and_rejects_placeholders"));
+        assert!(vectors.contains("certification_vector_coverage_is_method_specific"));
+        assert!(
+            vectors.contains("krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode")
+        );
+        assert!(vectors.contains("lab-supplied SDA/DDA/CDA vectors required"));
 
         let approval = csv_row_for_requirement(csv, "KRN-CERT-001").unwrap();
         assert!(approval.contains("EMV Level 2 approval"));
