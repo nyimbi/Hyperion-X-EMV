@@ -387,6 +387,7 @@ fn cvm_results(rule: CvmRule, result: u8) -> [u8; 3] {
 fn condition_matches(rule: CvmRule, list: &CvmList, context: CvmContext) -> bool {
     match rule.condition_code {
         0x00 => true,
+        0x03 => terminal_supports_method(rule.method, context),
         0x06 => {
             context.transaction_currency_matches_application
                 && context.amount_authorized < list.amount_x as u64
@@ -404,6 +405,20 @@ fn condition_matches(rule: CvmRule, list: &CvmList, context: CvmContext) -> bool
                 && context.amount_authorized > list.amount_y as u64
         }
         _ => false,
+    }
+}
+
+fn terminal_supports_method(method: CvmMethod, context: CvmContext) -> bool {
+    match method {
+        CvmMethod::OfflinePlaintextPin
+        | CvmMethod::OfflinePlaintextPinAndSignature
+        | CvmMethod::OfflineEncipheredPin
+        | CvmMethod::OfflineEncipheredPinAndSignature => context.offline_pin_supported,
+        CvmMethod::OnlinePin => context.online_pin_supported,
+        CvmMethod::Signature => context.signature_supported,
+        CvmMethod::NoCvmRequired | CvmMethod::FailCvmProcessing => true,
+        CvmMethod::SchemeSpecific(_) => context.interface == Interface::Contactless,
+        CvmMethod::Unknown(_) => false,
     }
 }
 
@@ -599,6 +614,34 @@ mod tests {
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
                 cvm_results: [0x02, 0x07, 0x02]
+            }
+        );
+    }
+
+    #[test]
+    fn terminal_support_condition_matches_candidate_cvm_capability() {
+        let list = parse_cvm_list(&[
+            0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x02, 0x03, 0x06, 0x03, 0x1f, 0x00,
+        ])
+        .unwrap();
+
+        let mut no_online_pin = context();
+        no_online_pin.online_pin_supported = false;
+        assert_eq!(
+            evaluate(&list, no_online_pin, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::Signature,
+                cvm_results: [0x06, 0x03, 0x02]
+            }
+        );
+
+        let mut no_signature = context();
+        no_signature.signature_supported = false;
+        assert_eq!(
+            evaluate(&list, no_signature, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::OnlinePin,
+                cvm_results: [0x02, 0x03, 0x02]
             }
         );
     }

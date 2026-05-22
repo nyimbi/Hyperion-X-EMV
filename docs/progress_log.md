@@ -2353,3 +2353,24 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test validates_machine_readable_state_annex`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T11:11:03Z
+
+- Increment completed: honor CVM condition code `0x03` by checking whether the
+  terminal supports the candidate CVM method before selecting the rule.
+- Research note: public CVM condition-code references describe condition
+  `0x03` as terminal support for the candidate CVM, so rule matching must use
+  the CVM method's own capability instead of skipping the rule or treating the
+  condition as globally true.
+- Code impact: `condition_matches` now delegates condition `0x03` to
+  `terminal_supports_method`, which uses the existing offline PIN, online PIN,
+  signature, and contactless interface context without widening the ABI.
+- Evidence updated: `cvm::tests::terminal_support_condition_matches_candidate_cvm_capability`
+  proves online PIN and signature rules guarded by condition `0x03` follow the
+  candidate capability, and both RTM CSVs cite it for `KRN-CVM-001` and
+  `KRN-CVMCAP-001`.
+- Verification: `cargo test terminal_support_condition_matches_candidate_cvm_capability`,
+  `cargo test rtm_promotes_cvm_outcome_evidence`,
+  `cargo test rtm_promotes_cvm_pin_capability_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

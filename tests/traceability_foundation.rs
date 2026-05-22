@@ -1094,6 +1094,7 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(parsing.contains("parses_cvm_list_amounts_and_certified_method_codes"));
         assert!(parsing.contains("rejects_cvm_lists_above_rule_limit"));
         assert!(parsing.contains("amount_conditions_are_enforced"));
+        assert!(parsing.contains("terminal_support_condition_matches_candidate_cvm_capability"));
         assert!(parsing.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(parsing.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(parsing.contains("rtm_promotes_cvm_outcome_evidence"));
@@ -1119,6 +1120,9 @@ fn rtm_promotes_cvm_pin_capability_evidence() {
             "KRN-CVMCAP-001 should cite executable CVM capability evidence"
         );
         assert!(capabilities.contains("krn_cvmcap_001_uses_terminal_cvm_capabilities_from_abi"));
+        assert!(
+            capabilities.contains("terminal_support_condition_matches_candidate_cvm_capability")
+        );
         assert!(capabilities.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(capabilities.contains("rtm_promotes_cvm_pin_capability_evidence"));
 
