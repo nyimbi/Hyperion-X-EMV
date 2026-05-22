@@ -128,6 +128,25 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             masked_tlv_streams: &[],
         },
     )?;
+    append_case(
+        &mut out,
+        PrelabTraceCase {
+            case_id: "prelab.masking.generate-ac-status-only",
+            script: generate_ac_status_only_script()?,
+            expected_step_count: 1,
+            expected_fsm_events: &["GacStatusFailure"],
+            expected_fsm_actions: &["RequestFirstGenerateAc", "FailClosed"],
+            expected_status_actions: &["FailCardRemoved"],
+            expected_terminal_outcome: "generate-ac-status-failure",
+            expected_tlv_stream_count: 0,
+            masking_assertions: &[
+                "full-apdu-disabled",
+                "status-only-response-recorded",
+                "no-response-body-parsing",
+            ],
+            masked_tlv_streams: &[],
+        },
+    )?;
     Ok(out)
 }
 
@@ -307,4 +326,14 @@ fn followup_status_masking_script() -> KernelResult<ReplayScript> {
         generate_ac_retry_required,
         generate_ac_retry,
     ])
+}
+
+fn generate_ac_status_only_script() -> KernelResult<ReplayScript> {
+    let generate_ac_failure = ReplayExchange::new(
+        &decode_hex("80AE80000301020300")?,
+        &[],
+        [0x69, 0x85],
+        ApduTraceContext::Generic,
+    )?;
+    ReplayScript::new(vec![generate_ac_failure])
 }

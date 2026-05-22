@@ -5761,6 +5761,14 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         generate_ac_retry,
     ])
     .unwrap();
+    let generate_ac_status_only = ReplayScript::new(vec![ReplayExchange::new(
+        &hex("80AE80000301020300"),
+        &[],
+        [0x69, 0x85],
+        ApduTraceContext::Generic,
+    )
+    .unwrap()])
+    .unwrap();
     let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
     let mut generated = String::new();
     for (case_id, script) in [
@@ -5769,6 +5777,10 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         ("prelab.masking.issuer-script-retry", issuer_script_retry),
         ("prelab.masking.track2-record", track2_record_script),
         ("prelab.masking.follow-up-status", followup_status),
+        (
+            "prelab.masking.generate-ac-status-only",
+            generate_ac_status_only,
+        ),
     ] {
         generated.push_str(
             "{\"type\":\"trace-pack-metadata\",\"trace_pack_id\":\"PRELAB-MASKED-APDU-001\",\"scope\":\"repository-controlled pre-lab fixture\",\"case_id\":\"",
@@ -5791,6 +5803,9 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
             "prelab.masking.follow-up-status" => {
                 "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.follow-up-status\",\"expected_step_count\":4,\"expected_fsm_events\":[\"GpoTemplate77\",\"GacArqc\"],\"expected_fsm_actions\":[\"BuildGpo\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"],\"expected_status_actions\":[\"GetResponse61xx\",\"RetryWithCorrectLe6cxx\"],\"expected_terminal_outcome\":\"first-generate-ac-complete\",\"expected_tlv_stream_count\":0,\"masking_assertions\":[\"full-apdu-disabled\",\"follow-up-response-tag-masked\",\"transaction-cryptogram-suppressed\"]}\n"
             }
+            "prelab.masking.generate-ac-status-only" => {
+                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.generate-ac-status-only\",\"expected_step_count\":1,\"expected_fsm_events\":[\"GacStatusFailure\"],\"expected_fsm_actions\":[\"RequestFirstGenerateAc\",\"FailClosed\"],\"expected_status_actions\":[\"FailCardRemoved\"],\"expected_terminal_outcome\":\"generate-ac-status-failure\",\"expected_tlv_stream_count\":0,\"masking_assertions\":[\"full-apdu-disabled\",\"status-only-response-recorded\",\"no-response-body-parsing\"]}\n"
+            }
             _ => unreachable!("unexpected pre-lab trace case"),
         });
         generated.push_str(
@@ -5812,24 +5827,27 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.issuer-script-retry\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.track2-record\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.follow-up-status\""));
+    assert!(
+        PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.generate-ac-status-only\"")
+    );
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"does_not_close\":\"CERT-OPEN-012\""));
     assert_eq!(
         PRELAB_APDU_TRACE_PACK
             .matches("\"type\":\"trace-pack-metadata\"")
             .count(),
-        5
+        6
     );
     assert_eq!(
         PRELAB_APDU_TRACE_PACK
             .matches("\"type\":\"trace-identity\"")
             .count(),
-        5
+        6
     );
     assert_eq!(
         PRELAB_APDU_TRACE_PACK
             .matches("\"type\":\"trace-scenario\"")
             .count(),
-        5
+        6
     );
     assert_eq!(
         PRELAB_APDU_TRACE_PACK
@@ -5852,12 +5870,15 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     ));
     assert!(PRELAB_APDU_TRACE_PACK
         .contains("\"expected_status_actions\":[\"GetResponse61xx\",\"RetryWithCorrectLe6cxx\"]"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"expected_status_actions\":[\"FailCardRemoved\"]"));
     assert!(PRELAB_APDU_TRACE_PACK
         .contains("\"expected_terminal_outcome\":\"online-authorization-request\""));
     assert!(PRELAB_APDU_TRACE_PACK
         .contains("\"expected_terminal_outcome\":\"continue-to-final-generate-ac\""));
     assert!(PRELAB_APDU_TRACE_PACK
         .contains("\"expected_terminal_outcome\":\"issuer-script-warning-recorded\""));
+    assert!(PRELAB_APDU_TRACE_PACK
+        .contains("\"expected_terminal_outcome\":\"generate-ac-status-failure\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\",\"issuer-application-data-suppressed\"]"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
@@ -5889,6 +5910,8 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"c0\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"610c\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6c1c\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6985\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"unparsed-response\""));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012345"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012D251"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("25122012345678"));
@@ -5908,6 +5931,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("masked host-response TLV evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("issuer-script retry status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("APDU follow-up status evidence"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("GENERATE AC status-only failure evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("full lab/test-tool trace pack remains pending"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] APDU trace logs (masked) for all test cases"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-012"));

@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T20:45:33Z
+
+- Increment completed: extend the generated pre-lab APDU trace pack with a
+  status-only GENERATE AC failure case.
+- Research note: the open-source reference review favors tool-first trace
+  fixtures and explicit request/response evidence. Hyperion adapts that pattern
+  by keeping the trace pack generated, masked, and independent of external
+  implementation logic.
+- Code impact: `krn_prelab_trace_pack` now emits
+  `prelab.masking.generate-ac-status-only`, recording a bodyless `6985`
+  GENERATE AC response as a status-only failure while preserving full APDU
+  suppression and avoiding response-body parsing.
+- Evidence updated: `docs/prelab_apdu_trace_pack.jsonl`,
+  `docs/lab_submission_manifest.md`, and the traceability guard now require the
+  new status-only case and manifest language.
+- Remaining external blockers: certification still needs full lab/test-tool APDU
+  trace logs, scheme/lab-approved profile bundles, production CAPKs, device
+  integration evidence, and official vector/lab reports.
+
 ## 2026-05-22T20:36:59Z
 
 - Increment completed: promoted transaction-type floor-limit table bounds from
@@ -108,7 +127,10 @@ decision record, while this file tracks work toward certification readiness.
   `krn_emv_decode::tests::gac_response_output_parses_without_exposing_values`
   under KRN-GAC-004 and KRN-GAC1-004, and the traceability guard requires that
   decoder evidence.
-- Verification: pending in this working tree.
+- Verification: later committed as `f7dd4f3` after `cargo fmt`, focused
+  `krn_emv_decode` example tests, `cargo test --examples`, `cargo test`,
+  `cargo fmt --check`, `cargo clippy --all-targets --all-features`, and
+  `git diff --check` passed.
 
 ## 2026-05-22T19:10:48Z
 
