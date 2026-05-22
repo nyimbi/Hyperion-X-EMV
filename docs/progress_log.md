@@ -4,6 +4,19 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:45:44Z
+
+- Increment completed: promote terminal capability and TTQ evidence.
+- Research note: terminal parameter claims should cite executable ABI, PDOL,
+  contactless-PDOL, and online-handoff checks rather than broad handoff labels.
+- Code impact: no runtime behavior changed; existing 9F33 and 9F66 transaction
+  flow regressions are now first-class RTM evidence for the older terminal
+  parameter rows.
+- Evidence updated: KRN-TERMCAP-001 and KRN-TTQ-001 now cite concrete
+  traceability and RTM guard regressions in both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:41:55Z
 
 - Increment completed: promote GPO and READ RECORD evidence.

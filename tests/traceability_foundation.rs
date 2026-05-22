@@ -2052,6 +2052,27 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
 }
 
 #[test]
+fn rtm_promotes_terminal_capability_and_ttq_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let termcap = csv_row_for_requirement(csv, "KRN-TERMCAP-001").expect("RTM row exists");
+        assert!(
+            !termcap.contains("PDOL and online handoff evidence"),
+            "KRN-TERMCAP-001 should cite executable 9F33 PDOL and handoff evidence"
+        );
+        assert!(termcap.contains("krn_termcap_001_supplies_9f33_to_pdol_and_online_handoff"));
+        assert!(termcap.contains("rtm_promotes_terminal_capability_and_ttq_evidence"));
+
+        let ttq = csv_row_for_requirement(csv, "KRN-TTQ-001").expect("RTM row exists");
+        assert!(
+            !ttq.contains("Contactless PDOL and online handoff evidence"),
+            "KRN-TTQ-001 should cite executable 9F66 contactless PDOL evidence"
+        );
+        assert!(ttq.contains("krn_ttq_001_supplies_9f66_to_contactless_pdol_and_online_handoff"));
+        assert!(ttq.contains("rtm_promotes_terminal_capability_and_ttq_evidence"));
+    }
+}
+
+#[test]
 fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in [
