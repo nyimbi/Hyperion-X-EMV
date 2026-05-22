@@ -1929,3 +1929,27 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:03:36Z
+
+- Increment completed: make replay and trace evidence resource bounds
+  explicit and traceable.
+- Research note: external lab trace packs remain certification evidence, but
+  repository-controlled replay generation can prove oversized APDU payloads,
+  replay scripts, and masked TLV field sets fail closed before becoming
+  certification-debug artifacts.
+- Code impact: replay script construction now rejects more than
+  `MAX_REPLAY_STEPS`, replay exchange construction rejects command or response
+  data above `MAX_REPLAY_APDU_BYTES`, and masked TLV stream extraction rejects
+  more than `MAX_TRACE_FIELDS`.
+- Evidence updated: current and compatibility RTM annexes cite the replay
+  resource-limit regressions for `KRN-FSM-003` and the trace-field overflow
+  regression for `KRN-LOG-003`.
+- Verification: `cargo test replay_rejects_step_count_overflow`,
+  `cargo test replay_rejects_apdu_payloads_above_max_bytes`,
+  `cargo test mask_tlv_stream_rejects_trace_field_overflow`,
+  `cargo test rtm_promotes_fsm_annex_replay_and_error_transition_evidence`,
+  `cargo test rtm_promotes_logging_policy_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

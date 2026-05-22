@@ -2633,6 +2633,8 @@ fn rtm_promotes_fsm_annex_replay_and_error_transition_evidence() {
 
         let replay = csv_row_for_requirement(csv, "KRN-FSM-003").unwrap();
         assert!(replay.contains("replay_is_exact_order_and_evidence_is_masked"));
+        assert!(replay.contains("replay_rejects_step_count_overflow"));
+        assert!(replay.contains("replay_rejects_apdu_payloads_above_max_bytes"));
         assert!(replay.contains("generic_response_trace_rejects_malformed_tlv_payloads"));
         assert!(replay.contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl"));
 
@@ -2672,6 +2674,7 @@ fn rtm_promotes_logging_policy_evidence() {
         );
         assert!(crash_dump.contains("oda_debug_redacts_recovered_authentication_material"));
         assert!(crash_dump.contains("tlv_debug_redacts_parsed_values"));
+        assert!(crash_dump.contains("mask_tlv_stream_rejects_trace_field_overflow"));
         assert!(crash_dump.contains("apdu_trace_debug_redacts_masked_payloads_for_crash_safety"));
         assert!(crash_dump.contains("replay_debug_redacts_raw_apdu_bytes_for_crash_safety"));
         assert!(crash_dump.contains("replay_rejects_pin_verify_payload_custody"));

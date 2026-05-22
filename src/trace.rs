@@ -870,6 +870,63 @@ mod tests {
     }
 
     #[test]
+    fn replay_rejects_step_count_overflow() {
+        let step = ReplayExchange::new(
+            &[0x00, 0xb2, 0x01, 0x14, 0x00],
+            &[],
+            [0x90, 0x00],
+            ApduTraceContext::Generic,
+        )
+        .unwrap();
+
+        assert_eq!(
+            ReplayScript::new(vec![step; MAX_REPLAY_STEPS + 1]).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn replay_rejects_apdu_payloads_above_max_bytes() {
+        let oversized_response = vec![0u8; MAX_REPLAY_APDU_BYTES + 1];
+        assert_eq!(
+            ReplayExchange::new(
+                &[0x00, 0xb2, 0x01, 0x14, 0x00],
+                &oversized_response,
+                [0x90, 0x00],
+                ApduTraceContext::Generic,
+            )
+            .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        let mut oversized_command = vec![0x80, 0xca, 0x00, 0x00, 0x00];
+        oversized_command.resize(MAX_REPLAY_APDU_BYTES + 1, 0x00);
+        assert_eq!(
+            ReplayExchange::new(
+                &oversized_command,
+                &[],
+                [0x90, 0x00],
+                ApduTraceContext::Generic,
+            )
+            .unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn mask_tlv_stream_rejects_trace_field_overflow() {
+        let mut tlv_stream = Vec::new();
+        for _ in 0..=MAX_TRACE_FIELDS {
+            tlv_stream.extend_from_slice(&[0x9f, 0x10, 0x00]);
+        }
+
+        assert_eq!(
+            mask_tlv_stream(&tlv_stream, LogPolicy::production()).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn generic_response_trace_rejects_malformed_tlv_payloads() {
         let err = mask_apdu_response(
             9,
