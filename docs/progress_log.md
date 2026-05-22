@@ -1695,3 +1695,20 @@ decision record, while this file tracks work toward certification readiness.
 - Verification: `cargo test certification_open_issues_register_tracks_external_blockers`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-22T07:49:42Z
+
+- Increment completed: make the pre-lab APDU trace pack self-scoping.
+- Research note: pre-lab traces are useful reproducibility evidence but must
+  identify their case scope and preserve the `CERT-OPEN-012` full lab trace-pack
+  boundary inside the generated artifact.
+- Code impact: `krn_prelab_trace_pack` now emits a leading
+  `trace-pack-metadata` JSONL record with a stable trace-pack ID, case ID,
+  repository-controlled fixture scope, and `does_not_close` marker.
+- Evidence updated: the checked-in pre-lab trace pack and lab manifest now
+  include trace-pack metadata, and traceability coverage verifies that metadata
+  before checking masking and replay content.
+- Verification: `cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -`,
+  `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.

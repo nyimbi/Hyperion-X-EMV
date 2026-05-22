@@ -1,3 +1,4 @@
+{"type":"trace-pack-metadata","trace_pack_id":"PRELAB-MASKED-APDU-001","scope":"repository-controlled pre-lab fixture","case_id":"prelab.masking.generate-ac","does_not_close":"CERT-OPEN-012"}
 {"type":"trace-identity","kernel_name":"hyperion-emv","kernel_version":"0.1.0","abi_version":2,"profile_version":2,"log_build_mode":"production","support_authorization_verified":false}
 {"sequence":0,"direction":"command","context":"generic","cla":"00","ins":"a4","p1":"04","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
 {"sequence":1,"direction":"response","context":"generic","sw":"9000","data":{"type":"suppressed","reason":"tag-masked"},"fields":[{"tag":"6f","value":{"type":"suppressed","reason":"constructed"}},{"tag":"84","value":{"type":"hex","value":"a0000000031010"}}]}

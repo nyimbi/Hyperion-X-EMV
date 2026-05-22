@@ -17,6 +17,13 @@ fn main() {
 }
 
 fn prelab_trace_pack_jsonl() -> KernelResult<String> {
+    let mut out = String::from(
+        "{\"type\":\"trace-pack-metadata\",\
+         \"trace_pack_id\":\"PRELAB-MASKED-APDU-001\",\
+         \"scope\":\"repository-controlled pre-lab fixture\",\
+         \"case_id\":\"prelab.masking.generate-ac\",\
+         \"does_not_close\":\"CERT-OPEN-012\"}\n",
+    );
     let select = ReplayExchange::new(
         &decode_hex("00A4040007A000000003101000")?,
         &decode_hex("6F098407A0000000031010")?,
@@ -37,5 +44,6 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
     )?;
     let script = ReplayScript::new(vec![select, record, first_gac])?;
     let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
-    script.masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
+    out.push_str(&script.masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)?);
+    Ok(out)
 }

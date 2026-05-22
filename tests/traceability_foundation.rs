@@ -5298,11 +5298,19 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     .unwrap();
     let script = ReplayScript::new(vec![select, record, first_gac]).unwrap();
     let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
-    let generated = script
-        .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
-        .unwrap();
+    let generated = format!(
+        "{}{}",
+        "{\"type\":\"trace-pack-metadata\",\"trace_pack_id\":\"PRELAB-MASKED-APDU-001\",\"scope\":\"repository-controlled pre-lab fixture\",\"case_id\":\"prelab.masking.generate-ac\",\"does_not_close\":\"CERT-OPEN-012\"}\n",
+        script
+            .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
+            .unwrap()
+    );
 
     assert_eq!(PRELAB_APDU_TRACE_PACK, generated);
+    assert!(PRELAB_APDU_TRACE_PACK.starts_with("{\"type\":\"trace-pack-metadata\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"trace_pack_id\":\"PRELAB-MASKED-APDU-001\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.generate-ac\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"does_not_close\":\"CERT-OPEN-012\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"profile_version\":2"));
