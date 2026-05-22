@@ -2452,11 +2452,8 @@ fn run_first_generate_ac(
     let cdol = cdol1_definition_for_first_gac(ctx)?;
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
-    let cdol_values = build_dol_with_policy(
-        &cdol,
-        &ctx.card_data,
-        DolPaddingPolicy::ZeroPadMissingAndShort,
-    )?;
+    let cdol_values =
+        build_dol_with_policy(&cdol, &ctx.card_data, DolPaddingPolicy::RequireExactValues)?;
     let cda_control = cda_request_control_for_first_gac(ctx)?;
     let command = apdu::generate_ac(request, &cdol_values, cda_control)?.encode()?;
     let response = transmit_apdu_with_followups(
@@ -2830,11 +2827,8 @@ fn run_final_generate_ac(
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
     let cdol = parse_dol(&cdol2)?;
-    let cdol_values = build_dol_with_policy(
-        &cdol,
-        &ctx.card_data,
-        DolPaddingPolicy::ZeroPadMissingAndShort,
-    )?;
+    let cdol_values =
+        build_dol_with_policy(&cdol, &ctx.card_data, DolPaddingPolicy::RequireExactValues)?;
     let command =
         apdu::generate_ac(request, &cdol_values, CdaRequestControl::NotRequested)?.encode()?;
     let response = transmit_apdu_with_followups(
@@ -4551,6 +4545,34 @@ mod tests {
             cdol1_definition_for_first_gac(&missing_default),
             Err(KernelError::MissingMandatoryTag)
         );
+    }
+
+    #[test]
+    fn first_gac_rejects_missing_cdol1_source_without_zero_padding() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        ctx.card_data
+            .put(&[0x8c], &[0x9f, 0x37, 0x04, 0x9f, 0x34, 0x03])
+            .unwrap();
+        ctx.card_data
+            .put(&[0x9f, 0x37], &[0x11, 0x22, 0x33, 0x44])
+            .unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_generate_ac_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        assert_eq!(
+            run_first_generate_ac(&mut ctx, runtime),
+            Err(KernelError::MissingMandatoryTag)
+        );
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 0);
     }
 
     #[test]
@@ -6329,6 +6351,36 @@ mod tests {
         assert_eq!(ctx.fsm_state, FsmState::S15);
         assert_eq!(ctx.final_outcome, Some(KrnOutcome::ApprovedOnline));
         assert!(ctx.final_gac_response.is_some());
+    }
+
+    #[test]
+    fn final_gac_rejects_missing_cdol2_source_without_zero_padding() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S14;
+        ctx.state = KernelState::SecondGenerateAc;
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: None,
+            scripts: Vec::new(),
+        });
+        ctx.card_data
+            .put(&[0x8d], &[0x8a, 0x02, 0x91, 0x08])
+            .unwrap();
+        ctx.card_data.put(&[0x8a], b"00").unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        assert_eq!(
+            run_final_generate_ac(&mut ctx, runtime),
+            Err(KernelError::MissingMandatoryTag)
+        );
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 0);
     }
 
     #[test]

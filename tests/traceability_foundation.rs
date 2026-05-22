@@ -2838,6 +2838,8 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
 
         let cdol = csv_row_for_requirement(csv, "KRN-GAC-001").unwrap();
         assert!(cdol.contains("krn_gac_001_gac1_002_cdol_data_matches_active_dol_definitions"));
+        assert!(cdol.contains("first_gac_rejects_missing_cdol1_source_without_zero_padding"));
+        assert!(cdol.contains("final_gac_rejects_missing_cdol2_source_without_zero_padding"));
 
         let p1 = csv_row_for_requirement(csv, "KRN-GAC-002").unwrap();
         assert!(p1.contains("encodes_generate_ac_type_bits_without_cda_collision"));
@@ -2862,6 +2864,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         assert!(cdol1.contains(
             "first_gac_preserves_generated_unpredictable_number_after_rejected_record_tags"
         ));
+        assert!(cdol1.contains("first_gac_rejects_missing_cdol1_source_without_zero_padding"));
 
         let cdol_defaults = csv_row_for_requirement(csv, "KRN-GAC1-001").unwrap();
         assert!(cdol_defaults.contains("first_gac_uses_profile_default_cdol1_when_card_omits_8c"));
@@ -6656,8 +6659,10 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
 
         let cdol2 = csv_row_for_requirement(csv, "KRN-GAC2-001").unwrap();
         assert!(cdol2.contains("final_generate_ac_builds_cdol2_from_host_response_and_state"));
+        assert!(cdol2.contains("final_gac_rejects_missing_cdol2_source_without_zero_padding"));
         let cdol2_auth = csv_row_for_requirement(csv, "KRN-GAC2-002").unwrap();
         assert!(cdol2_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
+        assert!(cdol2_auth.contains("final_gac_rejects_missing_cdol2_source_without_zero_padding"));
 
         let final_outcome = csv_row_for_requirement(csv, "KRN-GAC2-004").unwrap();
         assert!(final_outcome

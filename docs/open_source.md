@@ -243,6 +243,10 @@ Useful ideas to adapt:
   APDU scripts, processing restrictions, terminal risk management, and RSA/CDA
   tests. Hyperion should mirror this density for every certification-critical
   state-machine branch.
+- DOL construction keeps the requested tag order explicit and fails malformed
+  source definitions early. Hyperion adapted that validation stance by making
+  CDOL1/CDOL2 runtime construction reject missing sources instead of silently
+  zero-padding GENERATE AC input data.
 - AFL validation treats the AFL as bounded four-byte records and validates
   field-domain edges before READ RECORD planning. Hyperion adapted the concept
   as a 252-byte / 63-entry parser bound while retaining its separate

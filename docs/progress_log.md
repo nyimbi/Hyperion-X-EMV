@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:08:25Z
+
+- Increment completed: make runtime GENERATE AC CDOL1/CDOL2 construction fail
+  closed on missing DOL sources instead of silently zero-padding active CDOL
+  inputs.
+- Code impact: first and final GENERATE AC now use the exact-value DOL policy;
+  missing CDOL1 or CDOL2 source data returns `MissingMandatoryTag` before APDU
+  transmission.
+- Evidence update: both RTM annexes cite first-GAC and final-GAC missing-source
+  regressions under KRN-GAC-001, KRN-GAC1-002, KRN-GAC2-001, and KRN-GAC2-002;
+  the open-source review records the clean-room DOL validation concept.
+- Verification: `cargo test
+  first_gac_rejects_missing_cdol1_source_without_zero_padding`, `cargo test
+  final_gac_rejects_missing_cdol2_source_without_zero_padding`, `cargo test
+  rtm_promotes_gac_cdol_encoding_and_response_evidence`, `cargo test
+  rtm_promotes_issuer_authentication_and_final_gac_evidence`, `cargo test`,
+  `cargo fmt --check`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T14:58:32Z
 
 - Increment completed: align the AFL parser bound with the full 252-byte AFL
