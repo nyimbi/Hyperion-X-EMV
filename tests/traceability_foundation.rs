@@ -94,6 +94,7 @@ const BITMAP_CATALOGUE: &str = include_str!("../docs/bitmap_catalogue.csv");
 const PERFORMANCE_PROFILE: &str = include_str!("../docs/performance_profile.csv");
 const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manifest.md");
 const CERTIFICATION_OPEN_ISSUES: &str = include_str!("../docs/certification_open_issues.md");
+const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -1306,6 +1307,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_build_manifest"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("every kernel source module"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_apdu_trace_pack.jsonl"));
 
     let mut input_paths = vec![
         "Cargo.lock".to_string(),
@@ -1315,6 +1317,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/lab_submission_manifest.md".to_string(),
         "docs/oda_test_vectors.json".to_string(),
         "docs/performance_profile.csv".to_string(),
+        "docs/prelab_apdu_trace_pack.jsonl".to_string(),
         "docs/requirements_traceability.csv".to_string(),
         "docs/scheme_profiles.cert.json".to_string(),
         "docs/spec.md".to_string(),
@@ -1358,6 +1361,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/lab_submission_manifest.md",
         "docs/oda_test_vectors.json",
         "docs/performance_profile.csv",
+        "docs/prelab_apdu_trace_pack.jsonl",
         "docs/requirements_traceability.csv",
         "docs/scheme_profiles.cert.json",
         "docs/spec.md",
@@ -1417,6 +1421,7 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "Conformance statement (ABI JSON)",
         "Reproducible build provenance",
         "Trace identity metadata",
+        "Pre-lab APDU trace fixture",
     ] {
         assert!(
             LAB_SUBMISSION_MANIFEST.contains(&format!("- [x] {attached}")),
@@ -1519,6 +1524,8 @@ fn certification_open_issues_register_tracks_external_blockers() {
         rows.iter().all(|row| row.contains("| Open |")),
         "external certification blockers must remain open until evidence is attached"
     );
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab fixture does not close"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("Full lab trace pack is attached"));
 }
 
 #[test]
@@ -5081,6 +5088,45 @@ fn deterministic_replay_matches_script_order_and_emits_masked_jsonl() {
         ApduTraceContext::Generic,
     )
     .is_err());
+}
+
+#[test]
+fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
+    let select = ReplayExchange::new(
+        &hex("00A4040007A000000003101000"),
+        &hex("6F098407A0000000031010"),
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let record = ReplayExchange::new(
+        &hex("00B2011400"),
+        &hex("700A5A08123456789012345F"),
+        [0x90, 0x00],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let script = ReplayScript::new(vec![select, record]).unwrap();
+    let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
+    let generated = script
+        .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
+        .unwrap();
+
+    assert_eq!(PRELAB_APDU_TRACE_PACK, generated);
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"profile_version\":2"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"log_build_mode\":\"production\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"support_authorization_verified\":false"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"full-apdu-disabled\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"value\":\"***********2345\""));
+    assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012345"));
+
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab APDU trace fixture"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("full lab/test-tool trace pack remains pending"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] APDU trace logs (masked) for all test cases"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-012"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab fixture does not close"));
 }
 
 #[test]

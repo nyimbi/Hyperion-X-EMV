@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:42:44Z
+
+- Increment completed: add a deterministic pre-lab APDU trace fixture.
+- Research note: the lab trace-pack blocker should remain open until all
+  lab/test-tool cases are attached, but the repository can still control a
+  masked replay fixture that proves the JSONL trace-pack shape, identity
+  binding, and PAN suppression behavior.
+- Code impact: no runtime behavior changed; traceability coverage now
+  regenerates the pre-lab fixture from `ReplayScript` and compares it
+  byte-for-byte with the checked-in JSONL.
+- Evidence updated: `prelab_apdu_trace_pack.jsonl` is covered by the lab
+  manifest, build provenance inputs, and open-issues wording that keeps
+  CERT-OPEN-012 open for the full lab trace pack.
+- Verification: `cargo test`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T02:36:45Z
 
 - Increment completed: add a controlled certification open-issues register.

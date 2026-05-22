@@ -23,6 +23,7 @@
 - [x] Requirement traceability matrix (`requirements_traceability.csv`) – mapped to EMVCo test case categories
 - [x] Certification open-issues register (`certification_open_issues.md`) – controlled list of external evidence blockers and closure criteria
 - [x] Trace identity metadata – masked APDU logs retain ABI version and signed profile version
+- [x] Pre-lab APDU trace fixture (`prelab_apdu_trace_pack.jsonl`) – deterministic masked JSONL fixture for harness validation; full lab/test-tool trace pack remains pending
 - [x] Reproducible build provenance – `cargo run --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/...` emits canonical JSON with SHA-256 for every kernel source module, the manifest tool, lockfile, and controlled annexes
 - [x] Source code (under NDA)
 - [ ] Unit test report (≥95% coverage) – [to be attached]
@@ -32,7 +33,7 @@
 - [ ] PCI PTS integration statement (Model A – PED‑owned VERIFY) – [to be attached]
 - [x] Conformance statement (ABI JSON) – `krn_get_conformance_statement_json` emits deterministic KRN-REF-001 JSON for the ABI build
 - [ ] Conformance statement (signed EMVCo/lab template) – [to be attached]
-- [ ] APDU trace logs (masked) for all test cases – [to be attached]
+- [ ] APDU trace logs (masked) for all test cases – full lab/test-tool trace pack [to be attached]
 
 ## Test Tool Configuration
 - **EMVCo L2 Contact Test Tool:** Fime Eval4dev v3.2 (or equivalent)

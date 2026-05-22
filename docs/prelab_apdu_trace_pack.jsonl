@@ -1,0 +1,5 @@
+{"type":"trace-identity","kernel_name":"hyperion-emv","kernel_version":"0.1.0","abi_version":2,"profile_version":2,"log_build_mode":"production","support_authorization_verified":false}
+{"sequence":0,"direction":"command","context":"generic","cla":"00","ins":"a4","p1":"04","p2":"00","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":1,"direction":"response","context":"generic","sw":"9000","data":{"type":"suppressed","reason":"tag-masked"},"fields":[{"tag":"6f","value":{"type":"suppressed","reason":"constructed"}},{"tag":"84","value":{"type":"hex","value":"a0000000031010"}}]}
+{"sequence":2,"direction":"command","context":"generic","cla":"00","ins":"b2","p1":"01","p2":"14","data":{"type":"suppressed","reason":"full-apdu-disabled"},"fields":[]}
+{"sequence":3,"direction":"response","context":"generic","sw":"9000","data":{"type":"suppressed","reason":"tag-masked"},"fields":[{"tag":"70","value":{"type":"suppressed","reason":"constructed"}},{"tag":"5a","value":{"type":"pan","value":"***********2345"}}]}

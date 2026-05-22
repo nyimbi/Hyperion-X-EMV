@@ -24,4 +24,4 @@ tests alone.
 | CERT-OPEN-009 | Unit and integration reports | Open | Unit coverage report and full EMV test-plan integration report | Coverage and integration reports are attached and match the submitted binary, profiles, and annex hashes. |
 | CERT-OPEN-010 | Static analysis and fuzzing | Open | Static-analysis report and fuzzing/no-crash report | Reports are attached, tool versions are recorded, and unresolved findings are accepted or remediated. |
 | CERT-OPEN-011 | Signed conformance template | Open | Signed EMVCo/lab conformance statement template | Signed conformance template agrees with the ABI JSON statement, RTM, and claimed scope. |
-| CERT-OPEN-012 | APDU trace pack | Open | Masked APDU traces for all applicable lab/test-tool cases | Trace pack is attached, replayable, masked, and tied to submitted profile/build identifiers. |
+| CERT-OPEN-012 | APDU trace pack | Open | Masked APDU traces for all applicable lab/test-tool cases; the pre-lab fixture does not close the full lab trace pack requirement | Full lab trace pack is attached, replayable, masked, and tied to submitted profile/build identifiers. |
