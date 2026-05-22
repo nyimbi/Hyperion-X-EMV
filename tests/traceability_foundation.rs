@@ -5180,6 +5180,71 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
 }
 
 #[test]
+fn rtm_promotes_issuer_script_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        for id in [
+            "KRN-SCR-001",
+            "KRN-SCR-002",
+            "KRN-SCR-003",
+            "KRN-SCR-004",
+            "KRN-SCR-005",
+            "KRN-SCR-006",
+        ] {
+            let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
+            assert!(
+                !row.contains("pending implementation evidence"),
+                "{id} should cite concrete issuer-script evidence"
+            );
+            assert!(
+                row.contains("rtm_promotes_issuer_script_evidence"),
+                "{id} should cite this RTM guard"
+            );
+        }
+
+        let parser = csv_row_for_requirement(csv, "KRN-SCR-001").unwrap();
+        assert!(parser.contains("parses_arpc_arc_and_issuer_scripts"));
+        assert!(parser.contains("rejects_script_templates_without_commands"));
+        assert!(parser.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
+
+        let execution = csv_row_for_requirement(csv, "KRN-SCR-002").unwrap();
+        assert!(execution
+            .contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final"));
+        assert!(execution
+            .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
+        assert!(execution.contains("issuer_script_apdus_resolve_get_response_and_retry_le"));
+
+        let results = csv_row_for_requirement(csv, "KRN-SCR-003").unwrap();
+        assert!(
+            results.contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final")
+        );
+        assert!(
+            results.contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes")
+        );
+        assert!(results.contains("critical_issuer_script_failure_records_results_and_enters_error"));
+
+        let before_final_tvr = csv_row_for_requirement(csv, "KRN-SCR-004").unwrap();
+        assert!(before_final_tvr.contains("script_results_set_phase_specific_tvr_bits_and_tsi"));
+        assert!(before_final_tvr
+            .contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final"));
+
+        let after_final_tvr = csv_row_for_requirement(csv, "KRN-SCR-005").unwrap();
+        assert!(after_final_tvr.contains("script_results_set_phase_specific_tvr_bits_and_tsi"));
+        assert!(after_final_tvr
+            .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
+        assert!(after_final_tvr
+            .contains("critical_issuer_script_failure_records_results_and_enters_error"));
+
+        let reporting = csv_row_for_requirement(csv, "KRN-SCR-006").unwrap();
+        assert!(reporting
+            .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
+        assert!(reporting
+            .contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final"));
+        assert!(reporting
+            .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
+    }
+}
+
+#[test]
 fn rtm_promotes_terminal_action_analysis_evidence() {
     for csv in [CURRENT_RTM, LEGACY_RTM] {
         for id in [

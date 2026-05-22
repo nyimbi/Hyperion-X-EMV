@@ -5344,11 +5344,16 @@ mod tests {
         };
 
         TRANSMIT_COUNT.store(6, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
         SCRIPT_SW1.store(0x6a, Ordering::SeqCst);
         SCRIPT_SW2.store(0x80, Ordering::SeqCst);
         assert_eq!(run_issuer_scripts(&mut ctx, runtime), Ok(()));
         assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
         assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x00, 0xda, 0x00, 0x00, 0x01, 0xaa]
+        );
         assert_eq!(ctx.fsm_state, FsmState::S14);
         assert_eq!(ctx.state, KernelState::SecondGenerateAc);
         assert_eq!(
@@ -5473,11 +5478,16 @@ mod tests {
         };
 
         TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
         SCRIPT_SW1.store(0x69, Ordering::SeqCst);
         SCRIPT_SW2.store(0x85, Ordering::SeqCst);
         assert_eq!(run_post_final_issuer_scripts(&mut ctx, runtime), Ok(()));
         assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xda);
         assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x80, 0xda, 0x00, 0x00, 0x01, 0xbb]
+        );
         assert_eq!(ctx.fsm_state, FsmState::S16);
         assert_eq!(ctx.state, KernelState::FinalOutcome);
         assert_eq!(
@@ -5521,6 +5531,7 @@ mod tests {
         };
 
         TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
         SCRIPT_SW1.store(0x69, Ordering::SeqCst);
         SCRIPT_SW2.store(0x85, Ordering::SeqCst);
         assert_eq!(
@@ -5529,6 +5540,10 @@ mod tests {
         );
         assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xe2);
         assert_eq!(TRANSMITTED_LEN.load(Ordering::SeqCst), 6);
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb]
+        );
         assert_eq!(ctx.fsm_state, FsmState::Se);
         assert_eq!(ctx.state, KernelState::Error);
         assert_eq!(

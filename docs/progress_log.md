@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:56:22Z
+
+- Increment completed: promote issuer script execution evidence.
+- Code impact: issuer script runtime regressions now assert exact Template 71
+  and Template 72 command APDU bytes for non-critical and critical script
+  outcomes, binding script execution evidence to transmitted payloads rather
+  than INS/length-only checks.
+- Evidence updated: KRN-SCR-001/002/003/004/005/006 now cite concrete parser,
+  command execution, SW result capture, phase-specific TVR/TSI, post-final
+  script, critical-failure, and ABI result-reporting regressions in both RTM
+  annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T00:50:59Z
 
 - Increment completed: promote DDA INTERNAL AUTHENTICATE evidence.
