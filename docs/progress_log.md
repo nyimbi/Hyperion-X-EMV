@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:48:37Z
+
+- Increment completed: lock the lab manifest TLV catalogue count to the
+  executable catalogue so repository-controlled evidence does not silently drift
+  after catalogue hardening.
+- Research note: local evidence review found the manifest still claimed 58 TLV
+  rows after the executable catalogue reached 61 data rows.
+- Code impact: `docs/lab_submission_manifest.md` now reports the same 61-tag
+  TLV count as the executable catalogue.
+- Evidence update: `lab_manifest_leaves_unattached_external_reports_unchecked`
+  now derives the expected TLV count from `docs/tlv_catalogue.csv` and checks
+  the manifest text against it.
+- Verification: `cargo test lab_manifest_leaves_unattached_external_reports_unchecked`,
+  `cargo test tlv_catalogue_uses_required_schema_and_profile_defined_markers`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:43:45Z
 
 - Increment completed: extend the executable TLV catalogue coverage for

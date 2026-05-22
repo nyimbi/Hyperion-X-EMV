@@ -1572,6 +1572,14 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         );
     }
 
+    let tlv_tag_count = TLV_CATALOGUE.lines().skip(1).count();
+    assert!(
+        LAB_SUBMISSION_MANIFEST.contains(&format!(
+            "TLV catalogue (`tlv_catalogue.csv`) – complete with {tlv_tag_count} tags"
+        )),
+        "manifest TLV catalogue count should match executable catalogue"
+    );
+
     for pending in [
         "Unit test report",
         "Integration test report",
