@@ -5536,6 +5536,25 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     .unwrap();
     let issuer_auth_script =
         ReplayScript::new(vec![external_authenticate, issuer_script_warning]).unwrap();
+    let issuer_script_retry_required = ReplayExchange::new(
+        &hex("80DA9F3602000900"),
+        &[],
+        [0x6c, 0x04],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let issuer_script_retry_warning = ReplayExchange::new(
+        &hex("80DA9F3602000904"),
+        &[],
+        [0x63, 0x82],
+        ApduTraceContext::Generic,
+    )
+    .unwrap();
+    let issuer_script_retry = ReplayScript::new(vec![
+        issuer_script_retry_required,
+        issuer_script_retry_warning,
+    ])
+    .unwrap();
     let track2_record = ReplayExchange::new(
         &hex("00B2021400"),
         &hex("7010570E123456789012D25122012345678F"),
@@ -5584,6 +5603,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     for (case_id, script) in [
         ("prelab.masking.generate-ac", generate_ac_script),
         ("prelab.masking.issuer-auth-script", issuer_auth_script),
+        ("prelab.masking.issuer-script-retry", issuer_script_retry),
         ("prelab.masking.track2-record", track2_record_script),
         ("prelab.masking.follow-up-status", followup_status),
     ] {
@@ -5598,6 +5618,9 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
             }
             "prelab.masking.issuer-auth-script" => {
                 "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.issuer-auth-script\",\"expected_step_count\":2,\"expected_fsm_events\":[\"IssuerAuthenticationSuccess\",\"ScriptNonCriticalFailure\"],\"expected_fsm_actions\":[\"ProcessArpc\",\"ProcessIssuerScripts\",\"RequestFinalGenerateAc\"],\"expected_status_actions\":[],\"expected_terminal_outcome\":\"continue-to-final-generate-ac\",\"masking_assertions\":[\"full-apdu-disabled\",\"issuer-authentication-data-suppressed\",\"issuer-script-command-data-suppressed\"]}\n"
+            }
+            "prelab.masking.issuer-script-retry" => {
+                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.issuer-script-retry\",\"expected_step_count\":2,\"expected_fsm_events\":[\"ScriptRetryWithCorrectLe\",\"ScriptWarning\"],\"expected_fsm_actions\":[\"ProcessIssuerScripts\",\"RetryIssuerScriptWithCorrectLe\",\"CaptureScriptStatus\"],\"expected_status_actions\":[\"RetryWithCorrectLe6cxx\"],\"expected_terminal_outcome\":\"issuer-script-warning-recorded\",\"masking_assertions\":[\"full-apdu-disabled\",\"issuer-script-command-data-suppressed\",\"issuer-script-retry-status-recorded\"]}\n"
             }
             "prelab.masking.track2-record" => {
                 "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.track2-record\",\"expected_step_count\":1,\"expected_fsm_events\":[\"RecordRead\"],\"expected_fsm_actions\":[\"ReadRecords\"],\"expected_status_actions\":[],\"expected_terminal_outcome\":\"record-data-collected\",\"masking_assertions\":[\"full-apdu-disabled\",\"track2-suppressed\"]}\n"
@@ -5619,6 +5642,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"trace_pack_id\":\"PRELAB-MASKED-APDU-001\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.generate-ac\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.issuer-auth-script\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.issuer-script-retry\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.track2-record\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"case_id\":\"prelab.masking.follow-up-status\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"does_not_close\":\"CERT-OPEN-012\""));
@@ -5626,19 +5650,19 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         PRELAB_APDU_TRACE_PACK
             .matches("\"type\":\"trace-pack-metadata\"")
             .count(),
-        4
+        5
     );
     assert_eq!(
         PRELAB_APDU_TRACE_PACK
             .matches("\"type\":\"trace-identity\"")
             .count(),
-        4
+        5
     );
     assert_eq!(
         PRELAB_APDU_TRACE_PACK
             .matches("\"type\":\"trace-scenario\"")
             .count(),
-        4
+        5
     );
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"expected_step_count\":1"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"expected_step_count\":3"));
@@ -5658,6 +5682,8 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         .contains("\"expected_terminal_outcome\":\"online-authorization-request\""));
     assert!(PRELAB_APDU_TRACE_PACK
         .contains("\"expected_terminal_outcome\":\"continue-to-final-generate-ac\""));
+    assert!(PRELAB_APDU_TRACE_PACK
+        .contains("\"expected_terminal_outcome\":\"issuer-script-warning-recorded\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\"]"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
@@ -5674,6 +5700,8 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"82\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"da\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6300\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6c04\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6382\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"c0\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"610c\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6c1c\""));
@@ -5689,6 +5717,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("scenario expectations"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Track 2 suppression"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("issuer-authentication/script status evidence"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("issuer-script retry status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("APDU follow-up status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("full lab/test-tool trace pack remains pending"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] APDU trace logs (masked) for all test cases"));

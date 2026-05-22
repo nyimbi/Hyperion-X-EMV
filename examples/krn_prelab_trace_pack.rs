@@ -64,6 +64,27 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
     append_case(
         &mut out,
         PrelabTraceCase {
+            case_id: "prelab.masking.issuer-script-retry",
+            script: issuer_script_retry_masking_script()?,
+            expected_step_count: 2,
+            expected_fsm_events: &["ScriptRetryWithCorrectLe", "ScriptWarning"],
+            expected_fsm_actions: &[
+                "ProcessIssuerScripts",
+                "RetryIssuerScriptWithCorrectLe",
+                "CaptureScriptStatus",
+            ],
+            expected_status_actions: &["RetryWithCorrectLe6cxx"],
+            expected_terminal_outcome: "issuer-script-warning-recorded",
+            masking_assertions: &[
+                "full-apdu-disabled",
+                "issuer-script-command-data-suppressed",
+                "issuer-script-retry-status-recorded",
+            ],
+        },
+    )?;
+    append_case(
+        &mut out,
+        PrelabTraceCase {
             case_id: "prelab.masking.track2-record",
             script: track2_record_masking_script()?,
             expected_step_count: 1,
@@ -191,6 +212,22 @@ fn issuer_auth_script_masking_script() -> KernelResult<ReplayScript> {
         ApduTraceContext::Generic,
     )?;
     ReplayScript::new(vec![external_authenticate, issuer_script_warning])
+}
+
+fn issuer_script_retry_masking_script() -> KernelResult<ReplayScript> {
+    let retry_required = ReplayExchange::new(
+        &decode_hex("80DA9F3602000900")?,
+        &[],
+        [0x6c, 0x04],
+        ApduTraceContext::Generic,
+    )?;
+    let retry_warning = ReplayExchange::new(
+        &decode_hex("80DA9F3602000904")?,
+        &[],
+        [0x63, 0x82],
+        ApduTraceContext::Generic,
+    )?;
+    ReplayScript::new(vec![retry_required, retry_warning])
 }
 
 fn track2_record_masking_script() -> KernelResult<ReplayScript> {

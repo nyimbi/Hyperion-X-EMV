@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T16:52:03Z
+
+- Increment completed: expand the repository-controlled masked pre-lab trace
+  pack with an issuer-script retry/status scenario while preserving the
+  `CERT-OPEN-012` boundary for full lab traces.
+- Research note: the open-source reference review favors fixture-driven APDU
+  replay evidence and visible follow-up status handling; Hyperion adapts that
+  testing shape without copying source or treating public examples as
+  certification evidence.
+- Code impact: `examples/krn_prelab_trace_pack.rs` now emits a fifth masked
+  scenario covering issuer-script `6Cxx` retry handling followed by a warning
+  script status, and `docs/prelab_apdu_trace_pack.jsonl` is regenerated from
+  that executable fixture.
+- Evidence update: `prelab_apdu_trace_pack_is_replayable_masked_and_scoped`
+  now checks the fifth scenario, five metadata/identity/scenario records, and
+  the issuer-script retry status words while keeping raw script APDU data
+  suppressed.
+- Verification: `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`,
+  `cargo test rtm_promotes_fsm_annex_replay_and_error_transition_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features`, `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T16:48:37Z
 
 - Increment completed: lock the lab manifest TLV catalogue count to the
