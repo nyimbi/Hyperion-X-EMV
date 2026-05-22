@@ -2525,6 +2525,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_invalid_or_duplicate_critical_script_ins_policy"));
         assert!(row.contains("rejects_invalid_certification_scope_boundaries"));
         assert!(row.contains("rejects_inconsistent_contactless_limit_ordering"));
+        assert!(row.contains("rejects_oversized_transaction_type_floor_limit_profiles"));
         assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
         assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
         assert!(row.contains("rtm_promotes_cfg_schema_and_terminal_param_evidence"));
@@ -2986,6 +2987,7 @@ fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
         assert!(floor.contains("floor_limit_uses_transaction_type_profile_override"));
         assert!(floor.contains("loads_profile_annex_when_signature_is_verified"));
         assert!(floor.contains("rejects_cfg_002_profile_schema_and_field_failures"));
+        assert!(floor.contains("rejects_oversized_transaction_type_floor_limit_profiles"));
         assert!(floor
             .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
 

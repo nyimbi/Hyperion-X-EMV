@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T20:36:59Z
+
+- Increment completed: promoted transaction-type floor-limit table bounds from
+  TRM construction into signed-profile loading evidence.
+- Code impact: added a config-loader regression that rejects profile bundles
+  containing more than `MAX_TRANSACTION_TYPE_FLOOR_LIMITS` per-transaction
+  floor-limit overrides before terminal risk management can consume them.
+- Evidence updated:
+  `config::tests::rejects_oversized_transaction_type_floor_limit_profiles`
+  now appears in both RTM CSV annexes under `KRN-CFG-002` and `KRN-TRM-001`,
+  with traceability guard assertions preventing regression.
+- Remaining external blockers: certification still needs scheme/lab-approved
+  profile bundles, production CAPKs, device integration evidence, and official
+  vector/lab reports.
+
 ## 2026-05-22T20:29:33Z
 
 - Increment completed: bound direct AID fallback candidates by the same

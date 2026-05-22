@@ -1361,6 +1361,7 @@ impl<'a> JsonParser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::trm::MAX_TRANSACTION_TYPE_FLOOR_LIMITS;
 
     const VALID_PROFILE: &[u8] = br#"{
       "profile_class": "CERTIFICATION",
@@ -1972,6 +1973,35 @@ mod tests {
             )
             .unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_oversized_transaction_type_floor_limit_profiles() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let entries = (0..=MAX_TRANSACTION_TYPE_FLOOR_LIMITS)
+            .map(|index| {
+                format!(
+                    r#"{{"transaction_type": "{index:02X}", "floor_limit": {}}}"#,
+                    10_000 + index
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",\n            ");
+        let oversized = profile.replace(
+            r#""transaction_type_floor_limits": [
+            {"transaction_type": "01", "floor_limit": 10000}
+          ],"#,
+            &format!(
+                r#""transaction_type_floor_limits": [
+            {entries}
+          ],"#
+            ),
+        );
+
+        assert_eq!(
+            load_profile_set(oversized.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
         );
     }
 
