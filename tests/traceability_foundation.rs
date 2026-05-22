@@ -763,6 +763,7 @@ fn rtm_external_lab_gates_are_explicit() {
         assert!(!approval.contains("pending implementation evidence"));
         assert!(approval.contains("conformance_statement_json_is_deterministic_and_scoped"));
         assert!(approval.contains("provenance_manifest_rejects_resource_limits"));
+        assert!(approval.contains("provenance_manifest_rejects_ambiguous_artifact_names"));
         assert!(approval.contains("lab_manifest_and_provenance_cover_reproducible_build_artifacts"));
         assert!(approval.contains("krn_ref_001_conformance_statement_declares_normative_hierarchy"));
         assert!(approval.contains("external EMV Level 2 approval and signed LoA required"));
@@ -1404,6 +1405,7 @@ fn corrected_spec_contains_api_transaction_runner_requirements() {
 fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Reproducible build provenance"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_build_manifest"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("controlled relative artifact names"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("every kernel source module"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("abi_conformance_statement.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_abi_conformance_statement"));

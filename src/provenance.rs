@@ -154,6 +154,14 @@ fn validate_artifact(artifact: &Artifact<'_>) -> KernelResult<()> {
     {
         return Err(KernelError::InvalidArgument);
     }
+    if artifact.name.starts_with('/')
+        || artifact
+            .name
+            .split('/')
+            .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+    {
+        return Err(KernelError::InvalidArgument);
+    }
     Ok(())
 }
 
@@ -326,5 +334,30 @@ mod tests {
             build_provenance_manifest(1, &artifacts).unwrap_err(),
             KernelError::LengthOverflow
         );
+    }
+
+    #[test]
+    fn provenance_manifest_rejects_ambiguous_artifact_names() {
+        for name in [
+            "/docs/spec.md",
+            "../docs/spec.md",
+            "docs/../spec.md",
+            "docs/./spec.md",
+            "docs//spec.md",
+            "docs/spec md",
+        ] {
+            assert_eq!(
+                build_provenance_manifest(
+                    1,
+                    &[Artifact {
+                        name,
+                        bytes: b"artifact",
+                    }],
+                )
+                .unwrap_err(),
+                KernelError::InvalidArgument,
+                "ambiguous artifact name should be rejected: {name}"
+            );
+        }
     }
 }

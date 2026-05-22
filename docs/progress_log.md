@@ -3592,3 +3592,27 @@ decision record, while this file tracks work toward certification readiness.
   passed. `cargo fmt --check`, `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` also
   passed.
+
+## 2026-05-22T19:35:02Z
+
+- Increment completed: harden reproducible build provenance so artifact names
+  are canonical repository-relative paths.
+- Research note: the lab submission manifest is part of the evidence chain, so
+  its artifact names must be unambiguous before a lab or reviewer compares
+  hashes. Accepting absolute paths, parent traversal, current-directory
+  segments, or doubled separators would make the same file set appear under
+  multiple names and weaken reproducibility.
+- Code impact: `build_provenance_manifest` now rejects absolute artifact names,
+  `.` or `..` path segments, empty path segments, and existing invalid
+  characters before digesting artifacts. The manifest text now states that
+  build provenance uses controlled relative artifact names.
+- Evidence updated: `provenance_manifest_rejects_ambiguous_artifact_names`
+  covers the rejected path forms, both RTM CSV annexes cite it under
+  `KRN-CERT-001`, and the traceability tests require that citation plus the
+  manifest wording.
+- Verification: `cargo fmt`,
+  `cargo test provenance_manifest_rejects_ambiguous_artifact_names`,
+  `cargo test lab_manifest_and_provenance_cover_reproducible_build_artifacts`,
+  `cargo test rtm_external_lab_gates_are_explicit`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
