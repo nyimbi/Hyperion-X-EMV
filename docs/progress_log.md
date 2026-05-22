@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:27:51Z
+
+- Increment completed: reject nested constructed objects inside READ RECORD
+  template `70` before storing card data.
+- Research note: EMV READ RECORD data for application files is parsed from the
+  record template as primitive BER-TLV data objects. Flattening through nested
+  constructed objects can import data with ambiguous provenance into later
+  restriction, risk, and ODA paths.
+- Code impact: `parse_read_record_body` now accepts only direct primitive
+  children of template `70` and rejects nested constructed record data without
+  partially updating the card data store.
+- Evidence updated: record parser unit tests, READ RECORD traceability guards,
+  and both RTM annexes now cite nested-record rejection coverage.
+- Verification: `cargo test rejects_nested_record_data_without_partial_store`,
+  `cargo test rejects_duplicate_record_data_without_partial_store`,
+  `cargo test parses_record_template_into_card_data_store`,
+  `cargo test krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T05:17:52Z
 
 - Increment completed: reject invalid BER-TLV tag field bytes before card or

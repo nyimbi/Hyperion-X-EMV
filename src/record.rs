@@ -9,9 +9,9 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
     }
 
     let mut entries = Vec::new();
-    for item in tlv::flatten(&parsed[0].children) {
+    for item in &parsed[0].children {
         if item.constructed {
-            continue;
+            return Err(KernelError::ParseError);
         }
         if entries
             .iter()
@@ -110,6 +110,24 @@ mod tests {
                 &[
                     0x70, 0x10, 0x5a, 0x03, 0x12, 0x34, 0x5f, 0xa5, 0x09, 0x5a, 0x03, 0xaa, 0xbb,
                     0xcc, 0x5f, 0x24, 0x01, 0x26,
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x5a]).is_none());
+        assert!(data.get(&[0x5f, 0x24]).is_none());
+    }
+
+    #[test]
+    fn rejects_nested_record_data_without_partial_store() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x0d, 0x5a, 0x03, 0x12, 0x34, 0x5f, 0xa5, 0x06, 0x5f, 0x24, 0x03, 0x26,
+                    0x12, 0x31
                 ],
                 &mut data,
             )

@@ -878,6 +878,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         assert!(record.contains("rejects_empty_or_malformed_record_templates"));
         assert!(record.contains("rejects_unwrapped_or_extra_record_data"));
         assert!(record.contains("rejects_duplicate_record_data_without_partial_store"));
+        assert!(record.contains("rejects_nested_record_data_without_partial_store"));
         assert!(record.contains("apdu_trace_debug_redacts_masked_payloads_for_crash_safety"));
         assert!(
             record.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data")
@@ -6380,6 +6381,14 @@ fn krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data() {
     assert_eq!(
         parse_read_record_body(
             &hex("700E5A0312345F5A03AABBCC5F240126"),
+            &mut DataStore::new()
+        )
+        .unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_read_record_body(
+            &hex("700D5A0312345FA5065F2403261231"),
             &mut DataStore::new()
         )
         .unwrap_err(),
