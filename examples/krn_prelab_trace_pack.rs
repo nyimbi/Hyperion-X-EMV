@@ -29,7 +29,13 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
         [0x90, 0x00],
         ApduTraceContext::Generic,
     )?;
-    let script = ReplayScript::new(vec![select, record])?;
+    let first_gac = ReplayExchange::new(
+        &decode_hex("80AE800000")?,
+        &decode_hex("800B8000091112131415161718")?,
+        [0x90, 0x00],
+        ApduTraceContext::GenerateAcResponse,
+    )?;
+    let script = ReplayScript::new(vec![select, record, first_gac])?;
     let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
     script.masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
 }

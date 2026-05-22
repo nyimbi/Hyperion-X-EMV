@@ -5255,7 +5255,14 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         ApduTraceContext::Generic,
     )
     .unwrap();
-    let script = ReplayScript::new(vec![select, record]).unwrap();
+    let first_gac = ReplayExchange::new(
+        &hex("80AE800000"),
+        &hex("800B8000091112131415161718"),
+        [0x90, 0x00],
+        ApduTraceContext::GenerateAcResponse,
+    )
+    .unwrap();
+    let script = ReplayScript::new(vec![select, record, first_gac]).unwrap();
     let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
     let generated = script
         .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
@@ -5269,7 +5276,11 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"support_authorization_verified\":false"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"full-apdu-disabled\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"value\":\"***********2345\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"context\":\"generate-ac-response\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f26\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"transaction-cryptogram\""));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012345"));
+    assert!(!PRELAB_APDU_TRACE_PACK.contains("1112131415161718"));
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab APDU trace fixture"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_trace_pack"));

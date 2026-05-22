@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:57:08Z
+
+- Increment completed: extend the repository-generated pre-lab APDU trace
+  fixture to cover first GENERATE AC response masking, not only selection and
+  record/PAN masking.
+- Research note: lab trace evidence must demonstrate that transaction
+  cryptograms are handled as sensitive values. A pre-lab fixture can prove the
+  repository masking policy and replay identity, but it still does not close the
+  full lab/test-tool trace pack requirement.
+- Code impact: `krn_prelab_trace_pack` now emits a deterministic GENERATE AC
+  response exchange in `generate-ac-response` context, and the traceability
+  guard asserts that tag `9F26` is present only as a suppressed
+  transaction-cryptogram value.
+- Evidence updated: `prelab_apdu_trace_pack.jsonl` and the lab manifest now
+  describe trace identity, PAN masking, and GENERATE AC cryptogram suppression
+  while preserving `CERT-OPEN-012`.
+- Verification: `cargo run --quiet --example krn_prelab_trace_pack | diff -u
+  docs/prelab_apdu_trace_pack.jsonl -`,
+  `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T06:50:10Z
 
 - Increment completed: expand the pre-lab quality gate manifest to explicitly
