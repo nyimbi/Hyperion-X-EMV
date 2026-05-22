@@ -4,6 +4,45 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:50:10Z
+
+- Increment completed: expand the pre-lab quality gate manifest to explicitly
+  cover every repository-generated submission artifact, not just broad example
+  compilation.
+- Action log: persisted the active certification objective and operating
+  commitments in `goal.txt` per the 2026-05-22 user directive, while continuing
+  the verified incremental commit workflow.
+- Research note: generated evidence artifacts are only useful for a lab package
+  if their exact checked-in bytes can be regenerated and compared by a stable
+  command. The quality gate manifest still remains repository-controlled
+  engineering evidence and does not close external coverage, static-analysis,
+  fuzzing, or lab-report attachments.
+- Code impact: `prelab_quality_gates_json` now includes deterministic gates for
+  ABI conformance JSON regeneration, masked APDU trace regeneration, quality
+  manifest self-regeneration, and canonical build-provenance emission across
+  source, controlled annexes, and evidence generators.
+- Evidence updated: `prelab_quality_gates.json`, the lab manifest, and
+  traceability guards now require the explicit generated-artifact gates while
+  preserving `CERT-OPEN-009` and `CERT-OPEN-010`.
+- Verification: `cargo run --quiet --example krn_abi_conformance_statement |
+  diff -u docs/abi_conformance_statement.json -`, `cargo run --quiet
+  --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl
+  -`, `cargo run --quiet --example krn_prelab_quality_gates | diff -u
+  docs/prelab_quality_gates.json -`, `cargo run --quiet --example
+  krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md
+  docs/lab_submission_manifest.md docs/requirements_traceability.csv
+  docs/scheme_profiles.cert.json docs/oda_test_vectors.json
+  docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv
+  docs/performance_profile.csv docs/abi_conformance_statement.json
+  docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json
+  docs/certification_open_issues.md examples/krn_build_manifest.rs
+  examples/krn_abi_conformance_statement.rs
+  examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs`,
+  `cargo test prelab_quality_gates_are_reproducible_and_do_not_close_external_reports`,
+  `cargo test lab_manifest_and_provenance_cover_reproducible_build_artifacts`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T06:41:08Z
 
 - Increment completed: reject inconsistent interface/kernel mappings during

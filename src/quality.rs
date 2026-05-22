@@ -8,9 +8,24 @@ struct QualityGate {
 
 const QUALITY_GATES: &[QualityGate] = &[
     QualityGate {
+        id: "PRELAB-CONFORMANCE",
+        command: "cargo run --quiet --example krn_abi_conformance_statement | diff -u docs/abi_conformance_statement.json -",
+        purpose: "regenerate and compare the ABI conformance statement artifact",
+    },
+    QualityGate {
         id: "PRELAB-TRACEPACK",
         command: "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
         purpose: "regenerate and compare the masked pre-lab APDU trace fixture",
+    },
+    QualityGate {
+        id: "PRELAB-QUALITY-GATES",
+        command: "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
+        purpose: "regenerate and compare this pre-lab quality gate manifest",
+    },
+    QualityGate {
+        id: "PRELAB-BUILD-PROVENANCE",
+        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/scheme_profiles.cert.json docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs",
+        purpose: "emit canonical build provenance for source, controlled annexes, and evidence generators",
     },
     QualityGate {
         id: "PRELAB-UNIT-INTEGRATION",

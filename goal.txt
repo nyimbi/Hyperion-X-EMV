@@ -1,0 +1,13 @@
+Develop a certification-worthy EMV Kernel from the capabilities defined in
+docs/spec.md, incorporating the non-prescriptive engineering notes in
+docs/eng_notes.md where they strengthen certification readiness.
+
+Operating commitments:
+- Commit completed, verified work regularly instead of allowing large batches
+  of uncommitted work to accumulate.
+- Keep a concise progress log of actions, evidence, and remaining risks.
+- Be careful and meticulous, research current developments where useful, and
+  keep the code clean and thoroughly documented.
+- Preserve open certification blockers for evidence that requires external
+  lab, scheme, device, CAPK, or official vector inputs.
+- Push regular commits when a git remote is configured.
