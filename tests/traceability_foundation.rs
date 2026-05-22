@@ -795,6 +795,12 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
             assert!(row.contains("ffi_builds_select_into_caller_buffer"));
         }
 
+        let pse_selection = csv_row_for_requirement(csv, "KRN-SEL-001").expect("RTM row exists");
+        assert!(
+            pse_selection.contains("partial_selection_preserves_card_adf_name_for_final_select")
+        );
+        assert!(pse_selection.contains("runtime_partial_selection_uses_card_adf_name_for_select"));
+
         for id in ["KRN-APDU-002", "KRN-APDU-003", "KRN-SEL-003"] {
             let row = csv_row_for_requirement(csv, id).expect("RTM row exists");
             assert!(

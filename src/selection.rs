@@ -7,7 +7,14 @@ pub const MAX_CANDIDATE_AIDS: usize = 32;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SelectionCandidate {
+    /// Signed profile AID used to locate the certified scheme/profile rules.
     pub aid: Vec<u8>,
+    /// ADF name to send in the final SELECT command.
+    ///
+    /// For exact matches this is the same as `aid`. For partial-selection
+    /// profile matches it preserves the card directory's full ADF name so the
+    /// final SELECT does not silently shorten the card-provided candidate.
+    pub select_aid: Vec<u8>,
     pub scheme_index: usize,
     pub aid_index: usize,
     pub priority: u8,
@@ -56,6 +63,7 @@ pub fn direct_profile_candidates(
             {
                 out.push(SelectionCandidate {
                     aid: aid.aid.clone(),
+                    select_aid: aid.aid.clone(),
                     scheme_index,
                     aid_index,
                     priority: aid.priority,
@@ -90,12 +98,13 @@ pub fn match_profile_candidates(
             {
                 continue;
             }
-            if card_candidates
+            if let Some(card_aid) = card_candidates
                 .iter()
-                .any(|card| aid_matches(card, &aid.aid, aid.partial_selection))
+                .find(|card| aid_matches(card, &aid.aid, aid.partial_selection))
             {
                 out.push(SelectionCandidate {
                     aid: aid.aid.clone(),
+                    select_aid: (*card_aid).clone(),
                     scheme_index,
                     aid_index,
                     priority: aid.priority,
@@ -141,6 +150,7 @@ fn sort_candidates(candidates: &mut [SelectionCandidate]) {
         left.priority
             .cmp(&right.priority)
             .then_with(|| left.aid.cmp(&right.aid))
+            .then_with(|| left.select_aid.cmp(&right.select_aid))
             .then_with(|| left.scheme_index.cmp(&right.scheme_index))
             .then_with(|| left.aid_index.cmp(&right.aid_index))
     });
@@ -278,6 +288,26 @@ mod tests {
     }
 
     #[test]
+    fn partial_selection_preserves_card_adf_name_for_final_select() {
+        let mut profiles = profiles();
+        profiles.schemes[0].aids[0].aid = vec![0xa0, 0x00, 0x00, 0x00, 0x03];
+        profiles.schemes[0].aids[0].partial_selection = true;
+
+        let candidates = match_profile_candidates(
+            &profiles,
+            Interface::Contact,
+            &[vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]],
+        )
+        .unwrap();
+
+        assert_eq!(candidates[0].aid, vec![0xa0, 0x00, 0x00, 0x00, 0x03]);
+        assert_eq!(
+            candidates[0].select_aid,
+            vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]
+        );
+    }
+
+    #[test]
     fn direct_candidates_are_sorted_by_signed_profile_priority() {
         let candidates = direct_profile_candidates(&profiles(), Interface::Contact).unwrap();
         assert_eq!(candidates.len(), 2);
@@ -285,6 +315,7 @@ mod tests {
             candidates[0].aid,
             vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]
         );
+        assert_eq!(candidates[0].select_aid, candidates[0].aid);
     }
 
     fn tlv_bytes(tag: &[u8], value: &[u8]) -> Vec<u8> {

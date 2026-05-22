@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T14:32:58Z
+
+- Increment completed: preserve the card directory ADF name for final SELECT
+  when a signed profile AID matches by partial selection.
+- Code impact: selection candidates now carry both the signed profile AID used
+  for rule/profile lookup and the actual ADF name used for SELECT; runtime
+  selection sends the card-provided ADF while retaining profile indices for
+  scheme configuration.
+- Evidence update: both RTM annexes now cite selection and runtime regressions
+  proving partial-selection ADF preservation under KRN-SEL-001.
+- Verification: `cargo test
+  partial_selection_preserves_card_adf_name_for_final_select`, `cargo test
+  runtime_partial_selection_uses_card_adf_name_for_select`, `cargo test
+  rtm_promotes_runtime_apdu_selection_status_policy_evidence`, `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T14:20:33Z
 
 - Increment completed: prevent cross-record rewrites of cardholder PAN and
