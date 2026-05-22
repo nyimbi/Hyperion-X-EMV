@@ -1199,6 +1199,15 @@ fn rtm_promotes_certification_evidence_boundaries() {
             "certification_package_rejects_illustrative_profiles_and_placeholder_vectors"
         ));
         assert!(row.contains("rtm_promotes_certification_evidence_boundaries"));
+
+        let pen = csv_row_for_requirement(csv, "KRN-CERT-004").expect("RTM row exists");
+        assert!(
+            !pen.contains("Pen test report") && !pen.contains("Penetration test report"),
+            "KRN-CERT-004 should cite executable security regression evidence"
+        );
+        assert!(pen.contains("krn_cert_004_penetration_rejects_apdu_injection_and_state_bypass"));
+        assert!(pen.contains("external third-party security assessment"));
+        assert!(pen.contains("rtm_promotes_certification_evidence_boundaries"));
     }
 }
 

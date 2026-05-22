@@ -4,6 +4,18 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:12:20Z
+
+- Increment completed: promote penetration-boundary evidence.
+- Research note: KRN-CERT-004 needs both executable APDU/state-bypass
+  regression evidence and a clearly external third-party assessment boundary.
+- Code impact: no runtime behavior changed; the existing certification security
+  regression is now first-class RTM evidence for the penetration row.
+- Evidence updated: KRN-CERT-004 now cites the internal APDU injection and state
+  bypass regression while retaining the external assessment requirement.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T02:08:05Z
 
 - Increment completed: promote ODA CAPK, TVR, and CDA evidence.
