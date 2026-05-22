@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:32:09Z
+
+- Increment completed: extend the pre-lab decoder utility with CID inspection
+  for GENERATE AC response triage.
+- Code impact: `examples/krn_emv_decode.rs` now accepts `cid <hex>`, routes
+  through the kernel `Cid` decoder, reports the raw CID byte, cryptogram type
+  derived by the `0xC0` mask, advice-required flag, and reason/advice code
+  without adding scheme-private semantics.
+- Evidence update: the lab submission manifest lists CID in the controlled
+  decoder scope, both RTM annexes cite the decoder regression for `KRN-CID-001`
+  and `KRN-CID-002`, and the open-source adaptation backlog records CID as one
+  of the maintained operator-facing decodes.
+- Verification: `cargo test --example krn_emv_decode`, `cargo run --quiet
+  --example krn_emv_decode -- cid 8F`, `cargo test
+  rtm_promotes_cid_decode_and_preservation_evidence`, `cargo test
+  lab_manifest_and_provenance_cover_reproducible_build_artifacts`, `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T13:27:03Z
 
 - Increment completed: reject inconsistent or malformed cardholder PAN data

@@ -1,3 +1,4 @@
+use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::decode_hex;
 use hyperion_emv::cvm::{parse_cvm_list, CvmMethod};
 use hyperion_emv::dol::parse_dol;
@@ -29,6 +30,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "cvm-list" => decode_cvm_list(arg_hex(args, 1, "cvm-list")?),
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
+        "cid" => decode_cid(arg_hex(args, 1, "cid")?),
         "sw" => {
             if args.len() != 3 {
                 return Err("sw mode requires <context> <SW1SW2>".to_string());
@@ -44,7 +46,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|cvm-list|tvr|tsi|cid|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
      internal-authenticate, external-authenticate, issuer-script-critical,\n\
@@ -106,6 +108,24 @@ fn decode_cvm_list(bytes: Vec<u8>) -> Result<String, String> {
             rule.condition_code
         );
     }
+    Ok(out)
+}
+
+fn decode_cid(bytes: Vec<u8>) -> Result<String, String> {
+    let [raw]: [u8; 1] = bytes
+        .try_into()
+        .map_err(|_| "CID must be exactly 1 byte".to_string())?;
+    let cid = Cid::new(raw);
+    let mut out = String::new();
+    let _ = writeln!(out, "type=cid");
+    let _ = writeln!(out, "raw=0x{:02X}", cid.raw());
+    let _ = writeln!(
+        out,
+        "cryptogram_type={}",
+        cryptogram_type_name(cid.cryptogram_type())
+    );
+    let _ = writeln!(out, "advice_required={}", cid.advice_required());
+    let _ = writeln!(out, "reason_advice_code=0x{:02X}", cid.reason_advice_code());
     Ok(out)
 }
 
@@ -321,6 +341,15 @@ fn cvm_method_name(method: CvmMethod) -> String {
     }
 }
 
+fn cryptogram_type_name(cryptogram_type: CryptogramType) -> &'static str {
+    match cryptogram_type {
+        CryptogramType::Aac => "aac",
+        CryptogramType::Tc => "tc",
+        CryptogramType::Arqc => "arqc",
+        CryptogramType::ApplicationAuthenticationReferral => "application-authentication-referral",
+    }
+}
+
 fn bit_name(bit: (usize, u8)) -> &'static str {
     TVR_BITS
         .iter()
@@ -526,6 +555,18 @@ mod tests {
     }
 
     #[test]
+    fn cid_output_masks_type_bits_and_preserves_advice_fields() {
+        let out = decode_cid(decode_hex("8F").unwrap()).unwrap();
+
+        assert!(out.contains("type=cid"));
+        assert!(out.contains("raw=0x8F"));
+        assert!(out.contains("cryptogram_type=arqc"));
+        assert!(out.contains("advice_required=true"));
+        assert!(out.contains("reason_advice_code=0x07"));
+        assert!(!out.contains("cryptogram_type=application-authentication-referral"));
+    }
+
+    #[test]
     fn sw_output_is_context_specific() {
         let select = decode_status_word(ApduContext::SelectPse, StatusWord::new(0x6A, 0x82));
         let gpo = decode_status_word(ApduContext::Gpo, StatusWord::new(0x6A, 0x82));
@@ -564,6 +605,14 @@ mod tests {
 
         assert!(out.contains("context=verify"));
         assert!(out.contains("action=pin-failed tries_remaining=2"));
+    }
+
+    #[test]
+    fn cli_routes_cid_mode() {
+        let out = run(&[string_arg("cid"), string_arg("47")]).unwrap();
+
+        assert!(out.contains("type=cid"));
+        assert!(out.contains("cryptogram_type=tc"));
     }
 
     #[test]

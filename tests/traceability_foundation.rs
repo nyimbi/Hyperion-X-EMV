@@ -1396,6 +1396,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("CID"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
@@ -3773,11 +3774,13 @@ fn rtm_promotes_cid_decode_and_preservation_evidence() {
 
         let decode = csv_row_for_requirement(csv, "KRN-CID-001").unwrap();
         assert!(decode.contains("decodes_cryptogram_type_with_0xc0_mask"));
+        assert!(decode.contains("cid_output_masks_type_bits_and_preserves_advice_fields"));
 
         let preserve = csv_row_for_requirement(csv, "KRN-CID-002").unwrap();
         assert!(
             preserve.contains("preserves_non_type_bits_without_changing_cryptogram_classification")
         );
+        assert!(preserve.contains("cid_output_masks_type_bits_and_preserves_advice_fields"));
         assert!(
             preserve.contains("builds_online_authorization_package_without_generating_cryptograms")
         );

@@ -321,8 +321,9 @@ Do not borrow:
 The following are adaptation candidates, ordered by near-term value:
 
 1. Maintain and extend the `krn_emv_decode` example so lab-trace triage stays
-   parser-backed, masked by default, and eventually covers any remaining
-   operator-facing decodes that are useful before formal test-tool execution.
+   parser-backed, masked by default, and covers operator-facing TLV, DOL, CVM,
+   bitmap, CID, status-word, and APDU-envelope decodes before formal test-tool
+   execution.
 2. Continue expanding `docs/prelab_apdu_trace_pack.jsonl` beyond the current
    scenario expectation records into broader lab-case coverage once formal
    test-tool inputs are available.
