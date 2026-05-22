@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:49:38Z
+
+- Increment completed: promote CVM/PIN capability and custody evidence.
+- Research note: CVM and PIN boundary claims should cite executable capability,
+  9F34 result, PED-handle, redaction, and replay-custody regressions rather
+  than broad ABI or method labels.
+- Code impact: no runtime behavior changed; existing CVM capability, CVM
+  Results, PIN method, PED handle, and PIN-custody tests are now first-class
+  RTM evidence for the older CVM/PIN rows.
+- Evidence updated: KRN-CVMCAP-001, KRN-CVMRES-001, KRN-PIN-001/002/003, and
+  KRN-PINAPI-001/002 now cite concrete CVM/PIN regressions and RTM guards in
+  both RTM annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:45:44Z
 
 - Increment completed: promote terminal capability and TTQ evidence.

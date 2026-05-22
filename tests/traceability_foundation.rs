@@ -1062,6 +1062,76 @@ fn rtm_promotes_cvm_outcome_evidence() {
 }
 
 #[test]
+fn rtm_promotes_cvm_pin_capability_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let capabilities = csv_row_for_requirement(csv, "KRN-CVMCAP-001").expect("RTM row exists");
+        assert!(
+            !capabilities.contains("CVM capability ABI test"),
+            "KRN-CVMCAP-001 should cite executable CVM capability evidence"
+        );
+        assert!(capabilities.contains("krn_cvmcap_001_uses_terminal_cvm_capabilities_from_abi"));
+        assert!(capabilities.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
+        assert!(capabilities.contains("rtm_promotes_cvm_pin_capability_evidence"));
+
+        let cvm_results = csv_row_for_requirement(csv, "KRN-CVMRES-001").expect("RTM row exists");
+        assert!(
+            !cvm_results.contains("9F34 transaction data"),
+            "KRN-CVMRES-001 should cite executable CVM Results evidence"
+        );
+        assert!(cvm_results
+            .contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
+        assert!(cvm_results.contains("offline_pin_verify_status_updates_cvm_results_and_tvr_bits"));
+        assert!(
+            cvm_results.contains("krn_pin_004_verify_63cx_updates_try_counter_tvr_and_cvm_results")
+        );
+        assert!(cvm_results.contains("rtm_promotes_cvm_pin_capability_evidence"));
+
+        let methods = csv_row_for_requirement(csv, "KRN-PIN-001").expect("RTM row exists");
+        assert!(
+            !methods.contains("CVM method evidence"),
+            "KRN-PIN-001 should cite executable PIN method evidence"
+        );
+        assert!(methods.contains("maps_certified_cvm_method_code_table_and_masks_continue_bit"));
+        assert!(methods.contains("offline_pin_requires_ped_owned_opaque_handle"));
+        assert!(
+            methods.contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles")
+        );
+        assert!(methods.contains("rtm_promotes_cvm_pin_capability_evidence"));
+
+        let no_clear_pin = csv_row_for_requirement(csv, "KRN-PIN-002").expect("RTM row exists");
+        assert!(
+            !no_clear_pin.contains("Opaque handle ABI test"),
+            "KRN-PIN-002 should cite executable no-clear-PIN evidence"
+        );
+        assert!(no_clear_pin.contains("offline_pin_requires_ped_owned_opaque_handle"));
+        assert!(no_clear_pin.contains("offline_pin_debug_redacts_ped_handle_values"));
+        assert!(no_clear_pin.contains("replay_rejects_pin_verify_payload_custody"));
+        assert!(no_clear_pin.contains("rtm_promotes_cvm_pin_capability_evidence"));
+
+        let ped_delegation = csv_row_for_requirement(csv, "KRN-PIN-003").expect("RTM row exists");
+        assert!(
+            !ped_delegation.contains("Opaque handle ABI test"),
+            "KRN-PIN-003 should cite executable PED delegation evidence"
+        );
+        assert!(ped_delegation.contains("offline_pin_requires_ped_owned_opaque_handle"));
+        assert!(ped_delegation
+            .contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
+        assert!(ped_delegation.contains("rtm_promotes_cvm_pin_capability_evidence"));
+
+        let online_pin = csv_row_for_requirement(csv, "KRN-PINAPI-002").expect("RTM row exists");
+        assert!(
+            !online_pin.contains("ABI boundary review"),
+            "KRN-PINAPI-002 should cite executable online-PIN custody evidence"
+        );
+        assert!(online_pin.contains("offline_pin_debug_redacts_ped_handle_values"));
+        assert!(online_pin.contains("replay_rejects_pin_verify_payload_custody"));
+        assert!(online_pin
+            .contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
+        assert!(online_pin.contains("rtm_promotes_cvm_pin_capability_evidence"));
+    }
+}
+
+#[test]
 fn performance_profile_defines_product_targets_and_buckets() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("performance_profile.csv"));
 
@@ -2425,6 +2495,7 @@ fn rtm_promotes_ped_handle_boundary_evidence() {
         assert!(row.contains("offline_pin_requires_ped_owned_opaque_handle"));
         assert!(row.contains("offline_pin_debug_redacts_ped_handle_values"));
         assert!(row.contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
+        assert!(row.contains("rtm_promotes_ped_handle_boundary_evidence"));
     }
 }
 
