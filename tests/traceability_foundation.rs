@@ -2632,6 +2632,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         let response = csv_row_for_requirement(csv, "KRN-GAC-004").unwrap();
         assert!(response.contains("parses_generate_ac_format_1_template_80"));
         assert!(response.contains("parses_generate_ac_format_2_template_77"));
+        assert!(response.contains("rejects_generate_ac_without_single_supported_response_template"));
         assert!(response.contains("decodes_cryptogram_type_with_0xc0_mask"));
 
         let cdol1 = csv_row_for_requirement(csv, "KRN-GAC1-002").unwrap();
@@ -2648,6 +2649,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
 
         let format = csv_row_for_requirement(csv, "KRN-GAC1-004").unwrap();
         assert!(format.contains("gac_parsing_uses_card_returned_cryptogram_for_online_handoff"));
+        assert!(format.contains("rejects_generate_ac_without_single_supported_response_template"));
 
         let cda = csv_row_for_requirement(csv, "KRN-GAC1-005").unwrap();
         assert!(cda.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
@@ -6519,6 +6521,12 @@ fn gac_parsing_uses_card_returned_cryptogram_for_online_handoff() {
         .iter()
         .any(|object| object.tag == [0x9f, 0x37]));
     assert!(package.objects.iter().any(|object| object.tag == [0x95]));
+
+    assert_eq!(
+        parse_generate_ac_response(&hex("9F2701809F360200099F260811121314151617189F1003AABBCC"))
+            .unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
 }
 
 #[test]

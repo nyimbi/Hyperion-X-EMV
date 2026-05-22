@@ -71,10 +71,16 @@ impl fmt::Debug for TagValue {
 }
 
 pub fn parse_generate_ac_response(input: &[u8]) -> KernelResult<GenerateAcResponse> {
-    if input.first() == Some(&0x80) {
-        return parse_format_1(input);
+    let tlvs = tlv::parse_many(input)?;
+    if tlvs.len() != 1 {
+        return Err(KernelError::MissingMandatoryTag);
     }
-    parse_format_2(input)
+
+    match tlvs[0].tag {
+        [0x80] => parse_format_1(tlvs[0].value),
+        [0x77] => parse_format_2(&tlvs),
+        _ => Err(KernelError::MissingMandatoryTag),
+    }
 }
 
 pub fn build_online_authorization_package(
@@ -129,13 +135,7 @@ pub fn build_online_authorization_package(
     OnlineAuthorizationPackage { objects }
 }
 
-fn parse_format_1(input: &[u8]) -> KernelResult<GenerateAcResponse> {
-    let tlvs = tlv::parse_many(input)?;
-    let value = tlvs
-        .first()
-        .filter(|tlv| tlv.tag == [0x80])
-        .map(|tlv| tlv.value)
-        .ok_or(KernelError::ParseError)?;
+fn parse_format_1(value: &[u8]) -> KernelResult<GenerateAcResponse> {
     if value.len() < 11 {
         return Err(KernelError::ParseError);
     }
@@ -152,16 +152,15 @@ fn parse_format_1(input: &[u8]) -> KernelResult<GenerateAcResponse> {
     })
 }
 
-fn parse_format_2(input: &[u8]) -> KernelResult<GenerateAcResponse> {
-    let tlvs = tlv::parse_many(input)?;
-    let cid = fixed::<1>(&tlvs, &[0x9f, 0x27])?;
-    let application_cryptogram = fixed::<8>(&tlvs, &[0x9f, 0x26])?;
-    let atc = fixed::<2>(&tlvs, &[0x9f, 0x36])?;
+fn parse_format_2(tlvs: &[tlv::Tlv<'_>]) -> KernelResult<GenerateAcResponse> {
+    let cid = fixed::<1>(tlvs, &[0x9f, 0x27])?;
+    let application_cryptogram = fixed::<8>(tlvs, &[0x9f, 0x26])?;
+    let atc = fixed::<2>(tlvs, &[0x9f, 0x36])?;
     let issuer_application_data =
-        tlv::find_first(&tlvs, &[0x9f, 0x10]).map_or_else(Vec::new, |value| value.to_vec());
-    let icc_dynamic_number = tlv::find_first(&tlvs, &[0x9f, 0x4c]).map(|value| value.to_vec());
+        tlv::find_first(tlvs, &[0x9f, 0x10]).map_or_else(Vec::new, |value| value.to_vec());
+    let icc_dynamic_number = tlv::find_first(tlvs, &[0x9f, 0x4c]).map(|value| value.to_vec());
     let signed_dynamic_application_data =
-        tlv::find_first(&tlvs, &[0x9f, 0x4b]).map(|value| value.to_vec());
+        tlv::find_first(tlvs, &[0x9f, 0x4b]).map(|value| value.to_vec());
 
     Ok(GenerateAcResponse {
         cid: Cid::new(cid[0]),
@@ -218,6 +217,26 @@ mod tests {
             [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]
         );
         assert_eq!(response.issuer_application_data, vec![0xaa, 0xbb, 0xcc]);
+    }
+
+    #[test]
+    fn rejects_generate_ac_without_single_supported_response_template() {
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x9f, 0x27, 0x01, 0x40, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08, 0x10, 0x11,
+                0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+            ])
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x80, 0x0b, 0x80, 0x00, 0x01, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0x00, 0x01, 0x9f,
+                0x10, 0x01, 0xaa,
+            ])
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
     }
 
     #[test]

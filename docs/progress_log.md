@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T03:15:38Z
+
+- Increment completed: require a single supported GENERATE AC response
+  template before parsing returned cryptogram data.
+- Research note: GAC response parsing evidence must prove both accepted
+  template `80`/`77` handling and rejection of unsupported top-level shapes;
+  otherwise recursive TLV lookup can make malformed or unwrapped responses look
+  like profile-permitted format 2 data.
+- Code impact: `parse_generate_ac_response` now dispatches only on one
+  top-level response template (`80` for format 1, `77` for format 2) and
+  rejects unwrapped required tags or extra sibling templates.
+- Evidence updated: unit, traceability, and RTM rows now include
+  `gac::tests::rejects_generate_ac_without_single_supported_response_template`
+  alongside the valid format 1/2 parsing evidence.
+- Verification: `cargo test rejects_generate_ac_without_single_supported_response_template`,
+  `cargo test gac_parsing_uses_card_returned_cryptogram_for_online_handoff`,
+  `cargo test rtm_promotes_gac_cdol_encoding_and_response_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T03:07:56Z
 
 - Increment completed: make EXTERNAL AUTHENTICATE status handling explicitly
