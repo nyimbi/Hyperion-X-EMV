@@ -212,6 +212,7 @@ pub enum CvmOutcome {
     Selected {
         action: CvmAction,
         cvm_results: [u8; 3],
+        tvr_bit: Option<(usize, u8)>,
     },
     Failed {
         cvm_results: [u8; 3],
@@ -225,10 +226,12 @@ impl fmt::Debug for CvmOutcome {
             Self::Selected {
                 action,
                 cvm_results,
+                tvr_bit,
             } => f
                 .debug_struct("Selected")
                 .field("action", action)
                 .field("cvm_results", cvm_results)
+                .field("tvr_bit", tvr_bit)
                 .field(
                     "data_policy",
                     &"opaque PED handles redacted for crash safety",
@@ -319,21 +322,27 @@ pub fn apply_offline_pin_verify_status(
 }
 
 pub fn evaluate(list: &CvmList, context: CvmContext, pin_handles: CvmPinHandles) -> CvmOutcome {
+    let mut selected_tvr_bit = None;
+
     for rule in &list.rules {
         if !condition_matches(*rule, list, context) {
             continue;
         }
 
         let Some(action) = action_for_method(rule.method, context, pin_handles) else {
+            if let Some(tvr_bit) = unrecognized_cvm_bit(rule.method) {
+                selected_tvr_bit = Some(tvr_bit);
+            }
             if rule.continue_on_failure() {
                 continue;
             }
-            return cvm_failed(*rule);
+            return cvm_failed(*rule, selected_tvr_bit);
         };
 
         return CvmOutcome::Selected {
             action,
             cvm_results: cvm_results(*rule, 0x02),
+            tvr_bit: selected_tvr_bit,
         };
     }
 
@@ -382,15 +391,21 @@ fn action_for_method(
     }
 }
 
-fn cvm_failed(rule: CvmRule) -> CvmOutcome {
+fn cvm_failed(rule: CvmRule, observed_tvr_bit: Option<(usize, u8)>) -> CvmOutcome {
     CvmOutcome::Failed {
         cvm_results: cvm_results(rule, 0x01),
-        tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,
+        tvr_bit: observed_tvr_bit
+            .or_else(|| unrecognized_cvm_bit(rule.method))
+            .unwrap_or(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL),
     }
 }
 
 fn cvm_results(rule: CvmRule, result: u8) -> [u8; 3] {
     [rule.raw_code & 0x3f, rule.condition_code, result]
+}
+
+fn unrecognized_cvm_bit(method: CvmMethod) -> Option<(usize, u8)> {
+    matches!(method, CvmMethod::Unknown(_)).then_some(Tvr::B3_UNRECOGNIZED_CVM)
 }
 
 fn condition_matches(rule: CvmRule, list: &CvmList, context: CvmContext) -> bool {
@@ -526,7 +541,8 @@ mod tests {
             ),
             CvmOutcome::Selected {
                 action: CvmAction::OfflinePlaintextPin { ped_handle: handle },
-                cvm_results: [0x01, 0x00, 0x02]
+                cvm_results: [0x01, 0x00, 0x02],
+                tvr_bit: None
             }
         );
 
@@ -548,6 +564,7 @@ mod tests {
         let outcome = CvmOutcome::Selected {
             action,
             cvm_results: [0x01, 0x00, 0x02],
+            tvr_bit: None,
         };
 
         for debug in [
@@ -617,7 +634,8 @@ mod tests {
             evaluate(&list, context(), CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::NoCvm,
-                cvm_results: [0x1f, 0x00, 0x02]
+                cvm_results: [0x1f, 0x00, 0x02],
+                tvr_bit: None
             }
         );
 
@@ -627,7 +645,8 @@ mod tests {
             evaluate(&list, high_amount, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
-                cvm_results: [0x02, 0x07, 0x02]
+                cvm_results: [0x02, 0x07, 0x02],
+                tvr_bit: None
             }
         );
     }
@@ -645,7 +664,8 @@ mod tests {
             evaluate(&list, no_online_pin, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::Signature,
-                cvm_results: [0x06, 0x03, 0x02]
+                cvm_results: [0x06, 0x03, 0x02],
+                tvr_bit: None
             }
         );
 
@@ -655,7 +675,8 @@ mod tests {
             evaluate(&list, no_signature, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
-                cvm_results: [0x02, 0x03, 0x02]
+                cvm_results: [0x02, 0x03, 0x02],
+                tvr_bit: None
             }
         );
     }
@@ -672,7 +693,8 @@ mod tests {
             evaluate(&list, context(), CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
-                cvm_results: [0x02, 0x02, 0x02]
+                cvm_results: [0x02, 0x02, 0x02],
+                tvr_bit: None
             }
         );
 
@@ -682,7 +704,8 @@ mod tests {
             evaluate(&list, unattended_cash, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
-                cvm_results: [0x02, 0x01, 0x02]
+                cvm_results: [0x02, 0x01, 0x02],
+                tvr_bit: None
             }
         );
 
@@ -692,7 +715,8 @@ mod tests {
             evaluate(&list, manual_cash, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::Signature,
-                cvm_results: [0x06, 0x04, 0x02]
+                cvm_results: [0x06, 0x04, 0x02],
+                tvr_bit: None
             }
         );
 
@@ -702,7 +726,8 @@ mod tests {
             evaluate(&list, cashback, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::NoCvm,
-                cvm_results: [0x1f, 0x05, 0x02]
+                cvm_results: [0x1f, 0x05, 0x02],
+                tvr_bit: None
             }
         );
     }
@@ -721,7 +746,8 @@ mod tests {
             evaluate(&list, no_offline_pin, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
-                cvm_results: [0x02, 0x00, 0x02]
+                cvm_results: [0x02, 0x00, 0x02],
+                tvr_bit: None
             }
         );
     }
@@ -737,7 +763,30 @@ mod tests {
             evaluate(&list, ctx, CvmPinHandles::none()),
             CvmOutcome::Selected {
                 action: CvmAction::Cdcvm,
-                cvm_results: [0x20, 0x00, 0x02]
+                cvm_results: [0x20, 0x00, 0x02],
+                tvr_bit: None
+            }
+        );
+    }
+
+    #[test]
+    fn unrecognized_cvm_sets_tvr_even_when_next_rule_succeeds() {
+        let continued = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x47, 0x00, 0x02, 0x00]).unwrap();
+        assert_eq!(
+            evaluate(&continued, context(), CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::OnlinePin,
+                cvm_results: [0x02, 0x00, 0x02],
+                tvr_bit: Some(Tvr::B3_UNRECOGNIZED_CVM)
+            }
+        );
+
+        let failed = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x07, 0x00]).unwrap();
+        assert_eq!(
+            evaluate(&failed, context(), CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x07, 0x00, 0x01],
+                tvr_bit: Tvr::B3_UNRECOGNIZED_CVM
             }
         );
     }

@@ -2396,3 +2396,25 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T11:27:28Z
+
+- Increment completed: persist the EMV TVR unrecognized-CVM bit when a matching
+  CVM rule uses an unknown method code.
+- Research note: public EMV TVR/CVM references identify unrecognized CVM as a
+  distinct byte-3 TVR condition. Continuing to a later successful CVM must not
+  erase that evidence from the transaction TVR.
+- Code impact: `CvmOutcome::Selected` now carries an optional TVR bit so CVM
+  evaluation can report non-fatal unrecognized-CVM evidence while still
+  selecting a later rule; `run_cvm_processing` persists that bit into TVR/tag
+  `95` before storing CVM Results.
+- Evidence updated: `cvm::tests::unrecognized_cvm_sets_tvr_even_when_next_rule_succeeds`
+  covers both continued success and terminal failure for unknown CVM codes, and
+  `ffi::tests::cvm_processing_persists_unrecognized_tvr_on_later_success`
+  proves the runtime persists `B3_UNRECOGNIZED_CVM` alongside successful online
+  PIN evidence. Both RTM CSVs cite the new tests under `KRN-CVM-002`.
+- Verification: `cargo test unrecognized_cvm_sets_tvr_even_when_next_rule_succeeds`,
+  `cargo test cvm_processing_persists_unrecognized_tvr_on_later_success`,
+  `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

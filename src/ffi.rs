@@ -2107,7 +2107,11 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
         CvmOutcome::Selected {
             action,
             cvm_results,
+            tvr_bit,
         } => {
+            if let Some(tvr_bit) = tvr_bit {
+                ctx.tvr.set(tvr_bit);
+            }
             if action == CvmAction::OnlinePin {
                 ctx.tvr.set(Tvr::B3_ONLINE_PIN_ENTERED);
             }
@@ -3703,6 +3707,49 @@ mod tests {
         assert_eq!(
             cvm_transaction_type(&params(0x01, 0x24)),
             CvmTransactionType::UnattendedCash
+        );
+    }
+
+    #[test]
+    fn cvm_processing_persists_unrecognized_tvr_on_later_success() {
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S7;
+        ctx.state = KernelState::Cvm;
+        ctx.card_data
+            .put(&[0x8e], &[0, 0, 0, 0, 0, 0, 0, 0, 0x47, 0x00, 0x02, 0x00])
+            .unwrap();
+        ctx.cvm_capabilities = RuntimeCvmCapabilities {
+            online_pin_supported: true,
+            signature_supported: false,
+            cdcvm_performed: false,
+        };
+        let params = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        };
+
+        assert_eq!(run_cvm_processing(&mut ctx, &params), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S8);
+        assert!(ctx.tvr.is_set(Tvr::B3_UNRECOGNIZED_CVM));
+        assert!(ctx.tvr.is_set(Tvr::B3_ONLINE_PIN_ENTERED));
+        assert!(!ctx
+            .tvr
+            .is_set(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL));
+        assert_eq!(
+            ctx.card_data.get(&[0x9f, 0x34]),
+            Some(&[0x02, 0x00, 0x02][..])
+        );
+        assert_eq!(
+            ctx.card_data.get(&[0x95]),
+            Some(&[0x00, 0x00, 0x44, 0x00, 0x00][..])
         );
     }
 

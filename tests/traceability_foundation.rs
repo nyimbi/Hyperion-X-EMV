@@ -1109,6 +1109,8 @@ fn rtm_promotes_cvm_outcome_evidence() {
         );
         assert!(outcome.contains("offline_pin_requires_ped_owned_opaque_handle"));
         assert!(outcome.contains("offline_pin_verify_status_updates_cvm_results_and_tvr_bits"));
+        assert!(outcome.contains("unrecognized_cvm_sets_tvr_even_when_next_rule_succeeds"));
+        assert!(outcome.contains("cvm_processing_persists_unrecognized_tvr_on_later_success"));
         assert!(outcome.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(outcome.contains("rtm_promotes_cvm_outcome_evidence"));
     }
@@ -6679,7 +6681,8 @@ fn krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin() {
         ),
         CvmOutcome::Selected {
             action: CvmAction::OfflinePlaintextPin { ped_handle: handle },
-            cvm_results: [0x01, 0x00, 0x02]
+            cvm_results: [0x01, 0x00, 0x02],
+            tvr_bit: None
         }
     );
 }
@@ -6702,7 +6705,8 @@ fn contactless_cdcvm_is_not_hardcoded_to_cvm_code_0x05() {
         evaluate_cvm(&cvm_list, context, CvmPinHandles::none()),
         CvmOutcome::Selected {
             action: CvmAction::Cdcvm,
-            cvm_results: [0x20, 0x00, 0x02]
+            cvm_results: [0x20, 0x00, 0x02],
+            tvr_bit: None
         }
     );
 }
