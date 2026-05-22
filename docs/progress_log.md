@@ -2027,3 +2027,24 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:31:55Z
+
+- Increment completed: make build-provenance manifest resource bounds
+  explicit and traceable.
+- Research note: EMV Level 2 approval and signed LoA remain external
+  certification evidence, but repository-controlled lab-package provenance can
+  prove empty and oversized artifact manifests fail closed before becoming
+  submission evidence.
+- Code impact: `build_provenance_manifest` now has a regression proving empty
+  artifact sets and more than `MAX_PROVENANCE_ARTIFACTS` inputs return
+  `LengthOverflow`.
+- Evidence updated: current and compatibility RTM annexes cite the provenance
+  resource-limit regression and lab-manifest provenance coverage for
+  `KRN-CERT-001`.
+- Verification: `cargo test provenance_manifest_rejects_resource_limits`,
+  `cargo test rtm_external_lab_gates_are_explicit`,
+  `cargo test lab_manifest_and_provenance_cover_reproducible_build_artifacts`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

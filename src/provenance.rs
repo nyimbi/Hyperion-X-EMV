@@ -303,4 +303,28 @@ mod tests {
             KernelError::InvalidArgument
         );
     }
+
+    #[test]
+    fn provenance_manifest_rejects_resource_limits() {
+        assert_eq!(
+            build_provenance_manifest(1, &[]).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        let names = (0..=MAX_PROVENANCE_ARTIFACTS)
+            .map(|index| format!("artifact_{index}.bin"))
+            .collect::<Vec<_>>();
+        let artifacts = names
+            .iter()
+            .map(|name| Artifact {
+                name: name.as_str(),
+                bytes: b"x",
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            build_provenance_manifest(1, &artifacts).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
 }
