@@ -14,6 +14,7 @@ use hyperion_emv::config::{
     load_profile_set, BuildMode, CdaRequestEncoding, ConfigLoadPolicy, ProfileClass,
     SignatureStatus,
 };
+use hyperion_emv::conformance::baseline_conformance_statement;
 use hyperion_emv::cvm::{
     apply_offline_pin_verify_status, evaluate as evaluate_cvm, parse_cvm_list, CvmAction,
     CvmContext, CvmMethod, CvmOutcome, CvmPinHandles, Interface as CvmInterface, PedPinHandle,
@@ -86,6 +87,7 @@ const RTM: &str = concat!(
     include_str!("../docs/requirements-traceability-matrix.csv"),
     include_str!("../docs/requirements_traceability.csv")
 );
+const ABI_CONFORMANCE_STATEMENT: &str = include_str!("../docs/abi_conformance_statement.json");
 const SCHEME_PROFILES: &str = include_str!("../docs/scheme_profiles.cert.json");
 const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 const CORRECTED_SPEC: &str = include_str!("../docs/hyperion_emv_l2_kernel_spec_v3_1_corrected.md");
@@ -1308,6 +1310,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Reproducible build provenance"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_build_manifest"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("every kernel source module"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("abi_conformance_statement.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_abi_conformance_statement"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_apdu_trace_pack.jsonl"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
@@ -1317,6 +1321,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     let mut input_paths = vec![
         "Cargo.lock".to_string(),
         "Cargo.toml".to_string(),
+        "docs/abi_conformance_statement.json".to_string(),
         "docs/bitmap_catalogue.csv".to_string(),
         "docs/certification_open_issues.md".to_string(),
         "docs/lab_submission_manifest.md".to_string(),
@@ -1329,6 +1334,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/spec.md".to_string(),
         "docs/state_machine.csv".to_string(),
         "docs/tlv_catalogue.csv".to_string(),
+        "examples/krn_abi_conformance_statement.rs".to_string(),
         "examples/krn_build_manifest.rs".to_string(),
         "examples/krn_prelab_quality_gates.rs".to_string(),
         "examples/krn_prelab_trace_pack.rs".to_string(),
@@ -1364,6 +1370,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     for required in [
         "Cargo.lock",
         "Cargo.toml",
+        "docs/abi_conformance_statement.json",
         "docs/bitmap_catalogue.csv",
         "docs/certification_open_issues.md",
         "docs/lab_submission_manifest.md",
@@ -1376,6 +1383,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/spec.md",
         "docs/state_machine.csv",
         "docs/tlv_catalogue.csv",
+        "examples/krn_abi_conformance_statement.rs",
         "examples/krn_build_manifest.rs",
         "examples/krn_prelab_quality_gates.rs",
         "examples/krn_prelab_trace_pack.rs",
@@ -1538,6 +1546,7 @@ fn certification_open_issues_register_tracks_external_blockers() {
     );
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab quality gate manifest does not close"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("accepted report attachments"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("ABI JSON statement does not close"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab fixture does not close"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("Full lab trace pack is attached"));
 }
@@ -1545,6 +1554,8 @@ fn certification_open_issues_register_tracks_external_blockers() {
 #[test]
 fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
     assert!(RTM.contains("KRN-REF-001"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("abi_conformance_statement.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_abi_conformance_statement"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_get_conformance_statement_json"));
 
     unsafe {
@@ -1559,7 +1570,10 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             hyperion_emv::KernelError::Ok.code()
         );
         let json = String::from_utf8(json).unwrap();
+        let generated = baseline_conformance_statement(KRN_ABI_VERSION).canonical_json();
 
+        assert_eq!(ABI_CONFORMANCE_STATEMENT, format!("{generated}\n"));
+        assert_eq!(json, generated);
         assert!(json.contains("\"type\":\"conformance-statement\""));
         assert!(json.contains("\"kernel_name\":\"Hyperion EMV Level 2 Kernel\""));
         assert!(json.contains(&format!("\"abi_version\":{KRN_ABI_VERSION}")));
@@ -1585,6 +1599,7 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             );
         }
     }
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("repository ABI JSON statement does not close"));
 }
 
 #[test]
