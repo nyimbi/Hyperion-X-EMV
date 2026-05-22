@@ -2582,6 +2582,7 @@ fn rtm_promotes_oda_capk_tvr_cda_evidence() {
 
         let cda = csv_row_for_requirement(csv, "KRN-ODA-007").unwrap();
         assert!(cda.contains("runtime_cda_failure_sets_tvr_without_falling_back_to_dda"));
+        assert!(cda.contains("runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff"));
         assert!(
             cda.contains("selects_strongest_allowed_oda_method_without_fallback_after_cda_failure")
         );
@@ -2591,6 +2592,8 @@ fn rtm_promotes_oda_capk_tvr_cda_evidence() {
 
         let cda_exact = csv_row_for_requirement(csv, "KRN-ODA-008").unwrap();
         assert!(cda_exact.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
+        assert!(cda_exact
+            .contains("runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff"));
         assert!(cda_exact.contains("validates_complete_vector_syntax_and_rejects_placeholders"));
         assert!(
             cda_exact.contains("krn_odatv_001_rejects_placeholder_oda_annex_in_certification_mode")
@@ -2731,6 +2734,7 @@ fn rtm_promotes_gac_cdol_encoding_and_response_evidence() {
         let cda = csv_row_for_requirement(csv, "KRN-GAC1-005").unwrap();
         assert!(cda.contains("runtime_cda_verifies_first_gac_signed_dynamic_data"));
         assert!(cda.contains("runtime_cda_failure_sets_tvr_without_falling_back_to_dda"));
+        assert!(cda.contains("runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff"));
     }
 }
 

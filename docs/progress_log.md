@@ -1774,3 +1774,25 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:19:02Z
+
+- Increment completed: lock missing-SDAD CDA evidence for first GENERATE AC
+  runtime handoff.
+- Research note: lab-supplied CDA cryptographic vectors remain external
+  certification evidence, but the repository runtime can still prove that a
+  CDA-selected transaction with a template-80 first GENERATE AC response that
+  omits signed dynamic application data records CDA failure in TVR and carries
+  that TVR into online authorization data.
+- Code impact: first GENERATE AC now names the CDA verification decision, and
+  the FFI runtime regression covers a CDA-selected online handoff where `9F4B`
+  is absent and `B1_CDA_FAILED` is preserved without setting the DDA-failure
+  bit.
+- Evidence updated: current and compatibility RTM annexes cite the missing-SDAD
+  runtime regression for `KRN-ODA-007`, `KRN-ODA-008`, and `KRN-GAC1-005`.
+- Verification: `cargo test runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff`,
+  `cargo test rtm_promotes_oda_capk_tvr_cda_evidence`,
+  `cargo test rtm_promotes_gac_cdol_encoding_and_response_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

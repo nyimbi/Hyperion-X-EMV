@@ -2445,9 +2445,9 @@ fn run_first_generate_ac(
     if let Some(sdad) = parsed.signed_dynamic_application_data.as_ref() {
         ctx.card_data.put(&[0x9f, 0x4b], sdad)?;
     }
-    if ctx.selected_oda_method == Some(OdaMethod::Cda)
-        && verify_combined_data_authentication(ctx, &parsed).is_err()
-    {
+    let cda_verification_failed = ctx.selected_oda_method == Some(OdaMethod::Cda)
+        && verify_combined_data_authentication(ctx, &parsed).is_err();
+    if cda_verification_failed {
         ctx.tvr.set(Tvr::B1_CDA_FAILED);
         ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     }
@@ -4156,6 +4156,33 @@ mod tests {
         KernelError::Ok.code()
     }
 
+    unsafe extern "C" fn capture_cda_format_1_generate_ac_without_sdad(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = [
+            0x80, 0x0b, 0x80, 0x00, 0x09, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x90,
+            0x00,
+        ];
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
     #[test]
     fn runtime_cda_verifies_first_gac_signed_dynamic_data() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
@@ -4275,6 +4302,49 @@ mod tests {
         assert!(ctx.tvr.is_set(Tvr::B1_CDA_FAILED));
         assert!(!ctx.tvr.is_set(Tvr::B1_DDA_FAILED));
         DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_cda_success_fixture(&mut ctx);
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut ctx, &profiles, None),
+            Ok(())
+        );
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Cda));
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_format_1_generate_ac_without_sdad,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        assert_eq!(run_first_generate_ac(&mut ctx, runtime), Ok(()));
+
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 1);
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+        assert_eq!(ctx.fsm_state, FsmState::S11);
+        assert!(ctx.tvr.is_set(Tvr::B1_CDA_FAILED));
+        assert!(!ctx.tvr.is_set(Tvr::B1_DDA_FAILED));
+        assert!(ctx.card_data.get(&[0x9f, 0x4b]).is_none());
+        assert!(ctx
+            .first_gac_response
+            .as_ref()
+            .is_some_and(|response| response.signed_dynamic_application_data.is_none()));
+        let online = ctx.online_authorization_data.as_ref().unwrap();
+        assert!(online
+            .windows(7)
+            .any(|window| window == [0x95, 0x05, 0x04, 0x00, 0x00, 0x00, 0x00]));
     }
 
     unsafe extern "C" fn capture_contactless_outcome(
