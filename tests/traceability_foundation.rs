@@ -1387,6 +1387,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Public standards watch"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("standards_watch.md"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("PCI PTS/PED evidence boundaries"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("licensed/lab reconciliation is still required"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Scheme profile dictionary"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_scheme_profile_dictionary"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("requirements-traceability-matrix.csv"));
@@ -1567,6 +1569,7 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "**EMV Level 2 Contactless (C‑8):** Yes",
         "**PCI PTS POI v7.0 alignment:** Yes",
         "certified contactless readers",
+        "MISRA C compliant",
         "All artifacts are structurally complete",
         "has been developed in accordance",
     ] {
@@ -1582,6 +1585,7 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "EMV Level 2 Contactless (C‑8):** In scope for pre-certification hardening",
         "final claim requires the unified kernel approval package and lab-supplied profile data",
         "PCI PTS POI v7.0 alignment:** Alignment target pending PED integration statement",
+        "Static analysis report (accepted for the Rust/product submission context)",
         "Target Device:** Hyperion MP35P terminal and contactless readers pending device/L1 certification evidence",
         "Repository-controlled artifacts marked complete are structurally complete",
         "subject to licensed review, scheme validation, and laboratory approval",

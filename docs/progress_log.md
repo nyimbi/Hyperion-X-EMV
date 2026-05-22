@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T13:53:45Z
+
+- Increment completed: align the lab manifest with the expanded standards-watch
+  scope and Rust submission context.
+- Evidence update: `docs/lab_submission_manifest.md` now states that the public
+  standards watch covers both C-8 drift and PCI PTS/PED evidence boundaries
+  while preserving licensed/lab reconciliation for final claims; the pending
+  static-analysis attachment no longer claims a C-specific MISRA report for the
+  Rust kernel.
+- Guardrail update: traceability assertions now require the PCI/PED standards
+  watch scope, licensed/lab reconciliation wording, Rust/product static-analysis
+  attachment wording, and absence of the misleading `MISRA C compliant` manifest
+  claim.
+- Verification: `cargo test lab_manifest`, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T13:49:56Z
 
 - Increment completed: refresh public PCI PTS/PED standards-watch evidence for
