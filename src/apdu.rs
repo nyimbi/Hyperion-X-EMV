@@ -4,6 +4,8 @@ use core::fmt;
 
 pub const CONTACT_PSE: &[u8] = b"1PAY.SYS.DDF01";
 pub const CONTACTLESS_PPSE: &[u8] = b"2PAY.SYS.DDF01";
+pub const MIN_AID_LEN: usize = 5;
+pub const MAX_AID_LEN: usize = 16;
 pub const MAX_SHORT_APDU_DATA_LEN: usize = u8::MAX as usize;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -91,7 +93,7 @@ pub fn select_environment(interface: Interface) -> CommandApdu {
 }
 
 pub fn select_aid(aid: &[u8], p2: u8) -> KernelResult<CommandApdu> {
-    if aid.is_empty() || aid.len() > 16 || !matches!(p2, 0x00 | 0x02) {
+    if !(MIN_AID_LEN..=MAX_AID_LEN).contains(&aid.len()) || !matches!(p2, 0x00 | 0x02) {
         return Err(KernelError::InvalidArgument);
     }
     Ok(select_by_name(aid, p2))
@@ -341,6 +343,29 @@ mod tests {
         for raw_byte in ["222", "173", "190", "239", "170", "187", "204", "221"] {
             assert!(!debug.contains(raw_byte));
         }
+    }
+
+    #[test]
+    fn rejects_select_aids_outside_emv_length_domain() {
+        assert_eq!(
+            select_aid(&[], 0x00).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            select_aid(&[0xa0, 0x00, 0x00, 0x00], 0x00).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            select_aid(&[0xa0; MAX_AID_LEN + 1], 0x00).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            select_aid(&[0xa0, 0x00, 0x00, 0x00, 0x03], 0x00)
+                .unwrap()
+                .encode()
+                .unwrap(),
+            [0x00, 0xa4, 0x04, 0x00, 0x05, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x00]
+        );
     }
 
     #[test]

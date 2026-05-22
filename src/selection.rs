@@ -1,4 +1,4 @@
-use crate::apdu::Interface;
+use crate::apdu::{Interface, MAX_AID_LEN, MIN_AID_LEN};
 use crate::config::ProfileSet;
 use crate::error::{KernelError, KernelResult};
 use crate::tlv;
@@ -112,7 +112,7 @@ pub fn match_profile_candidates(
 }
 
 fn push_unique_aid(out: &mut Vec<Vec<u8>>, aid: &[u8]) -> KernelResult<()> {
-    if !(5..=16).contains(&aid.len()) {
+    if !(MIN_AID_LEN..=MAX_AID_LEN).contains(&aid.len()) {
         return Err(KernelError::InvalidProfile);
     }
     if out.len() >= MAX_CANDIDATE_AIDS {

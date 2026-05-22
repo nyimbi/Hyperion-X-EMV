@@ -2220,3 +2220,23 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T10:22:28Z
+
+- Increment completed: make direct SELECT AID length bounds explicit and
+  traceable.
+- Research note: direct AID selection is part of the certified application
+  selection path, so repository-controlled APDU construction should reject ADF
+  names outside the same 5-16 byte AID domain enforced by profile and directory
+  candidate parsing.
+- Code impact: APDU construction now exposes shared `MIN_AID_LEN` and
+  `MAX_AID_LEN` constants, uses them in both direct SELECT AID construction and
+  selection candidate parsing, and rejects too-short direct AID inputs with
+  `InvalidArgument`.
+- Evidence updated: current and compatibility RTM annexes cite the SELECT AID
+  length-domain regression for `KRN-APDU-001`.
+- Verification: `cargo test rejects_select_aids_outside_emv_length_domain`,
+  `cargo test rtm_promotes_apdu_command_construction_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

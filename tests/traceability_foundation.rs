@@ -819,6 +819,7 @@ fn rtm_promotes_apdu_command_construction_evidence() {
         assert!(row.contains("encodes_kernel_command_apdu_matrix"));
         assert!(row.contains("builds_exact_contact_pse_and_contactless_ppse_selects"));
         assert!(row.contains("validates_read_record_sfi"));
+        assert!(row.contains("rejects_select_aids_outside_emv_length_domain"));
         assert!(row.contains("rejects_command_payloads_above_short_apdu_lc_limit"));
         assert!(row.contains("rtm_promotes_apdu_command_construction_evidence"));
     }
