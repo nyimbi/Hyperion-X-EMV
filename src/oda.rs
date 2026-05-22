@@ -365,8 +365,11 @@ pub fn parse_internal_authenticate_response(
     if signed_dynamic_application_data.len() < MIN_ODA_SIGNATURE_BYTES {
         return Err(KernelError::InvalidProfile);
     }
-    let icc_dynamic_number =
-        tlv::find_unique_direct(&tlvs[0].children, &[0x9f, 0x4c])?.map(|value| value.to_vec());
+    let icc_dynamic_number = match tlv::find_unique_direct(&tlvs[0].children, &[0x9f, 0x4c])? {
+        Some([]) => return Err(KernelError::ParseError),
+        Some(value) => Some(value.to_vec()),
+        None => None,
+    };
 
     Ok(InternalAuthenticateResponse {
         signed_dynamic_application_data: signed_dynamic_application_data.to_vec(),
@@ -1476,6 +1479,18 @@ mod tests {
             parse_internal_authenticate_response(&[
                 0x77, 0x15, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0x9f,
                 0x4c, 0x02, 0x01, 0x02, 0x9f, 0x4c, 0x02, 0x03, 0x04,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_empty_internal_authenticate_icc_dynamic_number() {
+        assert_eq!(
+            parse_internal_authenticate_response(&[
+                0x77, 0x0e, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0x9f,
+                0x4c, 0x00,
             ])
             .unwrap_err(),
             KernelError::ParseError

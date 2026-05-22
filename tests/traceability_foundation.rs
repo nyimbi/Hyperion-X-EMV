@@ -2632,6 +2632,9 @@ fn rtm_promotes_dda_internal_authenticate_evidence() {
             signed_dynamic_data.contains("rejects_nested_or_duplicate_internal_authenticate_data")
         );
         assert!(
+            signed_dynamic_data.contains("rejects_empty_internal_authenticate_icc_dynamic_number")
+        );
+        assert!(
             signed_dynamic_data.contains("runtime_oda_executes_dda_internal_authenticate_success")
         );
         assert!(signed_dynamic_data.contains("runtime_oda_maps_bad_dda_signature_to_tvr_failure"));
@@ -4110,6 +4113,10 @@ fn krn_dda_002_oda_006_requires_signed_dynamic_application_data() {
     );
     assert_eq!(
         parse_internal_authenticate_response(&hex("770DA50B9F4B08A1A2A3A4A5A6A7A8")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_internal_authenticate_response(&hex("770E9F4B08A1A2A3A4A5A6A7A89F4C00")).unwrap_err(),
         hyperion_emv::KernelError::ParseError
     );
     assert_eq!(

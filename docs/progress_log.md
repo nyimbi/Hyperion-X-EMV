@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T15:35:44Z
+
+- Increment completed: reject empty `9F4C` ICC Dynamic Number objects in DDA
+  INTERNAL AUTHENTICATE responses.
+- Code impact: DDA response parsing now treats a present-but-empty ICC Dynamic
+  Number as malformed, matching the fail-closed dynamic-number policy already
+  used for GENERATE AC response parsing.
+- Evidence update: both RTM annexes cite
+  `oda::tests::rejects_empty_internal_authenticate_icc_dynamic_number` under
+  KRN-DDA-002.
+- Verification: `cargo test
+  rejects_empty_internal_authenticate_icc_dynamic_number`, `cargo test
+  rtm_promotes_dda_internal_authenticate_evidence`, `cargo test
+  krn_dda_002_oda_006_requires_signed_dynamic_application_data`, `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T15:28:44Z
 
 - Increment completed: reject non-minimal BER-TLV long-form length encodings
