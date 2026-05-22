@@ -778,7 +778,11 @@ fn rtm_promotes_runtime_apdu_selection_status_policy_evidence() {
                 "{id} should cite concrete PSE/PPSE evidence"
             );
             assert!(row.contains("builds_exact_contact_pse_and_contactless_ppse_selects"));
+            assert!(row.contains("extracts_candidate_aids_from_directory_fci"));
             assert!(row.contains("krn_sel_001_exact_pse_ppse_apdus_are_stable"));
+            assert!(
+                row.contains("krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles")
+            );
             assert!(row.contains("ffi_builds_select_into_caller_buffer"));
         }
 
@@ -3693,6 +3697,15 @@ fn krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles() {
     let fci = hex("6F13A511BF0C0E610C4F07A0000000031010870101");
     let card_candidates = parse_fci_candidate_aids(&fci).unwrap();
     assert_eq!(card_candidates, vec![hex("A0000000031010")]);
+    assert_eq!(
+        parse_fci_candidate_aids(&hex("4F07A0000000031010")).unwrap_err(),
+        hyperion_emv::KernelError::MissingMandatoryTag
+    );
+    assert!(
+        parse_fci_candidate_aids(&hex("6F0EA50CBF0C094F07A0000000031010"))
+            .unwrap()
+            .is_empty()
+    );
 
     let profiles = load_profile_set(
         SCHEME_PROFILES.as_bytes(),

@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T03:37:54Z
+
+- Increment completed: require PSE/PPSE candidate AIDs to come from directory
+  application templates before matching signed profiles.
+- Research note: public PSE/PPSE examples describe candidate AIDs as tag `4F`
+  entries inside application templates `61`, commonly under FCI issuer
+  discretionary data `BF0C`; accepting any flattened `4F` in FCI weakens
+  application-selection evidence.
+- Code impact: `parse_fci_candidate_aids` now requires a single top-level `6F`
+  FCI template and extracts candidates only from `A5/BF0C/61/4F`; valid FCI
+  without directory entries still returns an empty list so direct-AID fallback
+  remains available.
+- Evidence updated: selection unit, traceability, and RTM rows now prove valid
+  directory extraction and reject unwrapped or misplaced `4F` tags as
+  candidates.
+- Verification: `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T03:31:09Z
 
 - Increment completed: require TLV-encoded INTERNAL AUTHENTICATE responses to

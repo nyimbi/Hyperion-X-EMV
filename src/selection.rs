@@ -16,10 +16,30 @@ pub struct SelectionCandidate {
 
 pub fn parse_fci_candidate_aids(fci: &[u8]) -> KernelResult<Vec<Vec<u8>>> {
     let parsed = tlv::parse_many(fci)?;
+    if parsed.len() != 1 || parsed[0].tag != [0x6f] || !parsed[0].constructed {
+        return Err(KernelError::MissingMandatoryTag);
+    }
+
     let mut candidates = Vec::new();
-    for item in tlv::flatten(&parsed) {
-        if item.tag == [0x4f] {
-            push_unique_aid(&mut candidates, item.value)?;
+    for fci_child in &parsed[0].children {
+        if fci_child.tag != [0xa5] || !fci_child.constructed {
+            continue;
+        }
+        for proprietary_child in &fci_child.children {
+            if proprietary_child.tag != [0xbf, 0x0c] || !proprietary_child.constructed {
+                continue;
+            }
+            for directory_entry in &proprietary_child.children {
+                if directory_entry.tag != [0x61] || !directory_entry.constructed {
+                    continue;
+                }
+                let aid = directory_entry
+                    .children
+                    .iter()
+                    .find(|item| item.tag == [0x4f])
+                    .ok_or(KernelError::MissingMandatoryTag)?;
+                push_unique_aid(&mut candidates, aid.value)?;
+            }
         }
     }
     Ok(candidates)
@@ -156,10 +176,32 @@ mod tests {
 
     #[test]
     fn extracts_candidate_aids_from_directory_fci() {
+        assert_eq!(
+            parse_fci_candidate_aids(&[0x4f, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10])
+                .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
         let fci = [0x6f, 0x07, 0xa5, 0x05, 0xbf, 0x0c, 0x02, 0x4f, 0x00];
+        assert_eq!(
+            parse_fci_candidate_aids(&fci).unwrap(),
+            Vec::<Vec<u8>>::new()
+        );
+
+        let fci = [
+            0x6f, 0x09, 0xa5, 0x07, 0xbf, 0x0c, 0x04, 0x61, 0x02, 0x4f, 0x00,
+        ];
         assert_eq!(
             parse_fci_candidate_aids(&fci).unwrap_err(),
             KernelError::InvalidProfile
+        );
+
+        let fci = [
+            0x6f, 0x0a, 0xa5, 0x08, 0xbf, 0x0c, 0x05, 0x4f, 0x03, 0xa0, 0x00, 0x00,
+        ];
+        assert_eq!(
+            parse_fci_candidate_aids(&fci).unwrap(),
+            Vec::<Vec<u8>>::new()
         );
 
         let fci = [
