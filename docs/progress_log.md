@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:42:36Z
+
+- Increment completed: reject AFL entries whose encoded SFI byte has non-zero
+  low bits before deriving READ RECORD commands.
+- Research note: public EMV AFL references describe each AFL entry as four
+  bytes and encode SFI in the upper five bits of byte 1, with the lower three
+  bits set to zero. Accepting non-zero low bits lets a malformed AFL byte map
+  to a valid SFI after shifting, weakening record-location provenance.
+- Code impact: `parse_afl` now rejects byte-1 encodings where bits 3-1 are not
+  zero, preserving existing SFI range, record range, and offline-authentication
+  record-count checks.
+- Evidence updated: AFL unit tests, READ RECORD traceability guards, and both
+  RTM annexes now cite reserved-low-bit rejection coverage.
+- Verification: `cargo test rejects_afl_sfi_bytes_with_nonzero_low_bits`,
+  `cargo test rejects_malformed_afl_entries`,
+  `cargo test lifecycle_afl_plan_produces_read_record_sequence_and_oda_flags`,
+  `cargo test krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T04:37:41Z
 
 - Increment completed: reject duplicate selected-application PDOL (`9F38`)

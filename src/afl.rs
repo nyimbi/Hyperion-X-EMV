@@ -41,7 +41,12 @@ pub fn parse_afl(input: &[u8]) -> KernelResult<Vec<AflEntry>> {
         let last_record = chunk[2];
         let offline_auth_record_count = chunk[3];
 
-        if sfi == 0 || sfi > 30 || first_record == 0 || last_record < first_record {
+        if chunk[0] & 0x07 != 0
+            || sfi == 0
+            || sfi > 30
+            || first_record == 0
+            || last_record < first_record
+        {
             return Err(KernelError::ParseError);
         }
         let record_count = last_record - first_record + 1;
@@ -157,6 +162,14 @@ mod tests {
         );
         assert_eq!(
             parse_afl(&[0x10, 0x01, 0x02]).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_afl_sfi_bytes_with_nonzero_low_bits() {
+        assert_eq!(
+            parse_afl(&[0x13, 0x01, 0x01, 0x00]).unwrap_err(),
             KernelError::ParseError
         );
     }

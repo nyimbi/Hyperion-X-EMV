@@ -853,6 +853,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         );
         assert!(sfi.contains("validates_read_record_sfi"));
         assert!(sfi.contains("rejects_malformed_afl_entries"));
+        assert!(sfi.contains("rejects_afl_sfi_bytes_with_nonzero_low_bits"));
         assert!(sfi.contains("krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data"));
         assert!(sfi.contains("rtm_promotes_gpo_and_read_record_evidence"));
 
@@ -6319,6 +6320,11 @@ fn lifecycle_afl_plan_produces_read_record_sequence_and_oda_flags() {
         commands,
         vec![hex("00B2011400"), hex("00B2021400"), hex("00B2031400")]
     );
+
+    assert_eq!(
+        parse_afl(&hex("13010100")).unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
 }
 
 #[test]
@@ -6347,6 +6353,10 @@ fn krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data() {
             &mut DataStore::new()
         )
         .unwrap_err(),
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_afl(&hex("13010100")).unwrap_err(),
         hyperion_emv::KernelError::ParseError
     );
 }
