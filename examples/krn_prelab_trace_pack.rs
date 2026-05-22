@@ -37,6 +37,7 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
                 "full-apdu-disabled",
                 "pan-last-four-only",
                 "transaction-cryptogram-suppressed",
+                "issuer-application-data-suppressed",
             ],
         },
     )?;
@@ -191,7 +192,7 @@ fn generate_ac_masking_script() -> KernelResult<ReplayScript> {
     )?;
     let first_gac = ReplayExchange::new(
         &decode_hex("80AE80000301020300")?,
-        &decode_hex("800B8000091112131415161718")?,
+        &decode_hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC")?,
         [0x90, 0x00],
         ApduTraceContext::GenerateAcResponse,
     )?;

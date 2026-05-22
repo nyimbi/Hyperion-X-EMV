@@ -1805,6 +1805,9 @@ fn rtm_promotes_reference_config_log_evidence() {
         );
         assert!(log_policy.contains("krn_log_001_masks_sensitive_tlv_and_gac_trace_values"));
         assert!(log_policy.contains("krn_log_001_exposes_masked_apdu_trace_json_via_abi"));
+        assert!(
+            log_policy.contains("production_suppresses_profile_defined_issuer_application_data")
+        );
         assert!(log_policy
             .contains("production_policy_never_emits_full_apdu_data_even_if_misconfigured"));
         assert!(log_policy.contains("rtm_promotes_logging_policy_evidence"));
@@ -5369,6 +5372,12 @@ fn krn_log_001_masks_sensitive_tlv_and_gac_trace_values() {
     );
     assert_eq!(track.value, MaskedValue::Suppressed("track2"));
 
+    let iad = mask_tlv_value(&[0x9f, 0x10], &hex("AABBCC"), LogPolicy::production());
+    assert_eq!(
+        iad.value,
+        MaskedValue::Suppressed("issuer-application-data")
+    );
+
     let response = hex("800B800001DEADBEEF00000001");
     let event = mask_apdu_response(
         1,
@@ -5449,7 +5458,10 @@ fn krn_log_001_exposes_masked_apdu_trace_json_via_abi() {
         assert!(json.contains("\"context\":\"generate-ac-response\""));
         assert!(json.contains("\"tag\":\"9f26\""));
         assert!(json.contains("transaction-cryptogram"));
+        assert!(json.contains("\"tag\":\"9f10\""));
+        assert!(json.contains("issuer-application-data"));
         assert!(!json.contains("1112131415161718"));
+        assert!(!json.contains("aabbcc"));
 
         assert_eq!(
             krn_mask_apdu_response_json(
@@ -5531,7 +5543,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     .unwrap();
     let first_gac = ReplayExchange::new(
         &hex("80AE80000301020300"),
-        &hex("800B8000091112131415161718"),
+        &hex("771A9F2701809F360200099F260811121314151617189F1003AABBCC"),
         [0x90, 0x00],
         ApduTraceContext::GenerateAcResponse,
     )
@@ -5631,7 +5643,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         generated.push_str("\",\"does_not_close\":\"CERT-OPEN-012\"}\n");
         generated.push_str(match case_id {
             "prelab.masking.generate-ac" => {
-                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.generate-ac\",\"expected_step_count\":3,\"expected_fsm_events\":[\"AidSelected\",\"RecordRead\",\"GacArqc\"],\"expected_fsm_actions\":[\"SelectNextAid\",\"ReadRecords\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"],\"expected_status_actions\":[],\"expected_terminal_outcome\":\"online-authorization-request\",\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\"]}\n"
+                "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.generate-ac\",\"expected_step_count\":3,\"expected_fsm_events\":[\"AidSelected\",\"RecordRead\",\"GacArqc\"],\"expected_fsm_actions\":[\"SelectNextAid\",\"ReadRecords\",\"RequestFirstGenerateAc\",\"BuildHostRequest\"],\"expected_status_actions\":[],\"expected_terminal_outcome\":\"online-authorization-request\",\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\",\"issuer-application-data-suppressed\"]}\n"
             }
             "prelab.masking.issuer-auth-script" => {
                 "{\"type\":\"trace-scenario\",\"case_id\":\"prelab.masking.issuer-auth-script\",\"expected_step_count\":2,\"expected_fsm_events\":[\"IssuerAuthenticationSuccess\",\"ScriptNonCriticalFailure\"],\"expected_fsm_actions\":[\"ProcessArpc\",\"ProcessIssuerScripts\",\"RequestFinalGenerateAc\"],\"expected_status_actions\":[],\"expected_terminal_outcome\":\"continue-to-final-generate-ac\",\"masking_assertions\":[\"full-apdu-disabled\",\"issuer-authentication-data-suppressed\",\"issuer-script-command-data-suppressed\"]}\n"
@@ -5701,7 +5713,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
         .contains("\"expected_terminal_outcome\":\"continue-to-final-generate-ac\""));
     assert!(PRELAB_APDU_TRACE_PACK
         .contains("\"expected_terminal_outcome\":\"issuer-script-warning-recorded\""));
-    assert!(PRELAB_APDU_TRACE_PACK.contains("\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\"]"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"masking_assertions\":[\"full-apdu-disabled\",\"pan-last-four-only\",\"transaction-cryptogram-suppressed\",\"issuer-application-data-suppressed\"]"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"profile_version\":2"));
@@ -5714,6 +5726,8 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"context\":\"generate-ac-response\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f26\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"transaction-cryptogram\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"tag\":\"9f10\""));
+    assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"issuer-application-data\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"82\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"ins\":\"da\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"sw\":\"6300\""));
@@ -5728,11 +5742,13 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(!PRELAB_APDU_TRACE_PACK.contains("010203"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("1122334455667788"));
     assert!(!PRELAB_APDU_TRACE_PACK.contains("1112131415161718"));
+    assert!(!PRELAB_APDU_TRACE_PACK.contains("aabbcc"));
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab APDU trace fixture"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_trace_pack"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("scenario expectations"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Track 2 suppression"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("profile-defined issuer application data suppression"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("issuer-authentication/script status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("issuer-script retry status evidence"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("APDU follow-up status evidence"));

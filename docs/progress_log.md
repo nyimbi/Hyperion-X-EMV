@@ -4,6 +4,32 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T17:19:31Z
+
+- Increment completed: suppress profile-defined issuer application data (`9F10`)
+  in production trace output while keeping verified non-production support logs
+  available for authorized troubleshooting.
+- Research note: the executable TLV catalogue classifies `9F10` as
+  profile-defined, and the open-source reference review reinforces fixture-led
+  masked trace validation rather than raw APDU logging as certification-facing
+  evidence.
+- Code impact: `mask_tlv_value` now treats `9F10` separately from ordinary TLV
+  values, and the deterministic pre-lab GENERATE AC trace fixture uses a
+  template-77 response carrying `9F10` to prove the production masking rule.
+- Evidence update: KRN-LOG-001 in both RTM annexes cites
+  `trace::tests::production_suppresses_profile_defined_issuer_application_data`,
+  and the lab manifest now states that the pre-lab trace fixture covers
+  profile-defined issuer application data suppression.
+- Verification: `cargo test
+  production_suppresses_profile_defined_issuer_application_data`, `cargo test
+  krn_log_001_masks_sensitive_tlv_and_gac_trace_values`, `cargo test
+  krn_log_001_exposes_masked_apdu_trace_json_via_abi`, `cargo test
+  prelab_apdu_trace_pack_is_replayable_masked_and_scoped`, `cargo test
+  rtm_promotes_reference_config_log_evidence`, `cargo test`, `cargo test
+  --examples`, `cargo clippy --all-targets --all-features`, `cargo fmt
+  --check`, `cargo run --quiet --example krn_prelab_trace_pack | diff -u
+  docs/prelab_apdu_trace_pack.jsonl -`, and `git diff --check` passed.
+
 ## 2026-05-22T17:03:44Z
 
 - Increment completed: make certification-scope metadata executable in the

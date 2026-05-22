@@ -69,6 +69,10 @@ impl LogPolicy {
             && self.build_mode != LogBuildMode::Production
     }
 
+    fn allows_profile_defined_trace_data(self) -> bool {
+        self.support_verified() && self.build_mode != LogBuildMode::Production
+    }
+
     fn allows_track2_hash(self) -> bool {
         self.track2_debug_hash && self.support_verified()
     }
@@ -333,6 +337,12 @@ pub fn mask_tlv_value(tag: &[u8], value: &[u8], policy: LogPolicy) -> MaskedFiel
             MaskedValue::Hex(to_hex(value))
         } else {
             MaskedValue::Suppressed("transaction-cryptogram")
+        }
+    } else if tag == [0x9f, 0x10] {
+        if policy.allows_profile_defined_trace_data() {
+            MaskedValue::Hex(to_hex(value))
+        } else {
+            MaskedValue::Suppressed("issuer-application-data")
         }
     } else if tag == [0x99] {
         MaskedValue::Suppressed("pin-block")
@@ -765,6 +775,40 @@ mod tests {
             field.value,
             MaskedValue::Suppressed("transaction-cryptogram")
         );
+    }
+
+    #[test]
+    fn production_suppresses_profile_defined_issuer_application_data() {
+        let production =
+            mask_tlv_value(&[0x9f, 0x10], &[0xaa, 0xbb, 0xcc], LogPolicy::production());
+        assert_eq!(
+            production.value,
+            MaskedValue::Suppressed("issuer-application-data")
+        );
+
+        let support = mask_tlv_value(
+            &[0x9f, 0x10],
+            &[0xaa, 0xbb, 0xcc],
+            LogPolicy::certification_support(),
+        );
+        assert_eq!(support.value, MaskedValue::Hex("aabbcc".to_string()));
+
+        let response = [
+            0x77, 0x1a, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x9f, 0x10, 0x03, 0xaa, 0xbb, 0xcc,
+        ];
+        let event = mask_apdu_response(
+            9,
+            ApduTraceContext::GenerateAcResponse,
+            &response,
+            [0x90, 0x00],
+            LogPolicy::production(),
+        )
+        .unwrap();
+        let json = event.to_json();
+        assert!(json.contains("\"tag\":\"9f10\""));
+        assert!(json.contains("issuer-application-data"));
+        assert!(!json.contains("aabbcc"));
     }
 
     #[test]
