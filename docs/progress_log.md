@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T17:45:56Z
+
+- Increment completed: prove that an applied host-response Authorization Code
+  can feed second GENERATE AC CDOL2 construction when CDOL2 requests tag `89`.
+- Research note: this follows the reference-review pattern of fixture-heavy
+  end-to-end boundary tests while keeping the behavior expressed in Hyperion's
+  own FFI/state-machine flow.
+- Code impact: added
+  `ffi::tests::final_generate_ac_uses_authorization_code_from_applied_host_response`,
+  which applies a host response through the S11 boundary, advances through the
+  no-script path, and verifies the generated CDOL2 bytes include ARC, tag `89`,
+  TVR, and TSI in the requested order.
+- Evidence update: both RTM annexes cite the new regression under KRN-GAC2-001
+  and KRN-GAC2-002, and the RTM guard now requires that evidence.
+- Verification: `cargo test
+  final_generate_ac_uses_authorization_code_from_applied_host_response`, `cargo
+  test rtm_promotes_issuer_authentication_and_final_gac_evidence`, `cargo
+  test`, `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T17:37:52Z
 
 - Increment completed: make tag `89` Authorization Code an explicit

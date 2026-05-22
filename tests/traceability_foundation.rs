@@ -6787,9 +6787,14 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
 
         let cdol2 = csv_row_for_requirement(csv, "KRN-GAC2-001").unwrap();
         assert!(cdol2.contains("final_generate_ac_builds_cdol2_from_host_response_and_state"));
+        assert!(
+            cdol2.contains("final_generate_ac_uses_authorization_code_from_applied_host_response")
+        );
         assert!(cdol2.contains("final_gac_rejects_missing_cdol2_source_without_zero_padding"));
         let cdol2_auth = csv_row_for_requirement(csv, "KRN-GAC2-002").unwrap();
         assert!(cdol2_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
+        assert!(cdol2_auth
+            .contains("final_generate_ac_uses_authorization_code_from_applied_host_response"));
         assert!(cdol2_auth.contains("final_gac_rejects_missing_cdol2_source_without_zero_padding"));
 
         let final_outcome = csv_row_for_requirement(csv, "KRN-GAC2-004").unwrap();

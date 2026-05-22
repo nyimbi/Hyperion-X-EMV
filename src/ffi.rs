@@ -6361,6 +6361,47 @@ mod tests {
     }
 
     #[test]
+    fn final_generate_ac_uses_authorization_code_from_applied_host_response() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S11;
+        ctx.state = KernelState::OnlineAuthorization;
+        ctx.card_data
+            .put(&[0x8d], &[0x8a, 0x02, 0x89, 0x06, 0x95, 0x05, 0x9b, 0x02])
+            .unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        let host = [
+            0x8a, 0x02, b'0', b'0', 0x89, 0x06, b'A', b'P', b'P', b'R', b'0', b'1',
+        ];
+        assert_eq!(apply_host_response(&mut ctx, &host), Ok(()));
+        assert_eq!(ctx.card_data.get(&[0x89]), Some(&b"APPR01"[..]));
+        assert_eq!(ctx.fsm_state, FsmState::S13);
+        assert_eq!(run_issuer_scripts(&mut ctx, runtime), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S14);
+
+        TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        assert_eq!(run_final_generate_ac(&mut ctx, runtime), Ok(()));
+
+        let command = LAST_TRANSMITTED_COMMAND.lock().unwrap().clone();
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);
+        assert_eq!(&command[..5], &[0x80, 0xae, 0x40, 0x00, 0x0f]);
+        assert_eq!(&command[5..7], b"00");
+        assert_eq!(&command[7..13], b"APPR01");
+        assert_eq!(&command[13..18], &Tvr::cleared().bytes());
+        assert_eq!(&command[18..20], &Tsi::cleared().bytes());
+        assert_eq!(command[20], 0x00);
+        assert_eq!(ctx.fsm_state, FsmState::S15);
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::ApprovedOnline));
+    }
+
+    #[test]
     fn final_gac_rejects_missing_cdol2_source_without_zero_padding() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
         let mut ctx = KrnContext::new();
