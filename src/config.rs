@@ -643,6 +643,15 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
     if contactless_transaction_limit != 0 && contactless_cvm_limit > contactless_transaction_limit {
         return Err(KernelError::InvalidProfile);
     }
+    let cda_supported = required_bool(object, "cda_supported")?;
+    let cda_request_encoding = object
+        .get("cda_request_encoding")
+        .and_then(JsonValue::as_string_opt)
+        .map(parse_cda_request_encoding)
+        .transpose()?;
+    if cda_supported != cda_request_encoding.is_some() {
+        return Err(KernelError::InvalidProfile);
+    }
 
     Ok(AidProfile {
         aid,
@@ -668,12 +677,8 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         contactless_transaction_limit,
         contactless_cvm_limit,
         cdcvm_supported: required_bool(object, "cdcvm_supported")?,
-        cda_supported: required_bool(object, "cda_supported")?,
-        cda_request_encoding: object
-            .get("cda_request_encoding")
-            .and_then(JsonValue::as_string_opt)
-            .map(parse_cda_request_encoding)
-            .transpose()?,
+        cda_supported,
+        cda_request_encoding,
         default_cdol1: parse_default_cdol1(object)?,
         critical_issuer_script_ins: optional_hex_byte_array(object, "critical_issuer_script_ins")?,
         relay_resistance: parse_relay_resistance_profile(object)?,
@@ -2052,6 +2057,7 @@ mod tests {
               "contactless_cvm_limit": 3000,
               "cdcvm_supported": true,
               "cda_supported": true,
+              "cda_request_encoding": "CDOL1_bit",
               "critical_issuer_script_ins": ["E2"]
             }],
             "capks": [{
@@ -2276,6 +2282,36 @@ mod tests {
         );
         assert_eq!(
             parse_cda_request_encoding("implicit").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_inconsistent_cda_profile_controls() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+
+        let missing_encoding = profile.replace(
+            r#"
+          "cda_request_encoding": "CDOL1_bit","#,
+            "",
+        );
+        assert_eq!(
+            load_profile_set(
+                missing_encoding.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let unsupported_with_encoding =
+            profile.replace(r#""cda_supported": true,"#, r#""cda_supported": false,"#);
+        assert_eq!(
+            load_profile_set(
+                unsupported_with_encoding.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
     }

@@ -3638,3 +3638,29 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_rng_callback_evidence`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T19:51:31Z
+
+- Increment completed: reject inconsistent signed-profile CDA controls before
+  runtime transaction processing.
+- Research note: CDA request control is profile-defined. A certification-shaped
+  profile that claims CDA support without an encoding, or carries an encoding
+  while disabling CDA, is ambiguous and should fail at profile load rather than
+  degrade to runtime inference.
+- Code impact: `parse_aid` now requires `cda_supported` to match the presence
+  of `cda_request_encoding`; inconsistent pairs return `InvalidProfile`.
+  Existing profile fixtures were updated to keep tests focused on their target
+  concerns.
+- Evidence updated: `rejects_inconsistent_cda_profile_controls` covers missing
+  and stale CDA controls,
+  `krn_gac_010_cda_request_is_profile_defined_or_unsupported` now expects loader
+  rejection for missing encoding, and both RTM CSVs cite the new config evidence
+  under `KRN-GAC-009` and `KRN-GAC-010`.
+- Verification: `cargo fmt`,
+  `cargo test rejects_inconsistent_cda_profile_controls`,
+  `cargo test krn_gac_010_cda_request_is_profile_defined_or_unsupported`,
+  `cargo test rtm_promotes_legacy_gac_cda_control_evidence`,
+  `cargo test rejects_example_profile_in_certification_or_production_mode`,
+  `cargo test capk_lookup_requires_verified_integrity_and_unexpired_key`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.

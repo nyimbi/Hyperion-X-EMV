@@ -3821,10 +3821,10 @@ fn krn_gac_010_cda_request_is_profile_defined_or_unsupported() {
         }]
       }]
     }"#;
-    let profiles = load_profile_set(missing_encoding, &policy).unwrap();
-    let aid = &profiles.schemes[0].aids[0];
-    assert!(aid.cda_supported);
-    assert!(!aid.cda_allowed_by_profile());
+    assert_eq!(
+        load_profile_set(missing_encoding, &policy).unwrap_err(),
+        hyperion_emv::KernelError::InvalidProfile
+    );
 
     let colliding_encoding = br#"{
       "profile_class": "CERTIFICATION",
@@ -3969,6 +3969,7 @@ fn rtm_promotes_legacy_gac_cda_control_evidence() {
         );
         assert!(cda_bits.contains("encodes_generate_ac_type_bits_without_cda_collision"));
         assert!(cda_bits.contains("cda_request_encoding_is_profile_defined_and_non_colliding"));
+        assert!(cda_bits.contains("rejects_inconsistent_cda_profile_controls"));
         assert!(cda_bits.contains("first_gac_cda_request_control_is_profile_defined"));
         assert!(cda_bits.contains("krn_gac_008_009_cda_control_never_changes_type_bits"));
         assert!(cda_bits.contains("rtm_promotes_legacy_gac_cda_control_evidence"));
@@ -3979,6 +3980,7 @@ fn rtm_promotes_legacy_gac_cda_control_evidence() {
             "KRN-GAC-010 should cite executable profile-defined CDA evidence"
         );
         assert!(cda_profile.contains("cda_request_encoding_is_profile_defined_and_non_colliding"));
+        assert!(cda_profile.contains("rejects_inconsistent_cda_profile_controls"));
         assert!(cda_profile.contains("first_gac_cda_request_control_is_profile_defined"));
         assert!(cda_profile.contains("krn_gac_010_cda_request_is_profile_defined_or_unsupported"));
         assert!(cda_profile.contains("rtm_promotes_legacy_gac_cda_control_evidence"));
