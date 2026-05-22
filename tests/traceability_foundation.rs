@@ -3742,6 +3742,7 @@ fn rtm_promotes_online_boundary_evidence() {
         assert!(
             handoff.contains("builds_online_authorization_package_without_generating_cryptograms")
         );
+        assert!(handoff.contains("online_authorization_package_rejects_tlv_output_above_limit"));
         assert!(handoff
             .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
 

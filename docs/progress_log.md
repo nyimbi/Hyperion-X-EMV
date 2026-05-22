@@ -1972,3 +1972,21 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:17:41Z
+
+- Increment completed: make Level 3 online authorization package output
+  bounds explicit and traceable.
+- Research note: issuer/acquirer host integration and scheme case packs remain
+  external certification evidence, but the kernel-owned handoff encoder can
+  still prove oversized TLV packages fail closed before Level 3 receives them.
+- Code impact: `encode_online_authorization_package` now has a regression
+  proving larger-than-`MAX_ONLINE_AUTH_DATA_LEN` TLV output returns
+  `LengthOverflow` before emitting the handoff buffer.
+- Evidence updated: current and compatibility RTM annexes cite the online
+  authorization package output-bound regression for `KRN-ONL-001`.
+- Verification: `cargo test online_authorization_package_rejects_tlv_output_above_limit`,
+  `cargo test rtm_promotes_online_boundary_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

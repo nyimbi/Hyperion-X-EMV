@@ -4650,6 +4650,21 @@ mod tests {
     }
 
     #[test]
+    fn online_authorization_package_rejects_tlv_output_above_limit() {
+        let package = OnlineAuthorizationPackage {
+            objects: vec![crate::gac::TagValue {
+                tag: vec![0x9f, 0x10],
+                value: vec![0u8; MAX_ONLINE_AUTH_DATA_LEN + 1],
+            }],
+        };
+
+        assert_eq!(
+            encode_online_authorization_package(&package).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn krn_api_004_rejects_reentrant_mutating_entrypoints() {
         unsafe {
             let ctx = krn_context_new();
