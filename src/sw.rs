@@ -40,6 +40,7 @@ pub enum StatusAction {
     EndOfRecords,
     ContinueWithTvr { bit: (usize, u8) },
     PinFailed { tries_remaining: u8 },
+    ContinueAfterScriptWarning,
     ContinueAfterNonCriticalScriptFailure,
     Fail { error: KernelError },
 }
@@ -91,8 +92,9 @@ pub fn classify(context: ApduContext, sw: StatusWord) -> StatusAction {
         (ApduContext::ExternalAuthenticate, _, _) => StatusAction::ContinueWithTvr {
             bit: Tvr::B5_ISSUER_AUTHENTICATION_FAILED,
         },
-        (ApduContext::IssuerScript { critical: false }, 0x63, _)
-        | (ApduContext::IssuerScript { critical: false }, 0x6a, _)
+        (ApduContext::IssuerScript { .. }, 0x62, _)
+        | (ApduContext::IssuerScript { .. }, 0x63, _) => StatusAction::ContinueAfterScriptWarning,
+        (ApduContext::IssuerScript { critical: false }, 0x6a, _)
         | (ApduContext::IssuerScript { critical: false }, 0x69, _) => {
             StatusAction::ContinueAfterNonCriticalScriptFailure
         }
@@ -210,6 +212,13 @@ mod tests {
                 StatusWord::new(0x6a, 0x80)
             ),
             StatusAction::ContinueAfterNonCriticalScriptFailure
+        );
+        assert_eq!(
+            classify(
+                ApduContext::IssuerScript { critical: true },
+                StatusWord::new(0x63, 0xc1)
+            ),
+            StatusAction::ContinueAfterScriptWarning
         );
         assert_eq!(
             classify(

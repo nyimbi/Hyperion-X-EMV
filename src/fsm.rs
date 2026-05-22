@@ -507,7 +507,8 @@ fn parse_event(value: &str) -> KernelResult<FsmEvent> {
         "issuer script available" => Ok(FsmEvent::ScriptAvailable),
         "no more scripts" | "no more post-final scripts" => Ok(FsmEvent::NoMoreScripts),
         "script APDU returns 9000" => Ok(FsmEvent::ScriptSuccess),
-        "script APDU returns 63xx or 6xxx" => Ok(FsmEvent::ScriptNonCriticalFailure),
+        "script APDU returns 62xx/63xx warning or non-critical 6xxx"
+        | "script APDU returns 63xx or 6xxx" => Ok(FsmEvent::ScriptNonCriticalFailure),
         "critical script failure (scheme rule)" => Ok(FsmEvent::ScriptCriticalFailure),
         "GENERATE AC second returns 9000 with TC" => Ok(FsmEvent::Gac2Tc),
         "GENERATE AC second returns 9000 with AAC" => Ok(FsmEvent::Gac2Aac),

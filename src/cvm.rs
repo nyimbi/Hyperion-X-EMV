@@ -304,6 +304,7 @@ pub fn apply_offline_pin_verify_status(
         | StatusAction::TryNextAid
         | StatusAction::EndOfRecords
         | StatusAction::ContinueWithTvr { .. }
+        | StatusAction::ContinueAfterScriptWarning
         | StatusAction::ContinueAfterNonCriticalScriptFailure => Err(KernelError::InvalidArgument),
     }
 }

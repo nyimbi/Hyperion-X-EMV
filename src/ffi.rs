@@ -1650,6 +1650,7 @@ fn read_application_records(
             StatusAction::FallbackToDirectAid
             | StatusAction::TryNextAid
             | StatusAction::PinFailed { .. }
+            | StatusAction::ContinueAfterScriptWarning
             | StatusAction::ContinueAfterNonCriticalScriptFailure => {
                 return Err(KernelError::InternalError);
             }
@@ -1896,6 +1897,7 @@ fn perform_dynamic_data_authentication(
         | StatusAction::EndOfRecords
         | StatusAction::ContinueWithTvr { .. }
         | StatusAction::PinFailed { .. }
+        | StatusAction::ContinueAfterScriptWarning
         | StatusAction::ContinueAfterNonCriticalScriptFailure => {
             return Err(KernelError::InternalError);
         }
@@ -2425,6 +2427,7 @@ fn run_first_generate_ac(
         | StatusAction::EndOfRecords
         | StatusAction::ContinueWithTvr { .. }
         | StatusAction::PinFailed { .. }
+        | StatusAction::ContinueAfterScriptWarning
         | StatusAction::ContinueAfterNonCriticalScriptFailure => {
             return Err(KernelError::InternalError);
         }
@@ -2564,6 +2567,7 @@ fn run_issuer_authentication(
         | StatusAction::TryNextAid
         | StatusAction::EndOfRecords
         | StatusAction::PinFailed { .. }
+        | StatusAction::ContinueAfterScriptWarning
         | StatusAction::ContinueAfterNonCriticalScriptFailure => {
             return Err(KernelError::InternalError);
         }
@@ -2640,7 +2644,9 @@ fn run_issuer_scripts_for_phase(
             script_results.push(result);
             ctx.issuer_script_results.push(result);
             match classify(script_context, sw) {
-                StatusAction::Success | StatusAction::ContinueAfterNonCriticalScriptFailure => {}
+                StatusAction::Success
+                | StatusAction::ContinueAfterScriptWarning
+                | StatusAction::ContinueAfterNonCriticalScriptFailure => {}
                 StatusAction::Fail { error } => {
                     if error != KernelError::ScriptFailed {
                         return Err(error);
@@ -5773,6 +5779,68 @@ mod tests {
                 sw1: 0x69,
                 sw2: 0x85
             }]
+        );
+        assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
+        assert!(ctx
+            .tvr
+            .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC));
+        assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
+        assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
+        SCRIPT_SW1.store(0x90, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn critical_issuer_script_warning_continues_and_reports_results() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S15;
+        ctx.state = KernelState::PostFinalIssuerScripts;
+        install_profile_selection(&mut ctx);
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: Some([b'0', b'0']),
+            issuer_authentication_data: None,
+            scripts: vec![crate::issuer::IssuerScript {
+                phase: crate::issuer::ScriptPhase::AfterFinalGenerateAc,
+                identifier: None,
+                commands: vec![
+                    vec![0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb],
+                    vec![0x80, 0xe2, 0x00, 0x00, 0x01, 0xcc],
+                ],
+            }],
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(8, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        SCRIPT_SW1.store(0x63, Ordering::SeqCst);
+        SCRIPT_SW2.store(0xc1, Ordering::SeqCst);
+        assert_eq!(run_post_final_issuer_scripts(&mut ctx, runtime), Ok(()));
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 10);
+        assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xe2);
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x80, 0xe2, 0x00, 0x00, 0x01, 0xcc]
+        );
+        assert_eq!(ctx.fsm_state, FsmState::S16);
+        assert_eq!(ctx.state, KernelState::FinalOutcome);
+        assert_eq!(
+            ctx.issuer_script_results,
+            vec![
+                ScriptCommandResult {
+                    sw1: 0x63,
+                    sw2: 0xc1
+                },
+                ScriptCommandResult {
+                    sw1: 0x63,
+                    sw2: 0xc1
+                }
+            ]
         );
         assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
         assert!(ctx

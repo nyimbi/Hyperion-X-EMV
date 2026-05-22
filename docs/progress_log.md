@@ -2328,3 +2328,28 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_issuer_script_evidence`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T11:02:04Z
+
+- Increment completed: preserve issuer-script warning continuation semantics
+  even when the active profile marks the script command INS as critical.
+- Research note: public EMV Book 3 excerpts describe issuer-script warning
+  status words (`62xx` and `63xx`) as continuation conditions. The kernel
+  should still record SW1/SW2 and set script-processing evidence bits, but it
+  must not turn those warnings into a critical abort before later commands in
+  the same script are attempted.
+- Code impact: issuer-script status classification now distinguishes warning
+  continuation from non-critical error continuation. Critical script commands
+  still fail closed on error statuses, while `62xx`/`63xx` warning statuses
+  continue through the ordered script command list.
+- Evidence updated: `ffi::tests::critical_issuer_script_warning_continues_and_reports_results`
+  proves warning results for critical post-final script commands are captured,
+  the second command is still transmitted, TVR/TSI are persisted, and the FSM
+  reaches final outcome instead of `SE`. The state-machine annex and both RTM
+  CSVs cite the warning-continuation behavior.
+- Verification: `cargo test critical_issuer_script_warning_continues_and_reports_results`,
+  `cargo test verify_and_script_status_words_keep_their_own_meaning`,
+  `cargo test rtm_promotes_issuer_script_evidence`,
+  `cargo test validates_machine_readable_state_annex`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
