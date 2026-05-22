@@ -1,6 +1,7 @@
 use crate::error::{KernelError, KernelResult};
 use crate::state::{Tsi, Tvr};
 use crate::tlv;
+use core::fmt;
 
 pub const MAX_SCRIPT_COMMANDS: usize = 32;
 pub const MAX_SCRIPT_COMMAND_LEN: usize = 261;
@@ -13,18 +14,55 @@ pub enum ScriptPhase {
     AfterFinalGenerateAc,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct IssuerScript {
     pub phase: ScriptPhase,
     pub identifier: Option<Vec<u8>>,
     pub commands: Vec<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for IssuerScript {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let command_lengths: Vec<usize> = self.commands.iter().map(Vec::len).collect();
+        f.debug_struct("IssuerScript")
+            .field("phase", &self.phase)
+            .field("identifier_len", &self.identifier.as_ref().map(Vec::len))
+            .field("command_count", &self.commands.len())
+            .field("command_lengths", &command_lengths)
+            .field(
+                "data_policy",
+                &"issuer script identifiers and APDU command bytes redacted for crash safety",
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct HostResponse {
     pub authorization_response_code: Option<[u8; 2]>,
     pub issuer_authentication_data: Option<Vec<u8>>,
     pub scripts: Vec<IssuerScript>,
+}
+
+impl fmt::Debug for HostResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HostResponse")
+            .field(
+                "authorization_response_code",
+                &self.authorization_response_code,
+            )
+            .field(
+                "issuer_authentication_data_len",
+                &self.issuer_authentication_data.as_ref().map(Vec::len),
+            )
+            .field("script_count", &self.scripts.len())
+            .field("scripts", &self.scripts)
+            .field(
+                "data_policy",
+                &"issuer authentication data and script bytes redacted for crash safety",
+            )
+            .finish()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -228,5 +266,24 @@ mod tests {
             parse_host_response(&too_long).unwrap_err(),
             KernelError::ParseError
         );
+    }
+
+    #[test]
+    fn host_response_debug_redacts_issuer_authentication_and_scripts() {
+        let response = parse_host_response(&[
+            0x8a, 0x02, b'0', b'0', 0x91, 0x08, 0xde, 0xad, 0xbe, 0xef, 0xaa, 0xbb, 0xcc, 0xdd,
+            0x71, 0x0f, 0x9f, 0x18, 0x04, 0x01, 0x02, 0x03, 0x04, 0x86, 0x06, 0x00, 0xda, 0x00,
+            0x00, 0x01, 0xaa,
+        ])
+        .unwrap();
+
+        let debug = format!("{response:?}");
+        assert!(debug.contains("HostResponse"));
+        assert!(debug.contains("redacted for crash safety"));
+        assert!(debug.contains("issuer_authentication_data_len"));
+        assert!(debug.contains("command_lengths"));
+        for raw_byte in ["222", "173", "190", "239", "218", "170"] {
+            assert!(!debug.contains(raw_byte));
+        }
     }
 }

@@ -1917,6 +1917,10 @@ fn rtm_promotes_logging_policy_evidence() {
 
         let crash_dump = csv_row_for_requirement(csv, "KRN-LOG-003").unwrap();
         assert!(crash_dump.contains("datastore_debug_redacts_values_for_crash_safety"));
+        assert!(crash_dump.contains("online_authorization_debug_redacts_cryptograms_and_card_data"));
+        assert!(
+            crash_dump.contains("host_response_debug_redacts_issuer_authentication_and_scripts")
+        );
         assert!(crash_dump.contains("replay_debug_redacts_raw_apdu_bytes_for_crash_safety"));
         assert!(crash_dump.contains("replay_rejects_pin_verify_payload_custody"));
 

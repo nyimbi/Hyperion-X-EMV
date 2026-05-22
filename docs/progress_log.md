@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T00:05:56Z
+
+- Increment completed: harden crash/debug redaction for online authorization and
+  issuer response structures.
+- Code impact: `GenerateAcResponse`, `OnlineAuthorizationPackage`, `TagValue`,
+  `HostResponse`, and `IssuerScript` now expose only non-sensitive metadata from
+  their `Debug` implementations instead of raw cryptograms, issuer
+  authentication data, script command bytes, PAN, or track data.
+- Evidence updated: KRN-LOG-003 RTM rows now cite the new GAC and issuer debug
+  redaction regressions in addition to existing data-store and replay redaction
+  evidence.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-21T23:59:51Z
 
 - Increment completed: tighten certification-mode ODA vector coverage gates.

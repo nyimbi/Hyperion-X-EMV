@@ -2,8 +2,9 @@ use crate::cid::Cid;
 use crate::dol::DataStore;
 use crate::error::{KernelError, KernelResult};
 use crate::tlv;
+use core::fmt;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct GenerateAcResponse {
     pub cid: Cid,
     pub application_cryptogram: [u8; 8],
@@ -13,15 +14,60 @@ pub struct GenerateAcResponse {
     pub signed_dynamic_application_data: Option<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for GenerateAcResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GenerateAcResponse")
+            .field("cid", &self.cid)
+            .field("atc", &self.atc)
+            .field(
+                "issuer_application_data_len",
+                &self.issuer_application_data.len(),
+            )
+            .field(
+                "icc_dynamic_number_len",
+                &self.icc_dynamic_number.as_ref().map(Vec::len),
+            )
+            .field(
+                "signed_dynamic_application_data_len",
+                &self.signed_dynamic_application_data.as_ref().map(Vec::len),
+            )
+            .field(
+                "data_policy",
+                &"application cryptogram and dynamic authentication data redacted for crash safety",
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct OnlineAuthorizationPackage {
     pub objects: Vec<TagValue>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+impl fmt::Debug for OnlineAuthorizationPackage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OnlineAuthorizationPackage")
+            .field("object_count", &self.objects.len())
+            .field("objects", &self.objects)
+            .field("data_policy", &"object values redacted for crash safety")
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct TagValue {
     pub tag: Vec<u8>,
     pub value: Vec<u8>,
+}
+
+impl fmt::Debug for TagValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TagValue")
+            .field("tag", &self.tag)
+            .field("value_len", &self.value.len())
+            .field("data_policy", &"value redacted for crash safety")
+            .finish()
+    }
 }
 
 pub fn parse_generate_ac_response(input: &[u8]) -> KernelResult<GenerateAcResponse> {
@@ -206,5 +252,46 @@ mod tests {
         assert!(package.objects.iter().any(|object| {
             object.tag == [0x9f, 0x66] && object.value == [0x36, 0x00, 0x40, 0x00]
         }));
+    }
+
+    #[test]
+    fn online_authorization_debug_redacts_cryptograms_and_card_data() {
+        let response = parse_generate_ac_response(&[
+            0x77, 0x1f, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x12, 0x34, 0x9f, 0x26, 0x08,
+            0xde, 0xad, 0xbe, 0xef, 0xaa, 0xbb, 0xcc, 0xdd, 0x9f, 0x10, 0x03, 0x11, 0x22, 0x33,
+            0x9f, 0x4c, 0x02, 0x44, 0x55,
+        ])
+        .unwrap();
+        let response_debug = format!("{response:?}");
+        assert!(response_debug.contains("GenerateAcResponse"));
+        assert!(response_debug.contains("redacted for crash safety"));
+        for raw_byte in [
+            "222", "173", "190", "239", "170", "187", "204", "221", "68", "85",
+        ] {
+            assert!(!response_debug.contains(raw_byte));
+        }
+
+        let mut data = DataStore::new();
+        data.put(&[0x5a], &[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f])
+            .unwrap();
+        data.put(
+            &[0x57],
+            &[
+                0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45,
+            ],
+        )
+        .unwrap();
+
+        let package = build_online_authorization_package(&response, &data);
+        let package_debug = format!("{package:?}");
+        assert!(package_debug.contains("OnlineAuthorizationPackage"));
+        assert!(package_debug.contains("object values redacted"));
+        assert!(package_debug.contains("value_len"));
+        assert!(!package_debug.contains("123456789012345"));
+        for raw_byte in [
+            "222", "173", "190", "239", "170", "187", "204", "221", "18", "52", "86", "120",
+        ] {
+            assert!(!package_debug.contains(raw_byte));
+        }
     }
 }
