@@ -106,6 +106,18 @@ struct RuntimeCallbacks {
     user_data: *mut c_void,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct CapturedIssuerScriptResult {
+    phase: ScriptPhase,
+    result: ScriptCommandResult,
+}
+
+impl PartialEq<ScriptCommandResult> for CapturedIssuerScriptResult {
+    fn eq(&self, other: &ScriptCommandResult) -> bool {
+        self.result == *other
+    }
+}
+
 #[repr(i32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum KrnOutcome {
@@ -193,8 +205,7 @@ pub struct KrnContext {
     final_outcome: Option<KrnOutcome>,
     online_authorization_data: Option<Vec<u8>>,
     host_response: Option<HostResponse>,
-    issuer_script_results: Vec<ScriptCommandResult>,
-    issuer_script_result_phases: Vec<ScriptPhase>,
+    issuer_script_results: Vec<CapturedIssuerScriptResult>,
     card_data: DataStore,
     offline_auth_records: Vec<StaticAuthenticationRecord>,
     cvm_pin_handles: CvmPinHandles,
@@ -230,7 +241,6 @@ impl KrnContext {
             online_authorization_data: None,
             host_response: None,
             issuer_script_results: Vec::new(),
-            issuer_script_result_phases: Vec::new(),
             card_data: DataStore::new(),
             offline_auth_records: Vec::new(),
             cvm_pin_handles: CvmPinHandles::none(),
@@ -263,7 +273,6 @@ impl KrnContext {
         self.online_authorization_data = None;
         self.host_response = None;
         self.issuer_script_results.clear();
-        self.issuer_script_result_phases.clear();
         self.card_data = DataStore::new();
         self.offline_auth_records.clear();
         self.cvm_pin_handles = CvmPinHandles::none();
@@ -1086,8 +1095,8 @@ pub unsafe extern "C" fn krn_get_issuer_script_result(
             .get(index)
             .ok_or(KernelError::InvalidArgument)?;
         unsafe {
-            *sw1 = result.sw1;
-            *sw2 = result.sw2;
+            *sw1 = result.result.sw1;
+            *sw2 = result.result.sw2;
         }
         Ok(0usize)
     })();
@@ -1119,12 +1128,12 @@ pub unsafe extern "C" fn krn_get_issuer_script_result_phase(
         if phase.is_null() {
             return Err(KernelError::InvalidArgument);
         }
-        let result_phase = ctx
-            .issuer_script_result_phases
+        let result = ctx
+            .issuer_script_results
             .get(index)
             .ok_or(KernelError::InvalidArgument)?;
         unsafe {
-            *phase = script_phase_code(*result_phase);
+            *phase = script_phase_code(result.phase);
         }
         Ok(0usize)
     })();
@@ -2790,8 +2799,10 @@ fn run_issuer_scripts_for_phase(
                 sw2: sw.sw2,
             };
             script_results.push(result);
-            ctx.issuer_script_results.push(result);
-            ctx.issuer_script_result_phases.push(script.phase);
+            ctx.issuer_script_results.push(CapturedIssuerScriptResult {
+                phase: script.phase,
+                result,
+            });
             match classify(script_context, sw) {
                 StatusAction::Success
                 | StatusAction::ContinueAfterScriptWarning
@@ -6476,8 +6487,8 @@ mod tests {
             }]
         );
         assert_eq!(
-            ctx.issuer_script_result_phases,
-            vec![ScriptPhase::BeforeFinalGenerateAc]
+            ctx.issuer_script_results[0].phase,
+            ScriptPhase::BeforeFinalGenerateAc
         );
         let mut phase = 0u8;
         assert_eq!(
@@ -6752,8 +6763,8 @@ mod tests {
             }]
         );
         assert_eq!(
-            ctx.issuer_script_result_phases,
-            vec![ScriptPhase::AfterFinalGenerateAc]
+            ctx.issuer_script_results[0].phase,
+            ScriptPhase::AfterFinalGenerateAc
         );
         let mut phase = 0u8;
         assert_eq!(
@@ -6775,18 +6786,20 @@ mod tests {
     fn issuer_script_result_phase_api_reports_template_phase() {
         let mut ctx = KrnContext::new();
         ctx.issuer_script_results.extend([
-            ScriptCommandResult {
-                sw1: 0x90,
-                sw2: 0x00,
+            CapturedIssuerScriptResult {
+                phase: ScriptPhase::BeforeFinalGenerateAc,
+                result: ScriptCommandResult {
+                    sw1: 0x90,
+                    sw2: 0x00,
+                },
             },
-            ScriptCommandResult {
-                sw1: 0x69,
-                sw2: 0x85,
+            CapturedIssuerScriptResult {
+                phase: ScriptPhase::AfterFinalGenerateAc,
+                result: ScriptCommandResult {
+                    sw1: 0x69,
+                    sw2: 0x85,
+                },
             },
-        ]);
-        ctx.issuer_script_result_phases.extend([
-            ScriptPhase::BeforeFinalGenerateAc,
-            ScriptPhase::AfterFinalGenerateAc,
         ]);
 
         let mut phase = 0u8;

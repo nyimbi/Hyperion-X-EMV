@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T22:42:41Z
+
+- Increment completed: keep issuer-script result status words and execution
+  phase atomic inside the FFI runtime.
+- Code impact: the context now stores each captured issuer-script result as one
+  typed record containing both the SW1/SW2 pair and the Template 71/72 phase,
+  while preserving the public count, SW, and phase getter ABI.
+- Evidence updated: existing issuer-script result and phase tests now exercise
+  the single-record storage path, reducing internal divergence risk without
+  changing host-facing behavior or RTM requirement mappings.
+- Verification: `cargo fmt`, focused issuer-script result tests,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, generated
+  pre-lab/conformance/profile diff checks, and `git diff --check` passed.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T22:34:48Z
 
 - Increment completed: make issuer-script result reporting phase-aware without
