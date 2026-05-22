@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T06:13:37Z
+
+- Increment completed: reject scheme profile AIDs whose first five bytes do not
+  match the containing scheme RID.
+- Research note: AID namespace ownership is RID-rooted, while ODA CAPK lookup is
+  RID/key-index rooted. A mismatched scheme RID and AID prefix can make selection
+  provenance diverge from CAPK provenance before transaction processing.
+- Code impact: `parse_scheme` now rejects signed profile entries where any AID
+  sits outside the scheme RID namespace, before duplicate AID/CAPK checks and
+  before the profile is exposed to runtime selection.
+- Evidence updated: configuration regression coverage and both RTM annexes now
+  cite mismatched AID/RID namespace rejection under `KRN-CFG-002`.
+- Verification: `cargo test rejects_aids_outside_scheme_rid_namespace`,
+  `cargo test rejects_duplicate_scheme_rids`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
 ## 2026-05-22T06:08:49Z
 
 - Increment completed: reject duplicate scheme RIDs across signed profile

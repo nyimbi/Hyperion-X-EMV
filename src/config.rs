@@ -400,6 +400,7 @@ fn parse_scheme(
     for aid_value in aids_array {
         aids.push(parse_aid(aid_value)?);
     }
+    reject_aids_outside_scheme_rid(&rid, &aids)?;
     reject_duplicate_aids(&aids)?;
 
     let capks_value = object.get("capks").ok_or(KernelError::InvalidProfile)?;
@@ -428,6 +429,13 @@ fn parse_scheme(
         aids,
         capks,
     })
+}
+
+fn reject_aids_outside_scheme_rid(rid: &[u8; 5], aids: &[AidProfile]) -> KernelResult<()> {
+    if aids.iter().any(|aid| !aid.aid.starts_with(rid)) {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(())
 }
 
 fn reject_duplicate_aids(aids: &[AidProfile]) -> KernelResult<()> {
@@ -1363,6 +1371,18 @@ mod tests {
                 &policy(SignatureStatus::Verified)
             )
             .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn rejects_aids_outside_scheme_rid_namespace() {
+        let profile = std::str::from_utf8(VALID_PROFILE)
+            .unwrap()
+            .replace(r#""aid": "A0000000031010""#, r#""aid": "A0000000041010""#);
+
+        assert_eq!(
+            load_profile_set(profile.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::InvalidProfile
         );
     }
