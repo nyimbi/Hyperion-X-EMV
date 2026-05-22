@@ -357,6 +357,7 @@ pub fn parse_internal_authenticate_response(
     if tlvs.len() != 1 || tlvs[0].tag != [0x77] || !tlvs[0].constructed {
         return Err(KernelError::MissingMandatoryTag);
     }
+    reject_constructed_internal_authenticate_children(&tlvs[0].children)?;
 
     let signed_dynamic_application_data =
         tlv::find_unique_direct(&tlvs[0].children, &[0x9f, 0x4b])?
@@ -371,6 +372,15 @@ pub fn parse_internal_authenticate_response(
         signed_dynamic_application_data: signed_dynamic_application_data.to_vec(),
         icc_dynamic_number,
     })
+}
+
+fn reject_constructed_internal_authenticate_children(
+    children: &[tlv::Tlv<'_>],
+) -> KernelResult<()> {
+    if children.iter().any(|child| child.constructed) {
+        return Err(KernelError::ParseError);
+    }
+    Ok(())
 }
 
 pub fn validate_issuer_public_key_inputs(data: &DataStore) -> KernelResult<PublicKeyInput> {
@@ -1430,7 +1440,17 @@ mod tests {
                 0xa8,
             ])
             .unwrap_err(),
-            KernelError::MissingMandatoryTag
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            parse_internal_authenticate_response(&[
+                0x77, 0x1d, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0x9f,
+                0x4c, 0x02, 0x01, 0x02, 0xa5, 0x0b, 0x9f, 0x4b, 0x08, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5,
+                0xb6, 0xb7, 0xb8,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
         );
 
         assert_eq!(

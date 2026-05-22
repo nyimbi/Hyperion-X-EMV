@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T05:55:33Z
+
+- Increment completed: reject constructed children inside INTERNAL AUTHENTICATE
+  response template `77` before extracting signed dynamic application data.
+- Research note: DDA/CDA verification depends on the card-returned Signed
+  Dynamic Application Data (`9F4B`) and optional ICC Dynamic Number (`9F4C`).
+  Allowing constructed descendants can hide conflicting signed data with
+  ambiguous provenance before recovered-ICC-key verification.
+- Code impact: `parse_internal_authenticate_response` now fails closed on any
+  constructed child of template `77`, so DDA/CDA verification inputs are direct
+  primitive card-returned objects.
+- Evidence updated: ODA parser regression tests and DDA traceability guards now
+  exercise nested conflicting signed dynamic data rejection; existing RTM rows
+  already cite the strengthened internal-authenticate nested/duplicate evidence.
+- Verification: `cargo test rejects_nested_or_duplicate_internal_authenticate_data`,
+  `cargo test parses_internal_authenticate_response_signed_dynamic_data`,
+  `cargo test krn_dda_002_oda_006_requires_signed_dynamic_application_data`,
+  `cargo test rtm_promotes_dda_internal_authenticate_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features`,
+  `cargo fmt --check`, and `git diff --check` passed.
+
 ## 2026-05-22T05:49:00Z
 
 - Increment completed: reject constructed children inside GENERATE AC response

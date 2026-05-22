@@ -3893,7 +3893,14 @@ fn krn_dda_002_oda_006_requires_signed_dynamic_application_data() {
     );
     assert_eq!(
         parse_internal_authenticate_response(&hex("770DA50B9F4B08A1A2A3A4A5A6A7A8")).unwrap_err(),
-        hyperion_emv::KernelError::MissingMandatoryTag
+        hyperion_emv::KernelError::ParseError
+    );
+    assert_eq!(
+        parse_internal_authenticate_response(&hex(
+            "771D9F4B08A1A2A3A4A5A6A7A89F4C020102A50B9F4B08B1B2B3B4B5B6B7B8"
+        ))
+        .unwrap_err(),
+        hyperion_emv::KernelError::ParseError
     );
     assert_eq!(
         parse_internal_authenticate_response(&hex(
