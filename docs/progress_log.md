@@ -1990,3 +1990,21 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:22:08Z
+
+- Increment completed: make SDA static authentication tag-list bounds
+  explicit and traceable.
+- Research note: lab ODA vector packs remain external certification evidence,
+  but repository-controlled SDA input assembly can prove oversized
+  `9F4A` tag lists fail closed before static authentication data is built.
+- Code impact: `build_static_authentication_data` now has a regression proving
+  more than `MAX_STATIC_AUTH_TAG_LIST_TAGS` primitive tags returns
+  `LengthOverflow`.
+- Evidence updated: current and compatibility RTM annexes cite the static
+  authentication tag-list overflow regression for `KRN-ODA-005`.
+- Verification: `cargo test rejects_static_authentication_tag_lists_above_limit`,
+  `cargo test rtm_promotes_oda_capk_tvr_cda_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

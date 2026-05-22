@@ -1617,6 +1617,25 @@ mod tests {
     }
 
     #[test]
+    fn rejects_static_authentication_tag_lists_above_limit() {
+        let records = [StaticAuthenticationRecord {
+            sfi: 2,
+            record: 1,
+            body: decode_hex("700C5A04123456785F2403261231").unwrap(),
+        }];
+        let mut data = DataStore::new();
+        let tag_list: Vec<u8> = (1..=MAX_STATIC_AUTH_TAG_LIST_TAGS + 1)
+            .map(|index| u8::try_from(index).unwrap())
+            .collect();
+        data.put(&[0x9f, 0x4a], &tag_list).unwrap();
+
+        assert_eq!(
+            build_static_authentication_data(&records, &data).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn parses_recovered_public_key_certificate_material_with_remainder() {
         let recovered = decode_hex(
             "6A02\
