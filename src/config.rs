@@ -362,9 +362,9 @@ fn parse_source_object(
         reject_placeholder(document)?;
         reject_placeholder(version)?;
         reject_placeholder(verification)?;
-        if owner.trim().is_empty() || document.trim().is_empty() || version.trim().is_empty() {
-            return Err(KernelError::InvalidProfile);
-        }
+        reject_untrimmed_or_blank(owner)?;
+        reject_untrimmed_or_blank(document)?;
+        reject_untrimmed_or_blank(version)?;
         if let Some(retrieved) = retrieved {
             if retrieved > evaluation_date {
                 return Err(KernelError::InvalidProfile);
@@ -382,6 +382,14 @@ fn parse_source_object(
         retrieved,
         verification: verification.to_string(),
     })
+}
+
+fn reject_untrimmed_or_blank(value: &str) -> KernelResult<()> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.len() != value.len() {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(())
 }
 
 fn parse_certification_scope(
@@ -2248,6 +2256,29 @@ mod tests {
         assert_eq!(
             load_profile_set(blank_owner.as_bytes(), &policy(SignatureStatus::Verified))
                 .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let padded_profile_document = profile.replace(
+            r#""document": "signed_certification_profile_bundle""#,
+            r#""document": " signed_certification_profile_bundle""#,
+        );
+        assert_eq!(
+            load_profile_set(
+                padded_profile_document.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let padded_source_version = profile.replace(r#""version": "2""#, r#""version": "2 ""#);
+        assert_eq!(
+            load_profile_set(
+                padded_source_version.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
 

@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T23:53:12Z
+
+- Increment completed: reject ambiguous signed provenance metadata.
+- Code impact: certification profile and CAPK source metadata now fail closed
+  when `owner`, `document`, or `version` contain leading or trailing whitespace,
+  preventing visually ambiguous provenance identities from entering profile
+  logs, manifests, and trace evidence.
+- Evidence updated:
+  `config::tests::rejects_blank_certification_profile_source_metadata` now
+  covers whitespace-padded source document and version fields alongside blank
+  owner and CAPK document cases.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:47:44Z
 
 - Increment completed: canonicalize certification-scope scheme identities
