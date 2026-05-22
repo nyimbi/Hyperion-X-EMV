@@ -8,18 +8,26 @@ pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult
         return Err(KernelError::MissingMandatoryTag);
     }
 
-    let mut stored = 0usize;
+    let mut entries = Vec::new();
     for item in tlv::flatten(&parsed[0].children) {
         if item.constructed {
             continue;
         }
-        data.put(item.tag, item.value)?;
-        stored += 1;
+        if entries
+            .iter()
+            .any(|(stored_tag, _): &(&[u8], &[u8])| *stored_tag == item.tag)
+        {
+            return Err(KernelError::ParseError);
+        }
+        entries.push((item.tag, item.value));
     }
-    if stored == 0 {
+    if entries.is_empty() {
         return Err(KernelError::MissingMandatoryTag);
     }
-    Ok(stored)
+    for (tag, value) in &entries {
+        data.put(tag, value)?;
+    }
+    Ok(entries.len())
 }
 
 #[cfg(test)]
@@ -78,5 +86,37 @@ mod tests {
             KernelError::MissingMandatoryTag
         );
         assert!(data.get(&[0x5a]).is_none());
+    }
+
+    #[test]
+    fn rejects_duplicate_record_data_without_partial_store() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x0e, 0x5a, 0x03, 0x12, 0x34, 0x5f, 0x5a, 0x03, 0xaa, 0xbb, 0xcc, 0x5f,
+                    0x24, 0x01, 0x26,
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x5a]).is_none());
+        assert!(data.get(&[0x5f, 0x24]).is_none());
+
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x10, 0x5a, 0x03, 0x12, 0x34, 0x5f, 0xa5, 0x09, 0x5a, 0x03, 0xaa, 0xbb,
+                    0xcc, 0x5f, 0x24, 0x01, 0x26,
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x5a]).is_none());
+        assert!(data.get(&[0x5f, 0x24]).is_none());
     }
 }

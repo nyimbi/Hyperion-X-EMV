@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:26:39Z
+
+- Increment completed: reject duplicate primitive data objects in a single READ
+  RECORD response before storing card data.
+- Research note: public EMV read-record material describes tag `70` as the
+  record template whose value is stored as card data without the outer record
+  wrapper. A duplicate primitive tag inside one record is ambiguous because the
+  kernel data store is tag-keyed, so silently overwriting the earlier value
+  weakens card-data provenance.
+- Code impact: `parse_read_record_body` now validates all primitive record data
+  object tags for uniqueness before writing to `DataStore`, preserving existing
+  nested BER-TLV traversal for unique primitive descendants while rejecting
+  duplicate direct or nested primitive tags without partial writes.
+- Evidence updated: record unit tests, READ RECORD traceability guards, and both
+  RTM annexes now cite duplicate-record-data rejection coverage.
+- Verification: `cargo test rejects_duplicate_record_data_without_partial_store`,
+  `cargo test rejects_unwrapped_or_extra_record_data`,
+  `cargo test krn_rr_001_002_003_reads_records_in_afl_order_and_stores_card_data`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T04:18:31Z
 
 - Increment completed: require issuer host-response ARC (`8A`) and issuer
