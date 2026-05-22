@@ -1712,3 +1712,24 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test prelab_apdu_trace_pack_is_replayable_masked_and_scoped`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`, and
   `cargo clippy --all-targets --all-features` passed.
+
+## 2026-05-22T07:58:18Z
+
+- Increment completed: fail closed on contradictory C-8 outcome instruction
+  tuples before they reach Level 3 callbacks.
+- Research note: C-8 approval remains external, but repository-controlled
+  outcome plumbing can still enforce internal consistency for restart,
+  try-again, alternate-interface, and empty-UI encodings.
+- Code impact: `ContactlessOutcome::new` now rejects invalid combinations
+  such as alternate-interface outcomes without an alternate interface,
+  restart-required outcomes without a start signal, try-again outcomes without
+  Try Again UI status, and non-empty UI fields attached to `UiStatus::None`.
+- Evidence updated: current and compatibility RTM annexes cite the new Rust
+  model and FFI rejection tests for C-8/contactless outcome rows.
+- Verification: `cargo test outcome_model_rejects_inconsistent_c8_instruction_tuples`,
+  `cargo test ffi_rejects_inconsistent_contactless_outcome_tuples`,
+  `cargo test rtm_promotes_c8_kernel_outcome_evidence`,
+  `cargo test rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

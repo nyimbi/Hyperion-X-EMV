@@ -4740,6 +4740,63 @@ mod tests {
     }
 
     #[test]
+    fn ffi_rejects_inconsistent_contactless_outcome_tuples() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        unsafe {
+            CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+            let ctx = krn_context_new();
+            assert_eq!(
+                krn_set_contactless_outcome_callback(
+                    ctx,
+                    Some(capture_contactless_outcome),
+                    ptr::null_mut()
+                ),
+                KernelError::Ok.code()
+            );
+
+            assert_eq!(
+                krn_emit_contactless_outcome(
+                    ctx,
+                    ContactlessOutcomeCode::TryAgain as u8,
+                    StartSignal::Prompt as u8,
+                    4,
+                    UiStatus::Processing as u8,
+                    0,
+                    1,
+                    ptr::null(),
+                    0,
+                    ptr::null(),
+                    0,
+                    AlternateInterface::None as u8,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst), 0);
+
+            assert_eq!(
+                krn_emit_contactless_outcome(
+                    ctx,
+                    ContactlessOutcomeCode::AlternateInterface as u8,
+                    StartSignal::Prompt as u8,
+                    3,
+                    UiStatus::Error as u8,
+                    0,
+                    0,
+                    ptr::null(),
+                    0,
+                    ptr::null(),
+                    0,
+                    AlternateInterface::None as u8,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst), 0);
+
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
     fn contactless_limit_processing_uses_profile_limits_and_ctq_cdcvm() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
         let mut ctx = KrnContext::new();

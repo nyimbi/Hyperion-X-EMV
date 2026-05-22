@@ -117,6 +117,42 @@ impl ContactlessOutcome {
         {
             return Err(KernelError::InvalidArgument);
         }
+        if outcome_code == ContactlessOutcomeCode::AlternateInterface
+            && alternate_interface == AlternateInterface::None
+        {
+            return Err(KernelError::InvalidArgument);
+        }
+        if ui.status == UiStatus::None && (ui.message_id != 0 || ui.hold_time_ms != 0) {
+            return Err(KernelError::InvalidArgument);
+        }
+        if restart_required && start_signal == StartSignal::None {
+            return Err(KernelError::InvalidArgument);
+        }
+        if start_signal == StartSignal::Restart && !restart_required {
+            return Err(KernelError::InvalidArgument);
+        }
+        match outcome_code {
+            ContactlessOutcomeCode::Approved
+            | ContactlessOutcomeCode::Declined
+            | ContactlessOutcomeCode::OnlineRequired
+            | ContactlessOutcomeCode::AlternateInterface
+            | ContactlessOutcomeCode::Terminate => {
+                if restart_required {
+                    return Err(KernelError::InvalidArgument);
+                }
+            }
+            ContactlessOutcomeCode::TryAgain => {
+                if !restart_required || ui.status != UiStatus::TryAgain {
+                    return Err(KernelError::InvalidArgument);
+                }
+            }
+            ContactlessOutcomeCode::CvmRequired => {
+                if !restart_required || start_signal == StartSignal::None {
+                    return Err(KernelError::InvalidArgument);
+                }
+            }
+            ContactlessOutcomeCode::SelectNext | ContactlessOutcomeCode::ProfileDefined => {}
+        }
 
         Ok(Self {
             outcome_code,
@@ -468,6 +504,79 @@ mod tests {
             .unwrap_err(),
             KernelError::InvalidArgument
         );
+    }
+
+    #[test]
+    fn outcome_model_rejects_inconsistent_c8_instruction_tuples() {
+        for invalid in [
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::AlternateInterface,
+                StartSignal::Prompt,
+                UiRequest {
+                    message_id: 3,
+                    status: UiStatus::Error,
+                    hold_time_ms: 0,
+                },
+                false,
+                &[],
+                &[],
+                AlternateInterface::None,
+            ),
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::TryAgain,
+                StartSignal::Prompt,
+                UiRequest {
+                    message_id: 4,
+                    status: UiStatus::Processing,
+                    hold_time_ms: 0,
+                },
+                true,
+                &[],
+                &[],
+                AlternateInterface::None,
+            ),
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::CvmRequired,
+                StartSignal::None,
+                UiRequest {
+                    message_id: 2,
+                    status: UiStatus::Processing,
+                    hold_time_ms: 0,
+                },
+                true,
+                &[],
+                &[],
+                AlternateInterface::None,
+            ),
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::Approved,
+                StartSignal::Restart,
+                UiRequest {
+                    message_id: 1,
+                    status: UiStatus::Approved,
+                    hold_time_ms: 0,
+                },
+                false,
+                &[],
+                &[],
+                AlternateInterface::None,
+            ),
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::OnlineRequired,
+                StartSignal::None,
+                UiRequest {
+                    message_id: 0,
+                    status: UiStatus::None,
+                    hold_time_ms: 250,
+                },
+                false,
+                &[],
+                &[],
+                AlternateInterface::None,
+            ),
+        ] {
+            assert_eq!(invalid.unwrap_err(), KernelError::InvalidArgument);
+        }
     }
 
     #[test]

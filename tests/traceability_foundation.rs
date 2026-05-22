@@ -5501,7 +5501,9 @@ fn rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence() {
 
         let outcome = csv_row_for_requirement(csv, "KRN-CLESS-002").unwrap();
         assert!(outcome.contains("outcome_model_preserves_structured_records_for_callback"));
+        assert!(outcome.contains("outcome_model_rejects_inconsistent_c8_instruction_tuples"));
         assert!(outcome.contains("ffi_emits_structured_contactless_outcome_callback"));
+        assert!(outcome.contains("ffi_rejects_inconsistent_contactless_outcome_tuples"));
 
         let limits = csv_row_for_requirement(csv, "KRN-CLESS-003").unwrap();
         assert!(limits.contains("contactless_limits_are_profile_driven_and_deterministic"));
@@ -5529,6 +5531,7 @@ fn rtm_promotes_c8_kernel_outcome_evidence() {
         );
         assert!(kernel.contains("krn_c8_001_002_003_uses_structured_contactless_only_outcomes"));
         assert!(kernel.contains("outcome_model_preserves_structured_records_for_callback"));
+        assert!(kernel.contains("outcome_model_rejects_inconsistent_c8_instruction_tuples"));
         assert!(kernel.contains("rtm_promotes_c8_kernel_outcome_evidence"));
 
         let callback = csv_row_for_requirement(csv, "KRN-C8-002").expect("RTM row exists");
@@ -5537,7 +5540,9 @@ fn rtm_promotes_c8_kernel_outcome_evidence() {
             "KRN-C8-002 should cite executable contactless callback evidence"
         );
         assert!(callback.contains("outcome_model_preserves_structured_records_for_callback"));
+        assert!(callback.contains("outcome_model_rejects_inconsistent_c8_instruction_tuples"));
         assert!(callback.contains("ffi_emits_structured_contactless_outcome_callback"));
+        assert!(callback.contains("ffi_rejects_inconsistent_contactless_outcome_tuples"));
         assert!(callback.contains("krn_c8_001_002_003_uses_structured_contactless_only_outcomes"));
         assert!(callback.contains("rtm_promotes_c8_kernel_outcome_evidence"));
 
