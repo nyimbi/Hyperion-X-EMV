@@ -69,8 +69,8 @@ KRN-API-007,Kernel SHALL return stable error codes retrievable after terminal ou
 KRN-PINAPI-001,PED API SHALL return status and secure handles only.,UT-PINAPI-001,IT-PINAPI-001,PCI-PTS-PIN-006,cvm::tests::offline_pin_requires_ped_owned_opaque_handle; cvm::tests::offline_pin_debug_redacts_ped_handle_values; traceability_foundation::krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles
 KRN-PINAPI-002,Online PIN encrypted blocks SHALL NOT be copied into general kernel memory.,UT-PINAPI-002,IT-PINAPI-002,PCI-PTS-PIN-007,ABI boundary review
 KRN-LOG-001,Kernel SHALL enforce formal log policy; production builds SHALL NOT include debug logging that can be enabled without cryptographic authorisation.,UT-LOG-001,IT-LOG-001,PCI-PTS-LOG-001,Logging configuration + audit
-KRN-RNG-001,Kernel SHALL obtain unpredictable numbers from an approved platform RNG callback.,UT-RNG-001,IT-RNG-001,N/A,RNG callback trace
-KRN-RNG-002,Kernel SHALL reject all-zero or repeated unpredictable numbers.,UT-RNG-002,IT-RNG-002,N/A,RNG failure injection
+KRN-RNG-001,Kernel SHALL obtain unpredictable numbers from an approved platform RNG callback.,UT-RNG-001,IT-RNG-001,N/A,traceability_foundation::krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers; traceability_foundation::rtm_promotes_rng_callback_evidence
+KRN-RNG-002,Kernel SHALL reject all-zero or repeated unpredictable numbers.,UT-RNG-002,IT-RNG-002,N/A,traceability_foundation::krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers; traceability_foundation::krn_err_001_exposes_stable_abi_error_table; traceability_foundation::rtm_promotes_rng_callback_evidence
 KRN-ERR-001,Kernel SHALL define every error code in a stable ABI table.,UT-ERR-001,IT-ERR-001,N/A,ABI error table query
 KRN-ERR-002,Kernel SHALL fail closed where standards or profile do not explicitly permit continuation.,UT-ERR-002,IT-ERR-002,N/A,Callback failure injection
 KRN-DPL-001,Kernel SHALL support signed configuration updates.,UT-DPL-001,IT-DPL-001,N/A,Verified profile update trace

@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T01:22:34Z
+
+- Increment completed: promote unpredictable-number callback evidence.
+- Research note: public EMVCo Level 2 material describes kernel software
+  testing for EMV Chip specification compliance, so unpredictable-number
+  evidence should identify runtime callback and weak-output rejection
+  regressions instead of generic RNG trace or injection labels.
+- Code impact: RNG integration evidence now explicitly counts a successful
+  platform unpredictable-number callback invocation, then still verifies
+  fail-closed behavior for all-zero and repeated values.
+- Evidence updated: KRN-RNG-001/002 now cite concrete callback, weak-output
+  rejection, stable RNG error-code, and RTM guard regressions in both RTM
+  annexes.
+- Verification: `cargo test`, `cargo fmt --check`, and
+  `cargo clippy --all-targets --all-features` passed.
+
 ## 2026-05-22T01:17:46Z
 
 - Increment completed: promote APDU status-word evidence.

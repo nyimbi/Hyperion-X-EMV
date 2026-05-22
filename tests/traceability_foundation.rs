@@ -98,6 +98,7 @@ static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
 static IT_TRANSMIT_COUNT: AtomicUsize = AtomicUsize::new(0);
 static IT_TRANSMIT_TIMEOUT_MS: AtomicI32 = AtomicI32::new(0);
+static IT_RNG_CALLBACK_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 fn krn_ids_from_csv(csv: &str) -> BTreeSet<&str> {
     csv.lines()
@@ -418,6 +419,15 @@ unsafe extern "C" fn it_unpredictable_number(
         *out.add(idx) = (idx as u8).wrapping_add(1);
     }
     hyperion_emv::KernelError::Ok.code()
+}
+
+unsafe extern "C" fn it_counted_unpredictable_number(
+    out: *mut u8,
+    out_len: usize,
+    user_data: *mut c_void,
+) -> i32 {
+    IT_RNG_CALLBACK_COUNT.fetch_add(1, Ordering::SeqCst);
+    it_unpredictable_number(out, out_len, user_data)
 }
 
 unsafe extern "C" fn it_zero_unpredictable_number(
@@ -816,6 +826,32 @@ fn rtm_promotes_apdu_status_word_evidence() {
         assert!(non_generic.contains("same_non_9000_status_words_are_context_specific"));
         assert!(non_generic.contains("krn_apdu_009_010_status_handling_is_context_specific"));
         assert!(non_generic.contains("rtm_promotes_apdu_status_word_evidence"));
+    }
+}
+
+#[test]
+fn rtm_promotes_rng_callback_evidence() {
+    for csv in [CURRENT_RTM, LEGACY_RTM] {
+        let callback = csv_row_for_requirement(csv, "KRN-RNG-001").expect("RTM row exists");
+        assert!(
+            !callback.contains("RNG callback trace"),
+            "KRN-RNG-001 should cite executable RNG callback evidence"
+        );
+        assert!(
+            callback.contains("krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers")
+        );
+        assert!(callback.contains("rtm_promotes_rng_callback_evidence"));
+
+        let rejection = csv_row_for_requirement(csv, "KRN-RNG-002").expect("RTM row exists");
+        assert!(
+            !rejection.contains("RNG failure injection"),
+            "KRN-RNG-002 should cite executable weak-output rejection evidence"
+        );
+        assert!(
+            rejection.contains("krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers")
+        );
+        assert!(rejection.contains("krn_err_001_exposes_stable_abi_error_table"));
+        assert!(rejection.contains("rtm_promotes_rng_callback_evidence"));
     }
 }
 
@@ -4210,6 +4246,21 @@ fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
     }
 
     unsafe {
+        IT_RNG_CALLBACK_COUNT.store(0, Ordering::SeqCst);
+        let valid_apdu_counter = AtomicUsize::new(0);
+        let valid_ctx = init_with_rng(it_counted_unpredictable_number, &valid_apdu_counter);
+        set_params(valid_ctx);
+        assert_eq!(
+            krn_run_transaction(valid_ctx),
+            KrnOutcome::OnlineRequired as i32
+        );
+        assert_eq!(
+            krn_get_last_error(valid_ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(IT_RNG_CALLBACK_COUNT.load(Ordering::SeqCst), 1);
+        krn_context_free(valid_ctx);
+
         let zero_apdu_counter = AtomicUsize::new(0);
         let zero_ctx = init_with_rng(it_zero_unpredictable_number, &zero_apdu_counter);
         set_params(zero_ctx);
