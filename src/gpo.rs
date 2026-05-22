@@ -22,20 +22,23 @@ pub fn parse_pdol_from_fci(fci: &[u8]) -> KernelResult<Vec<DolEntry>> {
         return Err(KernelError::MissingMandatoryTag);
     }
 
+    let mut found_pdol = None;
     for fci_child in &parsed[0].children {
         if fci_child.tag != [0xa5] || !fci_child.constructed {
             continue;
         }
-        if let Some(pdol) = fci_child
-            .children
-            .iter()
-            .find(|item| item.tag == [0x9f, 0x38])
-        {
-            return parse_dol(pdol.value);
+        if let Some(pdol) = tlv::find_unique_direct(&fci_child.children, &[0x9f, 0x38])? {
+            if found_pdol.is_some() {
+                return Err(KernelError::ParseError);
+            }
+            found_pdol = Some(pdol);
         }
     }
 
-    Ok(Vec::new())
+    match found_pdol {
+        Some(pdol) => parse_dol(pdol),
+        None => Ok(Vec::new()),
+    }
 }
 
 pub fn parse_gpo_response(body: &[u8]) -> KernelResult<GpoResponse> {
@@ -116,6 +119,27 @@ mod tests {
             0x6f, 0x0a, 0xa5, 0x08, 0xbf, 0x0c, 0x05, 0x9f, 0x38, 0x02, 0x9f, 0x37,
         ];
         assert_eq!(parse_pdol_from_fci(&misplaced).unwrap(), Vec::new());
+    }
+
+    #[test]
+    fn rejects_duplicate_pdol_objects_in_selected_fci() {
+        let duplicate_in_a5 = [
+            0x6f, 0x12, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x07, 0x9f,
+            0x38, 0x00, 0x9f, 0x38, 0x01, 0x9f,
+        ];
+        assert_eq!(
+            parse_pdol_from_fci(&duplicate_in_a5).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let duplicate_across_a5 = [
+            0x6f, 0x15, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x03, 0x9f,
+            0x38, 0x00, 0xa5, 0x05, 0x9f, 0x38, 0x02, 0x9f, 0x37,
+        ];
+        assert_eq!(
+            parse_pdol_from_fci(&duplicate_across_a5).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]

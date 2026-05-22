@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T04:37:41Z
+
+- Increment completed: reject duplicate selected-application PDOL (`9F38`)
+  objects before constructing GET PROCESSING OPTIONS input.
+- Research note: public EMV references describe PDOL as tag `9F38` in the
+  selected ADF FCI and as the card-declared list of terminal data objects for
+  GPO. Multiple direct PDOL objects in selected FCI are ambiguous because the
+  terminal must build one deterministic GPO command from one card-declared DOL.
+- Code impact: `parse_pdol_from_fci` now uses duplicate-detecting direct-child
+  TLV lookup under FCI proprietary templates, rejects duplicate direct PDOLs in
+  one `A5` or across multiple direct `A5` templates, and preserves the existing
+  policy of ignoring nested/misplaced PDOL-like objects.
+- Evidence updated: GPO unit tests, GPO traceability guards, and both RTM
+  annexes now cite duplicate-PDOL rejection coverage.
+- Verification: `cargo test rejects_duplicate_pdol_objects_in_selected_fci`,
+  `cargo test extracts_pdol_from_selected_application_fci`,
+  `cargo test krn_gpo_001_002_extracts_pdol_and_parses_aip_afl_templates`,
+  `cargo test rtm_promotes_gpo_and_read_record_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
+
 ## 2026-05-22T04:31:58Z
 
 - Increment completed: reject ambiguous duplicate ADF names inside a single
