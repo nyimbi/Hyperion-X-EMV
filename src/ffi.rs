@@ -14,7 +14,7 @@ use crate::config::{
 use crate::conformance::baseline_conformance_statement;
 use crate::cvm::{
     evaluate as evaluate_cvm, parse_cvm_list, CvmAction, CvmContext, CvmOutcome, CvmPinHandles,
-    Interface as CvmInterface, PedPinHandle,
+    CvmTransactionType, Interface as CvmInterface, PedPinHandle,
 };
 use crate::dol::{build_dol_with_policy, parse_dol, DataStore, DolPaddingPolicy};
 use crate::error::{KernelError, ERROR_TABLE};
@@ -2052,6 +2052,18 @@ fn service_type(params: &StoredTxnParams) -> ServiceType {
     }
 }
 
+fn cvm_transaction_type(params: &StoredTxnParams) -> CvmTransactionType {
+    if matches!(params.terminal_type, 0x14 | 0x24) {
+        return CvmTransactionType::UnattendedCash;
+    }
+
+    match params.transaction_type {
+        0x01 => CvmTransactionType::ManualCash,
+        0x09 | 0x17 => CvmTransactionType::PurchaseWithCashback,
+        _ => CvmTransactionType::NonCash,
+    }
+}
+
 fn terminal_type_online_capable(terminal_type: u8) -> Result<bool, KernelError> {
     match terminal_type {
         0x11 | 0x12 | 0x14 | 0x15 | 0x21 | 0x22 | 0x24 | 0x25 | 0x34 | 0x35 => Ok(true),
@@ -2076,6 +2088,7 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
                 &ctx.card_data,
                 params,
             )?,
+            transaction_type: cvm_transaction_type(params),
             interface: if params.interface_preference == 2 {
                 CvmInterface::Contactless
             } else {
@@ -3649,6 +3662,47 @@ mod tests {
         assert_eq!(
             unsafe { read_transaction_params(&oversized_merchant).unwrap_err() },
             KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn cvm_transaction_type_uses_terminal_and_transaction_tags() {
+        let params = |transaction_type, terminal_type| StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type,
+            terminal_type,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        };
+
+        assert_eq!(
+            cvm_transaction_type(&params(0x00, 0x22)),
+            CvmTransactionType::NonCash
+        );
+        assert_eq!(
+            cvm_transaction_type(&params(0x00, 0x14)),
+            CvmTransactionType::UnattendedCash
+        );
+        assert_eq!(
+            cvm_transaction_type(&params(0x01, 0x22)),
+            CvmTransactionType::ManualCash
+        );
+        assert_eq!(
+            cvm_transaction_type(&params(0x09, 0x22)),
+            CvmTransactionType::PurchaseWithCashback
+        );
+        assert_eq!(
+            cvm_transaction_type(&params(0x17, 0x22)),
+            CvmTransactionType::PurchaseWithCashback
+        );
+        assert_eq!(
+            cvm_transaction_type(&params(0x01, 0x24)),
+            CvmTransactionType::UnattendedCash
         );
     }
 

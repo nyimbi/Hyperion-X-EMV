@@ -111,9 +111,18 @@ pub enum Interface {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CvmTransactionType {
+    NonCash,
+    UnattendedCash,
+    ManualCash,
+    PurchaseWithCashback,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CvmContext {
     pub amount_authorized: u64,
     pub transaction_currency_matches_application: bool,
+    pub transaction_type: CvmTransactionType,
     pub interface: Interface,
     pub offline_pin_supported: bool,
     pub online_pin_supported: bool,
@@ -387,7 +396,11 @@ fn cvm_results(rule: CvmRule, result: u8) -> [u8; 3] {
 fn condition_matches(rule: CvmRule, list: &CvmList, context: CvmContext) -> bool {
     match rule.condition_code {
         0x00 => true,
+        0x01 => context.transaction_type == CvmTransactionType::UnattendedCash,
+        0x02 => context.transaction_type == CvmTransactionType::NonCash,
         0x03 => terminal_supports_method(rule.method, context),
+        0x04 => context.transaction_type == CvmTransactionType::ManualCash,
+        0x05 => context.transaction_type == CvmTransactionType::PurchaseWithCashback,
         0x06 => {
             context.transaction_currency_matches_application
                 && context.amount_authorized < list.amount_x as u64
@@ -430,6 +443,7 @@ mod tests {
         CvmContext {
             amount_authorized: 1_000,
             transaction_currency_matches_application: true,
+            transaction_type: CvmTransactionType::NonCash,
             interface: Interface::Contact,
             offline_pin_supported: true,
             online_pin_supported: true,
@@ -642,6 +656,53 @@ mod tests {
             CvmOutcome::Selected {
                 action: CvmAction::OnlinePin,
                 cvm_results: [0x02, 0x03, 0x02]
+            }
+        );
+    }
+
+    #[test]
+    fn transaction_type_conditions_select_only_matching_rules() {
+        let list = parse_cvm_list(&[
+            0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x02, 0x01, 0x06, 0x04, 0x1f, 0x05,
+            0x02, 0x02,
+        ])
+        .unwrap();
+
+        assert_eq!(
+            evaluate(&list, context(), CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::OnlinePin,
+                cvm_results: [0x02, 0x02, 0x02]
+            }
+        );
+
+        let mut unattended_cash = context();
+        unattended_cash.transaction_type = CvmTransactionType::UnattendedCash;
+        assert_eq!(
+            evaluate(&list, unattended_cash, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::OnlinePin,
+                cvm_results: [0x02, 0x01, 0x02]
+            }
+        );
+
+        let mut manual_cash = context();
+        manual_cash.transaction_type = CvmTransactionType::ManualCash;
+        assert_eq!(
+            evaluate(&list, manual_cash, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::Signature,
+                cvm_results: [0x06, 0x04, 0x02]
+            }
+        );
+
+        let mut cashback = context();
+        cashback.transaction_type = CvmTransactionType::PurchaseWithCashback;
+        assert_eq!(
+            evaluate(&list, cashback, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::NoCvm,
+                cvm_results: [0x1f, 0x05, 0x02]
             }
         );
     }

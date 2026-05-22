@@ -17,7 +17,8 @@ use hyperion_emv::config::{
 use hyperion_emv::conformance::baseline_conformance_statement;
 use hyperion_emv::cvm::{
     apply_offline_pin_verify_status, evaluate as evaluate_cvm, parse_cvm_list, CvmAction,
-    CvmContext, CvmMethod, CvmOutcome, CvmPinHandles, Interface as CvmInterface, PedPinHandle,
+    CvmContext, CvmMethod, CvmOutcome, CvmPinHandles, CvmTransactionType,
+    Interface as CvmInterface, PedPinHandle,
 };
 use hyperion_emv::dol::{build_dol_with_policy, parse_dol, DataStore, DolPaddingPolicy};
 use hyperion_emv::ffi::{
@@ -1095,6 +1096,8 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(parsing.contains("rejects_cvm_lists_above_rule_limit"));
         assert!(parsing.contains("amount_conditions_are_enforced"));
         assert!(parsing.contains("terminal_support_condition_matches_candidate_cvm_capability"));
+        assert!(parsing.contains("transaction_type_conditions_select_only_matching_rules"));
+        assert!(parsing.contains("cvm_transaction_type_uses_terminal_and_transaction_tags"));
         assert!(parsing.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(parsing.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(parsing.contains("rtm_promotes_cvm_outcome_evidence"));
@@ -4465,6 +4468,7 @@ fn krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles() {
         let context = CvmContext {
             amount_authorized: 1_500,
             transaction_currency_matches_application: true,
+            transaction_type: CvmTransactionType::NonCash,
             interface: CvmInterface::Contact,
             offline_pin_supported: true,
             online_pin_supported: true,
@@ -6651,6 +6655,7 @@ fn krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin() {
     let context = CvmContext {
         amount_authorized: 1_000,
         transaction_currency_matches_application: true,
+        transaction_type: CvmTransactionType::NonCash,
         interface: CvmInterface::Contact,
         offline_pin_supported: true,
         online_pin_supported: true,
@@ -6685,6 +6690,7 @@ fn contactless_cdcvm_is_not_hardcoded_to_cvm_code_0x05() {
     let context = CvmContext {
         amount_authorized: 1_000,
         transaction_currency_matches_application: true,
+        transaction_type: CvmTransactionType::NonCash,
         interface: CvmInterface::Contactless,
         offline_pin_supported: false,
         online_pin_supported: true,

@@ -2374,3 +2374,25 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_cvm_pin_capability_evidence`, `cargo test`,
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-22T11:18:58Z
+
+- Increment completed: implement CVM transaction-type condition codes `0x01`,
+  `0x02`, `0x04`, and `0x05` for unattended cash, non-cash, manual cash, and
+  purchase-with-cashback rule selection.
+- Research note: public EMV CVM condition-code references identify these
+  transaction predicates as separate branches from amount and terminal-support
+  predicates, so the evaluator must not treat them as unsupported conditions.
+- Code impact: `CvmContext` now carries a `CvmTransactionType` derived from the
+  existing runtime transaction type and terminal type inputs; the C ABI remains
+  unchanged.
+- Evidence updated: `cvm::tests::transaction_type_conditions_select_only_matching_rules`
+  proves the evaluator selects only matching transaction-condition rules, while
+  `ffi::tests::cvm_transaction_type_uses_terminal_and_transaction_tags` proves
+  the runtime maps existing transaction parameters into those CVM predicates.
+  Both RTM CSVs cite the new evidence under `KRN-CVM-001`.
+- Verification: `cargo test transaction_type_conditions_select_only_matching_rules`,
+  `cargo test cvm_transaction_type_uses_terminal_and_transaction_tags`,
+  `cargo test rtm_promotes_cvm_outcome_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
