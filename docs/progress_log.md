@@ -2067,3 +2067,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T09:41:42Z
+
+- Increment completed: make per-command issuer-script APDU length bounds
+  explicit and traceable.
+- Research note: full host/lab issuer-script trace packs remain external
+  certification evidence, but repository-controlled script parsing can prove a
+  single Template 71/72 command above the configured APDU ceiling fails closed
+  before execution.
+- Code impact: issuer-script parsing now classifies APDU command values above
+  `MAX_SCRIPT_COMMAND_LEN` as `LengthOverflow`, with a regression covering a
+  long-form TLV script command over the ceiling.
+- Evidence updated: current and compatibility RTM annexes cite the per-command
+  issuer-script length-limit regression for `KRN-SCR-001`.
+- Verification: `cargo test rejects_issuer_script_commands_above_length_limit`,
+  `cargo test rtm_promotes_issuer_script_evidence`, `cargo test`,
+  `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.

@@ -193,8 +193,11 @@ fn parse_script_template(
                 identifier = Some(item.value.to_vec());
             }
             [0x86] => {
-                if item.value.is_empty() || item.value.len() > MAX_SCRIPT_COMMAND_LEN {
+                if item.value.is_empty() {
                     return Err(KernelError::ParseError);
+                }
+                if item.value.len() > MAX_SCRIPT_COMMAND_LEN {
+                    return Err(KernelError::LengthOverflow);
                 }
                 validate_script_command_apdu(item.value)?;
                 if commands.len() >= MAX_SCRIPT_COMMANDS {
@@ -341,6 +344,28 @@ mod tests {
             parse_host_response(&[0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x00, 0xaa])
                 .unwrap_err(),
             KernelError::ParseError
+        );
+    }
+
+    #[test]
+    fn rejects_issuer_script_commands_above_length_limit() {
+        let command = vec![0x00; MAX_SCRIPT_COMMAND_LEN + 1];
+        let template_len = 1 + 3 + command.len();
+        let mut host = vec![
+            0x71,
+            0x82,
+            (template_len >> 8) as u8,
+            template_len as u8,
+            0x86,
+            0x82,
+            (command.len() >> 8) as u8,
+            command.len() as u8,
+        ];
+        host.extend_from_slice(&command);
+
+        assert_eq!(
+            parse_host_response(&host).unwrap_err(),
+            KernelError::LengthOverflow
         );
     }
 
