@@ -337,9 +337,9 @@ The following are adaptation candidates, ordered by near-term value:
    status-word, short command APDU, and response APDU envelope decodes before
    formal test-tool execution.
 2. Continue expanding `docs/prelab_apdu_trace_pack.jsonl` beyond the current
-   scenario expectation records and maintained PAN, Track 2, cryptogram,
-   issuer-authentication/script, and APDU follow-up masking coverage once
-   formal test-tool inputs are available.
+   scenario, command-flow, and response-shape expectation records plus
+   maintained PAN, Track 2, cryptogram, issuer-authentication/script, and APDU
+   follow-up masking coverage once formal test-tool inputs are available.
 3. Maintain the C ABI APDU script adapter for deterministic request/response
    smoke tests, and keep PC/SC or mobile NFC adapters outside the kernel core.
 4. Maintain and extend the human-readable signed-profile dictionary generated

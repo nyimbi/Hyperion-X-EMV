@@ -33,6 +33,8 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
                 "BuildHostRequest",
             ],
             expected_status_actions: &[],
+            expected_command_flow: &["select-aid", "read-record", "generate-ac"],
+            expected_response_shapes: &["fci-template-6f", "record-template-70", "gac-template-77"],
             expected_terminal_outcome: "online-authorization-request",
             expected_tlv_stream_count: 0,
             masking_assertions: &[
@@ -57,6 +59,8 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
                 "RequestFinalGenerateAc",
             ],
             expected_status_actions: &[],
+            expected_command_flow: &["external-authenticate", "issuer-script-command"],
+            expected_response_shapes: &["status-only-success", "status-only-warning"],
             expected_terminal_outcome: "continue-to-final-generate-ac",
             expected_tlv_stream_count: 1,
             masking_assertions: &[
@@ -84,6 +88,8 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
                 "CaptureScriptStatus",
             ],
             expected_status_actions: &["RetryWithCorrectLe6cxx"],
+            expected_command_flow: &["issuer-script-command", "issuer-script-command-retry"],
+            expected_response_shapes: &["status-only-retry-le", "status-only-warning"],
             expected_terminal_outcome: "issuer-script-warning-recorded",
             expected_tlv_stream_count: 0,
             masking_assertions: &[
@@ -103,6 +109,8 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             expected_fsm_events: &["RecordRead"],
             expected_fsm_actions: &["ReadRecords"],
             expected_status_actions: &[],
+            expected_command_flow: &["read-record"],
+            expected_response_shapes: &["record-template-70"],
             expected_terminal_outcome: "record-data-collected",
             expected_tlv_stream_count: 0,
             masking_assertions: &["full-apdu-disabled", "track2-suppressed"],
@@ -118,6 +126,18 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             expected_fsm_events: &["GpoTemplate77", "GacArqc"],
             expected_fsm_actions: &["BuildGpo", "RequestFirstGenerateAc", "BuildHostRequest"],
             expected_status_actions: &["GetResponse61xx", "RetryWithCorrectLe6cxx"],
+            expected_command_flow: &[
+                "get-processing-options",
+                "get-response",
+                "generate-ac",
+                "generate-ac-retry",
+            ],
+            expected_response_shapes: &[
+                "status-only-get-response",
+                "gpo-template-77",
+                "status-only-retry-le",
+                "gac-template-80",
+            ],
             expected_terminal_outcome: "first-generate-ac-complete",
             expected_tlv_stream_count: 0,
             masking_assertions: &[
@@ -137,6 +157,8 @@ fn prelab_trace_pack_jsonl() -> KernelResult<String> {
             expected_fsm_events: &["GacStatusFailure"],
             expected_fsm_actions: &["RequestFirstGenerateAc", "FailClosed"],
             expected_status_actions: &["FailCardRemoved"],
+            expected_command_flow: &["generate-ac"],
+            expected_response_shapes: &["status-only-failure"],
             expected_terminal_outcome: "generate-ac-status-failure",
             expected_tlv_stream_count: 0,
             masking_assertions: &[
@@ -157,6 +179,8 @@ struct PrelabTraceCase {
     expected_fsm_events: &'static [&'static str],
     expected_fsm_actions: &'static [&'static str],
     expected_status_actions: &'static [&'static str],
+    expected_command_flow: &'static [&'static str],
+    expected_response_shapes: &'static [&'static str],
     expected_terminal_outcome: &'static str,
     expected_tlv_stream_count: usize,
     masking_assertions: &'static [&'static str],
@@ -209,6 +233,10 @@ fn append_scenario(out: &mut String, case: &PrelabTraceCase) {
     append_string_array(out, case.expected_fsm_actions);
     out.push_str(",\"expected_status_actions\":");
     append_string_array(out, case.expected_status_actions);
+    out.push_str(",\"expected_command_flow\":");
+    append_string_array(out, case.expected_command_flow);
+    out.push_str(",\"expected_response_shapes\":");
+    append_string_array(out, case.expected_response_shapes);
     out.push_str(",\"expected_terminal_outcome\":\"");
     out.push_str(case.expected_terminal_outcome);
     out.push_str("\",\"expected_tlv_stream_count\":");

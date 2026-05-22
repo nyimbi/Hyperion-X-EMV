@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T21:41:34Z
+
+- Increment completed: make the repository-controlled pre-lab trace scenarios
+  carry explicit APDU command-flow and response-shape expectations.
+- Code impact: `krn_prelab_trace_pack` now emits `expected_command_flow` and
+  `expected_response_shapes` in each `trace-scenario`, covering SELECT, READ
+  RECORD, GPO/GET RESPONSE, GENERATE AC retry, issuer-script retry, and
+  status-only failure paths without unmasking APDU payload data.
+- Evidence updated: regenerated `docs/prelab_apdu_trace_pack.jsonl`, tightened
+  `prelab_apdu_trace_pack_is_replayable_masked_and_scoped`, and updated the
+  lab manifest wording while preserving `CERT-OPEN-012` for the external full
+  lab/test-tool trace pack.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T21:36:39Z
 
 - Increment completed: extend parser-backed pre-lab decoding for EMV fixed
