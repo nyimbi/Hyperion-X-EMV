@@ -1308,6 +1308,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("every kernel source module"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_apdu_trace_pack.jsonl"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
 
     let mut input_paths = vec![
         "Cargo.lock".to_string(),
@@ -1324,6 +1325,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/state_machine.csv".to_string(),
         "docs/tlv_catalogue.csv".to_string(),
         "examples/krn_build_manifest.rs".to_string(),
+        "examples/krn_prelab_trace_pack.rs".to_string(),
     ];
     let mut source_paths = fs::read_dir("src")
         .unwrap()
@@ -1368,6 +1370,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/state_machine.csv",
         "docs/tlv_catalogue.csv",
         "examples/krn_build_manifest.rs",
+        "examples/krn_prelab_trace_pack.rs",
     ] {
         assert!(
             name_set.contains(required),
@@ -5123,6 +5126,7 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(!PRELAB_APDU_TRACE_PACK.contains("123456789012345"));
 
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab APDU trace fixture"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("cargo run --example krn_prelab_trace_pack"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("full lab/test-tool trace pack remains pending"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] APDU trace logs (masked) for all test cases"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-012"));

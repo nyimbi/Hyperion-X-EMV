@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-22T02:49:53Z
+
+- Increment completed: add a standalone pre-lab APDU trace-pack generator.
+- Research note: certification evidence should be reproducible outside the test
+  harness; a checked-in fixture is stronger when a maintainer can regenerate it
+  with a stable command and compare the exact bytes.
+- Code impact: no runtime behavior changed; `krn_prelab_trace_pack` reuses the
+  same `ReplayScript`, production log policy, ABI version, and profile version
+  as the checked-in fixture.
+- Evidence updated: the lab manifest names the generator command, provenance
+  coverage includes `examples/krn_prelab_trace_pack.rs`, and the generator
+  output compares cleanly against `docs/prelab_apdu_trace_pack.jsonl`.
+- Verification: `cargo run --quiet --example krn_prelab_trace_pack | diff -u
+  docs/prelab_apdu_trace_pack.jsonl -`, `cargo test`, `cargo test --examples`,
+  `cargo fmt --check`, `cargo clippy --all-targets --all-features`, and
+  `git diff --check` passed.
+
 ## 2026-05-22T02:42:44Z
 
 - Increment completed: add a deterministic pre-lab APDU trace fixture.
