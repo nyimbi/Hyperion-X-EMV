@@ -1718,6 +1718,40 @@ mod tests {
     }
 
     #[test]
+    fn rejects_profile_json_depth_limit_overflow() {
+        let mut json = String::new();
+        for _ in 0..=MAX_JSON_DEPTH {
+            json.push('[');
+        }
+        json.push_str("null");
+        for _ in 0..=MAX_JSON_DEPTH {
+            json.push(']');
+        }
+
+        assert_eq!(
+            load_profile_set(json.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn rejects_profile_json_node_limit_overflow() {
+        let mut json = String::from("[");
+        for index in 0..=MAX_JSON_NODES {
+            if index != 0 {
+                json.push(',');
+            }
+            json.push_str("null");
+        }
+        json.push(']');
+
+        assert_eq!(
+            load_profile_set(json.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
     fn rejects_example_profile_in_certification_or_production_mode() {
         let example = br#"{
           "profile_class": "EXAMPLE_ONLY",

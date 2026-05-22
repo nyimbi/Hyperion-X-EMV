@@ -1910,3 +1910,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check`
   passed.
+
+## 2026-05-22T08:57:56Z
+
+- Increment completed: make certification-profile JSON parser depth and node
+  bounds explicit and traceable.
+- Research note: external profile approval remains a certification blocker, but
+  repository-controlled profile loading can still prove oversized or deeply
+  nested JSON fails closed before schema interpretation or CAPK/profile use.
+- Code impact: profile loading now has regressions proving nesting beyond
+  `MAX_JSON_DEPTH` and parsed values beyond `MAX_JSON_NODES` fail with
+  `KRN_ERR_LENGTH_OVERFLOW`.
+- Evidence updated: current and compatibility RTM annexes cite both JSON parser
+  resource-limit regressions for `KRN-CFG-002`.
+- Verification: `cargo test rejects_profile_json_depth_limit_overflow`,
+  `cargo test rejects_profile_json_node_limit_overflow`,
+  `cargo test rtm_promotes_cfg_schema_and_terminal_param_evidence`,
+  `cargo test`, `cargo test --examples`, `cargo fmt --check`,
+  `cargo clippy --all-targets --all-features`, and `git diff --check`
+  passed.
