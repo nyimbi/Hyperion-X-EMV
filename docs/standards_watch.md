@@ -5,9 +5,12 @@ pre-certification baseline. It is not a substitute for licensed EMVCo, scheme,
 PCI, acquirer, device, or laboratory documents. Licensed materials and lab
 instructions prevail on conflict.
 
-## 2026-05-22 Public EMVCo Check
+## 2026-05-23 Public EMVCo Check
 
 - Public source checked: EMVCo specifications and contactless technology pages.
+- Result of recheck: the 2026-05-21 public contactless-suite entries remain
+  visible in the EMVCo public listings, and no repository-controlled
+  implementation authority is inferred from them.
 - Contact baseline retained: EMV Contact Chip Specifications Book 3 v4.4, with
   Books 1, 2, and 4 where referenced by `docs/spec.md`.
 - Contactless baseline in `docs/spec.md`: EMV Contactless Kernel Specification

@@ -1819,6 +1819,8 @@ fn certification_open_issues_register_tracks_external_blockers() {
     assert!(STANDARDS_WATCH.contains("DSB 308"));
     assert!(STANDARDS_WATCH.contains("Contact Features"));
     assert!(STANDARDS_WATCH.contains("Sunsetting P1"));
+    assert!(STANDARDS_WATCH.contains("2026-05-23 Public EMVCo Check"));
+    assert!(STANDARDS_WATCH.contains("Result of recheck"));
     assert!(STANDARDS_WATCH.contains("watch-list inputs"));
     assert!(STANDARDS_WATCH.contains("2026-05-21"));
     assert!(STANDARDS_WATCH.contains("2026-05-22"));

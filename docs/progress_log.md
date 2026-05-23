@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:51:48Z
+
+- Increment completed: refresh public EMVCo standards-watch evidence for the
+  contactless-suite bulletin set that affects `CERT-OPEN-005`.
+- Research note: the 2026-05-23 public recheck still shows the 2026-05-21
+  Book A, Book B, and Kernel 2 RRP contactless signals as external
+  reconciliation inputs. Hyperion keeps them as licensed/lab review gates and
+  does not infer implementation behavior from public listings.
+- Documentation impact: `docs/standards_watch.md` now records the recheck date
+  and explicit no-implementation-authority boundary.
+- Evidence updated:
+  `traceability_foundation::certification_open_issues_register_tracks_external_blockers`
+  now guards the refreshed standards-watch date and recheck wording.
+- Verification: focused standards-watch traceability test; `cargo fmt --check`;
+  `git diff --check`; `cargo test`; `cargo test --examples`; `cargo clippy
+  --all-targets --all-features -- -D warnings`; and deterministic artifact
+  drift checks for the ABI conformance statement, trace pack, scheme profile
+  dictionary, quality gates, and no-crash smoke artifact.
+- Remaining external blockers: `CERT-OPEN-005` remains open until the lab
+  package supplies the selected C-8 version, bulletin set, test-tool package,
+  device/profile scope, accepted traces, and approval evidence.
+
 ## 2026-05-23T10:47:02Z
 
 - Increment completed: adapt the open-source review's tool-first trace-triage
