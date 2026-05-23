@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T00:12:13Z
+
+- Increment completed: require retrieval dates for signed certification
+  provenance.
+- Code impact: certification profile and CAPK `source` objects must now carry a
+  nonblank, valid, non-future ISO `retrieved` date. Omitted retrieval dates are
+  rejected instead of allowing incomplete provenance into audit, replay, and
+  lab-submission evidence.
+- Evidence updated:
+  `config::tests::preserves_and_validates_profile_source_retrieval_dates` now
+  covers missing profile-source and CAPK-source retrieval dates, and the ODA
+  runtime certification fixture carries explicit retrieval metadata.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-23T00:00:46Z
 
 - Increment completed: bind certification-scope bundled scheme declarations to

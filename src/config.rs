@@ -395,10 +395,11 @@ fn parse_source_object(
         reject_untrimmed_or_blank(owner)?;
         reject_untrimmed_or_blank(document)?;
         reject_untrimmed_or_blank(version)?;
-        if let Some(retrieved) = retrieved {
-            if retrieved > evaluation_date {
-                return Err(KernelError::InvalidProfile);
-            }
+        let Some(retrieved) = retrieved else {
+            return Err(KernelError::InvalidProfile);
+        };
+        if retrieved > evaluation_date {
+            return Err(KernelError::InvalidProfile);
         }
         if verification != "external_signature_required" {
             return Err(KernelError::InvalidProfile);
@@ -2377,6 +2378,35 @@ mod tests {
         assert_eq!(
             load_profile_set(bad_retrieved.as_bytes(), &policy(SignatureStatus::Verified))
                 .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let missing_profile_retrieved = profile.replacen(
+            r#"
+        "retrieved": "2026-05-21","#,
+            "",
+            1,
+        );
+        assert_eq!(
+            load_profile_set(
+                missing_profile_retrieved.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let missing_capk_retrieved = profile.replace(
+            r#"
+            "retrieved": "2026-05-21","#,
+            "",
+        );
+        assert_eq!(
+            load_profile_set(
+                missing_capk_retrieved.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
 
