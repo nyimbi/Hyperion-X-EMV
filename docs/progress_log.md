@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T08:04:04Z
+
+- Increment completed: reroute failed CDA offline cryptograms through TAA.
+- Code impact: when first GENERATE AC returns an offline TC/AAC while CDA
+  verification fails, the runtime no longer accepts the card-returned offline
+  outcome directly. It records `TVR_B1_CDA_FAILED`, re-enters Terminal Action
+  Analysis with the updated TVR, and fails closed if that reroute would require
+  unsupported online evidence from a non-ARQC response.
+- Evidence updated:
+  `ffi::tests::runtime_cda_failed_offline_cryptogram_reroutes_through_taa`
+  covers the offline-TC failure branch, and both RTM CSVs now cite it under
+  `KRN-ODA-007` and `KRN-GAC1-005`.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-23T07:43:14Z
 
 - Increment completed: reject ambiguous profile ISO date prefixes.

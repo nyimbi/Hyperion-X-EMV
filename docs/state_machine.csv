@@ -33,6 +33,7 @@
 "S10","GENERATE AC returns 9000 with ARQC","-","S11","Build host request","KRN_OK"
 "S10","GENERATE AC returns 9000 with TC","-","S16","Offline approve","KRN_OK"
 "S10","GENERATE AC returns 9000 with AAC","-","S16","Offline decline","KRN_OK"
+"S10","CDA verification failure","offline TC/AAC returned","S9","Proceed to TAA","KRN_OK"
 "S10","GENERATE AC returns 9000 with CDA response","-","S5_CDA","Verify CDA signature","KRN_OK"
 "S10","GENERATE AC fails (SW != 9000)","-","SE","Set error","KRN_ERR_CARD_REMOVED"
 "S5_CDA","CDA verification success","-","S6","Continue processing restrictions","KRN_OK"

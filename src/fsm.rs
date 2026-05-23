@@ -297,6 +297,7 @@ pub fn transition(state: FsmState, event: FsmEvent) -> KernelResult<Transition> 
         (FsmState::S10, FsmEvent::GacCda) => {
             (FsmState::S5Cda, FsmAction::VerifyCda, KernelError::Ok)
         }
+        (FsmState::S10, FsmEvent::CdaFailure) => (FsmState::S9, FsmAction::RunTaa, KernelError::Ok),
         (FsmState::S10, FsmEvent::GacFailed) => {
             (FsmState::Se, FsmAction::Error, KernelError::CardRemoved)
         }

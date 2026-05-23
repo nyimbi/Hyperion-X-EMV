@@ -2606,7 +2606,15 @@ fn run_first_generate_ac(
         ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     }
 
-    let (event, state) = match parsed.cid.cryptogram_type() {
+    let cryptogram_type = parsed.cid.cryptogram_type();
+    if cda_verification_failed
+        && matches!(cryptogram_type, CryptogramType::Tc | CryptogramType::Aac)
+    {
+        ctx.first_gac_response = Some(parsed);
+        return reroute_cda_failed_offline_cryptogram_through_taa(ctx);
+    }
+
+    let (event, state) = match cryptogram_type {
         CryptogramType::Arqc => (FsmEvent::GacArqc, KernelState::OnlineAuthorization),
         CryptogramType::Tc => (FsmEvent::GacTc, KernelState::FinalOutcome),
         CryptogramType::Aac => (FsmEvent::GacAac, KernelState::FinalOutcome),
@@ -2623,6 +2631,19 @@ fn run_first_generate_ac(
     ctx.first_gac_response = Some(parsed);
     apply_transition(ctx, event)?;
     ctx.state = state;
+    Ok(())
+}
+
+fn reroute_cda_failed_offline_cryptogram_through_taa(
+    ctx: &mut KrnContext,
+) -> Result<(), KernelError> {
+    let profiles = ctx.profiles.clone().ok_or(KernelError::InvalidProfile)?;
+    apply_transition(ctx, FsmEvent::CdaFailure)?;
+    ctx.state = KernelState::TerminalActionAnalysis;
+    run_terminal_action_analysis(ctx, &profiles)?;
+    if ctx.requested_cryptogram == Some(CryptogramRequest::Arqc) {
+        return Err(KernelError::InvalidArgument);
+    }
     Ok(())
 }
 
@@ -3456,7 +3477,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
                 return KrnOutcome::OnlineRequired;
             }
             _ if is_final_outcome_state(ctx) => {
-                return match finish_offline_outcome_from_first_gac(ctx) {
+                let result = if ctx.tvr.is_set(Tvr::B1_CDA_FAILED) {
+                    finish_offline_outcome_from_taa(ctx)
+                } else {
+                    finish_offline_outcome_from_first_gac(ctx)
+                };
+                return match result {
                     Ok(outcome) => outcome,
                     Err(err) => {
                         ctx.last_error = err;
@@ -4613,6 +4639,25 @@ mod tests {
         DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
     }
 
+    fn cda_generate_ac_response(cid: u8) -> Vec<u8> {
+        let mut sdad = hex_bytes(
+            "0000000000000000000000000000000000000000000000000000000000000001\
+             00000000000000000000000000000001",
+        );
+        if DDA_RESPONSE_MODE.load(Ordering::SeqCst) == 1 {
+            let last = sdad.last_mut().unwrap();
+            *last ^= 0x01;
+        }
+        let mut response = Vec::with_capacity(80);
+        response.extend_from_slice(&[
+            0x77, 0x4e, 0x9f, 0x27, 0x01, cid, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
+            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x9f, 0x4b, 0x30,
+        ]);
+        response.extend_from_slice(&sdad);
+        response.extend_from_slice(&[0x9f, 0x4c, 0x04, 0x01, 0x02, 0x03, 0x04, 0x90, 0x00]);
+        response
+    }
+
     unsafe extern "C" fn capture_cda_generate_ac_apdu(
         cmd: *const u8,
         cmd_len: usize,
@@ -4627,21 +4672,31 @@ mod tests {
         TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
         *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
-        let mut sdad = hex_bytes(
-            "0000000000000000000000000000000000000000000000000000000000000001\
-             00000000000000000000000000000001",
-        );
-        if DDA_RESPONSE_MODE.load(Ordering::SeqCst) == 1 {
-            let last = sdad.last_mut().unwrap();
-            *last ^= 0x01;
+        let response = cda_generate_ac_response(0x80);
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
         }
-        let mut response = Vec::with_capacity(80);
-        response.extend_from_slice(&[
-            0x77, 0x4e, 0x9f, 0x27, 0x01, 0x80, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
-            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x9f, 0x4b, 0x30,
-        ]);
-        response.extend_from_slice(&sdad);
-        response.extend_from_slice(&[0x9f, 0x4c, 0x04, 0x01, 0x02, 0x03, 0x04, 0x90, 0x00]);
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_cda_tc_generate_ac_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = cda_generate_ac_response(0x40);
         let capacity = *resp_len;
         *resp_len = response.len();
         if capacity < response.len() {
@@ -4971,6 +5026,51 @@ mod tests {
         assert_eq!(ctx.fsm_state, FsmState::S11);
         assert!(ctx.tvr.is_set(Tvr::B1_CDA_FAILED));
         assert!(!ctx.tvr.is_set(Tvr::B1_DDA_FAILED));
+        DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn runtime_cda_failed_offline_cryptogram_reroutes_through_taa() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_cda_success_fixture(&mut ctx);
+        ctx.card_data
+            .put(&[0x9f, 0x0e], &[0x04, 0x00, 0x00, 0x00, 0x00])
+            .unwrap();
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut ctx, &profiles, None),
+            Ok(())
+        );
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Cda));
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_tc_generate_ac_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        DDA_RESPONSE_MODE.store(1, Ordering::SeqCst);
+        assert_eq!(run_first_generate_ac(&mut ctx, runtime), Ok(()));
+        assert!(ctx.tvr.is_set(Tvr::B1_CDA_FAILED));
+        assert!(!ctx.tvr.is_set(Tvr::B1_DDA_FAILED));
+        assert_eq!(ctx.fsm_state, FsmState::S16);
+        assert_eq!(ctx.state, KernelState::FinalOutcome);
+        assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Aac));
+        assert_eq!(
+            finish_offline_outcome_from_taa(&mut ctx),
+            Ok(KrnOutcome::DeclinedOffline)
+        );
+        assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
+        assert!(ctx
+            .first_gac_response
+            .as_ref()
+            .is_some_and(|response| response.cid.cryptogram_type() == CryptogramType::Tc));
         DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
     }
 

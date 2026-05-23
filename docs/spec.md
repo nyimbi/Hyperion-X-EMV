@@ -195,6 +195,7 @@ S9,TAA decision = AAC,–,S14,Offline decline,KRN_OK
 S10,GENERATE AC returns ARQC,–,S11,Build host request,KRN_OK
 S10,GENERATE AC returns TC,–,S14,Offline approve,KRN_OK
 S10,GENERATE AC returns AAC,–,S14,Offline decline,KRN_OK
+S10,CDA verification failure,offline TC/AAC returned,S9,Proceed to TAA,KRN_OK
 S11,host_response received,–,S12,Process ARPC,KRN_OK
 S11,host_response timeout,–,SE,Set error,KRN_ERR_HOST_TIMEOUT
 S12,GENERATE AC second returns TC,–,S13,Script processing,KRN_OK
