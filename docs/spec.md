@@ -172,39 +172,20 @@ evidence can be mapped unambiguously to method-specific coverage.
 
 ### Annex E – Full State Machine Transition Table (`state_machine.csv`)
 
-```csv
-Current State,Event,Guard,Next State,Action,Error Code
-S0,krn_set_transaction_params(),params valid,S1,Store amount/currency,KRN_OK
-S1,card_detected(),card present,S2,Start PSE/PPSE selection,KRN_OK
-S2,SELECT returns 9000 with FCI,AID selected,S3,Build PDOL send GPO,KRN_OK
-S2,SELECT returns 6A82,no PSE,S2_fallback,try direct AIDs,KRN_OK
-S3,GPO returns 9000 with AIP/AFL,AFL valid,S4,Read records by AFL,KRN_OK
-S3,GPO fails,–,SE,Set error,KRN_ERR_MISSING_MANDATORY_TAG
-S4,READ RECORD returns 9000,all records read,S5,Start ODA,KRN_OK
-S4,READ RECORD returns 6A83,end of records,S5,Continue if mandatory records present,KRN_OK
-S5,ODA success,–,S6,Clear ODA failure bits,KRN_OK
-S5,ODA failure,–,S6,Set TVR ODA bits,KRN_OK
-S6,Processing restrictions ok,–,S7,Proceed to CVM,KRN_OK
-S7,CVM success,–,S8,Proceed to TRM,KRN_OK
-S7,CVM failure,–,S8,Set CVM failure bits,KRN_OK
-S8,TRM ok,–,S9,Proceed to TAA,KRN_OK
-S8,TRM force online,–,S9,Set floor limit/random bits,KRN_OK
-S9,TAA decision = ARQC,–,S10,Request ARQC,KRN_OK
-S9,TAA decision = TC,–,S14,Offline approve,KRN_OK
-S9,TAA decision = AAC,–,S14,Offline decline,KRN_OK
-S10,GENERATE AC returns ARQC,–,S11,Build host request,KRN_OK
-S10,GENERATE AC returns TC,–,S14,Offline approve,KRN_OK
-S10,GENERATE AC returns AAC,–,S14,Offline decline,KRN_OK
-S10,CDA verification failure,offline TC/AAC returned,S9,Proceed to TAA,KRN_OK
-S11,host_response received,–,S12,Process ARPC,KRN_OK
-S11,host_response timeout,–,SE,Set error,KRN_ERR_HOST_TIMEOUT
-S12,GENERATE AC second returns TC,–,S13,Script processing,KRN_OK
-S12,GENERATE AC second returns AAC,–,S13,Declined online,KRN_OK
-S13,script execution done,–,S14,Return outcome,KRN_OK
-S13,script failure,–,S14,Log error continue,KRN_OK
-S14,–,–,S0,Reset kernel,KRN_OK
-SE,any,–,S0,Reset after error,KRN_OK
-```
+The authoritative full state-machine annex is `docs/state_machine.csv`. It
+SHALL be valid RFC 4180 CSV with exactly these columns: `Current State`,
+`Event`, `Guard`, `Next State`, `Action`, and `Error Code`.
+
+The annex SHALL cover initialization, PSE/PPSE discovery, application
+selection, GPO, AFL record reading, ODA including CDA, processing restrictions,
+CVM, terminal risk management, terminal action analysis, first GENERATE AC,
+online host response, issuer authentication, issuer scripts, second GENERATE AC,
+post-final issuer scripts, final-outcome handling, and error reset transitions.
+
+The Rust FSM tests and certification provenance gates SHALL validate
+`docs/state_machine.csv` directly. This prose section SHALL NOT carry a
+duplicated inline transition table; implementers and reviewers must update the
+CSV annex when a state, event, guard, action, or terminal outcome changes.
 
 ### Annex F – Scheme Profiles (`scheme_profiles.cert.json`)
 

@@ -705,6 +705,29 @@ fn spec_delegates_requirement_traceability_to_csv_annexes() {
 }
 
 #[test]
+fn spec_delegates_state_machine_to_canonical_csv_annex() {
+    let spec = include_str!("../docs/spec.md");
+
+    assert!(spec.contains("The authoritative full state-machine annex is `docs/state_machine.csv`"));
+    assert!(spec.contains("valid RFC 4180 CSV"));
+    assert!(spec.contains("SHALL NOT carry a"));
+    assert!(spec.contains("duplicated inline transition table"));
+    assert!(spec.contains("certification provenance gates SHALL validate"));
+    assert!(
+        !spec.contains("S9,TAA decision = TC"),
+        "spec.md must not carry stale inline state-machine rows"
+    );
+    assert!(
+        STATE_MACHINE_CSV.contains("\"S9\",\"TAA decision = TC\",\"-\",\"S16\""),
+        "canonical state-machine annex must carry current offline approval terminal path"
+    );
+    assert!(
+        STATE_MACHINE_CSV.contains("\"S15\",\"no more post-final scripts\",\"-\",\"S16\""),
+        "canonical state-machine annex must carry post-final script terminal path"
+    );
+}
+
+#[test]
 fn corrected_spec_requirement_ids_are_all_in_rtm_annexes() {
     let corrected_ids = krn_ids_from_markdown(CORRECTED_SPEC);
     let current_ids = krn_ids_from_csv(CURRENT_RTM)

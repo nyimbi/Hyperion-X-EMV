@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T08:50:31Z
+
+- Increment completed: remove the stale inline state-machine table from
+  `docs/spec.md` and make `docs/state_machine.csv` the single authoritative
+  transition annex.
+- Research note: certification evidence should avoid duplicated normative
+  transition tables because the executable annex and runtime FSM already route
+  offline TC/AAC and post-final issuer-script terminal paths through `S16`.
+- Code impact: no runtime behavior changed; traceability tests now assert that
+  the spec delegates Annex E to the canonical CSV and does not retain stale
+  inline transition rows.
+- Evidence updated: `spec_delegates_state_machine_to_canonical_csv_annex`
+  checks the spec delegation language and verifies the canonical CSV keeps the
+  current `S16` terminal paths.
+- Remaining external blockers: licensed lab reconciliation of the complete FSM
+  against scheme/tool cases remains required before certification submission.
+
 ## 2026-05-23T08:43:44Z
 
 - Increment completed: add a deterministic pre-lab parser/APDU no-crash smoke
