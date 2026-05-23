@@ -47,6 +47,7 @@ use crate::selection::{
 use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use crate::taa::{decide as decide_taa, ActionCodes, TaaInput, TerminalAction};
+use crate::terminal::terminal_type_online_capable;
 use crate::trace::{mask_apdu_command, mask_apdu_response, ApduTraceContext, LogPolicy};
 use crate::trm::{evaluate as evaluate_trm, OfflineCounter, TrmInput};
 use core::mem;
@@ -2225,14 +2226,6 @@ fn cvm_transaction_type(params: &StoredTxnParams) -> CvmTransactionType {
         0x01 => CvmTransactionType::ManualCash,
         0x09 | 0x17 => CvmTransactionType::PurchaseWithCashback,
         _ => CvmTransactionType::NonCash,
-    }
-}
-
-fn terminal_type_online_capable(terminal_type: u8) -> Result<bool, KernelError> {
-    match terminal_type {
-        0x11 | 0x12 | 0x14 | 0x15 | 0x21 | 0x22 | 0x24 | 0x25 | 0x34 | 0x35 => Ok(true),
-        0x13 | 0x16 | 0x23 | 0x26 | 0x36 => Ok(false),
-        _ => Err(KernelError::InvalidArgument),
     }
 }
 

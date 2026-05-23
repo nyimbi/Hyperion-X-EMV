@@ -1488,6 +1488,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("numeric-code"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("terminal-type"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CID"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("GENERATE AC response"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
@@ -2688,6 +2689,8 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         ));
         assert!(catalogue
             .contains("krn_emv_decode::tests::numeric_code_output_enforces_three_digit_bcd_shape"));
+        assert!(catalogue
+            .contains("krn_emv_decode::tests::terminal_type_output_names_emv_online_capability"));
 
         let scheme_defined = csv_row_for_requirement(csv, "KRN-TLV-005").unwrap();
         assert!(scheme_defined

@@ -5,6 +5,7 @@ use hyperion_emv::dol::parse_dol;
 use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
+use hyperion_emv::terminal::TerminalType;
 use hyperion_emv::tlv;
 use hyperion_emv::trace::{mask_apdu_response, ApduTraceContext, LogPolicy, MaskedValue};
 use std::fmt::Write;
@@ -33,6 +34,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "dol" => decode_dol(arg_hex(args, 1, "dol")?),
         "tag-list" => decode_tag_list(arg_hex(args, 1, "tag-list")?),
         "numeric-code" => decode_numeric_code(arg_hex(args, 1, "numeric-code")?),
+        "terminal-type" => decode_terminal_type(arg_hex(args, 1, "terminal-type")?),
         "cvm-list" => decode_cvm_list(arg_hex(args, 1, "cvm-list")?),
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
@@ -67,7 +69,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -147,6 +149,24 @@ fn decode_numeric_code(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "code={value:03}");
     let _ = writeln!(out, "field_shape=three-digit-code-in-two-byte-bcd");
     let _ = writeln!(out, "authority=profile-or-lab-defined");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_terminal_type(bytes: Vec<u8>) -> Result<String, String> {
+    let raw: [u8; 1] = bytes
+        .try_into()
+        .map_err(|_| "terminal-type must be exactly 1 byte".to_string())?;
+    let terminal_type = TerminalType::parse(raw[0])
+        .map_err(|err| format!("terminal-type parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=terminal-type");
+    let _ = writeln!(out, "raw=0x{:02X}", terminal_type.raw());
+    let _ = writeln!(out, "operator={}", terminal_type.operator().label());
+    let _ = writeln!(out, "location={}", terminal_type.location().label());
+    let _ = writeln!(out, "online_capable={}", terminal_type.online_capable());
+    let _ = writeln!(out, "authority=emv-profile-defined");
     let _ = writeln!(out, "value_policy=non-sensitive");
     Ok(out)
 }
@@ -866,6 +886,31 @@ mod tests {
     }
 
     #[test]
+    fn terminal_type_output_names_emv_online_capability() {
+        let out = decode_terminal_type(decode_hex("22").unwrap()).unwrap();
+
+        assert!(out.contains("type=terminal-type"));
+        assert!(out.contains("raw=0x22"));
+        assert!(out.contains("operator=attended"));
+        assert!(out.contains("location=merchant"));
+        assert!(out.contains("online_capable=true"));
+        assert!(out.contains("authority=emv-profile-defined"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        let offline_only = decode_terminal_type(decode_hex("23").unwrap()).unwrap();
+        assert!(offline_only.contains("online_capable=false"));
+
+        assert_eq!(
+            decode_terminal_type(Vec::new()).unwrap_err(),
+            "terminal-type must be exactly 1 byte"
+        );
+        assert_eq!(
+            decode_terminal_type(decode_hex("00").unwrap()).unwrap_err(),
+            "terminal-type parse failed: KRN_ERR_INVALID_ARGUMENT"
+        );
+    }
+
+    #[test]
     fn cvm_list_output_names_rules_without_handles() {
         let out = decode_cvm_list(decode_hex("00000000000003E8430302031F03").unwrap()).unwrap();
 
@@ -1128,6 +1173,14 @@ mod tests {
 
         assert!(out.contains("type=numeric-code"));
         assert!(out.contains("code=840"));
+    }
+
+    #[test]
+    fn cli_routes_terminal_type_mode() {
+        let out = run(&[string_arg("terminal-type"), string_arg("22")]).unwrap();
+
+        assert!(out.contains("type=terminal-type"));
+        assert!(out.contains("online_capable=true"));
     }
 
     #[test]

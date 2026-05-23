@@ -29,6 +29,7 @@ mod sha1;
 pub mod state;
 pub mod sw;
 pub mod taa;
+pub mod terminal;
 pub mod tlv;
 pub mod trace;
 pub mod trm;

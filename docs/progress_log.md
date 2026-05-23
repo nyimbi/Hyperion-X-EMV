@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:17:03Z
+
+- Increment completed: share EMV terminal-type validation between runtime
+  transaction-parameter checks and the pre-lab decode utility.
+- Research note: the open-source reference review favors parser-backed
+  operator tooling for lab-trace triage; `9F35` Terminal Type is now decoded
+  through the same allowlist the runtime uses for online-capability decisions.
+- Code impact: `src/terminal.rs` centralizes accepted terminal-type values,
+  operator/location labels, and online-capability classification, and
+  `krn_emv_decode terminal-type <hex>` emits non-sensitive review output.
+- Evidence updated: `terminal::tests::parses_valid_terminal_types_and_online_capability`,
+  `krn_emv_decode::tests::terminal_type_output_names_emv_online_capability`,
+  and the RTM/lab-manifest guards bind terminal-type tooling to the controlled
+  TLV catalogue evidence.
+- Remaining external blockers: lab trace and profile authority still determine
+  which terminal types are accepted in a submitted deployment profile.
+
 ## 2026-05-23T09:09:47Z
 
 - Increment completed: clear stale transaction artifacts whenever
