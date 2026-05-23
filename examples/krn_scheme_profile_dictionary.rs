@@ -1,6 +1,6 @@
 use hyperion_emv::config::{
-    load_profile_set, BuildMode, CdaRequestEncoding, ConfigLoadPolicy, ProfileClass, ProfileSet,
-    SignatureStatus,
+    load_profile_set, BuildMode, CdaAuthenticationData, CdaRequestEncoding, ConfigLoadPolicy,
+    ProfileClass, ProfileSet, SignatureStatus,
 };
 use hyperion_emv::restrictions::EmvDate;
 use hyperion_emv::taa::{ActionCodes, TerminalAction};
@@ -145,6 +145,11 @@ fn render_dictionary(profile_set: &ProfileSet) -> String {
             );
             let _ = writeln!(
                 out,
+                "- CDA authentication data: {}",
+                cda_authentication_data_name(aid.cda_authentication_data)
+            );
+            let _ = writeln!(
+                out,
                 "- Default CDOL1 length: {} bytes",
                 aid.default_cdol1.as_ref().map_or(0, Vec::len)
             );
@@ -215,6 +220,15 @@ fn cda_encoding_name(encoding: CdaRequestEncoding) -> String {
     match encoding {
         CdaRequestEncoding::InCdolData => "CDOL1 bit".to_string(),
         CdaRequestEncoding::P1LowBits(bits) => format!("P1 low bits 0x{bits:02X}"),
+    }
+}
+
+fn cda_authentication_data_name(data: CdaAuthenticationData) -> &'static str {
+    match data {
+        CdaAuthenticationData::ApplicationCryptogram => "application cryptogram",
+        CdaAuthenticationData::ApplicationCryptogramAndIccDynamicNumber => {
+            "application cryptogram + 9F4C"
+        }
     }
 }
 

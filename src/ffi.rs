@@ -8,8 +8,8 @@ use crate::c8::{
 };
 use crate::cid::CryptogramType;
 use crate::config::{
-    load_profile_set, AidProfile, BuildMode, Capk, CdaRequestEncoding, ConfigLoadPolicy,
-    ProfileSet, SignatureStatus,
+    load_profile_set, AidProfile, BuildMode, Capk, CdaAuthenticationData, CdaRequestEncoding,
+    ConfigLoadPolicy, ProfileSet, SignatureStatus,
 };
 use crate::conformance::baseline_conformance_statement;
 use crate::cvm::{
@@ -2056,6 +2056,11 @@ fn verify_combined_data_authentication(
         .schemes
         .get(selected.scheme_index)
         .ok_or(KernelError::InvalidProfile)?;
+    let aid = scheme
+        .aids
+        .get(selected.aid_index)
+        .ok_or(KernelError::InvalidProfile)?;
+    let authentication_data = cda_authentication_data(aid, response)?;
     let evaluation_date = ctx
         .profile_evaluation_date
         .ok_or(KernelError::InvalidProfile)?;
@@ -2085,9 +2090,28 @@ fn verify_combined_data_authentication(
         signed_dynamic_application_data,
         &icc_public_key.public_key,
         &icc_public_key.exponent,
-        &response.application_cryptogram,
+        &authentication_data,
     )?;
     Ok(())
+}
+
+fn cda_authentication_data(
+    aid: &AidProfile,
+    response: &GenerateAcResponse,
+) -> Result<Vec<u8>, KernelError> {
+    let mut authentication_data = response.application_cryptogram.to_vec();
+    match aid.cda_authentication_data {
+        CdaAuthenticationData::ApplicationCryptogram => {}
+        CdaAuthenticationData::ApplicationCryptogramAndIccDynamicNumber => {
+            authentication_data.extend_from_slice(
+                response
+                    .icc_dynamic_number
+                    .as_deref()
+                    .ok_or(KernelError::MissingMandatoryTag)?,
+            );
+        }
+    }
+    Ok(authentication_data)
 }
 
 fn oda_failure_to_kernel_error(failure: OdaFailure) -> KernelError {
@@ -3774,6 +3798,40 @@ mod tests {
     }
 
     #[test]
+    fn cda_authentication_data_follows_profile_policy() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        let response = GenerateAcResponse {
+            cid: crate::cid::Cid::new(0x80),
+            application_cryptogram: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88],
+            atc: [0x00, 0x09],
+            issuer_application_data: Vec::new(),
+            icc_dynamic_number: None,
+            signed_dynamic_application_data: Some(vec![0xaa; 48]),
+        };
+        assert_eq!(
+            cda_authentication_data(selected_aid_profile(&ctx).unwrap(), &response).unwrap(),
+            vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
+        );
+
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].cda_authentication_data =
+            CdaAuthenticationData::ApplicationCryptogramAndIccDynamicNumber;
+        assert_eq!(
+            cda_authentication_data(selected_aid_profile(&ctx).unwrap(), &response).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
+        let response = GenerateAcResponse {
+            icc_dynamic_number: Some(vec![0x01, 0x02, 0x03, 0x04]),
+            ..response
+        };
+        assert_eq!(
+            cda_authentication_data(selected_aid_profile(&ctx).unwrap(), &response).unwrap(),
+            vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x01, 0x02, 0x03, 0x04]
+        );
+    }
+
+    #[test]
     fn transaction_params_bind_minor_units_to_currency_exponent() {
         let merchant = b"HYPERION TEST MERCHANT";
         let params = KrnTxnParams {
@@ -4639,7 +4697,10 @@ mod tests {
         DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
     }
 
-    fn cda_generate_ac_response(cid: u8) -> Vec<u8> {
+    fn cda_generate_ac_response_with_icc_dynamic_number(
+        cid: u8,
+        icc_dynamic_number: Option<&[u8]>,
+    ) -> Vec<u8> {
         let mut sdad = hex_bytes(
             "0000000000000000000000000000000000000000000000000000000000000001\
              00000000000000000000000000000001",
@@ -4648,14 +4709,26 @@ mod tests {
             let last = sdad.last_mut().unwrap();
             *last ^= 0x01;
         }
-        let mut response = Vec::with_capacity(80);
-        response.extend_from_slice(&[
-            0x77, 0x4e, 0x9f, 0x27, 0x01, cid, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08,
-            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x9f, 0x4b, 0x30,
+        let mut children = Vec::with_capacity(78);
+        children.extend_from_slice(&[
+            0x9f, 0x27, 0x01, cid, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26, 0x08, 0x11, 0x22,
+            0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x9f, 0x4b, 0x30,
         ]);
-        response.extend_from_slice(&sdad);
-        response.extend_from_slice(&[0x9f, 0x4c, 0x04, 0x01, 0x02, 0x03, 0x04, 0x90, 0x00]);
+        children.extend_from_slice(&sdad);
+        if let Some(dynamic_number) = icc_dynamic_number {
+            children.extend_from_slice(&[0x9f, 0x4c]);
+            children.push(u8::try_from(dynamic_number.len()).unwrap());
+            children.extend_from_slice(dynamic_number);
+        }
+        let mut response = Vec::with_capacity(children.len() + 4);
+        response.extend_from_slice(&[0x77, u8::try_from(children.len()).unwrap()]);
+        response.extend_from_slice(&children);
+        response.extend_from_slice(&[0x90, 0x00]);
         response
+    }
+
+    fn cda_generate_ac_response(cid: u8) -> Vec<u8> {
+        cda_generate_ac_response_with_icc_dynamic_number(cid, Some(&[0x01, 0x02, 0x03, 0x04]))
     }
 
     unsafe extern "C" fn capture_cda_generate_ac_apdu(
@@ -4673,6 +4746,30 @@ mod tests {
         *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
         TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
         let response = cda_generate_ac_response(0x80);
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_cda_generate_ac_apdu_without_9f4c(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+        *LAST_TRANSMITTED_COMMAND.lock().unwrap() = command.to_vec();
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = cda_generate_ac_response_with_icc_dynamic_number(0x80, None);
         let capacity = *resp_len;
         *resp_len = response.len();
         if capacity < response.len() {
@@ -4769,6 +4866,40 @@ mod tests {
             ctx.card_data.get(&[0x9f, 0x26]),
             Some(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88][..])
         );
+    }
+
+    #[test]
+    fn runtime_cda_profile_required_9f4c_sets_tvr_when_absent() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_cda_success_fixture(&mut ctx);
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].cda_authentication_data =
+            CdaAuthenticationData::ApplicationCryptogramAndIccDynamicNumber;
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut ctx, &profiles, None),
+            Ok(())
+        );
+        assert_eq!(ctx.selected_oda_method, Some(OdaMethod::Cda));
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_generate_ac_apdu_without_9f4c,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        assert_eq!(run_first_generate_ac(&mut ctx, runtime), Ok(()));
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 1);
+        assert!(ctx.tvr.is_set(Tvr::B1_CDA_FAILED));
+        assert_eq!(ctx.card_data.get(&[0x9f, 0x4c]), None);
+        assert_eq!(ctx.fsm_state, FsmState::S11);
+        assert_eq!(ctx.state, KernelState::OnlineAuthorization);
     }
 
     #[test]

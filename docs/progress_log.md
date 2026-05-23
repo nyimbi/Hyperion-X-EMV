@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T08:21:14Z
+
+- Increment completed: make CDA authentication data profile-defined.
+- Research note: the open-source reference review reinforces that CDA-specific
+  dynamic-authentication behavior should be driven by signed profile and
+  lab-authoritative evidence, not inferred from public implementations.
+- Code impact: signed AID profiles now carry `cda_authentication_data`, default
+  to `application_cryptogram`, and can require
+  `application_cryptogram_9f4c`. First-GAC CDA verification now builds its
+  authentication input from that policy and fails closed with
+  `TVR_B1_CDA_FAILED` when a required `9F4C` is absent.
+- Evidence updated:
+  `config::tests::cda_authentication_data_is_profile_defined_and_consistent`,
+  `ffi::tests::cda_authentication_data_follows_profile_policy`, and
+  `ffi::tests::runtime_cda_profile_required_9f4c_sets_tvr_when_absent` cover
+  the profile parser, input builder, and runtime TVR branch. Both RTM CSVs and
+  the scheme profile dictionary cite the new policy evidence.
+- Remaining external blockers: certification still needs licensed EMV/scheme
+  reconciliation for any additional CDA concatenation rules, accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-23T08:04:04Z
 
 - Increment completed: reroute failed CDA offline cryptograms through TAA.

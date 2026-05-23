@@ -136,6 +136,7 @@ pub struct AidProfile {
     pub cdcvm_supported: bool,
     pub cda_supported: bool,
     pub cda_request_encoding: Option<CdaRequestEncoding>,
+    pub cda_authentication_data: CdaAuthenticationData,
     pub default_cdol1: Option<Vec<u8>>,
     pub critical_issuer_script_ins: Vec<u8>,
     pub relay_resistance: Option<RelayResistanceProfile>,
@@ -150,6 +151,7 @@ impl fmt::Debug for AidProfile {
             .field("interfaces", &self.interfaces)
             .field("cda_supported", &self.cda_supported)
             .field("cda_request_encoding", &self.cda_request_encoding)
+            .field("cda_authentication_data", &self.cda_authentication_data)
             .field(
                 "default_cdol1_len",
                 &self.default_cdol1.as_ref().map(Vec::len),
@@ -188,6 +190,12 @@ impl AidProfile {
 pub enum CdaRequestEncoding {
     InCdolData,
     P1LowBits(u8),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CdaAuthenticationData {
+    ApplicationCryptogram,
+    ApplicationCryptogramAndIccDynamicNumber,
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -677,6 +685,7 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
             "cdcvm_supported",
             "cda_supported",
             "cda_request_encoding",
+            "cda_authentication_data",
             "default_cdol1",
             "critical_issuer_script_ins",
             "relay_resistance",
@@ -740,7 +749,16 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         .and_then(JsonValue::as_string_opt)
         .map(parse_cda_request_encoding)
         .transpose()?;
+    let cda_authentication_data = object
+        .get("cda_authentication_data")
+        .and_then(JsonValue::as_string_opt)
+        .map(parse_cda_authentication_data)
+        .transpose()?
+        .unwrap_or(CdaAuthenticationData::ApplicationCryptogram);
     if cda_supported != cda_request_encoding.is_some() {
+        return Err(KernelError::InvalidProfile);
+    }
+    if !cda_supported && cda_authentication_data != CdaAuthenticationData::ApplicationCryptogram {
         return Err(KernelError::InvalidProfile);
     }
 
@@ -770,6 +788,7 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
         cdcvm_supported: required_bool(object, "cdcvm_supported")?,
         cda_supported,
         cda_request_encoding,
+        cda_authentication_data,
         default_cdol1: parse_default_cdol1(object)?,
         critical_issuer_script_ins: optional_hex_byte_array(object, "critical_issuer_script_ins")?,
         relay_resistance: parse_relay_resistance_profile(object)?,
@@ -876,6 +895,16 @@ fn parse_cda_request_encoding(input: &str) -> KernelResult<CdaRequestEncoding> {
         return Err(KernelError::InvalidProfile);
     }
     Ok(CdaRequestEncoding::P1LowBits(bits))
+}
+
+fn parse_cda_authentication_data(input: &str) -> KernelResult<CdaAuthenticationData> {
+    match input {
+        "application_cryptogram" => Ok(CdaAuthenticationData::ApplicationCryptogram),
+        "application_cryptogram_9f4c" => {
+            Ok(CdaAuthenticationData::ApplicationCryptogramAndIccDynamicNumber)
+        }
+        _ => Err(KernelError::InvalidProfile),
+    }
 }
 
 fn parse_capk(
@@ -1687,6 +1716,10 @@ mod tests {
         assert_eq!(
             profiles.schemes[0].aids[0].cda_request_encoding,
             Some(CdaRequestEncoding::InCdolData)
+        );
+        assert_eq!(
+            profiles.schemes[0].aids[0].cda_authentication_data,
+            CdaAuthenticationData::ApplicationCryptogram
         );
         assert!(profiles.schemes[0].aids[0].cda_allowed_by_profile());
     }
@@ -2781,6 +2814,43 @@ mod tests {
         );
         assert_eq!(
             parse_cda_request_encoding("implicit").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn cda_authentication_data_is_profile_defined_and_consistent() {
+        assert_eq!(
+            parse_cda_authentication_data("application_cryptogram").unwrap(),
+            CdaAuthenticationData::ApplicationCryptogram
+        );
+        assert_eq!(
+            parse_cda_authentication_data("application_cryptogram_9f4c").unwrap(),
+            CdaAuthenticationData::ApplicationCryptogramAndIccDynamicNumber
+        );
+        assert_eq!(
+            parse_cda_authentication_data("implicit").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let with_9f4c = profile.replace(
+            r#"
+          "cda_request_encoding": "CDOL1_bit","#,
+            r#"
+          "cda_request_encoding": "CDOL1_bit",
+          "cda_authentication_data": "application_cryptogram_9f4c","#,
+        );
+        let profiles =
+            load_profile_set(with_9f4c.as_bytes(), &policy(SignatureStatus::Verified)).unwrap();
+        assert_eq!(
+            profiles.schemes[0].aids[0].cda_authentication_data,
+            CdaAuthenticationData::ApplicationCryptogramAndIccDynamicNumber
+        );
+
+        let disabled = with_9f4c.replace(r#""cda_supported": true,"#, r#""cda_supported": false,"#);
+        assert_eq!(
+            load_profile_set(disabled.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
             KernelError::InvalidProfile
         );
     }

@@ -40,6 +40,7 @@ This is a repository-controlled review aid. It does not replace lab, scheme, acq
 - CDCVM supported: true
 - CDA supported: true
 - CDA request encoding: CDOL1 bit
+- CDA authentication data: application cryptogram
 - Default CDOL1 length: 18 bytes
 - Critical issuer script INS: E2
 - TAC: denial=0000000000, online=E0F8C80000, default=8000000000
@@ -84,6 +85,7 @@ This is a repository-controlled review aid. It does not replace lab, scheme, acq
 - CDCVM supported: true
 - CDA supported: true
 - CDA request encoding: P1 low bits 0x10
+- CDA authentication data: application cryptogram
 - Default CDOL1 length: 18 bytes
 - Critical issuer script INS: E2
 - TAC: denial=0F00000000, online=F0F8C80000, default=8000000000

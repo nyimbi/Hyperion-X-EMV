@@ -92,9 +92,9 @@ The kernel **SHALL** implement CDA as follows (complete specification):
 ### 5.2 CDA Protocol
 
 1. The kernel builds CDOL1 as usual (including `9F37` Unpredictable Number, etc.).
-2. The card returns **ARQC** (or other cryptogram) along with **Signed Dynamic Application Data (SDAD)** in tag `9F4B`; profile rules may also require `9F4C` (ICC Dynamic Number) and additional dynamic data. Exact validation inputs and concatenation remain EMV Book 3 / scheme-profile defined.
+2. The card returns **ARQC** (or other cryptogram) along with **Signed Dynamic Application Data (SDAD)** in tag `9F4B`; signed profile field `cda_authentication_data` defines whether verification uses `9F26` alone or `9F26 || 9F4C`. Additional dynamic data remains EMV Book 3 / scheme-profile defined.
 3. The kernel verifies the SDAD signature using the **ICC public key** recovered during DDA.
-4. The verification **SHALL** include the generated cryptogram (the whole `9F26` value) as part of the signed data. The exact concatenation order is defined in EMV Book 3 and scheme profiles.
+4. The verification **SHALL** include the generated cryptogram (the whole `9F26` value) as part of the signed data, and **SHALL** fail closed if the signed profile requires `9F4C` but the first GENERATE AC response omits it. Additional concatenation rules are defined in EMV Book 3 and scheme profiles.
 5. If verification succeeds, CDA is considered successful; otherwise, the kernel sets `TVR_B1_CDA_FAILED` and proceeds to TAA.
 
 > **KRN‑ODA‑008**: The kernel **SHALL** implement CDA verification exactly as defined in EMV Book 3 and the scheme profile. Placeholder or simplified verification is not permitted.
