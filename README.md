@@ -22,6 +22,7 @@ tool results, and approval artifacts prevail over this repository on conflict.
 - Public standards drift watch: `docs/standards_watch.md`.
 - Clean-room open-source reference review: `docs/open_source.md`.
 - Tutorial learning path: `docs/tutorial/README.md`.
+- 100% coverage workflow: `docs/coverage.md` and `scripts/coverage_100.sh`.
 - Session progress log: `docs/progress_log.md`.
 
 Repository-controlled evidence is intentionally separated from external
@@ -219,6 +220,12 @@ cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_c
 The generated quality manifest is `docs/prelab_quality_gates.json`. It records
 local repository gates only. It does not replace formal unit coverage,
 integration, static analysis, fuzzing, lab trace, or approval reports.
+
+The repository coverage workflow is documented in `docs/coverage.md` and
+implemented by `scripts/coverage_100.sh`. It uses `cargo-llvm-cov` to fail
+unless line coverage reaches 100%, then stages an HTML report under
+`target/coverage/html`. That workflow prepares evidence for `CERT-OPEN-009`;
+it does not close the external coverage and integration report requirement.
 
 ## Evidence Generators
 

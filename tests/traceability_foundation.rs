@@ -105,6 +105,8 @@ const STANDARDS_WATCH: &str = include_str!("../docs/standards_watch.md");
 const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
 const PRELAB_QUALITY_GATES: &str = include_str!("../docs/prelab_quality_gates.json");
 const PRELAB_NO_CRASH_SMOKE: &str = include_str!("../docs/prelab_no_crash_smoke.json");
+const COVERAGE_WORKFLOW: &str = include_str!("../docs/coverage.md");
+const COVERAGE_SCRIPT: &str = include_str!("../scripts/coverage_100.sh");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -1552,7 +1554,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
     assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
     for required_hash in [
@@ -6385,7 +6387,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
         "cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -6428,6 +6430,23 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Static analysis report"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Fuzzing report"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab quality gate manifest does not close"));
+}
+
+#[test]
+fn coverage_report_workflow_requires_100_percent_without_closing_cert_open_009() {
+    assert!(COVERAGE_WORKFLOW.contains("100% Coverage Report Workflow"));
+    assert!(COVERAGE_WORKFLOW.contains("CERT-OPEN-009"));
+    assert!(COVERAGE_WORKFLOW.contains("scripts/coverage_100.sh"));
+    assert!(COVERAGE_WORKFLOW.contains("cargo install cargo-llvm-cov --locked"));
+    assert!(COVERAGE_WORKFLOW.contains("not close `CERT-OPEN-009`"));
+    assert!(COVERAGE_SCRIPT.contains("cargo llvm-cov --version"));
+    assert!(COVERAGE_SCRIPT.contains("--fail-under-lines 100"));
+    assert!(COVERAGE_SCRIPT.contains("--all-targets"));
+    assert!(COVERAGE_SCRIPT.contains("--all-features"));
+    assert!(COVERAGE_SCRIPT.contains("target/coverage/html"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("scripts/coverage_100.sh"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("100% coverage"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("Unit coverage report at 100%"));
 }
 
 #[test]

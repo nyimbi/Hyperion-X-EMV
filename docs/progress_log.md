@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T12:07:34Z
+
+- Increment completed: add a concrete 100% coverage report workflow for the
+  Rust kernel without closing the external certification blocker.
+- Tooling impact: `scripts/coverage_100.sh` now verifies `cargo-llvm-cov` is
+  installed, cleans workspace coverage state, runs all targets/features with a
+  `--fail-under-lines 100` gate, and stages HTML report output under
+  `target/coverage/html`.
+- Documentation impact: `docs/coverage.md`, `README.md`,
+  `docs/lab_submission_manifest.md`, and the certification tutorial now explain
+  how the coverage report is prepared, what metadata must accompany it, and why
+  `CERT-OPEN-009` remains open until the report and full EMV integration report
+  are attached and accepted for the submitted artifact set.
+- Evidence impact: traceability tests now lock the coverage workflow, script
+  command shape, lab manifest reference, open-issue boundary, and build
+  provenance coverage for the workflow files.
+- Remaining external blockers: this environment does not currently have
+  `cargo-llvm-cov` installed, so no formal coverage report was generated in
+  this increment.
+
 ## 2026-05-23T11:59:43Z
 
 - Increment completed: add `docs/tutorial/` as a structured learning path for

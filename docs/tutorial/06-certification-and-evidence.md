@@ -100,6 +100,10 @@ and annex hashes. A passing `cargo test` run is necessary but not sufficient:
 it proves tests pass, not that every unit coverage obligation has been measured
 and accepted.
 
+The repository workflow is documented in `docs/coverage.md` and implemented by
+`scripts/coverage_100.sh`. It uses `cargo-llvm-cov` to fail unless measured
+line coverage reaches 100% and stages an HTML report under `target/coverage`.
+
 Coverage should be treated as a certification artifact:
 
 - Record tool name and version.
@@ -186,4 +190,3 @@ Before a certification-facing submission, confirm:
 - Device, L1, and PCI/PED evidence are attached.
 - Full masked lab APDU trace pack is attached.
 - `docs/certification_open_issues.md` has no open item for the claimed scope.
-
