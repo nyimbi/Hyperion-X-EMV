@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:50:27Z
+
+- Increment completed: add a comprehensive repository README for onboarding,
+  verification, architecture review, and certification-boundary clarity.
+- Documentation impact: `README.md` now summarizes current status, scope,
+  module layout, security/data-custody boundaries, local build/test commands,
+  pre-lab quality gates, evidence generators, controlled annexes, C ABI
+  integration, profile handling, testing strategy, development rules, and
+  external certification evidence that remains outside repository-only closure.
+- Verification: README content was checked against `Cargo.toml`, `docs/spec.md`,
+  `docs/lab_submission_manifest.md`, and the current repository layout.
+- Remaining external blockers: README does not close any certification
+  open issue; lab, scheme, CAPK, device, PCI/PED, test-tool, and approval
+  evidence remain governed by `docs/certification_open_issues.md`.
+
 ## 2026-05-23T11:45:23Z
 
 - Increment completed: add typed Additional Terminal Capabilities (`9F40`)
