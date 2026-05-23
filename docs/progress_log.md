@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T08:54:51Z
+
+- Increment completed: align `docs/eng_notes.md` with the current validated
+  state-machine annex.
+- Research note: the remaining state-machine risk is no longer a missing local
+  expansion table; it is licensed/lab reconciliation of the repository annex
+  against accepted tool cases and scheme constraints.
+- Code impact: no runtime behavior changed; the traceability guard now rejects
+  stale notes that list the expanded repository state machine as still missing.
+- Evidence updated: `lab_manifest_leaves_unattached_external_reports_unchecked`
+  asserts the engineering notes describe the state-machine CSV as expanded,
+  machine-validated, and authoritative while preserving the licensed
+  reconciliation blocker.
+- Remaining external blockers: lab/tool acceptance of the complete APDU/SW and
+  FSM crosswalk remains outside repository-controlled evidence.
+
 ## 2026-05-23T08:50:31Z
 
 - Increment completed: remove the stale inline state-machine table from

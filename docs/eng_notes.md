@@ -24,7 +24,7 @@ The specification is sufficient to start building the following components:
 | **TAA engine skeleton**            |     Medium-high | TAC/IAC logic and deterministic fallback keys are present.                                           |
 | **API/ABI layer**                  |     Medium-high | Core functions and callbacks are defined enough for an implementation prototype.                     |
 | **Logging/masking policy**         |          Medium | Good direction, but needs production security hardening.                                             |
-| **State machine harness**          |          Medium | The CSV is now machine-readable, but not semantically complete.                                      |
+| **State machine harness**          |     Medium-high | The CSV is expanded, machine-validated, and authoritative for repository behavior; licensed/lab reconciliation is still required. |
 | **Traceability framework**         |          Medium | Useful structure, but not yet mapped to verified lab/tool IDs.                                       |
 
 The manifest now honestly describes the artifact set as a **Draft for Certification** and says actual cryptographic values, CAPKs, and test vectors must still be supplied during certification. That is the right framing. 
@@ -67,8 +67,8 @@ Before engineering freeze, the team needs these additional artifacts:
 | **Scheme-specific implementation profiles**         | Visa, Mastercard, Amex, Discover, and C-8 behavior diverge in important details.                                                   |
 | **Real CAPK set with provenance**                   | Required for ODA and certification.                                                                                                |
 | **Executable ODA vectors**                          | Needed to test SDA, DDA, CDA, certificate recovery, and failure paths.                                                             |
-| **Full APDU/SW matrix**                             | Current state/SW handling is still too abstract.                                                                                   |
-| **Expanded state machine**                          | Needed for selection loops, AFL processing, scripts, issuer authentication, contactless outcomes, retries, timeouts, and fallback. |
+| **Licensed APDU/SW reconciliation matrix**          | Repository SW handling is state-specific, but final certification still needs licensed/lab crosswalk coverage.                     |
+| **Licensed state-machine reconciliation**           | The repository annex covers selection loops, AFL processing, scripts, issuer authentication, contactless outcomes, retries, timeouts, and fallback; the remaining blocker is lab/tool acceptance. |
 | **CVM code catalogue validated against EMV Book 3** | Current CVM framing is improved, but must be validated against the licensed standard.                                              |
 | **Lab/tool test-case crosswalk**                    | Converts internal test IDs into actual certification evidence.                                                                     |
 

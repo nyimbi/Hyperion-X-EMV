@@ -1720,6 +1720,13 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         .contains("repository-controlled artifacts such as source code"));
     assert!(include_str!("../docs/eng_notes.md")
         .contains("device evidence, and approval artifacts are still external"));
+    assert!(include_str!("../docs/eng_notes.md")
+        .contains("expanded, machine-validated, and authoritative"));
+    assert!(include_str!("../docs/eng_notes.md").contains("Licensed state-machine reconciliation"));
+    assert!(
+        !include_str!("../docs/eng_notes.md").contains("| **Expanded state machine**"),
+        "eng_notes.md must not list the expanded repository state machine as still missing"
+    );
 }
 
 #[test]
