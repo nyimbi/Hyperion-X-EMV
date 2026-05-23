@@ -88,6 +88,7 @@ pub const KRN_INTERFACE_CONTACT: u8 = 1;
 pub const KRN_INTERFACE_CONTACTLESS: u8 = 2;
 pub const KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC: u8 = 1;
 pub const KRN_SCRIPT_PHASE_AFTER_FINAL_GAC: u8 = 2;
+pub const KRN_ISSUER_SCRIPT_IDENTIFIER_LEN: usize = 4;
 const MAX_APDU_FOLLOWUPS: usize = 4;
 
 #[repr(C)]
@@ -119,6 +120,9 @@ struct RuntimeCallbacks {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct CapturedIssuerScriptResult {
     phase: ScriptPhase,
+    script_index: u16,
+    command_index: u16,
+    script_identifier: Option<[u8; KRN_ISSUER_SCRIPT_IDENTIFIER_LEN]>,
     result: ScriptCommandResult,
 }
 
@@ -1197,6 +1201,103 @@ pub unsafe extern "C" fn krn_get_issuer_script_result_phase(
             .ok_or(KernelError::InvalidArgument)?;
         unsafe {
             *phase = script_phase_code(result.phase);
+        }
+        Ok(0usize)
+    })();
+    ctx.set_result(result)
+}
+
+/// Copies phase-local issuer script and command indexes for a captured result.
+///
+/// `script_index` is the zero-based index among scripts in the returned phase.
+/// `command_index` is the zero-based index of the command inside that script.
+/// Together with the phase and optional script identifier, these values let
+/// Level 3 correlate SW1/SW2 results to the host response without exposing
+/// issuer script command bytes.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `script_index`
+/// and `command_index` must point to writable `u16` values.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_issuer_script_result_position(
+    ctx: *mut KrnContext,
+    index: usize,
+    script_index: *mut u16,
+    command_index: *mut u16,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        if script_index.is_null() || command_index.is_null() {
+            return Err(KernelError::InvalidArgument);
+        }
+        let result = ctx
+            .issuer_script_results
+            .get(index)
+            .ok_or(KernelError::InvalidArgument)?;
+        unsafe {
+            *script_index = result.script_index;
+            *command_index = result.command_index;
+        }
+        Ok(0usize)
+    })();
+    ctx.set_result(result)
+}
+
+/// Copies the optional issuer script identifier for a captured script result.
+///
+/// The identifier is present only when the source Template 71/72 carried tag
+/// `9F18`. A missing identifier returns `Ok` with `*out_len = 0`. When present,
+/// the identifier is exactly `KRN_ISSUER_SCRIPT_IDENTIFIER_LEN` bytes. The
+/// caller may pass a null `out` pointer to probe the required length.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `out_len` must
+/// point to writable storage. If `out` is non-null it must reference at least
+/// `*out_len` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_issuer_script_result_identifier(
+    ctx: *mut KrnContext,
+    index: usize,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        if out_len.is_null() {
+            return Err(KernelError::InvalidArgument);
+        }
+        let result = ctx
+            .issuer_script_results
+            .get(index)
+            .ok_or(KernelError::InvalidArgument)?;
+        let Some(identifier) = result.script_identifier else {
+            unsafe {
+                *out_len = 0;
+            }
+            return Ok(0usize);
+        };
+        let required = identifier.len();
+        let available = unsafe { *out_len };
+        unsafe {
+            *out_len = required;
+        }
+        if out.is_null() || available < required {
+            return Err(KernelError::BufferTooSmall);
+        }
+        unsafe {
+            ptr::copy_nonoverlapping(identifier.as_ptr(), out, required);
         }
         Ok(0usize)
     })();
@@ -2911,11 +3012,15 @@ fn run_issuer_scripts_for_phase(
         return Ok(());
     }
 
-    for script in scripts {
+    for (script_index, script) in scripts.into_iter().enumerate() {
+        let script_index = u16::try_from(script_index).map_err(|_| KernelError::LengthOverflow)?;
+        let script_identifier = issuer_script_identifier_array(script.identifier.as_deref())?;
         apply_transition(ctx, FsmEvent::ScriptAvailable)?;
         let mut script_results = Vec::with_capacity(script.commands.len());
         let mut critical_failure = false;
-        for command in &script.commands {
+        for (command_index, command) in script.commands.iter().enumerate() {
+            let command_index =
+                u16::try_from(command_index).map_err(|_| KernelError::LengthOverflow)?;
             let critical = issuer_script_command_is_critical(ctx, command)?;
             let script_context = ApduContext::IssuerScript { critical };
             let response = transmit_apdu_with_followups(
@@ -2935,6 +3040,9 @@ fn run_issuer_scripts_for_phase(
             script_results.push(result);
             ctx.issuer_script_results.push(CapturedIssuerScriptResult {
                 phase: script.phase,
+                script_index,
+                command_index,
+                script_identifier,
                 result,
             });
             match classify(script_context, sw) {
@@ -3040,6 +3148,22 @@ fn script_phase_code(phase: ScriptPhase) -> u8 {
     match phase {
         ScriptPhase::BeforeFinalGenerateAc => KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
         ScriptPhase::AfterFinalGenerateAc => KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
+    }
+}
+
+fn issuer_script_identifier_array(
+    identifier: Option<&[u8]>,
+) -> Result<Option<[u8; KRN_ISSUER_SCRIPT_IDENTIFIER_LEN]>, KernelError> {
+    match identifier {
+        Some(identifier) => {
+            let mut out = [0u8; KRN_ISSUER_SCRIPT_IDENTIFIER_LEN];
+            if identifier.len() != out.len() {
+                return Err(KernelError::ParseError);
+            }
+            out.copy_from_slice(identifier);
+            Ok(Some(out))
+        }
+        None => Ok(None),
     }
 }
 
@@ -4070,6 +4194,9 @@ mod tests {
         });
         ctx.issuer_script_results.push(CapturedIssuerScriptResult {
             phase: ScriptPhase::BeforeFinalGenerateAc,
+            script_index: 0,
+            command_index: 0,
+            script_identifier: None,
             result: ScriptCommandResult {
                 sw1: 0x90,
                 sw2: 0x00,
@@ -7282,11 +7409,14 @@ mod tests {
     }
 
     #[test]
-    fn issuer_script_result_phase_api_reports_template_phase() {
+    fn issuer_script_result_metadata_api_reports_phase_position_and_identifier() {
         let mut ctx = KrnContext::new();
         ctx.issuer_script_results.extend([
             CapturedIssuerScriptResult {
                 phase: ScriptPhase::BeforeFinalGenerateAc,
+                script_index: 0,
+                command_index: 0,
+                script_identifier: Some([0xde, 0xad, 0xbe, 0xef]),
                 result: ScriptCommandResult {
                     sw1: 0x90,
                     sw2: 0x00,
@@ -7294,6 +7424,9 @@ mod tests {
             },
             CapturedIssuerScriptResult {
                 phase: ScriptPhase::AfterFinalGenerateAc,
+                script_index: 1,
+                command_index: 2,
+                script_identifier: None,
                 result: ScriptCommandResult {
                     sw1: 0x69,
                     sw2: 0x85,
@@ -7318,6 +7451,129 @@ mod tests {
         );
         assert_eq!(
             unsafe { krn_get_issuer_script_result_phase(&mut ctx, 0, ptr::null_mut()) },
+            KernelError::InvalidArgument.code()
+        );
+
+        let mut script_index = u16::MAX;
+        let mut command_index = u16::MAX;
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_position(
+                    &mut ctx,
+                    0,
+                    &mut script_index,
+                    &mut command_index,
+                )
+            },
+            KernelError::Ok.code()
+        );
+        assert_eq!((script_index, command_index), (0, 0));
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_position(
+                    &mut ctx,
+                    1,
+                    &mut script_index,
+                    &mut command_index,
+                )
+            },
+            KernelError::Ok.code()
+        );
+        assert_eq!((script_index, command_index), (1, 2));
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_position(
+                    &mut ctx,
+                    2,
+                    &mut script_index,
+                    &mut command_index,
+                )
+            },
+            KernelError::InvalidArgument.code()
+        );
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_position(
+                    &mut ctx,
+                    0,
+                    ptr::null_mut(),
+                    &mut command_index,
+                )
+            },
+            KernelError::InvalidArgument.code()
+        );
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_position(
+                    &mut ctx,
+                    0,
+                    &mut script_index,
+                    ptr::null_mut(),
+                )
+            },
+            KernelError::InvalidArgument.code()
+        );
+
+        let mut identifier_len = 0usize;
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_identifier(
+                    &mut ctx,
+                    0,
+                    ptr::null_mut(),
+                    &mut identifier_len,
+                )
+            },
+            KernelError::BufferTooSmall.code()
+        );
+        assert_eq!(identifier_len, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN);
+        let mut identifier = [0u8; KRN_ISSUER_SCRIPT_IDENTIFIER_LEN];
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_identifier(
+                    &mut ctx,
+                    0,
+                    identifier.as_mut_ptr(),
+                    &mut identifier_len,
+                )
+            },
+            KernelError::Ok.code()
+        );
+        assert_eq!(identifier, [0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(identifier_len, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN);
+        let mut absent_identifier_len = usize::MAX;
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_identifier(
+                    &mut ctx,
+                    1,
+                    ptr::null_mut(),
+                    &mut absent_identifier_len,
+                )
+            },
+            KernelError::Ok.code()
+        );
+        assert_eq!(absent_identifier_len, 0);
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_identifier(
+                    &mut ctx,
+                    2,
+                    identifier.as_mut_ptr(),
+                    &mut identifier_len,
+                )
+            },
+            KernelError::InvalidArgument.code()
+        );
+        assert_eq!(
+            unsafe {
+                krn_get_issuer_script_result_identifier(
+                    &mut ctx,
+                    0,
+                    identifier.as_mut_ptr(),
+                    ptr::null_mut(),
+                )
+            },
             KernelError::InvalidArgument.code()
         );
     }

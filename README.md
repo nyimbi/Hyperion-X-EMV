@@ -335,6 +335,9 @@ Important ABI principles:
 - Terminal-owned DOL values such as `9F33`, `9F40`, and `9F66` enter through
   typed setter functions after transaction parameters are set.
 - Output buffers are caller-owned and probeable.
+- Issuer script result APIs report phase, phase-local script index,
+  phase-local command index, optional `9F18` script identifier, and SW1/SW2
+  status while keeping issuer script command bytes suppressed.
 - Callback errors fail closed and preserve stable kernel error codes.
 - Reentrant mutating calls are rejected.
 

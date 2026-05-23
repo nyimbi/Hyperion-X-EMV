@@ -395,6 +395,12 @@ data.
 Short File Identifier. Identifier used with AFL and READ RECORD to select card
 records.
 
+## Script Identifier
+
+Optional issuer script identifier carried in tag `9F18` inside Template 71 or
+Template 72. It lets Level 3 correlate script command results with the issuer
+host response without logging script command bytes.
+
 ## SW1/SW2
 
 Status bytes returned by the card in an APDU response. `9000` is success, while

@@ -170,6 +170,11 @@ The kernel records script results and sets phase-specific TVR bits. Critical
 script failure can stop remaining commands. Non-critical failure can continue
 while preserving evidence.
 
+For Level 3 reporting, Hyperion exposes each script command result as
+phase-aware metadata: Template 71 or Template 72 phase, phase-local script
+index, command index inside that script, optional `9F18` script identifier, and
+SW1/SW2. Production traces still suppress issuer script command bytes.
+
 ## Phase 13: Final GENERATE AC
 
 If required, the kernel builds CDOL2 data and sends a final GENERATE AC. This
@@ -192,4 +197,3 @@ The kernel returns a final outcome and leaves evidence:
 
 Certification depends on being able to map these outcomes back to requirements,
 tests, traces, and external lab artifacts.
-

@@ -1114,9 +1114,10 @@ decision record, while this file tracks work toward certification readiness.
   Template 71 before-final-GAC or Template 72 after-final-GAC phase and exposes
   `krn_get_issuer_script_result_phase` alongside the existing SW1/SW2 getter.
 - Evidence updated:
-  `ffi::tests::issuer_script_result_phase_api_reports_template_phase` and the
-  runtime traceability flow prove phase reporting for Level 3 host reporting;
-  both RTM CSVs now cite the phase-aware result evidence under `KRN-SCR-006`.
+  `ffi::tests::issuer_script_result_metadata_api_reports_phase_position_and_identifier`
+  and the runtime traceability flow prove phase reporting for Level 3 host
+  reporting; both RTM CSVs now cite the phase-aware result evidence under
+  `KRN-SCR-006`.
 - Remaining external blockers: certification still needs accepted coverage,
   full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
   scheme/CAPK/profile authority, device/PED evidence, and approval reports.
@@ -5166,3 +5167,23 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_runtime_apdu_selection_status_policy_evidence`,
   `cargo test`, `cargo test --examples`, `cargo fmt --check`,
   `cargo clippy --all-targets --all-features`, and `git diff --check` passed.
+
+## 2026-05-23T22:39:47Z
+
+- Increment in progress: make issuer script result evidence auditable enough
+  for Level 3 correlation without exposing issuer script command bytes.
+- Code impact: the C ABI now exposes phase-local script and command indexes
+  plus optional `9F18` issuer script identifiers alongside the existing
+  phase-aware SW1/SW2 issuer script result reporting.
+- Evidence updated: unit and traceability tests cover result phase, script
+  position, script identifier probing/copying, and RTM citations for
+  `KRN-SCR-006`. README and tutorial material describe the host reporting
+  contract and redaction boundary.
+- Verification: `cargo fmt`, targeted
+  `cargo test issuer_script_result_metadata_api_reports_phase_position_and_identifier`,
+  `cargo test host_response_extracts_arpc_and_phase_specific_script_results`,
+  `cargo test rtm_promotes_issuer_script_evidence`,
+  `cargo test krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded`,
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `git diff --check` passed.

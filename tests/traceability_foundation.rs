@@ -29,7 +29,8 @@ use hyperion_emv::ffi::{
     krn_build_select_environment, krn_context_free, krn_context_new, krn_error_code_at,
     krn_error_description, krn_error_name, krn_error_table_len, krn_get_conformance_statement_json,
     krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
-    krn_get_issuer_script_result_count, krn_get_issuer_script_result_phase, krn_get_last_error,
+    krn_get_issuer_script_result_count, krn_get_issuer_script_result_identifier,
+    krn_get_issuer_script_result_phase, krn_get_issuer_script_result_position, krn_get_last_error,
     krn_get_online_authorization_data, krn_get_profile_sha256, krn_get_profile_version, krn_init,
     krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
     krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
@@ -37,9 +38,9 @@ use hyperion_emv::ffi::{
     krn_set_additional_terminal_capabilities, krn_set_cvm_capabilities,
     krn_set_nonvolatile_offline_counter, krn_set_offline_pin_handle, krn_set_terminal_capabilities,
     krn_set_terminal_transaction_qualifiers, krn_set_transaction_params, KrnConfigBlob, KrnOutcome,
-    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
-    KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
-    KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
+    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN,
+    KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN,
+    KRN_SCRIPT_PHASE_AFTER_FINAL_GAC, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -5763,7 +5764,9 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             tlv::find_first(&auth_tlvs, &[0x82]),
             Some(&[0x80, 0x00][..])
         );
-        let host = hex("8A023030910811223344556677887108860600DA000001AA7208860680E2000001BB");
+        let host = hex("8A02303091081122334455667788\
+             710F9F1804DEADBEEF860600DA000001AA\
+             720F9F1804FEEDBEEF860680E2000001BB");
         assert_eq!(
             krn_apply_host_response(ctx, host.as_ptr(), host.len()),
             hyperion_emv::KernelError::Ok.code()
@@ -5807,6 +5810,30 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!(phase, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC);
+        let mut script_index = u16::MAX;
+        let mut command_index = u16::MAX;
+        assert_eq!(
+            krn_get_issuer_script_result_position(ctx, 0, &mut script_index, &mut command_index),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!((script_index, command_index), (0, 0));
+        let mut identifier_len = 0usize;
+        assert_eq!(
+            krn_get_issuer_script_result_identifier(ctx, 0, ptr::null_mut(), &mut identifier_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        assert_eq!(identifier_len, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN);
+        let mut identifier = [0u8; KRN_ISSUER_SCRIPT_IDENTIFIER_LEN];
+        assert_eq!(
+            krn_get_issuer_script_result_identifier(
+                ctx,
+                0,
+                identifier.as_mut_ptr(),
+                &mut identifier_len
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(identifier, [0xde, 0xad, 0xbe, 0xef]);
         assert_eq!(
             krn_process_final_generate_ac(ctx),
             hyperion_emv::KernelError::Ok.code()
@@ -5846,6 +5873,27 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!(phase, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC);
+        assert_eq!(
+            krn_get_issuer_script_result_position(ctx, 1, &mut script_index, &mut command_index),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!((script_index, command_index), (0, 0));
+        identifier_len = 0;
+        assert_eq!(
+            krn_get_issuer_script_result_identifier(ctx, 1, ptr::null_mut(), &mut identifier_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        assert_eq!(identifier_len, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN);
+        assert_eq!(
+            krn_get_issuer_script_result_identifier(
+                ctx,
+                1,
+                identifier.as_mut_ptr(),
+                &mut identifier_len
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(identifier, [0xfe, 0xed, 0xbe, 0xef]);
         assert_eq!(
             krn_get_final_outcome(ctx),
             KrnOutcome::ApprovedOnline as i32
@@ -8022,7 +8070,9 @@ fn rtm_promotes_issuer_script_evidence() {
             .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
         assert!(reporting.contains("critical_issuer_script_warning_continues_and_reports_results"));
         assert!(reporting.contains("critical_issuer_script_failure_stops_remaining_commands"));
-        assert!(reporting.contains("issuer_script_result_phase_api_reports_template_phase"));
+        assert!(reporting
+            .contains("issuer_script_result_metadata_api_reports_phase_position_and_identifier"));
+        assert!(reporting.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
         assert!(reporting.contains("tlv_catalogue_contains_required_foundation_tags"));
     }
 }
