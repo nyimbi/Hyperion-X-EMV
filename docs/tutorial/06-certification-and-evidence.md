@@ -207,6 +207,7 @@ Run the checklist generator whenever certification package contents change:
 ```sh
 cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_evidence_intake -- --out docs
+cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
 ```
 
 The checklist JSON output is intended for tooling and the Markdown output is
@@ -229,6 +230,12 @@ reviewer, artifact path, artifact SHA-256, artifact date, submitted-build
 scope, disposition, and supersession history. Community contributors can add
 better fixtures, trace replays, validation tests, and reports, but closure
 still requires the external authority named in the row.
+
+Treat the freeze manifest as the submitted-build binding surface. It records
+pending SHA-256 slots for the kernel binary, signed configuration, CAPK bundle,
+scheme profile bundle, lab vector bundle, RTM/lab crosswalk, accepted quality
+reports, and signed approval package so a reviewer can tell exactly which
+artifact set was submitted.
 
 ## Crowdsourced Certification Preparation
 

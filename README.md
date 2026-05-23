@@ -264,6 +264,9 @@ controlled evidence:
 - `krn_certification_evidence_intake`: emits JSON and Markdown attachment
   slots for crowdsourced testing, lab package assembly, hash capture,
   supersession history, and submission-scope review.
+- `krn_certification_freeze_manifest`: emits JSON and Markdown submitted-build
+  hash slots for the kernel binary, signed configuration, CAPKs, profiles,
+  vectors, RTM, reports, and approval package.
 - `krn_certification_report_ui`: emits deterministic JSON, Markdown, and a
   static HTML workbench for report production and certification artifact review.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
@@ -284,6 +287,7 @@ cargo run --quiet --example krn_emv_decode -- ttq 36004000
 cargo run --quiet --example krn_emv_decode -- sw generate-ac 9000
 cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_evidence_intake -- --out docs
+cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
 cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
 cargo run --quiet --example krn_basic_pos
 ```
@@ -317,6 +321,10 @@ The `docs/` directory is part of the executable baseline:
   supersession controls.
 - `certification_evidence_intake.md`: generated Markdown intake ledger for
   crowdsourced testing and lab submission assembly.
+- `certification_freeze_manifest.json`: generated submitted-build freeze
+  manifest with pending SHA-256 slots bound to open certification issues.
+- `certification_freeze_manifest.md`: generated Markdown freeze manifest for
+  lab package assembly and review.
 - `certification_report_pack.json`: generated report-pack index for artifact
   and external-report tracking.
 - `certification_report_pack.md`: generated Markdown report-pack export.

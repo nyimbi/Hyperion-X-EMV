@@ -21,6 +21,7 @@
 | STANDARDS-WATCH | Public standards watch | drift | `docs/public_standards_watch.json` | generated | `cargo run --quiet --example krn_public_standards_watch` | public drift signal only |
 | EVIDENCE-CHECKLIST | Certification evidence attachment checklist | submission | `docs/certification_evidence_checklist.json; docs/certification_evidence_checklist.md` | generated | `cargo run --quiet --example krn_certification_evidence_checklist` | attachment checklist only; does not close external gates |
 | EVIDENCE-INTAKE | Certification evidence intake ledger | submission | `docs/certification_evidence_intake.json; docs/certification_evidence_intake.md` | generated | `cargo run --quiet --example krn_certification_evidence_intake` | attachment slots only; accepted external evidence remains required |
+| FREEZE-MANIFEST | Certification freeze manifest | submission | `docs/certification_freeze_manifest.json; docs/certification_freeze_manifest.md` | generated | `cargo run --quiet --example krn_certification_freeze_manifest` | submitted-build hash slots only; external acceptance remains required |
 | REPORT-PACK | Certification report pack | reporting | `docs/certification_report_pack.json; docs/certification_report_pack.md` | generated | `cargo run --quiet --example krn_certification_report_ui` | index only; external report attachments remain required |
 | REPORT-UI | Certification report workbench | reporting | `docs/certification_report_ui.html` | generated | `cargo run --quiet --example krn_certification_report_ui -- --html` | static local UI; not a lab portal or approval system |
 | COVERAGE-WORKFLOW | 100% coverage workflow | quality | `docs/coverage.md; scripts/coverage_100.sh` | prepared | `scripts/coverage_100.sh` | accepted submitted-build report remains external |
@@ -60,4 +61,5 @@
 | REPORT-MD | Emit report-pack Markdown | `cargo run --quiet --example krn_certification_report_ui -- --markdown` | `stdout Markdown` |
 | EVIDENCE | Emit certification evidence checklist | `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` | `docs/certification_evidence_checklist.json and .md` |
 | INTAKE | Emit certification evidence intake ledger | `cargo run --quiet --example krn_certification_evidence_intake -- --out docs` | `docs/certification_evidence_intake.json and .md` |
+| FREEZE | Emit certification freeze manifest | `cargo run --quiet --example krn_certification_freeze_manifest -- --out docs` | `docs/certification_freeze_manifest.json and .md` |
 | POS | Run basic scripted PoS integration | `cargo run --quiet --example krn_basic_pos` | `stdout JSON transaction summary` |

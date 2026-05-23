@@ -16,6 +16,7 @@ pub mod dol;
 pub mod error;
 pub mod evidence;
 pub mod ffi;
+pub mod freeze;
 pub mod fsm;
 pub mod gac;
 pub mod gpo;

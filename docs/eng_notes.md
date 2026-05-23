@@ -305,10 +305,12 @@ The generated evidence checklist in
 `docs/certification_evidence_checklist.md` is the requirement map for this
 freeze. The generated intake ledger in `docs/certification_evidence_intake.json`
 and `docs/certification_evidence_intake.md` is the attachment-control surface
-for crowdsourced testing and lab package assembly. Each `CERT-OPEN-*` row must
-carry an authority, attachment, hash, date, submitted-build scope, disposition,
-supersession history, and acceptance gate before the corresponding open issue
-can close.
+for crowdsourced testing and lab package assembly. The generated freeze
+manifest in `docs/certification_freeze_manifest.json` and
+`docs/certification_freeze_manifest.md` is the submitted-build hash binding
+surface. Each `CERT-OPEN-*` row must carry an authority, attachment, hash,
+date, submitted-build scope, disposition, supersession history, and acceptance
+gate before the corresponding open issue can close.
 
 ---
 

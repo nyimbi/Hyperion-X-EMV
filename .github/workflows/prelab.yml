@@ -70,6 +70,12 @@ jobs:
       - name: Certification evidence intake Markdown drift
         run: cargo run --quiet --example krn_certification_evidence_intake -- --markdown | diff -u docs/certification_evidence_intake.md -
 
+      - name: Certification freeze manifest JSON drift
+        run: cargo run --quiet --example krn_certification_freeze_manifest -- --json | diff -u docs/certification_freeze_manifest.json -
+
+      - name: Certification freeze manifest Markdown drift
+        run: cargo run --quiet --example krn_certification_freeze_manifest -- --markdown | diff -u docs/certification_freeze_manifest.md -
+
       - name: Certification report UI drift
         run: cargo run --quiet --example krn_certification_report_ui -- --html | diff -u docs/certification_report_ui.html -
 

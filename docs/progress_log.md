@@ -5254,3 +5254,22 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features -- -D warnings`, and
   `git diff --check` passed.
+
+## 2026-05-23T23:32:08Z
+
+- Increment completed: bind the certification freeze package to explicit
+  submitted-build hash slots before lab-facing review.
+- Code impact: adding a deterministic freeze manifest generator and publishing
+  JSON/Markdown artifacts that enumerate pending SHA-256 slots for the kernel
+  binary, signed configuration, CAPKs, scheme profiles, lab vectors, RTM,
+  accepted reports, and signed approval package.
+- Evidence scope: the manifest is a binding template only. It preserves all
+  `CERT-OPEN-*` blockers and does not claim external certification closure.
+- Verification: `cargo fmt`, targeted `cargo test` filters for freeze
+  manifest, lab manifest/provenance, ABI conformance, pre-lab quality gates,
+  certification report workbench, and pre-lab CI coverage gates; generator drift
+  checks for freeze manifest JSON/Markdown, quality gates, ABI conformance,
+  report pack JSON/Markdown, and report UI HTML; `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `git diff --check` passed.

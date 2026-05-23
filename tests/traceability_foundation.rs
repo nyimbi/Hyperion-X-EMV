@@ -43,6 +43,9 @@ use hyperion_emv::ffi::{
     KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN,
     KRN_SCRIPT_PHASE_AFTER_FINAL_GAC, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
 };
+use hyperion_emv::freeze::{
+    certification_freeze_manifest_json, certification_freeze_manifest_markdown,
+};
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
 };
@@ -128,6 +131,10 @@ const CERTIFICATION_EVIDENCE_INTAKE: &str =
     include_str!("../docs/certification_evidence_intake.json");
 const CERTIFICATION_EVIDENCE_INTAKE_MARKDOWN: &str =
     include_str!("../docs/certification_evidence_intake.md");
+const CERTIFICATION_FREEZE_MANIFEST: &str =
+    include_str!("../docs/certification_freeze_manifest.json");
+const CERTIFICATION_FREEZE_MANIFEST_MARKDOWN: &str =
+    include_str!("../docs/certification_freeze_manifest.md");
 const CERTIFICATION_REPORT_PACK: &str = include_str!("../docs/certification_report_pack.json");
 const CERTIFICATION_REPORT_MARKDOWN: &str = include_str!("../docs/certification_report_pack.md");
 const CERTIFICATION_REPORT_UI: &str = include_str!("../docs/certification_report_ui.html");
@@ -1561,6 +1568,11 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_certification_evidence_intake"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("supersession history"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("licensed/lab reconciliation is still required"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Certification freeze manifest"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("certification_freeze_manifest.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_certification_freeze_manifest"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("submitted-build binding template"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("SHA-256 slots"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Open-source reference review"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("open_source.md"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("clean-room adaptation candidates"));
@@ -1604,7 +1616,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_report_ui.rs examples/krn_basic_pos.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_report_ui.rs examples/krn_basic_pos.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
     assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
     for required_hash in [
@@ -1614,6 +1626,9 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "scheme_profile_hash",
         "test_vector_hash",
         "traceability_matrix_hash",
+        "coverage_report_hash",
+        "static_fuzz_report_hash",
+        "approval_package_hash",
     ] {
         assert!(
             PRELAB_QUALITY_GATES.contains(required_hash),
@@ -1644,6 +1659,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/certification_evidence_checklist.md".to_string(),
         "docs/certification_evidence_intake.json".to_string(),
         "docs/certification_evidence_intake.md".to_string(),
+        "docs/certification_freeze_manifest.json".to_string(),
+        "docs/certification_freeze_manifest.md".to_string(),
         "docs/certification_report_pack.json".to_string(),
         "docs/certification_report_pack.md".to_string(),
         "docs/certification_report_ui.html".to_string(),
@@ -1660,6 +1677,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_cabi_script_adapter.rs".to_string(),
         "examples/krn_certification_evidence_checklist.rs".to_string(),
         "examples/krn_certification_evidence_intake.rs".to_string(),
+        "examples/krn_certification_freeze_manifest.rs".to_string(),
         "examples/krn_certification_report_ui.rs".to_string(),
         "examples/krn_basic_pos.rs".to_string(),
         "examples/krn_emv_decode.rs".to_string(),
@@ -1722,6 +1740,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/certification_evidence_checklist.md",
         "docs/certification_evidence_intake.json",
         "docs/certification_evidence_intake.md",
+        "docs/certification_freeze_manifest.json",
+        "docs/certification_freeze_manifest.md",
         "docs/certification_report_pack.json",
         "docs/certification_report_pack.md",
         "docs/certification_report_ui.html",
@@ -1738,6 +1758,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_cabi_script_adapter.rs",
         "examples/krn_certification_evidence_checklist.rs",
         "examples/krn_certification_evidence_intake.rs",
+        "examples/krn_certification_freeze_manifest.rs",
         "examples/krn_certification_report_ui.rs",
         "examples/krn_basic_pos.rs",
         "examples/krn_emv_decode.rs",
@@ -2115,6 +2136,8 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "docs/certification_evidence_checklist.md",
             "docs/certification_evidence_intake.json",
             "docs/certification_evidence_intake.md",
+            "docs/certification_freeze_manifest.json",
+            "docs/certification_freeze_manifest.md",
             "docs/certification_report_pack.json",
             "docs/certification_report_pack.md",
             "docs/certification_report_ui.html",
@@ -6657,11 +6680,13 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_certification_evidence_checklist -- --markdown | diff -u docs/certification_evidence_checklist.md -",
         "cargo run --quiet --example krn_certification_evidence_intake -- --json | diff -u docs/certification_evidence_intake.json -",
         "cargo run --quiet --example krn_certification_evidence_intake -- --markdown | diff -u docs/certification_evidence_intake.md -",
+        "cargo run --quiet --example krn_certification_freeze_manifest -- --json | diff -u docs/certification_freeze_manifest.json -",
+        "cargo run --quiet --example krn_certification_freeze_manifest -- --markdown | diff -u docs/certification_freeze_manifest.md -",
         "cargo run --quiet --example krn_certification_report_ui -- --html | diff -u docs/certification_report_ui.html -",
         "cargo run --quiet --example krn_certification_report_ui -- --json | diff -u docs/certification_report_pack.json -",
         "cargo run --quiet --example krn_certification_report_ui -- --markdown | diff -u docs/certification_report_pack.md -",
         "cargo run --quiet --example krn_basic_pos",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_report_ui.rs examples/krn_basic_pos.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_report_ui.rs examples/krn_basic_pos.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -6719,6 +6744,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/prelab_quality_gates.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_evidence_checklist.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_evidence_intake.json"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_freeze_manifest.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"evidence_requirements\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("CERT-REPORT-COVERAGE"));
     assert!(CERTIFICATION_REPORT_PACK.contains("coverage metadata JSON"));
@@ -6735,6 +6761,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(README.contains("krn_certification_report_ui"));
     assert!(README.contains("krn_certification_evidence_checklist"));
     assert!(README.contains("krn_certification_evidence_intake"));
+    assert!(README.contains("krn_certification_freeze_manifest"));
     assert!(README.contains("krn_basic_pos"));
     assert!(!CERTIFICATION_REPORT_PACK.contains("certified\":true"));
 }
@@ -6825,6 +6852,48 @@ fn certification_evidence_intake_ledger_is_reproducible_and_scoped() {
 }
 
 #[test]
+fn certification_freeze_manifest_is_reproducible_and_scoped() {
+    let json = certification_freeze_manifest_json(KRN_ABI_VERSION);
+    let markdown = certification_freeze_manifest_markdown(KRN_ABI_VERSION);
+
+    assert_eq!(CERTIFICATION_FREEZE_MANIFEST, json);
+    assert_eq!(CERTIFICATION_FREEZE_MANIFEST_MARKDOWN, markdown);
+    assert!(CERTIFICATION_FREEZE_MANIFEST
+        .contains("\"type\":\"certification-freeze-manifest-template\""));
+    for required in [
+        "kernel_binary_hash",
+        "config_bundle_hash",
+        "capk_bundle_hash",
+        "scheme_profile_hash",
+        "test_vector_hash",
+        "traceability_matrix_hash",
+        "coverage_report_hash",
+        "static_fuzz_report_hash",
+        "approval_package_hash",
+        "SHA-256 pending",
+        "pending external certification freeze",
+        "CERT-OPEN-012",
+        "does_not_close",
+    ] {
+        assert!(
+            CERTIFICATION_FREEZE_MANIFEST.contains(required),
+            "certification freeze manifest missing {required}"
+        );
+    }
+    assert!(
+        CERTIFICATION_FREEZE_MANIFEST_MARKDOWN.contains("# Hyperion Certification Freeze Manifest")
+    );
+    assert!(CERTIFICATION_FREEZE_MANIFEST_MARKDOWN.contains("SHA-256 pending"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Certification freeze manifest"));
+    assert!(PRELAB_QUALITY_GATES.contains("PRELAB-CERTIFICATION-FREEZE-JSON"));
+    assert!(PRELAB_QUALITY_GATES.contains("PRELAB-CERTIFICATION-FREEZE-MARKDOWN"));
+    assert!(PRELAB_CI_WORKFLOW.contains("Certification freeze manifest JSON drift"));
+    assert!(PRELAB_CI_WORKFLOW.contains("Certification freeze manifest Markdown drift"));
+    assert!(README.contains("krn_certification_freeze_manifest"));
+    assert!(!CERTIFICATION_FREEZE_MANIFEST.contains("\"certified\":true"));
+}
+
+#[test]
 fn coverage_report_workflow_requires_100_percent_without_closing_cert_open_009() {
     assert!(COVERAGE_WORKFLOW.contains("100% Coverage Report Workflow"));
     assert!(COVERAGE_WORKFLOW.contains("CERT-OPEN-009"));
@@ -6876,6 +6945,9 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("krn_certification_evidence_intake"));
     assert!(PRELAB_CI_WORKFLOW.contains("docs/certification_evidence_intake.json"));
     assert!(PRELAB_CI_WORKFLOW.contains("docs/certification_evidence_intake.md"));
+    assert!(PRELAB_CI_WORKFLOW.contains("krn_certification_freeze_manifest"));
+    assert!(PRELAB_CI_WORKFLOW.contains("docs/certification_freeze_manifest.json"));
+    assert!(PRELAB_CI_WORKFLOW.contains("docs/certification_freeze_manifest.md"));
     assert!(PRELAB_CI_WORKFLOW.contains("krn_certification_report_ui"));
     assert!(PRELAB_CI_WORKFLOW.contains("docs/certification_report_ui.html"));
     assert!(PRELAB_CI_WORKFLOW.contains("docs/certification_report_pack.json"));

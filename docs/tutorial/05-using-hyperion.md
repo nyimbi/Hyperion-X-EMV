@@ -148,7 +148,8 @@ build hashes, trace packs, and test-tool outputs.
 
 For report production, `krn_certification_evidence_checklist` emits the
 external attachment checklist, `krn_certification_evidence_intake` emits
-pending attachment slots for hash capture and review disposition, and
+pending attachment slots for hash capture and review disposition,
+`krn_certification_freeze_manifest` emits submitted-build hash slots, and
 `krn_certification_report_ui` emits a static workbench and JSON/Markdown
 exports that index repository artifacts, pending external reports, evidence
 attachments, and the commands needed to regenerate evidence.

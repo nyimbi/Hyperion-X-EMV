@@ -161,6 +161,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "attachment slots only; accepted external evidence remains required",
     },
     ReportArtifact {
+        id: "FREEZE-MANIFEST",
+        title: "Certification freeze manifest",
+        path: "docs/certification_freeze_manifest.json; docs/certification_freeze_manifest.md",
+        category: "submission",
+        generator: "cargo run --quiet --example krn_certification_freeze_manifest",
+        status: "generated",
+        boundary: "submitted-build hash slots only; external acceptance remains required",
+    },
+    ReportArtifact {
         id: "REPORT-PACK",
         title: "Certification report pack",
         path: "docs/certification_report_pack.json; docs/certification_report_pack.md",
@@ -273,6 +282,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Emit certification evidence intake ledger",
         command: "cargo run --quiet --example krn_certification_evidence_intake -- --out docs",
         output: "docs/certification_evidence_intake.json and .md",
+    },
+    ToolCommand {
+        id: "FREEZE",
+        title: "Emit certification freeze manifest",
+        command: "cargo run --quiet --example krn_certification_freeze_manifest -- --out docs",
+        output: "docs/certification_freeze_manifest.json and .md",
     },
     ToolCommand {
         id: "POS",
