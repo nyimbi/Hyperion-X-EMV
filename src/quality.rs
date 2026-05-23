@@ -1,6 +1,9 @@
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest};
 use crate::dol::{self, DataStore, DolEntry};
 use crate::error::{KernelError, KernelResult};
+use crate::numeric;
+use crate::restrictions::EmvDate;
+use crate::transaction::{CurrencyExponent, TransactionType};
 use crate::{gac, issuer, tlv, trace};
 use core::fmt::Write;
 
@@ -201,6 +204,30 @@ const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
         run: smoke_truncated_dol_tag,
     },
     NoCrashSmokeCase {
+        id: "NUMERIC-NON-BCD-AMOUNT",
+        surface: "numeric::decode_numeric_bcd_fixed",
+        expected: KernelError::ParseError,
+        run: smoke_non_bcd_numeric_amount,
+    },
+    NoCrashSmokeCase {
+        id: "DATE-NONLEAP-FEBRUARY-29",
+        surface: "restrictions::EmvDate::from_bcd",
+        expected: KernelError::ParseError,
+        run: smoke_nonleap_february_29_date,
+    },
+    NoCrashSmokeCase {
+        id: "CURRENCY-EXPONENT-INVALID",
+        surface: "transaction::CurrencyExponent::parse",
+        expected: KernelError::InvalidArgument,
+        run: smoke_invalid_currency_exponent,
+    },
+    NoCrashSmokeCase {
+        id: "TRANSACTION-TYPE-VALID-CASHBACK",
+        surface: "transaction::TransactionType::parse",
+        expected: KernelError::Ok,
+        run: smoke_valid_transaction_type,
+    },
+    NoCrashSmokeCase {
         id: "APDU-OVERSIZE-GPO-PDOL",
         surface: "apdu::get_processing_options",
         expected: KernelError::LengthOverflow,
@@ -283,6 +310,22 @@ fn smoke_truncated_tlv_high_tag() -> KernelResult<()> {
 
 fn smoke_truncated_dol_tag() -> KernelResult<()> {
     dol::parse_dol(&[0x9f]).map(|_| ())
+}
+
+fn smoke_non_bcd_numeric_amount() -> KernelResult<()> {
+    numeric::decode_numeric_bcd_fixed(&[0x00, 0x00, 0x00, 0x0a, 0x00, 0x00]).map(|_| ())
+}
+
+fn smoke_nonleap_february_29_date() -> KernelResult<()> {
+    EmvDate::from_bcd([0x25, 0x02, 0x29]).map(|_| ())
+}
+
+fn smoke_invalid_currency_exponent() -> KernelResult<()> {
+    CurrencyExponent::parse(&[0x0a]).map(|_| ())
+}
+
+fn smoke_valid_transaction_type() -> KernelResult<()> {
+    TransactionType::parse(&[0x09]).map(|_| ())
 }
 
 fn smoke_oversize_gpo_pdol() -> KernelResult<()> {

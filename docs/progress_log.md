@@ -4,6 +4,33 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:31:40Z
+
+- Increment completed: expand the deterministic pre-lab no-crash smoke artifact
+  to cover recently centralized parser surfaces for fixed numeric amounts, EMV
+  dates, currency exponents, and transaction types.
+- Research note: `CERT-OPEN-010` still requires accepted static-analysis and
+  fuzzing/no-crash reports with tool versions and corpus. This repository smoke
+  remains a bounded engineering artifact, but broader parser-surface coverage
+  makes the generated evidence more representative before external reports are
+  available.
+- Code impact: `src/quality.rs` now drives 12 smoke cases across TLV, DOL,
+  numeric BCD, EMV date, transaction metadata, APDU, issuer host-response,
+  GENERATE AC response, and replay command validation; the generated
+  `docs/prelab_no_crash_smoke.json` was updated.
+- Evidence updated:
+  `traceability_foundation::prelab_no_crash_smoke_is_reproducible_and_scoped`
+  now requires the new numeric/date/transaction metadata cases, and the lab
+  manifest names those parser surfaces explicitly.
+- Verification: focused no-crash artifact generation and reproducibility tests;
+  `cargo fmt --check`; `git diff --check`; `cargo test`; `cargo test
+  --examples`; `cargo clippy --all-targets --all-features -- -D warnings`;
+  and deterministic pre-lab artifact drift checks for the trace pack, quality
+  gates, ABI conformance statement, scheme profile dictionary, and no-crash
+  smoke artifact.
+- Remaining external blockers: the formal static-analysis and fuzzing/no-crash
+  report package remains open under `CERT-OPEN-010`.
+
 ## 2026-05-23T10:25:50Z
 
 - Increment completed: centralize transaction metadata validation for currency

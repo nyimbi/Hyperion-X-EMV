@@ -6281,11 +6281,15 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         PRELAB_NO_CRASH_SMOKE.contains("repository-controlled parser and APDU boundary smoke only")
     );
     assert!(PRELAB_NO_CRASH_SMOKE.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
-    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":8"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":12"));
     for case_id in [
         "TLV-VALID-RECORD-TEMPLATE",
         "TLV-TRUNCATED-HIGH-TAG",
         "DOL-TRUNCATED-TAG",
+        "NUMERIC-NON-BCD-AMOUNT",
+        "DATE-NONLEAP-FEBRUARY-29",
+        "CURRENCY-EXPONENT-INVALID",
+        "TRANSACTION-TYPE-VALID-CASHBACK",
         "APDU-OVERSIZE-GPO-PDOL",
         "APDU-GENERATE-AC-BAD-CDA-BITS",
         "ISSUER-SCRIPT-MALFORMED-COMMAND",
