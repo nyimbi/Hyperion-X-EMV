@@ -1452,6 +1452,13 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_quality_gates.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("certification-freeze hash checklist"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("kernel_binary_hash"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("config_bundle_hash"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("capk_bundle_hash"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("scheme_profile_hash"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("test_vector_hash"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("traceability_matrix_hash"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab decoder utility"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_emv_decode"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("numeric-code"));
@@ -1462,6 +1469,21 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
 
     let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
+    assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
+    for required_hash in [
+        "kernel_binary_hash",
+        "config_bundle_hash",
+        "capk_bundle_hash",
+        "scheme_profile_hash",
+        "test_vector_hash",
+        "traceability_matrix_hash",
+    ] {
+        assert!(
+            PRELAB_QUALITY_GATES.contains(required_hash),
+            "pre-lab quality gates missing certification freeze hash {required_hash}"
+        );
+    }
+    assert!(PRELAB_QUALITY_GATES.contains("pending external certification freeze"));
 
     let mut input_paths = vec![
         "Cargo.lock".to_string(),

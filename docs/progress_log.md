@@ -4,6 +4,30 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T08:27:07Z
+
+- Increment completed: add an explicit certification-freeze hash checklist to
+  the pre-lab quality manifest.
+- Research note: current public EMVCo and PCI SSC checks confirm that C-8,
+  contactless-suite bulletins, and PCI PTS/PED evidence remain external
+  reconciliation inputs, so repository evidence should bind local artifacts
+  without claiming final lab/device approval.
+- Code impact: `prelab_quality_gates_json` now emits required freeze hash
+  slots for `kernel_binary_hash`, `config_bundle_hash`, `capk_bundle_hash`,
+  `scheme_profile_hash`, `test_vector_hash`, and
+  `traceability_matrix_hash`, all marked pending external certification
+  freeze.
+- Evidence updated: `docs/prelab_quality_gates.json`,
+  `docs/lab_submission_manifest.md`, and
+  `traceability_foundation::lab_manifest_and_provenance_cover_reproducible_build_artifacts`
+  now prove the freeze checklist is present while final lab/tool crosswalk and
+  hash attachments remain external.
+- Remaining external blockers: certification still needs the release binary
+  digest, signed configuration/profile/CAPK bundle digests, lab vector and
+  trace-pack digests, final RTM/lab-tool crosswalk digest, accepted coverage,
+  full EMV integration, static-analysis, fuzzing/no-crash, device/PED
+  evidence, and approval reports.
+
 ## 2026-05-23T08:21:14Z
 
 - Increment completed: make CDA authentication data profile-defined.

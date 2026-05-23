@@ -6,6 +6,12 @@ struct QualityGate {
     purpose: &'static str,
 }
 
+struct FreezeHashRequirement {
+    id: &'static str,
+    artifact: &'static str,
+    evidence_source: &'static str,
+}
+
 const QUALITY_GATES: &[QualityGate] = &[
     QualityGate {
         id: "PRELAB-CONFORMANCE",
@@ -66,6 +72,39 @@ const EXTERNAL_REPORTS_PENDING: &[&str] = &[
     "Fuzzing/no-crash report with tool versions and corpus",
 ];
 
+const FREEZE_HASH_REQUIREMENTS: &[FreezeHashRequirement] = &[
+    FreezeHashRequirement {
+        id: "kernel_binary_hash",
+        artifact: "submitted kernel binary",
+        evidence_source: "release build pipeline artifact digest accepted for the lab submission",
+    },
+    FreezeHashRequirement {
+        id: "config_bundle_hash",
+        artifact: "signed runtime configuration bundle",
+        evidence_source: "signed configuration package digest tied to the submitted binary",
+    },
+    FreezeHashRequirement {
+        id: "capk_bundle_hash",
+        artifact: "scheme/acquirer-approved CAPK bundle",
+        evidence_source: "accepted CAPK package digest with signed provenance",
+    },
+    FreezeHashRequirement {
+        id: "scheme_profile_hash",
+        artifact: "scheme/acquirer-approved profile bundle",
+        evidence_source: "accepted scheme profile package digest with profile authority evidence",
+    },
+    FreezeHashRequirement {
+        id: "test_vector_hash",
+        artifact: "lab-supplied ODA and APDU test-vector bundle",
+        evidence_source: "recognized-lab vector and trace-pack digest",
+    },
+    FreezeHashRequirement {
+        id: "traceability_matrix_hash",
+        artifact: "final RTM and lab/tool crosswalk",
+        evidence_source: "final RTM digest after lab test-case ID reconciliation",
+    },
+];
+
 pub fn prelab_quality_gates_json(abi_version: u32) -> String {
     let mut out = String::new();
     out.push('{');
@@ -106,6 +145,21 @@ pub fn prelab_quality_gates_json(abi_version: u32) -> String {
             out.push(',');
         }
         push_json_string(&mut out, report);
+    }
+    out.push_str("],\"certification_freeze_hashes_required\":[");
+    for (idx, requirement) in FREEZE_HASH_REQUIREMENTS.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", requirement.id);
+        out.push(',');
+        push_json_str(&mut out, "artifact", requirement.artifact);
+        out.push(',');
+        push_json_str(&mut out, "evidence_source", requirement.evidence_source);
+        out.push(',');
+        push_json_str(&mut out, "status", "pending external certification freeze");
+        out.push('}');
     }
     out.push_str("]}\n");
     out
