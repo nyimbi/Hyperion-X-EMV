@@ -237,6 +237,24 @@ The manifest SHALL NOT mark an item complete while its row still says
 annex declares `vector_class = "CERTIFICATION"` and contains complete
 lab-supplied cryptographic material.
 
+### Annex I – ABI Interface Selection
+
+`KrnTxnParams.interface_preference` SHALL identify the active card interface
+explicitly for every transaction. The only certification-valid ABI values are:
+
+| Value | Meaning |
+| ----- | ------- |
+| `1` | Contact interface (`KRN_INTERFACE_CONTACT`) |
+| `2` | Contactless interface (`KRN_INTERFACE_CONTACTLESS`) |
+
+The kernel SHALL reject `0`, unknown values, and any transaction whose selected
+AID, scheme profile, and certified kernel mapping do not match the explicit
+interface. This prevents implicit contact fallback from weakening the
+contact/contactless evidence boundary.
+
+> **KRN-INT-004**: The kernel **SHALL** reject a transaction if no certified
+> kernel/profile mapping exists for the selected AID and explicit interface.
+
 ---
 
 ## 7. Final Verdict

@@ -2613,6 +2613,7 @@ fn rtm_promotes_cfg_schema_and_terminal_param_evidence() {
         assert!(row.contains("rejects_inconsistent_contactless_limit_ordering"));
         assert!(row.contains("rejects_oversized_transaction_type_floor_limit_profiles"));
         assert!(row.contains("transaction_params_bind_minor_units_to_currency_exponent"));
+        assert!(row.contains("transaction_params_require_explicit_supported_interface"));
         assert!(row.contains("transaction_params_reject_non_three_digit_numeric_codes"));
         assert!(row.contains("krn_api_001_002_rejects_bad_abi_before_optional_fields"));
         assert!(row.contains("rtm_promotes_cfg_schema_and_terminal_param_evidence"));
@@ -6463,6 +6464,9 @@ fn rtm_promotes_interface_kernel_mapping_evidence() {
         assert!(csv_row_for_requirement(csv, "KRN-INT-004")
             .unwrap()
             .contains("rejects_contact_kernel_type_that_reuses_c8"));
+        assert!(csv_row_for_requirement(csv, "KRN-INT-004")
+            .unwrap()
+            .contains("transaction_params_require_explicit_supported_interface"));
     }
 }
 

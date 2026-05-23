@@ -76,6 +76,8 @@ pub const MAX_HOST_RESPONSE_LEN: usize = 1024;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
 pub const KRN_PIN_METHOD_OFFLINE_PLAINTEXT: u8 = 1;
 pub const KRN_PIN_METHOD_OFFLINE_ENCIPHERED: u8 = 2;
+pub const KRN_INTERFACE_CONTACT: u8 = 1;
+pub const KRN_INTERFACE_CONTACTLESS: u8 = 2;
 pub const KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC: u8 = 1;
 pub const KRN_SCRIPT_PHASE_AFTER_FINAL_GAC: u8 = 2;
 const MAX_APDU_FOLLOWUPS: usize = 4;
@@ -1503,7 +1505,10 @@ unsafe fn read_transaction_params(
         return Err(KernelError::InvalidArgument);
     }
     let params = params.as_ref().ok_or(KernelError::InvalidArgument)?;
-    if params.interface_preference > 2 {
+    if !matches!(
+        params.interface_preference,
+        KRN_INTERFACE_CONTACT | KRN_INTERFACE_CONTACTLESS
+    ) {
         return Err(KernelError::InvalidArgument);
     }
     if params.currency_exponent > 9 {
@@ -2301,7 +2306,7 @@ fn run_contactless_limit_processing(
     profiles: &ProfileSet,
     params: &StoredTxnParams,
 ) -> Result<Option<KrnOutcome>, KernelError> {
-    if params.interface_preference != 2 {
+    if params.interface_preference != KRN_INTERFACE_CONTACTLESS {
         return Ok(None);
     }
     let selected = ctx
@@ -2383,7 +2388,7 @@ fn validate_selected_kernel_mapping(
         .ok_or(KernelError::InvalidProfile)?;
 
     match params.interface_preference {
-        0 | 1 => {
+        KRN_INTERFACE_CONTACT => {
             if !aid
                 .interfaces
                 .iter()
@@ -2396,7 +2401,7 @@ fn validate_selected_kernel_mapping(
                 _ => Err(KernelError::InvalidProfile),
             }
         }
-        2 => {
+        KRN_INTERFACE_CONTACTLESS => {
             if scheme.kernel_type != "c8_contactless"
                 || !aid
                     .interfaces
@@ -3092,8 +3097,8 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         return KrnOutcome::Error;
     };
     let interface = match params.interface_preference {
-        0 | 1 => Interface::Contact,
-        2 => Interface::Contactless,
+        KRN_INTERFACE_CONTACT => Interface::Contact,
+        KRN_INTERFACE_CONTACTLESS => Interface::Contactless,
         _ => {
             ctx.last_error = KernelError::InvalidArgument;
             ctx.state = KernelState::Error;
@@ -3922,6 +3927,48 @@ mod tests {
             unsafe { read_transaction_params(&oversized_merchant).unwrap_err() },
             KernelError::LengthOverflow
         );
+    }
+
+    #[test]
+    fn transaction_params_require_explicit_supported_interface() {
+        let params = KrnTxnParams {
+            struct_size: mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_234,
+            amount_other_minor: 56,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: KRN_INTERFACE_CONTACT,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 0,
+        };
+
+        assert_eq!(
+            unsafe { read_transaction_params(&params).unwrap() }.interface_preference,
+            KRN_INTERFACE_CONTACT
+        );
+        let contactless = KrnTxnParams {
+            interface_preference: KRN_INTERFACE_CONTACTLESS,
+            ..params
+        };
+        assert_eq!(
+            unsafe { read_transaction_params(&contactless).unwrap() }.interface_preference,
+            KRN_INTERFACE_CONTACTLESS
+        );
+
+        for interface_preference in [0, 3] {
+            let invalid = KrnTxnParams {
+                interface_preference,
+                ..params
+            };
+            assert_eq!(
+                unsafe { read_transaction_params(&invalid).unwrap_err() },
+                KernelError::InvalidArgument
+            );
+        }
     }
 
     #[test]

@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:00:03Z
+
+- Increment completed: require explicit ABI interface selection for every
+  transaction.
+- Research note: contact and contactless certification evidence must remain
+  separated by selected interface and certified kernel/profile mapping; silently
+  treating `interface_preference = 0` as contact weakens that boundary.
+- Code impact: `KrnTxnParams.interface_preference` now accepts only
+  `KRN_INTERFACE_CONTACT = 1` or `KRN_INTERFACE_CONTACTLESS = 2`, and rejects
+  `0` or unknown values before transaction state is advanced.
+- Evidence updated: `ffi::tests::transaction_params_require_explicit_supported_interface`
+  covers accepted and rejected ABI values, and both RTM annexes cite it under
+  configuration validation and explicit interface/kernel mapping evidence.
+- Remaining external blockers: accepted lab/device evidence is still required
+  for every claimed contact or contactless interface, scheme profile, and
+  kernel approval path.
+
 ## 2026-05-23T08:54:51Z
 
 - Increment completed: align `docs/eng_notes.md` with the current validated
