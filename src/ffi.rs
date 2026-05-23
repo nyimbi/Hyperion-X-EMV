@@ -48,7 +48,7 @@ use crate::selection::{
 use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use crate::taa::{decide as decide_taa, ActionCodes, TaaInput, TerminalAction};
-use crate::terminal::terminal_type_online_capable;
+use crate::terminal::{terminal_type_online_capable, TerminalCapabilities};
 use crate::trace::{mask_apdu_command, mask_apdu_response, ApduTraceContext, LogPolicy};
 use crate::transaction::{CurrencyExponent, CvmTransactionClass, RuntimeService, TransactionType};
 use crate::trm::{evaluate as evaluate_trm, OfflineCounter, TrmInput};
@@ -215,7 +215,7 @@ pub struct KrnContext {
     offline_auth_records: Vec<StaticAuthenticationRecord>,
     cvm_pin_handles: CvmPinHandles,
     cvm_capabilities: RuntimeCvmCapabilities,
-    terminal_capabilities: Option<[u8; 3]>,
+    terminal_capabilities: Option<TerminalCapabilities>,
     terminal_transaction_qualifiers: Option<[u8; 4]>,
     offline_counter: Option<OfflineCounter>,
     trm_random_sample_basis_points: Option<u16>,
@@ -480,7 +480,11 @@ pub unsafe extern "C" fn krn_set_terminal_capabilities(
     if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
-    ctx.terminal_capabilities = Some([byte1, byte2, byte3]);
+    let capabilities = TerminalCapabilities::parse(&[byte1, byte2, byte3]);
+    ctx.terminal_capabilities = match capabilities {
+        Ok(capabilities) => Some(capabilities),
+        Err(err) => return ctx.set_result(Err(err)),
+    };
     ctx.set_result(Ok(0usize))
 }
 
@@ -1567,7 +1571,7 @@ fn transaction_data_store(
     transaction_date: EmvDate,
     tvr: Tvr,
     tsi: Tsi,
-    terminal_capabilities: Option<[u8; 3]>,
+    terminal_capabilities: Option<TerminalCapabilities>,
     terminal_transaction_qualifiers: Option<[u8; 4]>,
 ) -> Result<DataStore, KernelError> {
     let mut data = DataStore::new();
@@ -1591,7 +1595,7 @@ fn transaction_data_store(
     data.put(&[0x9c], &[params.transaction_type])?;
     data.put(&[0x9a], &emv_date_bcd(transaction_date))?;
     if let Some(terminal_capabilities) = terminal_capabilities {
-        data.put(&[0x9f, 0x33], &terminal_capabilities)?;
+        data.put(&[0x9f, 0x33], &terminal_capabilities.raw())?;
     }
     if let Some(terminal_transaction_qualifiers) = terminal_transaction_qualifiers {
         data.put(&[0x9f, 0x66], &terminal_transaction_qualifiers)?;
@@ -5130,7 +5134,7 @@ mod tests {
             },
             Tvr::cleared(),
             Tsi::cleared(),
-            Some([0xe0, 0xb0, 0xc8]),
+            Some(TerminalCapabilities::parse(&[0xe0, 0xb0, 0xc8]).unwrap()),
             Some([0x36, 0x00, 0x40, 0x00]),
         )
         .unwrap();

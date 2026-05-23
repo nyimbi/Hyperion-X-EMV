@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:21:51Z
+
+- Increment completed: carry Terminal Capabilities (`9F33`) as a typed runtime
+  value after ABI registration instead of storing a loose byte array in
+  `KrnContext`.
+- Research note: this follows the same clean-room consolidation path as the
+  previous 9F33 parser work: Hyperion-owned runtime data should flow through
+  typed parsers before it becomes DOL/CDOL evidence. Final profile acceptance
+  still depends on licensed/lab reconciliation.
+- Code impact: `krn_set_terminal_capabilities` now stores
+  `TerminalCapabilities`, and transaction DOL data emits the parser-owned raw
+  value through `TerminalCapabilities::raw()`.
+- Evidence updated: focused runtime handoff and parser tests confirm 9F33 still
+  reaches PDOL/online authorization evidence after the typed-state change.
+- Verification: focused Terminal Capabilities parser and runtime handoff tests;
+  `cargo fmt --check`; `git diff --check`; `cargo test`; `cargo test
+  --examples`; `cargo clippy --all-targets --all-features -- -D warnings`;
+  and deterministic artifact drift checks for the ABI conformance statement,
+  trace pack, scheme profile dictionary, quality gates, and no-crash smoke
+  artifact.
+- Remaining external blockers: final Terminal Capabilities acceptance still
+  depends on licensed profile/lab reconciliation.
+
 ## 2026-05-23T11:17:07Z
 
 - Increment completed: centralize Terminal Capabilities (`9F33`) interpretation
