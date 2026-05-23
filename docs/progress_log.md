@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:18:08Z
+
+- Increment completed: add parser-backed EMV date decoding to pre-lab trace
+  triage for `9A`, `5F24`, and `5F25`-shaped `YYMMDD` values.
+- Research note: processing restrictions compare transaction, application
+  effective, and application expiration dates through the runtime
+  leap-year-aware calendar parser. The decoder now uses the same parser instead
+  of a display-only BCD split.
+- Code impact: `krn_emv_decode date <hex>` and date-tag aliases validate exact
+  three-byte BCD shape, reject calendar-invalid values, and report the
+  repository's `20YY-MM-DD` profile-date interpretation without exposing
+  sensitive data.
+- Evidence updated:
+  `krn_emv_decode::tests::date_output_uses_runtime_calendar_validation`,
+  `krn_emv_decode::tests::cli_routes_date_mode`, the processing-restriction
+  RTM guard, and the TLV-catalogue decoder guard.
+- Verification: focused decoder date tests before RTM/doc update; full gate
+  results are recorded in the commit for this increment.
+- Remaining external blockers: licensed EMV/scheme and lab traces still govern
+  final date-window semantics and accepted test-tool mappings.
+
 ## 2026-05-23T10:12:10Z
 
 - Increment completed: share fixed numeric BCD amount handling between runtime

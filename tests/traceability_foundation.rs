@@ -2712,6 +2712,8 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
             "krn_emv_decode::tests::amount_output_decodes_minor_units_without_exponent_assumption"
         ));
         assert!(catalogue
+            .contains("krn_emv_decode::tests::date_output_uses_runtime_calendar_validation"));
+        assert!(catalogue
             .contains("krn_emv_decode::tests::terminal_type_output_names_emv_online_capability"));
         assert!(
             catalogue.contains("krn_emv_decode::tests::aip_output_names_runtime_oda_capabilities")
@@ -3205,6 +3207,9 @@ fn rtm_promotes_processing_restriction_evidence() {
         assert!(order.contains("parses_valid_bcd_dates_and_rejects_invalid_values"));
         assert!(order.contains("parses_auc_and_exposes_named_usage_bits"));
         assert!(order.contains("evaluates_version_dates_auc_and_new_card_bits"));
+        assert!(
+            order.contains("krn_emv_decode::tests::date_output_uses_runtime_calendar_validation")
+        );
         assert!(order.contains(
             "krn_emv_decode::tests::auc_output_names_usage_control_bits_without_policy_override"
         ));

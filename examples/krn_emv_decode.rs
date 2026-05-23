@@ -6,7 +6,7 @@ use hyperion_emv::dol::parse_dol;
 use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::issuer::{parse_host_response, ScriptPhase};
 use hyperion_emv::numeric::{bcd_digits, decode_numeric_bcd_fixed};
-use hyperion_emv::restrictions::ApplicationUsageControl;
+use hyperion_emv::restrictions::{ApplicationUsageControl, EmvDate};
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::terminal::TerminalType;
@@ -40,6 +40,10 @@ fn run(args: &[String]) -> Result<String, String> {
         "tag-list" => decode_tag_list(arg_hex(args, 1, "tag-list")?),
         "numeric-code" => decode_numeric_code(arg_hex(args, 1, "numeric-code")?),
         "amount" | "amount-authorised" | "amount-other" => decode_amount(arg_hex(args, 1, mode)?),
+        "date"
+        | "transaction-date"
+        | "application-expiration-date"
+        | "application-effective-date" => decode_date(arg_hex(args, 1, mode)?),
         "terminal-type" => decode_terminal_type(arg_hex(args, 1, "terminal-type")?),
         "aip" => decode_aip(arg_hex(args, 1, "aip")?),
         "auc" | "application-usage-control" => {
@@ -81,7 +85,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|date|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -222,6 +226,30 @@ fn decode_amount(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "minor_units={minor_units}");
     let _ = writeln!(out, "field_shape=six-byte-fixed-numeric-bcd");
     let _ = writeln!(out, "authority=runtime-amount-minor-unit-mapping");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_date(bytes: Vec<u8>) -> Result<String, String> {
+    let raw: [u8; 3] = bytes
+        .try_into()
+        .map_err(|_| "date must be exactly 3 YYMMDD BCD bytes".to_string())?;
+    let date =
+        EmvDate::from_bcd(raw).map_err(|err| format!("date parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=date");
+    let _ = writeln!(out, "raw={}", hex_upper(&raw));
+    let _ = writeln!(out, "emv_yy={:02}", date.year);
+    let _ = writeln!(out, "month={:02}", date.month);
+    let _ = writeln!(out, "day={:02}", date.day);
+    let _ = writeln!(
+        out,
+        "profile_date=20{:02}-{:02}-{:02}",
+        date.year, date.month, date.day
+    );
+    let _ = writeln!(out, "field_shape=three-byte-YYMMDD-bcd");
+    let _ = writeln!(out, "authority=runtime-processing-restrictions-date-parser");
     let _ = writeln!(out, "value_policy=non-sensitive");
     Ok(out)
 }
@@ -1133,6 +1161,37 @@ mod tests {
     }
 
     #[test]
+    fn date_output_uses_runtime_calendar_validation() {
+        let out = decode_date(decode_hex("260523").unwrap()).unwrap();
+
+        assert!(out.contains("type=date"));
+        assert!(out.contains("raw=260523"));
+        assert!(out.contains("emv_yy=26"));
+        assert!(out.contains("month=05"));
+        assert!(out.contains("day=23"));
+        assert!(out.contains("profile_date=2026-05-23"));
+        assert!(out.contains("field_shape=three-byte-YYMMDD-bcd"));
+        assert!(out.contains("authority=runtime-processing-restrictions-date-parser"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        assert_eq!(
+            decode_date(vec![0x26, 0x05]).unwrap_err(),
+            "date must be exactly 3 YYMMDD BCD bytes"
+        );
+        assert_eq!(
+            decode_date(decode_hex("260A23").unwrap()).unwrap_err(),
+            "date parse failed: KRN_ERR_PARSE_ERROR"
+        );
+        assert_eq!(
+            decode_date(decode_hex("250229").unwrap()).unwrap_err(),
+            "date parse failed: KRN_ERR_PARSE_ERROR"
+        );
+
+        let leap = decode_date(decode_hex("240229").unwrap()).unwrap();
+        assert!(leap.contains("profile_date=2024-02-29"));
+    }
+
+    #[test]
     fn terminal_type_output_names_emv_online_capability() {
         let out = decode_terminal_type(decode_hex("22").unwrap()).unwrap();
 
@@ -1559,6 +1618,14 @@ mod tests {
 
         assert!(out.contains("type=amount"));
         assert!(out.contains("minor_units=1234"));
+    }
+
+    #[test]
+    fn cli_routes_date_mode() {
+        let out = run(&[string_arg("date"), string_arg("260523")]).unwrap();
+
+        assert!(out.contains("type=date"));
+        assert!(out.contains("profile_date=2026-05-23"));
     }
 
     #[test]
