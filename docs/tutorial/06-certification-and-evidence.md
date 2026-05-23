@@ -206,10 +206,11 @@ Run the checklist generator whenever certification package contents change:
 
 ```sh
 cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
+cargo run --quiet --example krn_certification_evidence_intake -- --out docs
 ```
 
-The JSON output is intended for tooling and the Markdown output is intended for
-human review. Each row records:
+The checklist JSON output is intended for tooling and the Markdown output is
+intended for human review. Each row records:
 
 - The controlling `CERT-OPEN-*` issue.
 - The external authority or signer.
@@ -220,10 +221,14 @@ human review. Each row records:
 - Repository-controlled support artifacts that help reviewers inspect the
   claim.
 
-Treat this checklist as the intake ledger for crowdsourced testing and
-certification preparation. Community contributors can add better fixtures,
-trace replays, validation tests, and reports, but closure still requires the
-external authority named in the row.
+Treat the checklist as the requirement map and the intake ledger as the
+attachment-control surface for crowdsourced testing and certification
+preparation. The intake ledger starts every `CERT-OPEN-*` attachment slot as
+pending and records the fields needed before review: authority, signer or
+reviewer, artifact path, artifact SHA-256, artifact date, submitted-build
+scope, disposition, and supersession history. Community contributors can add
+better fixtures, trace replays, validation tests, and reports, but closure
+still requires the external authority named in the row.
 
 ## Crowdsourced Certification Preparation
 

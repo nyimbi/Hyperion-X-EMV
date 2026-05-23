@@ -64,6 +64,12 @@ jobs:
       - name: Certification evidence checklist Markdown drift
         run: cargo run --quiet --example krn_certification_evidence_checklist -- --markdown | diff -u docs/certification_evidence_checklist.md -
 
+      - name: Certification evidence intake JSON drift
+        run: cargo run --quiet --example krn_certification_evidence_intake -- --json | diff -u docs/certification_evidence_intake.json -
+
+      - name: Certification evidence intake Markdown drift
+        run: cargo run --quiet --example krn_certification_evidence_intake -- --markdown | diff -u docs/certification_evidence_intake.md -
+
       - name: Certification report UI drift
         run: cargo run --quiet --example krn_certification_report_ui -- --html | diff -u docs/certification_report_ui.html -
 

@@ -147,10 +147,11 @@ Integrations should store the reported profile version and SHA-256 alongside
 build hashes, trace packs, and test-tool outputs.
 
 For report production, `krn_certification_evidence_checklist` emits the
-external attachment checklist, while `krn_certification_report_ui` emits a
-static workbench and JSON/Markdown exports that index repository artifacts,
-pending external reports, evidence attachments, and the commands needed to
-regenerate evidence.
+external attachment checklist, `krn_certification_evidence_intake` emits
+pending attachment slots for hash capture and review disposition, and
+`krn_certification_report_ui` emits a static workbench and JSON/Markdown
+exports that index repository artifacts, pending external reports, evidence
+attachments, and the commands needed to regenerate evidence.
 
 ## Trace Usage
 

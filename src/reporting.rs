@@ -152,6 +152,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "attachment checklist only; does not close external gates",
     },
     ReportArtifact {
+        id: "EVIDENCE-INTAKE",
+        title: "Certification evidence intake ledger",
+        path: "docs/certification_evidence_intake.json; docs/certification_evidence_intake.md",
+        category: "submission",
+        generator: "cargo run --quiet --example krn_certification_evidence_intake",
+        status: "generated",
+        boundary: "attachment slots only; accepted external evidence remains required",
+    },
+    ReportArtifact {
         id: "REPORT-PACK",
         title: "Certification report pack",
         path: "docs/certification_report_pack.json; docs/certification_report_pack.md",
@@ -258,6 +267,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Emit certification evidence checklist",
         command: "cargo run --quiet --example krn_certification_evidence_checklist -- --out docs",
         output: "docs/certification_evidence_checklist.json and .md",
+    },
+    ToolCommand {
+        id: "INTAKE",
+        title: "Emit certification evidence intake ledger",
+        command: "cargo run --quiet --example krn_certification_evidence_intake -- --out docs",
+        output: "docs/certification_evidence_intake.json and .md",
     },
     ToolCommand {
         id: "POS",

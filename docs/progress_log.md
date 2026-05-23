@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T23:17:28Z
+
+- Increment completed: add a deterministic certification evidence intake
+  ledger for crowdsourced testing and lab package assembly.
+- Tooling impact: `krn_certification_evidence_intake` emits JSON and Markdown
+  attachment slots for every `CERT-OPEN-*` blocker with required hash capture,
+  authority/signer or reviewer fields, submitted-build scope, disposition, and
+  supersession history.
+- Evidence impact: the report workbench, ABI conformance generated-from list,
+  pre-lab quality gates, CI drift checks, README, manifest, spec, and tutorials
+  now distinguish the evidence checklist from the attachment-control ledger.
+- Verification: `cargo fmt --check`, focused intake/report/provenance/quality
+  traceability checks, generated-artifact drift checks for intake, quality,
+  ABI conformance, report pack, and checklist outputs, `cargo test`,
+  `cargo test --examples`, clippy with all targets/features and warnings as
+  failures, and `git diff --check` all passed locally.
+- Remaining external blockers: the ledger is attachment-control tooling only;
+  every `CERT-OPEN-*` item remains open until the required external authority
+  evidence is attached, hashed, reviewed, and accepted for the submitted
+  artifact set.
+
 ## 2026-05-23T23:01:40Z
 
 - Increment completed: add machine-readable coverage-report metadata so

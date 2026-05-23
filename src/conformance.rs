@@ -85,6 +85,8 @@ const GENERATED_FROM: &[&str] = &[
     "docs/public_standards_watch.json",
     "docs/certification_evidence_checklist.json",
     "docs/certification_evidence_checklist.md",
+    "docs/certification_evidence_intake.json",
+    "docs/certification_evidence_intake.md",
     "docs/certification_report_pack.json",
     "docs/certification_report_pack.md",
     "docs/certification_report_ui.html",

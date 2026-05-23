@@ -144,6 +144,119 @@ pub fn certification_evidence_requirements() -> &'static [EvidenceRequirement] {
     EVIDENCE_REQUIREMENTS
 }
 
+pub fn certification_evidence_intake_ledger_json(abi_version: u32) -> String {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(&mut out, "type", "certification-evidence-intake-ledger");
+    out.push(',');
+    push_json_str(&mut out, "kernel_name", "Hyperion EMV Kernel");
+    out.push(',');
+    push_json_str(&mut out, "kernel_version", env!("CARGO_PKG_VERSION"));
+    out.push(',');
+    push_json_number(&mut out, "abi_version", abi_version as u64);
+    out.push(',');
+    push_json_str(&mut out, "checked_on", "2026-05-23");
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "scope",
+        "attachment intake slots for crowdsourced certification testing and lab package assembly",
+    );
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "source_of_truth",
+        "docs/certification_open_issues.md",
+    );
+    out.push_str(",\"does_not_close\":[");
+    for (idx, requirement) in EVIDENCE_REQUIREMENTS.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_json_string(&mut out, requirement.open_issue);
+    }
+    out.push_str("],\"intake_policy\":[");
+    for (idx, policy) in [
+        "every attachment slot starts pending until an accepted authority, signer or reviewer, artifact path, SHA-256, date, and submitted-build scope are recorded",
+        "repository-controlled fixtures, generated reports, and crowdsourced findings can support review but cannot close external certification gates",
+        "superseded evidence must retain the prior artifact hash and replacement reason so lab-package history remains auditable",
+        "sensitive card, PIN, issuer-script, cryptogram, private-key, and scheme-confidential data must remain masked, external, or access-controlled according to the trace policy",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_json_string(&mut out, policy);
+    }
+    out.push_str("],\"attachment_slots\":[");
+    for (idx, requirement) in EVIDENCE_REQUIREMENTS.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_intake_slot_json(&mut out, requirement);
+    }
+    out.push_str("]}\n");
+    out
+}
+
+pub fn certification_evidence_intake_ledger_markdown(abi_version: u32) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "# Hyperion Certification Evidence Intake Ledger");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "- Kernel version: {}", env!("CARGO_PKG_VERSION"));
+    let _ = writeln!(out, "- ABI version: {abi_version}");
+    let _ = writeln!(out, "- Checked on: 2026-05-23");
+    let _ = writeln!(
+        out,
+        "- Scope: attachment intake slots for crowdsourced certification testing and lab package assembly"
+    );
+    let _ = writeln!(
+        out,
+        "- Source of truth: `docs/certification_open_issues.md`"
+    );
+    let _ = writeln!(
+        out,
+        "- Boundary: this ledger does not close any `CERT-OPEN-*` issue."
+    );
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Intake Policy");
+    for policy in [
+        "Every attachment slot starts pending until an accepted authority, signer or reviewer, artifact path, SHA-256, date, and submitted-build scope are recorded.",
+        "Repository-controlled fixtures, generated reports, and crowdsourced findings can support review but cannot close external certification gates.",
+        "Superseded evidence must retain the prior artifact hash and replacement reason so lab-package history remains auditable.",
+        "Sensitive card, PIN, issuer-script, cryptogram, private-key, and scheme-confidential data must remain masked, external, or access-controlled according to the trace policy.",
+    ] {
+        let _ = writeln!(out, "- {policy}");
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Attachment Slots");
+    let _ = writeln!(
+        out,
+        "| Slot | Open Issue | Area | Required Attachment | Required Metadata | Required Hash | Review Fields | Closure Rule | Status |"
+    );
+    let _ = writeln!(
+        out,
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+    );
+    for requirement in EVIDENCE_REQUIREMENTS {
+        let _ = writeln!(
+            out,
+            "| {}-ATTACHMENT | {} | {} | {} | {} | SHA-256 required before review | authority, signer_or_reviewer, artifact_path, artifact_sha256, artifact_date, submitted_build_scope, disposition, supersedes | Must satisfy the acceptance gate before closing {}: {} | {} |",
+            requirement.open_issue,
+            requirement.open_issue,
+            requirement.area,
+            requirement.required_attachment,
+            requirement.required_metadata,
+            requirement.open_issue,
+            requirement.acceptance_gate,
+            requirement.status
+        );
+    }
+    out
+}
+
 pub fn certification_evidence_checklist_json(abi_version: u32) -> String {
     let mut out = String::new();
     out.push('{');
@@ -285,6 +398,56 @@ fn push_requirement_json(out: &mut String, requirement: &EvidenceRequirement) {
     out.push('}');
 }
 
+fn push_intake_slot_json(out: &mut String, requirement: &EvidenceRequirement) {
+    out.push('{');
+    push_json_str(
+        out,
+        "slot_id",
+        &format!("{}-ATTACHMENT", requirement.open_issue),
+    );
+    out.push(',');
+    push_json_str(out, "open_issue", requirement.open_issue);
+    out.push(',');
+    push_json_str(out, "area", requirement.area);
+    out.push(',');
+    push_json_str(out, "status", requirement.status);
+    out.push(',');
+    push_json_str(out, "required_attachment", requirement.required_attachment);
+    out.push(',');
+    push_json_str(out, "required_metadata", requirement.required_metadata);
+    out.push(',');
+    push_json_str(out, "required_hash", "SHA-256 required before review");
+    out.push_str(",\"review_fields\":[");
+    for (idx, field) in [
+        "authority",
+        "signer_or_reviewer",
+        "artifact_path",
+        "artifact_sha256",
+        "artifact_date",
+        "submitted_build_scope",
+        "disposition",
+        "supersedes",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_json_string(out, field);
+    }
+    out.push_str("],");
+    push_json_str(
+        out,
+        "closure_rule",
+        &format!(
+            "Must satisfy the acceptance gate before closing {}: {}",
+            requirement.open_issue, requirement.acceptance_gate
+        ),
+    );
+    out.push('}');
+}
+
 fn push_json_str(out: &mut String, key: &str, value: &str) {
     push_json_key(out, key);
     push_json_string(out, value);
@@ -359,5 +522,22 @@ mod tests {
         assert!(markdown.contains("| Open Issue | Area | Authority | Required Attachment | Metadata | Acceptance Gate | Repository Support | Status |"));
         assert!(markdown.contains("CERT-OPEN-012"));
         assert!(markdown.contains("Every closure claim must name an authority"));
+    }
+
+    #[test]
+    fn evidence_intake_ledger_tracks_attachment_slots_without_closure_claims() {
+        let json = certification_evidence_intake_ledger_json(2);
+        let markdown = certification_evidence_intake_ledger_markdown(2);
+
+        assert!(json.contains("\"type\":\"certification-evidence-intake-ledger\""));
+        assert!(json.contains("\"slot_id\":\"CERT-OPEN-001-ATTACHMENT\""));
+        assert!(json.contains("\"artifact_sha256\""));
+        assert!(json.contains("\"supersedes\""));
+        assert!(json.contains("does_not_close"));
+        assert!(!json.contains("\"certified\":true"));
+        assert!(markdown.contains("# Hyperion Certification Evidence Intake Ledger"));
+        assert!(markdown.contains("SHA-256 required before review"));
+        assert!(markdown.contains("submitted_build_scope"));
+        assert!(markdown.contains("does not close any `CERT-OPEN-*` issue"));
     }
 }
