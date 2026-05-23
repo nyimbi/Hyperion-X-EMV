@@ -1499,6 +1499,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("AIP"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CID"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("GENERATE AC response"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("issuer host-response"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
@@ -2702,6 +2703,9 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         assert!(
             catalogue.contains("krn_emv_decode::tests::aip_output_names_runtime_oda_capabilities")
         );
+        assert!(catalogue.contains(
+            "krn_emv_decode::tests::host_response_output_suppresses_issuer_authentication_and_scripts"
+        ));
 
         let scheme_defined = csv_row_for_requirement(csv, "KRN-TLV-005").unwrap();
         assert!(scheme_defined
@@ -4167,6 +4171,9 @@ fn rtm_promotes_online_boundary_evidence() {
 
         let host = csv_row_for_requirement(csv, "KRN-ONL-002").unwrap();
         assert!(host.contains("parses_arpc_arc_and_issuer_scripts"));
+        assert!(host.contains(
+            "krn_emv_decode::tests::host_response_output_suppresses_issuer_authentication_and_scripts"
+        ));
         assert!(host.contains("rejects_host_response_without_authorization_response_code"));
         assert!(host.contains("rejects_malformed_issuer_authentication_data"));
         assert!(host.contains("rejects_non_alphanumeric_authorization_response_codes"));
@@ -7198,6 +7205,9 @@ fn rtm_promotes_issuer_authentication_and_final_gac_evidence() {
         let issuer_auth = csv_row_for_requirement(csv, "KRN-IAUTH-001").unwrap();
         assert!(issuer_auth.contains("builds_external_authenticate_for_issuer_authentication_data"));
         assert!(issuer_auth.contains("parses_arpc_arc_and_issuer_scripts"));
+        assert!(issuer_auth.contains(
+            "krn_emv_decode::tests::host_response_output_suppresses_issuer_authentication_and_scripts"
+        ));
         assert!(issuer_auth.contains("rejects_host_response_without_authorization_response_code"));
         assert!(issuer_auth.contains("rejects_nested_or_duplicate_host_response_auth_objects"));
         assert!(issuer_auth.contains("issuer_authentication_resolves_get_response_followup"));
@@ -7261,6 +7271,9 @@ fn rtm_promotes_issuer_script_evidence() {
         assert!(parser.contains("rejects_issuer_script_commands_above_length_limit"));
         assert!(parser.contains("rejects_nested_or_duplicate_issuer_script_objects"));
         assert!(parser.contains("rejects_cumulative_issuer_script_command_overflow"));
+        assert!(parser.contains(
+            "krn_emv_decode::tests::host_response_output_suppresses_issuer_authentication_and_scripts"
+        ));
         assert!(parser.contains("host_response_extracts_arpc_and_phase_specific_script_results"));
 
         let execution = csv_row_for_requirement(csv, "KRN-SCR-002").unwrap();

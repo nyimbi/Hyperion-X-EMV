@@ -4,6 +4,7 @@ use hyperion_emv::config::decode_hex;
 use hyperion_emv::cvm::{parse_cvm_list, CvmMethod};
 use hyperion_emv::dol::parse_dol;
 use hyperion_emv::gac::parse_generate_ac_response;
+use hyperion_emv::issuer::{parse_host_response, ScriptPhase};
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::terminal::TerminalType;
@@ -42,6 +43,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
         "cid" => decode_cid(arg_hex(args, 1, "cid")?),
         "gac" | "generate-ac-response" => decode_gac_response(arg_hex(args, 1, "gac")?),
+        "host-response" => decode_host_response(arg_hex(args, 1, "host-response")?),
         "termcap" | "terminal-capabilities" => {
             decode_terminal_capabilities(arg_hex(args, 1, "termcap")?)
         }
@@ -71,7 +73,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|cvm-list|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -287,6 +289,57 @@ fn decode_gac_response(bytes: Vec<u8>) -> Result<String, String> {
         out,
         "data_policy=application_cryptogram_iad_dynamic_authentication_suppressed"
     );
+    Ok(out)
+}
+
+fn decode_host_response(bytes: Vec<u8>) -> Result<String, String> {
+    let response = parse_host_response(&bytes)
+        .map_err(|err| format!("host-response parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=host-response");
+    let _ = writeln!(
+        out,
+        "authorization_response_code={}",
+        hex_upper(&response.authorization_response_code)
+    );
+    let _ = writeln!(
+        out,
+        "authorization_code_present={}",
+        response.authorization_code.is_some()
+    );
+    let _ = writeln!(
+        out,
+        "issuer_authentication_data_len={}",
+        response
+            .issuer_authentication_data
+            .as_ref()
+            .map_or(0, Vec::len)
+    );
+    let _ = writeln!(out, "script_count={}", response.scripts.len());
+    for (idx, script) in response.scripts.iter().enumerate() {
+        let command_lengths = script
+            .commands
+            .iter()
+            .map(Vec::len)
+            .map(|len| len.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let _ = writeln!(
+            out,
+            "script={} phase={} identifier_present={} command_count={} command_lengths={}",
+            idx,
+            script_phase_name(script.phase),
+            script.identifier.is_some(),
+            script.commands.len(),
+            command_lengths
+        );
+    }
+    let _ = writeln!(
+        out,
+        "data_policy=issuer_authentication_data_and_script_bytes_suppressed"
+    );
+    let _ = writeln!(out, "value_policy=non-sensitive-control-fields-only");
     Ok(out)
 }
 
@@ -618,6 +671,13 @@ fn cryptogram_type_name(cryptogram_type: CryptogramType) -> &'static str {
         CryptogramType::Tc => "tc",
         CryptogramType::Arqc => "arqc",
         CryptogramType::ApplicationAuthenticationReferral => "application-authentication-referral",
+    }
+}
+
+fn script_phase_name(phase: ScriptPhase) -> &'static str {
+    match phase {
+        ScriptPhase::BeforeFinalGenerateAc => "before-final-generate-ac",
+        ScriptPhase::AfterFinalGenerateAc => "after-final-generate-ac",
     }
 }
 
@@ -1060,6 +1120,45 @@ mod tests {
     }
 
     #[test]
+    fn host_response_output_suppresses_issuer_authentication_and_scripts() {
+        let out = decode_host_response(
+            decode_hex(
+                "8A023030910811223344556677888906415050523031710F9F1804DEADBEEF860600DA000001AA7208860680E2000001BB",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert!(out.contains("type=host-response"));
+        assert!(out.contains("authorization_response_code=3030"));
+        assert!(out.contains("authorization_code_present=true"));
+        assert!(out.contains("issuer_authentication_data_len=8"));
+        assert!(out.contains("script_count=2"));
+        assert!(out.contains(
+            "script=0 phase=before-final-generate-ac identifier_present=true command_count=1 command_lengths=6"
+        ));
+        assert!(out.contains(
+            "script=1 phase=after-final-generate-ac identifier_present=false command_count=1 command_lengths=6"
+        ));
+        assert!(out.contains("data_policy=issuer_authentication_data_and_script_bytes_suppressed"));
+        assert!(out.contains("value_policy=non-sensitive-control-fields-only"));
+        for suppressed in [
+            "1122334455667788",
+            "415050523031",
+            "DEADBEEF",
+            "00DA",
+            "80E2",
+        ] {
+            assert!(!out.contains(suppressed));
+        }
+
+        assert_eq!(
+            decode_host_response(decode_hex("91081122334455667788").unwrap()).unwrap_err(),
+            "host-response parse failed: KRN_ERR_MISSING_MANDATORY_TAG"
+        );
+    }
+
+    #[test]
     fn sw_output_is_context_specific() {
         let select = decode_status_word(ApduContext::SelectPse, StatusWord::new(0x6A, 0x82));
         let gpo = decode_status_word(ApduContext::Gpo, StatusWord::new(0x6A, 0x82));
@@ -1197,6 +1296,20 @@ mod tests {
         assert!(out.contains("response_format=format-1-template-80"));
         assert!(out.contains("cryptogram_type=tc"));
         assert!(!out.contains("1011121314151617"));
+    }
+
+    #[test]
+    fn cli_routes_host_response_mode() {
+        let out = run(&[
+            string_arg("host-response"),
+            string_arg("8A0230307108860600DA000001AA"),
+        ])
+        .unwrap();
+
+        assert!(out.contains("type=host-response"));
+        assert!(out.contains("authorization_response_code=3030"));
+        assert!(out.contains("script_count=1"));
+        assert!(!out.contains("00DA000001AA"));
     }
 
     #[test]

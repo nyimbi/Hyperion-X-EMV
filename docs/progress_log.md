@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:34:40Z
+
+- Increment completed: add masked host-response triage to `krn_emv_decode`.
+- Research note: issuer authentication and issuer script handling remain a
+  certification-sensitive surface because host response tags drive EXTERNAL
+  AUTHENTICATE, Template 71/72 script sequencing, phase-specific TVR/TSI
+  updates, and Level 3 result reporting.
+- Code impact: `krn_emv_decode host-response <hex>` reuses the runtime
+  `parse_host_response` path and emits only ARC, authorization-code presence,
+  issuer-authentication-data length, script phases, command counts, and command
+  lengths.
+- Evidence updated:
+  `krn_emv_decode::tests::host_response_output_suppresses_issuer_authentication_and_scripts`
+  and `krn_emv_decode::tests::cli_routes_host_response_mode` cover the masked
+  decoder path and are bound into issuer-authentication/script traceability.
+- Remaining external blockers: lab-approved host-response traces and licensed
+  scheme script-policy rules are still required before treating this as final
+  certification evidence.
+
 ## 2026-05-23T09:26:19Z
 
 - Increment completed: add controlled AIP parsing and pre-lab decode output.
