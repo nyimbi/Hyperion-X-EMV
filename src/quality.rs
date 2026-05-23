@@ -1,9 +1,12 @@
+use crate::aip::ApplicationInterchangeProfile;
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest};
+use crate::cvm::CvmResults;
 use crate::dol::{self, DataStore, DolEntry};
 use crate::error::{KernelError, KernelResult};
 use crate::numeric;
 use crate::record;
-use crate::restrictions::EmvDate;
+use crate::restrictions::{ApplicationUsageControl, EmvDate};
+use crate::terminal::TerminalType;
 use crate::transaction::{CurrencyExponent, TransactionType};
 use crate::{gac, issuer, tlv, trace};
 use core::fmt::Write;
@@ -229,6 +232,30 @@ const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
         run: smoke_valid_transaction_type,
     },
     NoCrashSmokeCase {
+        id: "TERMINAL-TYPE-UNKNOWN",
+        surface: "terminal::TerminalType::parse",
+        expected: KernelError::InvalidArgument,
+        run: smoke_unknown_terminal_type,
+    },
+    NoCrashSmokeCase {
+        id: "AIP-SHORT",
+        surface: "aip::ApplicationInterchangeProfile::parse",
+        expected: KernelError::MissingMandatoryTag,
+        run: smoke_short_aip,
+    },
+    NoCrashSmokeCase {
+        id: "AUC-SHORT",
+        surface: "restrictions::ApplicationUsageControl::parse",
+        expected: KernelError::ParseError,
+        run: smoke_short_application_usage_control,
+    },
+    NoCrashSmokeCase {
+        id: "CVM-RESULTS-SHORT",
+        surface: "cvm::CvmResults::parse",
+        expected: KernelError::ParseError,
+        run: smoke_short_cvm_results,
+    },
+    NoCrashSmokeCase {
         id: "TRACK2-VALID-SHAPE",
         surface: "record::summarize_track2_equivalent_data",
         expected: KernelError::Ok,
@@ -339,6 +366,22 @@ fn smoke_invalid_currency_exponent() -> KernelResult<()> {
 
 fn smoke_valid_transaction_type() -> KernelResult<()> {
     TransactionType::parse(&[0x09]).map(|_| ())
+}
+
+fn smoke_unknown_terminal_type() -> KernelResult<()> {
+    TerminalType::parse(0x00).map(|_| ())
+}
+
+fn smoke_short_aip() -> KernelResult<()> {
+    ApplicationInterchangeProfile::parse(&[0x80]).map(|_| ())
+}
+
+fn smoke_short_application_usage_control() -> KernelResult<()> {
+    ApplicationUsageControl::parse(&[0xff]).map(|_| ())
+}
+
+fn smoke_short_cvm_results() -> KernelResult<()> {
+    CvmResults::parse(&[0x01, 0x00]).map(|_| ())
 }
 
 fn smoke_valid_track2_shape() -> KernelResult<()> {

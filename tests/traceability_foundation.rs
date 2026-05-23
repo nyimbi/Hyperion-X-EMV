@@ -6287,7 +6287,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         PRELAB_NO_CRASH_SMOKE.contains("repository-controlled parser and APDU boundary smoke only")
     );
     assert!(PRELAB_NO_CRASH_SMOKE.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
-    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":14"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":18"));
     for case_id in [
         "TLV-VALID-RECORD-TEMPLATE",
         "TLV-TRUNCATED-HIGH-TAG",
@@ -6296,6 +6296,10 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         "DATE-NONLEAP-FEBRUARY-29",
         "CURRENCY-EXPONENT-INVALID",
         "TRANSACTION-TYPE-VALID-CASHBACK",
+        "TERMINAL-TYPE-UNKNOWN",
+        "AIP-SHORT",
+        "AUC-SHORT",
+        "CVM-RESULTS-SHORT",
         "TRACK2-VALID-SHAPE",
         "TRACK2-MISSING-SEPARATOR",
         "APDU-OVERSIZE-GPO-PDOL",
@@ -6310,8 +6314,14 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         );
     }
     assert!(PRELAB_NO_CRASH_SMOKE.contains("record::summarize_track2_equivalent_data"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::TerminalType::parse"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("aip::ApplicationInterchangeProfile::parse"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("restrictions::ApplicationUsageControl::parse"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("cvm::CvmResults::parse"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab no-crash smoke artifact"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Track 2 shape"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("AIP"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("CVM Results"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("static-analysis and fuzzing report evidence"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-010"));
 }

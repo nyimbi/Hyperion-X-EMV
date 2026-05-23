@@ -4,6 +4,33 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:06:41Z
+
+- Increment completed: extend the deterministic pre-lab no-crash smoke artifact
+  with runtime interpreter coverage for terminal type, AIP, Application Usage
+  Control, and CVM Results.
+- Research note: the open-source reference review's tool-first validation idea
+  is being adapted as repository-controlled smoke evidence only. `CERT-OPEN-010`
+  still requires accepted static-analysis and fuzzing/no-crash reports with tool
+  versions and corpus.
+- Code impact: `src/quality.rs` now exercises malformed or boundary-shaped
+  inputs through `terminal::TerminalType::parse`,
+  `aip::ApplicationInterchangeProfile::parse`,
+  `restrictions::ApplicationUsageControl::parse`, and
+  `cvm::CvmResults::parse`.
+- Evidence updated: regenerated `docs/prelab_no_crash_smoke.json`, updated the
+  lab manifest's no-crash coverage wording, and tightened
+  `traceability_foundation::prelab_no_crash_smoke_is_reproducible_and_scoped`
+  to require the new case IDs and parser surfaces.
+- Verification: focused no-crash artifact generation and reproducibility tests;
+  `cargo fmt --check`; `git diff --check`; `cargo test`; `cargo test
+  --examples`; `cargo clippy --all-targets --all-features -- -D warnings`;
+  and deterministic artifact drift checks for the ABI conformance statement,
+  trace pack, scheme profile dictionary, quality gates, and no-crash smoke
+  artifact.
+- Remaining external blockers: the formal static-analysis and fuzzing/no-crash
+  report package remains open under `CERT-OPEN-010`.
+
 ## 2026-05-23T10:59:06Z
 
 - Increment completed: extend the deterministic pre-lab no-crash smoke artifact
