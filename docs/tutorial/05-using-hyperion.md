@@ -126,6 +126,8 @@ Certification and production profile loading should use:
 
 - Signed profile source metadata.
 - Monotonic profile versioning.
+- Loaded profile SHA-256 captured through the ABI and trace identity for
+  certification-freeze reconciliation.
 - Scheme/acquirer-approved AIDs.
 - Accepted TAC/IAC and limits.
 - CAPK checksums and provenance.
@@ -133,6 +135,8 @@ Certification and production profile loading should use:
 - Review of contactless C-8 and bulletin scope.
 
 Hyperion rejects example-only profiles in certification and production modes.
+Integrations should store the reported profile version and SHA-256 alongside
+build hashes, trace packs, and test-tool outputs.
 
 ## Trace Usage
 

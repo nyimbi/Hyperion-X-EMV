@@ -37,6 +37,7 @@ use crate::oda::{
     OdaFailure, OdaMethod, OdaOutcome, OdaSelection, RecoveredCertificateKind,
     RecoveredPublicKeyCertificate, RecoveredSignedDataKind, StaticAuthenticationRecord,
 };
+use crate::provenance::sha256;
 use crate::record::parse_read_record_body;
 use crate::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
@@ -80,6 +81,7 @@ pub const MAX_APDU_RESPONSE_LEN: usize = 258;
 pub const MAX_ONLINE_AUTH_DATA_LEN: usize = 1024;
 pub const MAX_HOST_RESPONSE_LEN: usize = 1024;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
+pub const KRN_PROFILE_SHA256_LEN: usize = 32;
 pub const KRN_PIN_METHOD_OFFLINE_PLAINTEXT: u8 = 1;
 pub const KRN_PIN_METHOD_OFFLINE_ENCIPHERED: u8 = 2;
 pub const KRN_INTERFACE_CONTACT: u8 = 1;
@@ -204,6 +206,7 @@ pub struct KrnContext {
     busy: bool,
     txn_params: Option<StoredTxnParams>,
     profiles: Option<ProfileSet>,
+    profile_sha256: Option<[u8; 32]>,
     profile_evaluation_date: Option<EmvDate>,
     selected_application: Option<SelectedApplication>,
     selected_oda_method: Option<OdaMethod>,
@@ -240,6 +243,7 @@ impl KrnContext {
             busy: false,
             txn_params: None,
             profiles: None,
+            profile_sha256: None,
             profile_evaluation_date: None,
             selected_application: None,
             selected_oda_method: None,
@@ -766,6 +770,7 @@ pub unsafe extern "C" fn krn_load_profiles_verified(
                 evaluation_date,
             },
         )?;
+        ctx.profile_sha256 = Some(sha256(bytes));
         ctx.profiles = Some(profiles);
         ctx.profile_evaluation_date = Some(evaluation_date);
         Ok(0usize)
@@ -1224,6 +1229,36 @@ pub unsafe extern "C" fn krn_get_profile_version(
             *profile_version = profiles.version;
         }
         Ok(0usize)
+    })();
+    ctx.set_result(result)
+}
+
+/// Copies the SHA-256 digest of the loaded signed profile bytes.
+///
+/// This is an identity hook for certification freeze and trace correlation. It
+/// does not prove profile authority by itself; callers must still verify the
+/// signature, rollback counter, and lab/scheme provenance before loading.
+///
+/// # Safety
+///
+/// `ctx` must be a valid context pointer. `out_len` must point to a writable
+/// `usize`; on input it contains `out` capacity and on output it receives 32.
+/// `out` may be null only for a size query.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_profile_sha256(
+    ctx: *mut KrnContext,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = (|| {
+        let digest = ctx.profile_sha256.ok_or(KernelError::InvalidProfile)?;
+        write_output(&digest, out, out_len)
     })();
     ctx.set_result(result)
 }
@@ -6484,12 +6519,18 @@ mod tests {
     }
 
     #[test]
-    fn ffi_reports_loaded_profile_version_for_log_identity() {
+    fn ffi_reports_loaded_profile_version_and_hash_for_log_identity() {
         unsafe {
             let ctx = krn_context_new();
             let mut version = 0u64;
+            let mut digest = [0u8; KRN_PROFILE_SHA256_LEN];
+            let mut digest_len = digest.len();
             assert_eq!(
                 krn_get_profile_version(ctx, &mut version),
+                KernelError::InvalidProfile.code()
+            );
+            assert_eq!(
+                krn_get_profile_sha256(ctx, digest.as_mut_ptr(), &mut digest_len),
                 KernelError::InvalidProfile.code()
             );
             assert_eq!(
@@ -6510,8 +6551,26 @@ mod tests {
                 KernelError::Ok.code()
             );
             assert_eq!(version, 7);
+            let expected_digest = sha256(include_bytes!("../docs/scheme_profiles.cert.json"));
+            digest_len = digest.len() - 1;
+            assert_eq!(
+                krn_get_profile_sha256(ctx, digest.as_mut_ptr(), &mut digest_len),
+                KernelError::BufferTooSmall.code()
+            );
+            assert_eq!(digest_len, KRN_PROFILE_SHA256_LEN);
+            digest_len = digest.len();
+            assert_eq!(
+                krn_get_profile_sha256(ctx, digest.as_mut_ptr(), &mut digest_len),
+                KernelError::Ok.code()
+            );
+            assert_eq!(digest_len, KRN_PROFILE_SHA256_LEN);
+            assert_eq!(digest, expected_digest);
             assert_eq!(
                 krn_get_profile_version(ctx, ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_profile_sha256(ctx, ptr::null_mut(), ptr::null_mut()),
                 KernelError::InvalidArgument.code()
             );
             krn_context_free(ctx);

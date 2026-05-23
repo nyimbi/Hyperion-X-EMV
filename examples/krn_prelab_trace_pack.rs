@@ -1,5 +1,6 @@
 use hyperion_emv::config::decode_hex;
 use hyperion_emv::ffi::KRN_ABI_VERSION;
+use hyperion_emv::provenance::sha256;
 use hyperion_emv::trace::{
     mask_tlv_stream_trace, ApduTraceContext, LogPolicy, ReplayExchange, ReplayScript,
     TlvTraceContext, TraceIdentity,
@@ -205,7 +206,11 @@ fn append_case(out: &mut String, case: PrelabTraceCase) -> KernelResult<()> {
     out.push_str(case.case_id);
     out.push_str("\",\"does_not_close\":\"CERT-OPEN-012\"}\n");
     append_scenario(out, &case);
-    let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
+    let identity = TraceIdentity::current_with_profile_sha256(
+        KRN_ABI_VERSION,
+        2,
+        sha256(include_bytes!("../docs/scheme_profiles.cert.json")),
+    );
     out.push_str(
         &case
             .script

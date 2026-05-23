@@ -27,7 +27,7 @@ use hyperion_emv::ffi::{
     krn_error_description, krn_error_name, krn_error_table_len, krn_get_conformance_statement_json,
     krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
     krn_get_issuer_script_result_count, krn_get_issuer_script_result_phase, krn_get_last_error,
-    krn_get_online_authorization_data, krn_get_profile_version, krn_init,
+    krn_get_online_authorization_data, krn_get_profile_sha256, krn_get_profile_version, krn_init,
     krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
     krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
     krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
@@ -35,7 +35,7 @@ use hyperion_emv::ffi::{
     krn_set_nonvolatile_offline_counter, krn_set_offline_pin_handle, krn_set_terminal_capabilities,
     krn_set_terminal_transaction_qualifiers, krn_set_transaction_params, KrnConfigBlob, KrnOutcome,
     KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
-    KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
+    KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
     KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
 };
 use hyperion_emv::fsm::{
@@ -3237,8 +3237,9 @@ fn rtm_promotes_logging_policy_evidence() {
         assert!(crash_dump.contains("replay_rejects_pin_verify_payload_custody"));
 
         let identity = csv_row_for_requirement(csv, "KRN-LOG-004").unwrap();
-        assert!(identity
-            .contains("replay_trace_identity_records_profile_version_without_unmasking_data"));
+        assert!(identity.contains(
+            "replay_trace_identity_records_profile_version_and_hash_without_unmasking_data"
+        ));
         assert!(
             identity.contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl")
         );
@@ -3723,9 +3724,12 @@ fn rtm_promotes_deployment_profile_update_evidence() {
             !trace_identity.contains("Trace identity metadata"),
             "KRN-DPL-004 should cite executable profile identity evidence"
         );
-        assert!(trace_identity.contains("ffi_reports_loaded_profile_version_for_log_identity"));
-        assert!(trace_identity
-            .contains("replay_trace_identity_records_profile_version_without_unmasking_data"));
+        assert!(
+            trace_identity.contains("ffi_reports_loaded_profile_version_and_hash_for_log_identity")
+        );
+        assert!(trace_identity.contains(
+            "replay_trace_identity_records_profile_version_and_hash_without_unmasking_data"
+        ));
         assert!(trace_identity
             .contains("deterministic_replay_matches_script_order_and_emits_masked_jsonl"));
         assert!(trace_identity.contains("prelab_apdu_trace_pack_is_replayable_masked_and_scoped"));
@@ -5650,6 +5654,14 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             hyperion_emv::KernelError::Ok.code()
         );
         assert_eq!(profile_version, 2);
+        let mut profile_sha256 = [0u8; KRN_PROFILE_SHA256_LEN];
+        let mut profile_sha256_len = profile_sha256.len();
+        assert_eq!(
+            krn_get_profile_sha256(ctx, profile_sha256.as_mut_ptr(), &mut profile_sha256_len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(profile_sha256_len, KRN_PROFILE_SHA256_LEN);
+        assert_eq!(profile_sha256, sha256(SCHEME_PROFILES.as_bytes()));
 
         let params = KrnTxnParams {
             struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
@@ -6181,12 +6193,17 @@ fn deterministic_replay_matches_script_order_and_emits_masked_jsonl() {
         hex("700A5A08123456789012345F9000")
     );
 
-    let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
+    let profile_sha256 = sha256(SCHEME_PROFILES.as_bytes());
+    let identity = TraceIdentity::current_with_profile_sha256(KRN_ABI_VERSION, 2, profile_sha256);
     let jsonl = script
         .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
         .unwrap();
     assert!(jsonl.contains("\"type\":\"trace-identity\""));
     assert!(jsonl.contains("\"profile_version\":2"));
+    assert!(jsonl.contains(&format!(
+        "\"profile_sha256\":\"{}\"",
+        to_hex(&profile_sha256)
+    )));
     assert!(jsonl.contains("***********2345"));
     assert!(!jsonl.contains("123456789012345"));
 
@@ -6318,7 +6335,8 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     )
     .unwrap()])
     .unwrap();
-    let identity = TraceIdentity::current(KRN_ABI_VERSION, 2);
+    let profile_sha256 = sha256(SCHEME_PROFILES.as_bytes());
+    let identity = TraceIdentity::current_with_profile_sha256(KRN_ABI_VERSION, 2, profile_sha256);
     let mut generated = String::new();
     for (case_id, script) in [
         ("prelab.masking.generate-ac", generate_ac_script),
@@ -6441,6 +6459,10 @@ fn prelab_apdu_trace_pack_is_replayable_masked_and_scoped() {
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"type\":\"trace-identity\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"abi_version\":2"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"profile_version\":2"));
+    assert!(PRELAB_APDU_TRACE_PACK.contains(&format!(
+        "\"profile_sha256\":\"{}\"",
+        to_hex(&profile_sha256)
+    )));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"log_build_mode\":\"production\""));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"support_authorization_verified\":false"));
     assert!(PRELAB_APDU_TRACE_PACK.contains("\"reason\":\"full-apdu-disabled\""));

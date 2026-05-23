@@ -228,6 +228,7 @@ pub struct TraceIdentity {
     pub kernel_version: &'static str,
     pub abi_version: u32,
     pub profile_version: u64,
+    pub profile_sha256: Option<[u8; 32]>,
 }
 
 impl TraceIdentity {
@@ -237,6 +238,21 @@ impl TraceIdentity {
             kernel_version: env!("CARGO_PKG_VERSION"),
             abi_version,
             profile_version,
+            profile_sha256: None,
+        }
+    }
+
+    pub fn current_with_profile_sha256(
+        abi_version: u32,
+        profile_version: u64,
+        profile_sha256: [u8; 32],
+    ) -> Self {
+        Self {
+            kernel_name: env!("CARGO_PKG_NAME"),
+            kernel_version: env!("CARGO_PKG_VERSION"),
+            abi_version,
+            profile_version,
+            profile_sha256: Some(profile_sha256),
         }
     }
 }
@@ -608,6 +624,11 @@ fn push_trace_identity_json(out: &mut String, identity: &TraceIdentity, policy: 
     push_json_number(out, "abi_version", identity.abi_version as u64);
     out.push(',');
     push_json_number(out, "profile_version", identity.profile_version);
+    if let Some(profile_sha256) = identity.profile_sha256 {
+        out.push(',');
+        push_json_key(out, "profile_sha256");
+        push_hex_bytes(out, &profile_sha256);
+    }
     out.push(',');
     push_json_str(
         out,
@@ -621,6 +642,14 @@ fn push_trace_identity_json(out: &mut String, identity: &TraceIdentity, policy: 
         policy.support_verified(),
     );
     out.push('}');
+}
+
+fn push_hex_bytes(out: &mut String, bytes: &[u8]) {
+    out.push('"');
+    for byte in bytes {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out.push('"');
 }
 
 fn log_build_mode_name(mode: LogBuildMode) -> &'static str {
@@ -1261,7 +1290,7 @@ mod tests {
     }
 
     #[test]
-    fn replay_trace_identity_records_profile_version_without_unmasking_data() {
+    fn replay_trace_identity_records_profile_version_and_hash_without_unmasking_data() {
         let record = ReplayExchange::new(
             &[0x00, 0xb2, 0x01, 0x14, 0x00],
             &[
@@ -1272,7 +1301,7 @@ mod tests {
         )
         .unwrap();
         let script = ReplayScript::new(vec![record]).unwrap();
-        let identity = TraceIdentity::current(1, 42);
+        let identity = TraceIdentity::current_with_profile_sha256(1, 42, [0xab; 32]);
 
         let jsonl = script
             .masked_jsonl_with_trace_identity(LogPolicy::production(), &identity)
@@ -1282,6 +1311,9 @@ mod tests {
         assert!(jsonl.contains("\"kernel_name\":\"hyperion-emv\""));
         assert!(jsonl.contains("\"abi_version\":1"));
         assert!(jsonl.contains("\"profile_version\":42"));
+        assert!(jsonl.contains(
+            "\"profile_sha256\":\"abababababababababababababababababababababababababababababababab\""
+        ));
         assert!(jsonl.contains("\"log_build_mode\":\"production\""));
         assert!(jsonl.contains("\"support_authorization_verified\":false"));
         assert!(jsonl.contains("***********2345"));

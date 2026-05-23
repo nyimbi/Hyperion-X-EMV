@@ -306,6 +306,8 @@ out through callbacks for APDU transmission and unpredictable number supply.
 Important ABI principles:
 
 - `KRN_ABI_VERSION` identifies the ABI contract.
+- `krn_get_profile_version` and `krn_get_profile_sha256` let integrations bind
+  logs and certification-freeze evidence to the loaded signed profile artifact.
 - Callers provide explicit interface preference for contact or contactless.
 - Terminal-owned DOL values such as `9F33`, `9F40`, and `9F66` enter through
   typed setter functions after transaction parameters are set.
@@ -335,6 +337,9 @@ not in hardcoded scheme behavior. The certification profile scaffold covers:
 Production and certification loading reject example-only profiles,
 placeholder material, invalid schema, expired CAPKs, rollback/replay attempts,
 bad checksums, and inconsistent interface mappings.
+The loaded profile version and SHA-256 are also carried into trace identity
+records so masked logs can be reconciled against the exact submitted profile
+bundle without exposing profile contents.
 
 ## Testing Strategy
 
@@ -380,6 +385,8 @@ the repository before final certification claims:
 - Scheme/acquirer-approved AID, TAC/IAC, limit, CDA-control, and kernel
   profile bundle.
 - Full masked lab APDU trace pack.
+- Runtime trace identity tying ABI version, profile version, and profile
+  SHA-256 to the submitted artifact set.
 - 100% unit coverage report and full EMV integration report for the submitted
   binary/profile set.
 - Static analysis and fuzzing reports with accepted findings.

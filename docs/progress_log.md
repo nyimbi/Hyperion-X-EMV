@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T13:43:12Z
+
+- Increment completed: bind runtime profile identity to the exact signed
+  profile bytes loaded by the kernel.
+- Code impact: `krn_load_profiles_verified` now retains the loaded profile
+  SHA-256, `krn_get_profile_sha256` exposes it through the C ABI with
+  probeable-buffer semantics, and trace identity records can include both the
+  profile version and SHA-256.
+- Evidence impact: masked pre-lab APDU trace fixtures, RTM rows, lab manifest,
+  README guidance, and tutorials now document the profile hash as
+  certification-freeze reconciliation evidence.
+- Remaining external blockers: the hash identifies the loaded bytes only; lab
+  profile authority, signature acceptance, rollback policy acceptance, CAPK
+  provenance, and final approval evidence remain external gates.
+
 ## 2026-05-23T13:26:58Z
 
 - Increment completed: turn the public standards watch into a deterministic

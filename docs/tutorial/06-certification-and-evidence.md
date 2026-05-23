@@ -32,6 +32,8 @@ The repository can provide:
 - Quality-gate manifest.
 - No-crash smoke artifact.
 - Build provenance hashes.
+- Runtime trace identity for ABI version, profile version, and loaded profile
+  SHA-256.
 - Open issue tracking for missing external evidence.
 - A shared place for community review and test contributions.
 
@@ -172,6 +174,8 @@ The final trace pack should:
 - Include profile and ABI identity metadata.
 - Mask sensitive cardholder and cryptographic material.
 - Tie traces to the submitted build and profile hashes.
+- Reconcile Hyperion trace identity with the loaded profile SHA-256 reported by
+  the ABI.
 - Be accepted by the lab or scheme reviewer.
 
 ## Public Standards Watch
