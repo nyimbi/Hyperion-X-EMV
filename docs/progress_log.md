@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:42:51Z
+
+- Increment completed: add typed CVM Results parsing and pre-lab decode output.
+- Research note: tag `9F34` is a non-sensitive three-byte control object that
+  carries the applied CVM method, condition code, and result status into CDOL
+  construction and online handoff.
+- Code impact: `src/cvm.rs` now exposes `CvmResults` and `CvmResultStatus`,
+  and `krn_emv_decode cvm-results <hex>` reports the method, condition, result
+  status, raw byte shape, and runtime authority without exposing PIN or PED
+  handle material.
+- Evidence updated: `cvm::tests::parses_cvm_results_three_byte_object`,
+  `krn_emv_decode::tests::cvm_results_output_names_method_condition_and_result`,
+  and `krn_emv_decode::tests::cli_routes_cvm_results_mode` bind `9F34` triage
+  into CVM Results and TLV traceability.
+- Remaining external blockers: licensed CVM catalogue reconciliation and
+  lab-tool trace mapping remain required before treating CVM behavior as final
+  certification evidence.
+
 ## 2026-05-23T09:34:40Z
 
 - Increment completed: add masked host-response triage to `krn_emv_decode`.

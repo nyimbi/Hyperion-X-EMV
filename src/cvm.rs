@@ -266,6 +266,66 @@ pub struct OfflinePinVerifyOutcome {
     pub tvr_bit: Option<(usize, u8)>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CvmResultStatus {
+    Unknown,
+    Failed,
+    Successful,
+    Other(u8),
+}
+
+impl CvmResultStatus {
+    pub fn from_code(code: u8) -> Self {
+        match code {
+            0x00 => Self::Unknown,
+            0x01 => Self::Failed,
+            0x02 => Self::Successful,
+            other => Self::Other(other),
+        }
+    }
+
+    pub fn code(self) -> u8 {
+        match self {
+            Self::Unknown => 0x00,
+            Self::Failed => 0x01,
+            Self::Successful => 0x02,
+            Self::Other(code) => code,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CvmResults {
+    raw: [u8; 3],
+}
+
+impl CvmResults {
+    pub fn parse(raw: &[u8]) -> KernelResult<Self> {
+        let raw: [u8; 3] = raw.try_into().map_err(|_| KernelError::ParseError)?;
+        Ok(Self { raw })
+    }
+
+    pub fn new(raw: [u8; 3]) -> Self {
+        Self { raw }
+    }
+
+    pub fn raw(self) -> [u8; 3] {
+        self.raw
+    }
+
+    pub fn method(self) -> CvmMethod {
+        CvmMethod::from_code(self.raw[0])
+    }
+
+    pub fn condition_code(self) -> u8 {
+        self.raw[1]
+    }
+
+    pub fn result(self) -> CvmResultStatus {
+        CvmResultStatus::from_code(self.raw[2])
+    }
+}
+
 pub fn parse_cvm_list(input: &[u8]) -> KernelResult<CvmList> {
     if input.len() < CVM_LIST_AMOUNT_BYTES
         || (input.len() - CVM_LIST_AMOUNT_BYTES) % CVM_RULE_BYTES != 0
@@ -562,6 +622,26 @@ mod tests {
         let rule = list.rules[0];
         assert_eq!(rule.method, CvmMethod::OnlinePin);
         assert!(rule.continue_on_failure());
+    }
+
+    #[test]
+    fn parses_cvm_results_three_byte_object() {
+        let results = CvmResults::parse(&[0x42, 0x03, 0x02]).unwrap();
+
+        assert_eq!(results.raw(), [0x42, 0x03, 0x02]);
+        assert_eq!(results.method(), CvmMethod::OnlinePin);
+        assert_eq!(results.condition_code(), 0x03);
+        assert_eq!(results.result(), CvmResultStatus::Successful);
+        assert_eq!(results.result().code(), 0x02);
+
+        let other = CvmResults::new([0x07, 0x00, 0x7f]);
+        assert_eq!(other.method(), CvmMethod::Unknown(0x07));
+        assert_eq!(other.result(), CvmResultStatus::Other(0x7f));
+
+        assert_eq!(
+            CvmResults::parse(&[0x01, 0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]

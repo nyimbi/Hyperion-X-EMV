@@ -1,7 +1,7 @@
 use hyperion_emv::aip::ApplicationInterchangeProfile;
 use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::decode_hex;
-use hyperion_emv::cvm::{parse_cvm_list, CvmMethod};
+use hyperion_emv::cvm::{parse_cvm_list, CvmMethod, CvmResultStatus, CvmResults};
 use hyperion_emv::dol::parse_dol;
 use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::issuer::{parse_host_response, ScriptPhase};
@@ -39,6 +39,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "terminal-type" => decode_terminal_type(arg_hex(args, 1, "terminal-type")?),
         "aip" => decode_aip(arg_hex(args, 1, "aip")?),
         "cvm-list" => decode_cvm_list(arg_hex(args, 1, "cvm-list")?),
+        "cvm-results" => decode_cvm_results(arg_hex(args, 1, "cvm-results")?),
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
         "cid" => decode_cid(arg_hex(args, 1, "cid")?),
@@ -73,7 +74,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|cvm-list|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -221,6 +222,21 @@ fn decode_cvm_list(bytes: Vec<u8>) -> Result<String, String> {
             rule.method.requires_signature()
         );
     }
+    Ok(out)
+}
+
+fn decode_cvm_results(bytes: Vec<u8>) -> Result<String, String> {
+    let results = CvmResults::parse(&bytes)
+        .map_err(|err| format!("CVM Results parse failed: {}", err.name()))?;
+    let mut out = String::new();
+    let _ = writeln!(out, "type=cvm-results");
+    let _ = writeln!(out, "raw={}", hex_upper(&results.raw()));
+    let _ = writeln!(out, "method={}", cvm_method_name(results.method()));
+    let _ = writeln!(out, "condition=0x{:02X}", results.condition_code());
+    let _ = writeln!(out, "result={}", cvm_result_status_name(results.result()));
+    let _ = writeln!(out, "result_code=0x{:02X}", results.result().code());
+    let _ = writeln!(out, "authority=runtime-cvm-results-mapping");
+    let _ = writeln!(out, "value_policy=non-sensitive");
     Ok(out)
 }
 
@@ -665,6 +681,15 @@ fn cvm_method_name(method: CvmMethod) -> String {
     }
 }
 
+fn cvm_result_status_name(status: CvmResultStatus) -> String {
+    match status {
+        CvmResultStatus::Unknown => "unknown".to_string(),
+        CvmResultStatus::Failed => "failed".to_string(),
+        CvmResultStatus::Successful => "successful".to_string(),
+        CvmResultStatus::Other(code) => format!("other-0x{code:02X}"),
+    }
+}
+
 fn cryptogram_type_name(cryptogram_type: CryptogramType) -> &'static str {
     match cryptogram_type {
         CryptogramType::Aac => "aac",
@@ -1028,6 +1053,33 @@ mod tests {
     }
 
     #[test]
+    fn cvm_results_output_names_method_condition_and_result() {
+        let out = decode_cvm_results(decode_hex("420302").unwrap()).unwrap();
+
+        assert!(out.contains("type=cvm-results"));
+        assert!(out.contains("raw=420302"));
+        assert!(out.contains("method=online-pin"));
+        assert!(out.contains("condition=0x03"));
+        assert!(out.contains("result=successful"));
+        assert!(out.contains("result_code=0x02"));
+        assert!(out.contains("authority=runtime-cvm-results-mapping"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        let failed = decode_cvm_results(decode_hex("010001").unwrap()).unwrap();
+        assert!(failed.contains("method=offline-plaintext-pin"));
+        assert!(failed.contains("result=failed"));
+
+        let other = decode_cvm_results(decode_hex("07007F").unwrap()).unwrap();
+        assert!(other.contains("method=unknown-0x07"));
+        assert!(other.contains("result=other-0x7F"));
+
+        assert_eq!(
+            decode_cvm_results(vec![0x01, 0x00]).unwrap_err(),
+            "CVM Results parse failed: KRN_ERR_PARSE_ERROR"
+        );
+    }
+
+    #[test]
     fn bitmap_output_names_tvr_and_tsi_bits() {
         let tvr = decode_tvr(decode_hex("8000040040").unwrap()).unwrap();
         let tsi = decode_tsi(decode_hex("5000").unwrap()).unwrap();
@@ -1342,6 +1394,15 @@ mod tests {
 
         assert!(out.contains("type=aip"));
         assert!(out.contains("oda_required=true"));
+    }
+
+    #[test]
+    fn cli_routes_cvm_results_mode() {
+        let out = run(&[string_arg("cvm-results"), string_arg("1F0002")]).unwrap();
+
+        assert!(out.contains("type=cvm-results"));
+        assert!(out.contains("method=no-cvm-required"));
+        assert!(out.contains("result=successful"));
     }
 
     #[test]

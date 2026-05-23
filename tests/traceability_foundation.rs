@@ -1244,6 +1244,10 @@ fn rtm_promotes_cvm_pin_capability_evidence() {
             !cvm_results.contains("9F34 transaction data"),
             "KRN-CVMRES-001 should cite executable CVM Results evidence"
         );
+        assert!(cvm_results.contains("cvm::tests::parses_cvm_results_three_byte_object"));
+        assert!(cvm_results.contains(
+            "krn_emv_decode::tests::cvm_results_output_names_method_condition_and_result"
+        ));
         assert!(cvm_results
             .contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
         assert!(cvm_results.contains("offline_pin_verify_status_updates_cvm_results_and_tvr_bits"));
@@ -1497,6 +1501,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("numeric-code"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("terminal-type"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("AIP"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("CVM Results"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CID"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("GENERATE AC response"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("issuer host-response"));
@@ -2705,6 +2710,9 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         );
         assert!(catalogue.contains(
             "krn_emv_decode::tests::host_response_output_suppresses_issuer_authentication_and_scripts"
+        ));
+        assert!(catalogue.contains(
+            "krn_emv_decode::tests::cvm_results_output_names_method_condition_and_result"
         ));
 
         let scheme_defined = csv_row_for_requirement(csv, "KRN-TLV-005").unwrap();
