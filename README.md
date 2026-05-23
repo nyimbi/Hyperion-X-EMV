@@ -29,6 +29,38 @@ require recognized laboratory reports, signed profiles, scheme or acquirer
 authority, device evidence, PCI/PED evidence, or lab-supplied cryptographic
 vectors.
 
+## Open Certification And Testing Model
+
+Hyperion is MIT-licensed so fintech teams, terminal builders, acquirers,
+researchers, test labs, and independent reviewers can inspect the source,
+reproduce evidence, contribute test cases, and harden the kernel together. The
+goal is a robust shared foundation for new payment products rather than a
+closed implementation that each company must rediscover from scratch.
+
+Crowdsourced review can improve parser coverage, trace replay, no-crash
+corpora, profile validation, documentation, integration harnesses, and pre-lab
+test evidence. It does not replace formal EMVCo, scheme, acquirer, PCI PTS,
+device, or lab approval. External standards, scheme rules, CAPKs, lab vectors,
+test-tool outputs, and signed approval artifacts retain their own authority and
+licensing terms.
+
+## Language Choices
+
+Rust is the kernel implementation language because the Level 2 core needs
+memory safety without garbage collection, deterministic resource use, explicit
+error handling, strong typing for EMV data objects, and stable `staticlib` /
+`cdylib` outputs for terminal integration. Those properties fit a payment
+kernel that must keep PAN, cryptograms, PIN handles, issuer scripts, and
+profile data inside narrow ownership boundaries while still running on
+resource-constrained or vendor-controlled terminal platforms.
+
+Python is the development automation language, not the certification runtime
+kernel. It is reserved for scripts and tooling where fast iteration matters:
+lab-artifact preparation, report shaping, trace analysis, corpus triage,
+fixture conversion, CI glue, and reviewer utilities. Python-generated outputs
+must be reproducible, checked, and treated as tooling evidence around the Rust
+kernel rather than as a substitute for reviewed kernel behavior.
+
 ## Scope
 
 In scope for this kernel:
@@ -331,6 +363,10 @@ engineering baseline pending licensed review and laboratory evidence.
 
 ## License
 
-`Cargo.toml` declares this project as proprietary. Do not assume permission to
-redistribute source, binaries, profiles, CAPKs, vectors, or lab materials
-without explicit authorization.
+Repository source code and documentation are distributed under the MIT License.
+See `LICENSE`.
+
+This license does not relicense third-party standards, scheme materials,
+accepted CAPKs, lab vectors, test-tool outputs, signed profiles, device
+evidence, PCI/PED evidence, or approval artifacts. Those inputs remain governed
+by their own owners, labs, schemes, contracts, and regulatory obligations.

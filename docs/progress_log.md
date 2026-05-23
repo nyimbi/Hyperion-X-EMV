@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:54:30Z
+
+- Increment completed: switch repository source licensing from proprietary to
+  MIT and document the open certification/testing collaboration model.
+- Documentation impact: `README.md` now explains why Hyperion uses Rust for the
+  Level 2 kernel core and Python for development automation, while separating
+  crowdsourced review and test contributions from formal EMVCo, scheme,
+  acquirer, PCI PTS, device, and lab approval.
+- Manifest impact: `docs/lab_submission_manifest.md` now marks repository
+  source as MIT-licensed while preserving the external authority of standards,
+  scheme materials, CAPKs, lab vectors, test-tool outputs, signed profiles,
+  device evidence, PCI/PED evidence, and approval artifacts.
+- Remaining external blockers: the MIT license improves reviewability and
+  adoption for fintech builders, but it does not close any certification,
+  approval, or third-party material licensing requirement.
+
 ## 2026-05-23T11:50:27Z
 
 - Increment completed: add a comprehensive repository README for onboarding,

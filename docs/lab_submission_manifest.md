@@ -32,7 +32,7 @@
 - [x] Pre-lab decoder utility (`krn_emv_decode`) – controlled TLV, DOL, primitive tag-list, numeric-code, fixed numeric amount, Track 2 shape, EMV date, currency exponent, transaction type, terminal-type, Terminal Capabilities, Additional Terminal Capabilities, Terminal Transaction Qualifiers, AIP, Application Usage Control, CVM-list, CVM Results, TVR, TSI, CID, GENERATE AC response, issuer host-response, SW1/SW2, short command APDU, and response APDU envelope decoder with default payload suppression and TLV-catalogue-backed tag metadata for lab-trace triage; not a substitute for full lab trace-pack evidence
 - [x] C ABI APDU script adapter (`krn_cabi_script_adapter`) – deterministic request/response harness around `KrnRuntime` callbacks for pre-lab integration smoke tests; PC/SC, mobile NFC, and device drivers remain outside the kernel core
 - [x] Reproducible build provenance – `cargo run --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/...` emits canonical JSON with controlled relative artifact names and SHA-256 for every kernel source module, the manifest tool, profile dictionary generator, decoder utility, C ABI script adapter, lockfile, open-source reference review, and controlled annexes
-- [x] Source code (under NDA)
+- [x] Source code (MIT-licensed repository source; third-party standards, scheme materials, CAPKs, lab vectors, test-tool outputs, signed profiles, device evidence, PCI/PED evidence, and approval artifacts remain governed by their own authorities)
 - [ ] Unit test report (≥95% coverage) – [to be attached]
 - [ ] Integration test report (100% of EMV test plan) – [to be attached]
 - [ ] Static analysis report (accepted for the Rust/product submission context) – [to be attached]
