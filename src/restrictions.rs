@@ -13,7 +13,8 @@ impl EmvDate {
         let max_day = match month {
             1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
             4 | 6 | 9 | 11 => 30,
-            2 => 29,
+            2 if is_leap_year_20yy(year) => 29,
+            2 => 28,
             _ => return Err(KernelError::ParseError),
         };
         if day == 0 || day > max_day {
@@ -28,6 +29,10 @@ impl EmvDate {
         let day = bcd(bytes[2])?;
         Self::new(year, month, day)
     }
+}
+
+fn is_leap_year_20yy(year: u8) -> bool {
+    year % 4 == 0
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -276,6 +281,26 @@ mod tests {
         assert_eq!(
             EmvDate::from_bcd([0x26, 0x02, 0x30]).unwrap_err(),
             KernelError::ParseError
+        );
+        assert_eq!(
+            EmvDate::from_bcd([0x26, 0x02, 0x29]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            EmvDate::from_bcd([0x24, 0x02, 0x29]).unwrap(),
+            EmvDate {
+                year: 24,
+                month: 2,
+                day: 29
+            }
+        );
+        assert_eq!(
+            EmvDate::from_bcd([0x00, 0x02, 0x29]).unwrap(),
+            EmvDate {
+                year: 0,
+                month: 2,
+                day: 29
+            }
         );
         assert_eq!(
             EmvDate::from_bcd([0x26, 0x04, 0x31]).unwrap_err(),

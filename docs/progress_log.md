@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:04:22Z
+
+- Increment completed: tighten EMV/ISO date validation so February 29 is accepted
+  only for the repository's current `20YY` leap-year cadence.
+- Research note: processing restrictions depend on YYMMDD transaction,
+  application-effective, and application-expiration dates, while certification
+  profile provenance uses `20YY-MM-DD`; calendar-invalid dates must fail during
+  parsing rather than silently flowing into expiration, effective-date, CAPK,
+  or provenance decisions.
+- Code impact: `EmvDate::new` now applies leap-year-aware February bounds, and
+  the certification profile loader inherits the stricter date parser for CAPK
+  expiry/provenance fields.
+- Evidence updated:
+  `restrictions::tests::parses_valid_bcd_dates_and_rejects_invalid_values`
+  now covers invalid non-leap February 29 and valid leap-year February 29, and
+  `config::tests::rejects_invalid_capk_expiry_calendar_dates` covers
+  non-leap-year CAPK expiry rejection.
+- Remaining external blockers: licensed EMV/scheme and lab traces still govern
+  exact card-date interpretation and acceptance windows for submitted profiles.
+
 ## 2026-05-23T09:57:23Z
 
 - Increment completed: add typed Application Usage Control (`9F07`) parsing and

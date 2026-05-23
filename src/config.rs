@@ -2605,6 +2605,7 @@ mod tests {
     fn rejects_invalid_capk_expiry_calendar_dates() {
         let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
         for expiry in [
+            "2030-02-29",
             "2030-02-30",
             "2030-04-31",
             "2030-00-15",
