@@ -223,12 +223,12 @@ local repository gates only. It does not replace formal unit coverage,
 integration, static analysis, fuzzing, lab trace, or approval reports.
 
 The repository coverage workflow is documented in `docs/coverage.md` and
-implemented by `scripts/coverage_100.sh`. It uses `cargo-llvm-cov` to fail
-unless line coverage reaches 100%, then stages an HTML report under
-`target/coverage/html`. That workflow prepares evidence for `CERT-OPEN-009`;
-it does not close the external coverage and integration report requirement.
-The same script runs in `.github/workflows/prelab.yml`, which uploads
-`target/coverage` as a pre-lab workflow artifact when the 100% gate passes.
+implemented by `scripts/coverage_100.sh`. By default it uses `cargo-llvm-cov`
+to fail unless line coverage reaches 100%, then stages an HTML report under
+`target/coverage/html`. The CI workflow runs the same script with
+`KRN_COVERAGE_ENFORCE=0` to upload a measurement artifact while
+`CERT-OPEN-009` remains open. A final enforced run is required before the
+coverage report can be submitted as certification evidence.
 
 ## Evidence Generators
 

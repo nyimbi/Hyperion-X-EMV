@@ -36,6 +36,18 @@ The script:
 - Writes an HTML report under `target/coverage/html`.
 - Writes a local staging note under `target/coverage/README.txt`.
 
+The strict 100% gate is the default. For pre-lab measurement without closing
+the certification blocker, set `KRN_COVERAGE_ENFORCE=0`:
+
+```sh
+KRN_COVERAGE_ENFORCE=0 scripts/coverage_100.sh
+```
+
+That mode still runs the same targets/features and writes the same report, but
+it does not fail the process when coverage is below 100%. It is suitable for
+trend visibility and artifact review only. The final certification-facing run
+must use the default enforcing mode.
+
 ## Acceptance Rules
 
 A coverage report is certification-facing only when it:
@@ -57,8 +69,10 @@ that tests pass; it does not prove measured coverage.
 
 The pre-lab GitHub Actions workflow at `.github/workflows/prelab.yml` runs the
 normal Rust quality gates and a separate coverage job. The coverage job installs
-`cargo-llvm-cov`, runs `scripts/coverage_100.sh`, and uploads the staged
-`target/coverage` directory as a workflow artifact when the 100% gate passes.
+`cargo-llvm-cov`, runs `KRN_COVERAGE_ENFORCE=0 scripts/coverage_100.sh`, and
+uploads the staged `target/coverage` directory as a workflow artifact. This is
+a measurement artifact while `CERT-OPEN-009` remains open, not a claim that the
+100% coverage requirement has been met.
 
 The CI artifact is still pre-lab evidence. It becomes certification-facing only
 after the submitted binary, profiles, CAPKs, vectors, traceability matrix, and

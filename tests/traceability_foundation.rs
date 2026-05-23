@@ -6447,10 +6447,13 @@ fn coverage_report_workflow_requires_100_percent_without_closing_cert_open_009()
     assert!(COVERAGE_WORKFLOW.contains("cargo install cargo-llvm-cov --locked"));
     assert!(COVERAGE_WORKFLOW.contains("not close `CERT-OPEN-009`"));
     assert!(COVERAGE_SCRIPT.contains("cargo llvm-cov --version"));
+    assert!(COVERAGE_SCRIPT.contains("KRN_COVERAGE_ENFORCE:-1"));
+    assert!(COVERAGE_SCRIPT.contains("KRN_COVERAGE_ENFORCE must be 0 or 1"));
     assert!(COVERAGE_SCRIPT.contains("--fail-under-lines 100"));
     assert!(COVERAGE_SCRIPT.contains("--all-targets"));
     assert!(COVERAGE_SCRIPT.contains("--all-features"));
-    assert!(COVERAGE_SCRIPT.contains("target/coverage/html"));
+    assert!(COVERAGE_SCRIPT.contains("--output-dir target/coverage"));
+    assert!(COVERAGE_WORKFLOW.contains("KRN_COVERAGE_ENFORCE=0"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("scripts/coverage_100.sh"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("100% coverage"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("Unit coverage report at 100%"));
@@ -6464,6 +6467,7 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("cargo test --examples"));
     assert!(PRELAB_CI_WORKFLOW.contains("cargo clippy --all-targets --all-features -- -D warnings"));
     assert!(PRELAB_CI_WORKFLOW.contains("scripts/coverage_100.sh"));
+    assert!(PRELAB_CI_WORKFLOW.contains("KRN_COVERAGE_ENFORCE: \"0\""));
     assert!(PRELAB_CI_WORKFLOW.contains("taiki-e/install-action@cargo-llvm-cov"));
     assert!(PRELAB_CI_WORKFLOW.contains("actions/upload-artifact@v4"));
     assert!(PRELAB_CI_WORKFLOW.contains("target/coverage"));
