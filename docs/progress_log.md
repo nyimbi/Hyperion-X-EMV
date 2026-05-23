@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T07:43:14Z
+
+- Increment completed: reject ambiguous profile ISO date prefixes.
+- Code impact: signed certification profile dates now require a `20YY-MM-DD`
+  shape before conversion into the EMV two-digit date model. Non-numeric or
+  unsupported century prefixes can no longer alias to an accepted CAPK expiry or
+  provenance retrieval date.
+- Evidence updated:
+  `config::tests::preserves_and_validates_profile_source_retrieval_dates` covers
+  ambiguous retrieval-date prefixes, and
+  `config::tests::rejects_invalid_capk_expiry_calendar_dates` covers ambiguous
+  CAPK expiry prefixes.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-23T00:12:13Z
 
 - Increment completed: require retrieval dates for signed certification

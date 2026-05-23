@@ -210,9 +210,10 @@ SE,any,–,S0,Reset after error,KRN_OK
 The executable certification profile is `docs/scheme_profiles.cert.json`.
 It SHALL be valid JSON, declare `schema_version = "1.0"` and
 `profile_class = "CERTIFICATION"`, carry nonblank signed-profile provenance,
-require valid ISO provenance retrieval dates for profile and CAPK sources, and
-include complete AID, TAC/IAC, limit, CDA-control, issuer-script, CAPK,
-checksum, expiry, and CAPK-source fields for each bundled scheme profile.
+require valid ISO `20YY-MM-DD` provenance retrieval dates for profile and CAPK
+sources, require CAPK expiry dates in the same shape, and include complete AID,
+TAC/IAC, limit, CDA-control, issuer-script, CAPK, checksum, expiry, and
+CAPK-source fields for each bundled scheme profile.
 Certification/pre-lab builds MAY carry fixture-pending material-status markers
 for controlled engineering evidence, but production policy SHALL reject those
 markers and require `lab_signed_certification_profile` and `lab_signed_capks`.

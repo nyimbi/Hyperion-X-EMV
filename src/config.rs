@@ -995,7 +995,12 @@ fn parse_action(input: &str) -> KernelResult<TerminalAction> {
 
 fn parse_iso_date(input: &str) -> KernelResult<EmvDate> {
     let bytes = input.as_bytes();
-    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+    if bytes.len() != 10
+        || bytes[0] != b'2'
+        || bytes[1] != b'0'
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+    {
         return Err(KernelError::ParseError);
     }
     let year = decimal_pair(bytes[2], bytes[3])?;
@@ -2423,6 +2428,23 @@ mod tests {
             KernelError::ParseError
         );
 
+        for retrieved in ["xx26-05-21", "1926-05-21"] {
+            let ambiguous_retrieved = profile.replacen(
+                r#""retrieved": "2026-05-21""#,
+                &format!(r#""retrieved": "{retrieved}""#),
+                1,
+            );
+            assert_eq!(
+                load_profile_set(
+                    ambiguous_retrieved.as_bytes(),
+                    &policy(SignatureStatus::Verified)
+                )
+                .unwrap_err(),
+                KernelError::ParseError,
+                "expected ambiguous retrieved date {retrieved} to be rejected"
+            );
+        }
+
         let future_profile_retrieved = profile.replacen(
             r#""retrieved": "2026-05-21""#,
             r#""retrieved": "2026-05-22""#,
@@ -2549,7 +2571,14 @@ mod tests {
     #[test]
     fn rejects_invalid_capk_expiry_calendar_dates() {
         let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
-        for expiry in ["2030-02-30", "2030-04-31", "2030-00-15", "2030-13-01"] {
+        for expiry in [
+            "2030-02-30",
+            "2030-04-31",
+            "2030-00-15",
+            "2030-13-01",
+            "xx30-12-31",
+            "1930-12-31",
+        ] {
             let invalid_date = profile.replace(
                 r#""expiry": "2030-12-31""#,
                 &format!(r#""expiry": "{expiry}""#),
