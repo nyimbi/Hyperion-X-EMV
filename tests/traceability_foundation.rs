@@ -1984,9 +1984,11 @@ fn certification_open_issues_register_tracks_external_blockers() {
         "PCI PTS POI integration statement",
         "Penetration test report",
         "Unit coverage report",
+        "Level 3/acquirer bulletin reconciliation",
         "Static-analysis report",
         "Signed EMVCo/lab conformance statement template",
         "Masked APDU traces",
+        "Level 3/acquirer trace expectations",
     ] {
         assert!(
             CERTIFICATION_OPEN_ISSUES.contains(blocker),
@@ -2031,7 +2033,8 @@ fn certification_open_issues_register_tracks_external_blockers() {
     assert!(STANDARDS_WATCH.contains("watch-list inputs"));
     assert!(STANDARDS_WATCH.contains("2026-05-21"));
     assert!(STANDARDS_WATCH.contains("2026-05-22"));
-    assert!(STANDARDS_WATCH.contains("not as direct Hyperion code changes"));
+    assert!(STANDARDS_WATCH.contains("not as direct"));
+    assert!(STANDARDS_WATCH.contains("Hyperion code changes"));
     assert!(STANDARDS_WATCH.contains("Public Approval-Process Check"));
     assert!(STANDARDS_WATCH.contains("approval can be pursued as one element"));
     assert!(STANDARDS_WATCH.contains("full contactless acceptance"));
@@ -6863,24 +6866,30 @@ fn public_standards_watch_is_reproducible_and_scoped() {
     ));
     for required in [
         "CERT-OPEN-001",
+        "CERT-OPEN-009",
         "CERT-OPEN-005",
         "CERT-OPEN-006",
         "CERT-OPEN-007",
         "CERT-OPEN-011",
+        "CERT-OPEN-012",
         "EMVCO-SPECIFICATIONS",
         "EMVCO-CONTACTLESS-PRODUCT-APPROVAL",
         "EMVCO-CONTACT-KERNEL-APPROVAL",
+        "EMVCO-L3-BULLETINS",
         "EMVCO-CONTACTLESS-KERNEL-TESTING",
         "PCI-PTS-POI",
         "PCI-APPROVED-PTS-DEVICES",
         "C8-V1-1-SB325",
         "CONTACTLESS-SUITE-MAY-2026",
+        "L3-TB321-REPORTING-WATCH",
+        "Level 3 integration reports and trace evidence",
         "KERNEL-TESTING-LOA",
         "PCI-APPROVED-DEVICE-LISTING",
         "https://www.emvco.com/specifications/",
+        "https://www.emvco.com/specifications/page/2/",
         "https://www.pcisecuritystandards.org/standards/pts-point-of-interaction-poi/",
         "public listings are watch inputs, not implementation authority",
-        "do not close contactless, device, PCI/PED, or signed-conformance open issues",
+        "do not close contactless, Level 3, device, PCI/PED, trace-pack, or signed-conformance open issues",
     ] {
         assert!(
             PUBLIC_STANDARDS_WATCH.contains(required),
@@ -6889,8 +6898,10 @@ fn public_standards_watch_is_reproducible_and_scoped() {
     }
     assert!(STANDARDS_WATCH.contains("docs/public_standards_watch.json"));
     assert!(STANDARDS_WATCH.contains("drift-control artifact only"));
+    assert!(STANDARDS_WATCH.contains("Level 3"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("public_standards_watch.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_public_standards_watch"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Level 3 technical-bulletin watch inputs"));
 }
 
 #[test]

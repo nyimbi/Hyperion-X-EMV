@@ -5170,7 +5170,7 @@ decision record, while this file tracks work toward certification readiness.
 
 ## 2026-05-23T22:39:47Z
 
-- Increment in progress: make issuer script result evidence auditable enough
+- Increment completed: make issuer script result evidence auditable enough
   for Level 3 correlation without exposing issuer script command bytes.
 - Code impact: the C ABI now exposes phase-local script and command indexes
   plus optional `9F18` issuer script identifiers alongside the existing
@@ -5185,5 +5185,28 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test rtm_promotes_issuer_script_evidence`,
   `cargo test krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded`,
   `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `git diff --check` passed.
+
+## 2026-05-23T22:50:08Z
+
+- Increment completed: keep public standards-watch evidence aligned with
+  report-production and trace-pack certification gates.
+- Research note: public EMVCo/PCI sources were rechecked before this slice. The
+  repository already tracks C-8/contactless and PCI PTS/PED signals; the
+  remaining gap was Level 3 bulletin visibility for integration-report and
+  trace-pack reconciliation.
+- Evidence updated: `public_standards_watch_json` now includes an EMVCo Level
+  3 bulletin source and `L3-TB321-REPORTING-WATCH` signal, while preserving
+  non-closure for `CERT-OPEN-009` and `CERT-OPEN-012`. The open-issues
+  register, lab submission manifest, standards-watch prose, generated JSON, and
+  traceability tests now require Level 3/acquirer reconciliation notes where the
+  accepted test plan selects them.
+- Verification: `cargo fmt --check`,
+  `cargo test public_standards_watch_is_reproducible_and_scoped`,
+  `cargo test certification_open_issues_register_tracks_external_blockers`,
+  `cargo test lab_manifest_and_provenance_cover_reproducible_build_artifacts`,
+  `cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -`,
+  `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features -- -D warnings`, and
   `git diff --check` passed.

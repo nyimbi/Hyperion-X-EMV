@@ -44,14 +44,21 @@ external certification blocker.
   These items are watch-list inputs for profile selection, contact/contactless
   scope control, and lab reconciliation. They do not authorize Hyperion to infer
   unlicensed TRMD, C-4, or contact-feature behavior.
+- Public Level 3 signal to keep in the report-production lane: EMVCo public
+  materials list EMV Level 3 Technical Bulletin 321 with an April 2026
+  comment-period signal. This is not L2 kernel implementation authority, but it
+  is a current watch input for full EMV integration reports, acquirer/Level 3
+  reconciliation notes, and APDU trace-pack acceptance criteria where the
+  accepted test plan selects it.
 - Repository action: keep C-8 v1.0 as the current engineering target until
   licensed review, scheme profile data, lab test package selection, and target
   device evidence confirm whether the submission target must move to v1.1 or
   incorporate SB 325 behavior. Treat SB 326, SB 327, and DSB 331 as
   contactless-suite reconciliation inputs, and treat SB 314, DSB 324, and
-  DSB 308 as adjacent watch-list inputs, not as direct Hyperion code changes,
-  unless the licensed profile/lab package selects their behavior for the
-  submitted binary.
+  DSB 308 as adjacent watch-list inputs, and treat Level 3 bulletins as
+  external integration-report/trace-pack reconciliation inputs, not as direct
+  Hyperion code changes, unless the licensed profile/lab/acquirer package
+  selects their behavior for the submitted binary.
 
 ## 2026-05-22 Public Approval-Process Check
 
@@ -128,3 +135,8 @@ acquirer package includes:
   controls; and
 - any acquirer or scheme acceptance notes tying the approved device/PED boundary
   to the submitted Hyperion binary and profile set.
+
+Do not close `CERT-OPEN-009` or `CERT-OPEN-012` from the public Level 3 watch
+alone. The submission package still needs the accepted Level 3/acquirer
+bulletin reconciliation notes, full EMV integration report, and masked APDU
+trace pack selected by the lab, acquirer, and test-tool package.

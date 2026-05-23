@@ -333,6 +333,13 @@ const PUBLIC_STANDARDS_SOURCES: &[PublicStandardsSource] = &[
         observation: "public process material frames contact kernel approval as kernel compliance attestation against EMV specifications",
     },
     PublicStandardsSource {
+        id: "EMVCO-L3-BULLETINS",
+        authority: "EMVCo",
+        title: "EMV Level 3 Technical Bulletins",
+        public_url: "https://www.emvco.com/specifications/page/2/",
+        observation: "public listings include Level 3 technical bulletin signals that affect integration-report and trace-pack reconciliation",
+    },
+    PublicStandardsSource {
         id: "EMVCO-CONTACTLESS-KERNEL-TESTING",
         authority: "EMVCo",
         title: "Contactless Kernel Testing Process",
@@ -387,6 +394,14 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         source_id: "EMVCO-CONTACTLESS-KERNEL-TESTING",
         public_signal: "public announcement describes accredited laboratory testing, qualified tools, test-plan execution, and Letter of Approval issuance",
         repository_action: "keep ABI JSON and pre-lab traces scoped as internal evidence until the signed EMVCo/lab conformance template and LoA-equivalent artifact are attached",
+    },
+    PublicStandardsSignal {
+        id: "L3-TB321-REPORTING-WATCH",
+        area: "Level 3 integration reports and trace evidence",
+        open_issue: "CERT-OPEN-009",
+        source_id: "EMVCO-L3-BULLETINS",
+        public_signal: "public listings include EMV Level 3 Technical Bulletin No. 321 with an April 2026 comment-period signal",
+        repository_action: "treat Level 3 bulletins as external integration-report and APDU trace-pack reconciliation inputs; do not infer L3 host or acquirer behavior into the L2 kernel without the licensed/acquirer package selecting it",
     },
     PublicStandardsSignal {
         id: "PCI-PTS-POI-V7",
@@ -600,10 +615,12 @@ pub fn public_standards_watch_json() -> String {
     out.push_str(",\"does_not_close\":[");
     for (idx, open_issue) in [
         "CERT-OPEN-001",
+        "CERT-OPEN-009",
         "CERT-OPEN-005",
         "CERT-OPEN-006",
         "CERT-OPEN-007",
         "CERT-OPEN-011",
+        "CERT-OPEN-012",
     ]
     .iter()
     .enumerate()
@@ -653,7 +670,7 @@ pub fn public_standards_watch_json() -> String {
     for (idx, rule) in [
         "public listings are watch inputs, not implementation authority",
         "licensed EMVCo, scheme, acquirer, PCI, device, and laboratory documents prevail on conflict",
-        "do not close contactless, device, PCI/PED, or signed-conformance open issues from this artifact alone",
+        "do not close contactless, Level 3, device, PCI/PED, trace-pack, or signed-conformance open issues from this artifact alone",
         "every final certification claim must name the accepted specification version, bulletin set, test-tool package, profile bundle, device evidence, and approval artifact",
     ]
     .iter()
