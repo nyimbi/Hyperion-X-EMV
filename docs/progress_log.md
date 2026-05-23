@@ -4,6 +4,31 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:39:21Z
+
+- Increment completed: harden the formal log policy so production mode suppresses
+  Track 2 debug hashes even if a caller manually constructs a policy with
+  support authorization and debug-hash flags enabled.
+- Research note: `KRN-LOG-001` and `KRN-LOG-003` require production logging and
+  crash/debug surfaces to exclude cardholder data. The existing policy already
+  blocked full APDU logging and transaction cryptograms in production; this
+  closes the equivalent Track 2 diagnostic-hash gate.
+- Code impact: `LogPolicy::allows_track2_hash` now requires non-production mode,
+  matching the other sensitive diagnostic gates.
+- Evidence updated:
+  `trace::tests::production_policy_never_emits_track2_debug_hash_even_if_misconfigured`
+  and both RTM CSVs now reference that regression under formal log policy and
+  crash-safety requirements.
+- Verification: focused Track 2 masking, full-APDU misconfiguration, and logging
+  RTM tests; `cargo fmt --check`; `git diff --check`; `cargo test`; `cargo
+  test --examples`; `cargo clippy --all-targets --all-features -- -D warnings`;
+  and deterministic artifact drift checks for the ABI conformance statement,
+  trace pack, scheme profile dictionary, quality gates, and no-crash smoke
+  artifact.
+- Remaining external blockers: production logging policy still needs independent
+  certification/security review and device integration evidence outside this
+  repository.
+
 ## 2026-05-23T10:31:40Z
 
 - Increment completed: expand the deterministic pre-lab no-crash smoke artifact

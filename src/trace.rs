@@ -74,7 +74,9 @@ impl LogPolicy {
     }
 
     fn allows_track2_hash(self) -> bool {
-        self.track2_debug_hash && self.support_verified()
+        self.track2_debug_hash
+            && self.support_verified()
+            && self.build_mode != LogBuildMode::Production
     }
 }
 
@@ -851,6 +853,38 @@ mod tests {
             support.value,
             MaskedValue::DebugHash { len: 14, .. }
         ));
+    }
+
+    #[test]
+    fn production_policy_never_emits_track2_debug_hash_even_if_misconfigured() {
+        let raw = [
+            0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45, 0x67, 0x8f,
+        ];
+        let misconfigured = LogPolicy {
+            build_mode: LogBuildMode::Production,
+            support_authorization: SupportAuthorization::Verified,
+            full_apdu: true,
+            track2_debug_hash: true,
+            transaction_cryptograms: true,
+        };
+
+        let field = mask_tlv_value(&[0x57], &raw, misconfigured);
+        let mut response = vec![0x57, raw.len() as u8];
+        response.extend_from_slice(&raw);
+        let event = mask_apdu_response(
+            2,
+            ApduTraceContext::Generic,
+            &response,
+            [0x90, 0x00],
+            misconfigured,
+        )
+        .unwrap();
+        let json = event.to_json();
+
+        assert_eq!(field.value, MaskedValue::Suppressed("track2"));
+        assert!(json.contains("\"reason\":\"track2\""));
+        assert!(!json.contains("debug-hash"));
+        assert!(!json.contains("hash64"));
     }
 
     #[test]
