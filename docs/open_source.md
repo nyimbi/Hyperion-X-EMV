@@ -335,10 +335,11 @@ The following are adaptation candidates, ordered by near-term value:
 
 1. Maintain and extend the `krn_emv_decode` example so lab-trace triage stays
    parser-backed, masked by default, and covers operator-facing TLV, DOL, CVM,
-   primitive tag-list, numeric-code, fixed numeric amount, EMV date,
-   terminal-type, AIP, Application Usage Control, CVM Results, bitmap, CID,
-   GENERATE AC response, issuer host-response, status-word, short command
-   APDU, and response APDU envelope decodes before formal test-tool execution;
+   primitive tag-list, numeric-code, fixed numeric amount, EMV date, currency
+   exponent, transaction type, terminal-type, AIP, Application Usage Control,
+   CVM Results, bitmap, CID, GENERATE AC response, issuer host-response,
+   status-word, short command APDU, and response APDU envelope decodes before
+   formal test-tool execution;
    keep tag names and
    sensitive-data classifications backed by
    `docs/tlv_catalogue.csv`.

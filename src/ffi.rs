@@ -50,6 +50,7 @@ use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use crate::taa::{decide as decide_taa, ActionCodes, TaaInput, TerminalAction};
 use crate::terminal::terminal_type_online_capable;
 use crate::trace::{mask_apdu_command, mask_apdu_response, ApduTraceContext, LogPolicy};
+use crate::transaction::{CurrencyExponent, CvmTransactionClass, RuntimeService, TransactionType};
 use crate::trm::{evaluate as evaluate_trm, OfflineCounter, TrmInput};
 use core::mem;
 use core::ptr;
@@ -1518,9 +1519,7 @@ unsafe fn read_transaction_params(
     ) {
         return Err(KernelError::InvalidArgument);
     }
-    if params.currency_exponent > 9 {
-        return Err(KernelError::InvalidArgument);
-    }
+    CurrencyExponent::from_value(params.currency_exponent)?;
     validate_three_digit_numeric_code(params.currency_code)?;
     validate_three_digit_numeric_code(params.terminal_country_code)?;
     terminal_type_online_capable(params.terminal_type)?;
@@ -2186,23 +2185,22 @@ fn fixed_numeric_bcd<const N: usize>(value: u64) -> Result<[u8; N], KernelError>
 }
 
 fn service_type(params: &StoredTxnParams) -> ServiceType {
-    match params.transaction_type {
-        0x01 => ServiceType::Cash,
-        0x09 | 0x17 => ServiceType::Cashback,
+    match TransactionType::from_value(params.transaction_type).runtime_service() {
+        RuntimeService::Cash => ServiceType::Cash,
+        RuntimeService::Cashback => ServiceType::Cashback,
         _ if matches!(params.terminal_type, 0x14 | 0x24) => ServiceType::Atm,
-        _ => ServiceType::Goods,
+        RuntimeService::GoodsOrServices => ServiceType::Goods,
     }
 }
 
 fn cvm_transaction_type(params: &StoredTxnParams) -> CvmTransactionType {
-    if matches!(params.terminal_type, 0x14 | 0x24) {
-        return CvmTransactionType::UnattendedCash;
-    }
-
-    match params.transaction_type {
-        0x01 => CvmTransactionType::ManualCash,
-        0x09 | 0x17 => CvmTransactionType::PurchaseWithCashback,
-        _ => CvmTransactionType::NonCash,
+    match TransactionType::from_value(params.transaction_type)
+        .cvm_transaction_class(matches!(params.terminal_type, 0x14 | 0x24))
+    {
+        CvmTransactionClass::UnattendedCash => CvmTransactionType::UnattendedCash,
+        CvmTransactionClass::ManualCash => CvmTransactionType::ManualCash,
+        CvmTransactionClass::PurchaseWithCashback => CvmTransactionType::PurchaseWithCashback,
+        CvmTransactionClass::NonCash => CvmTransactionType::NonCash,
     }
 }
 

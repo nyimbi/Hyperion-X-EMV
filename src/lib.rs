@@ -34,6 +34,7 @@ pub mod taa;
 pub mod terminal;
 pub mod tlv;
 pub mod trace;
+pub mod transaction;
 pub mod trm;
 
 pub use error::{KernelError, KernelResult};

@@ -12,6 +12,7 @@ use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::terminal::TerminalType;
 use hyperion_emv::tlv;
 use hyperion_emv::trace::{mask_apdu_response, ApduTraceContext, LogPolicy, MaskedValue};
+use hyperion_emv::transaction::{CurrencyExponent, TransactionType};
 use std::fmt::Write;
 use std::process;
 
@@ -44,6 +45,8 @@ fn run(args: &[String]) -> Result<String, String> {
         | "transaction-date"
         | "application-expiration-date"
         | "application-effective-date" => decode_date(arg_hex(args, 1, mode)?),
+        "currency-exponent" => decode_currency_exponent(arg_hex(args, 1, "currency-exponent")?),
+        "transaction-type" => decode_transaction_type(arg_hex(args, 1, "transaction-type")?),
         "terminal-type" => decode_terminal_type(arg_hex(args, 1, "terminal-type")?),
         "aip" => decode_aip(arg_hex(args, 1, "aip")?),
         "auc" | "application-usage-control" => {
@@ -85,7 +88,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|date|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|date|currency-exponent|transaction-type|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -250,6 +253,53 @@ fn decode_date(bytes: Vec<u8>) -> Result<String, String> {
     );
     let _ = writeln!(out, "field_shape=three-byte-YYMMDD-bcd");
     let _ = writeln!(out, "authority=runtime-processing-restrictions-date-parser");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_currency_exponent(bytes: Vec<u8>) -> Result<String, String> {
+    let raw: [u8; 1] = bytes
+        .try_into()
+        .map_err(|_| "currency-exponent must be exactly 1 byte".to_string())?;
+    let exponent = CurrencyExponent::parse(&raw)
+        .map_err(|err| format!("currency-exponent parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=currency-exponent");
+    let _ = writeln!(out, "raw=0x{:02X}", raw[0]);
+    let _ = writeln!(out, "exponent={}", exponent.value());
+    let _ = writeln!(out, "amount_scale=10^-{}", exponent.value());
+    let _ = writeln!(out, "authority=runtime-transaction-parameter-validation");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_transaction_type(bytes: Vec<u8>) -> Result<String, String> {
+    let raw: [u8; 1] = bytes
+        .try_into()
+        .map_err(|_| "transaction-type must be exactly 1 byte".to_string())?;
+    let transaction_type = TransactionType::parse(&raw)
+        .map_err(|err| format!("transaction-type parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=transaction-type");
+    let _ = writeln!(out, "raw=0x{:02X}", transaction_type.raw());
+    let _ = writeln!(
+        out,
+        "runtime_service={}",
+        transaction_type.runtime_service().label()
+    );
+    let _ = writeln!(
+        out,
+        "cvm_condition_non_atm={}",
+        transaction_type.cvm_transaction_class(false).label()
+    );
+    let _ = writeln!(
+        out,
+        "cvm_condition_atm={}",
+        transaction_type.cvm_transaction_class(true).label()
+    );
+    let _ = writeln!(out, "authority={}", transaction_type.mapping_authority());
     let _ = writeln!(out, "value_policy=non-sensitive");
     Ok(out)
 }
@@ -1192,6 +1242,53 @@ mod tests {
     }
 
     #[test]
+    fn currency_exponent_output_uses_runtime_param_validation() {
+        let out = decode_currency_exponent(decode_hex("02").unwrap()).unwrap();
+
+        assert!(out.contains("type=currency-exponent"));
+        assert!(out.contains("raw=0x02"));
+        assert!(out.contains("exponent=2"));
+        assert!(out.contains("amount_scale=10^-2"));
+        assert!(out.contains("authority=runtime-transaction-parameter-validation"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        assert_eq!(
+            decode_currency_exponent(vec![]).unwrap_err(),
+            "currency-exponent must be exactly 1 byte"
+        );
+        assert_eq!(
+            decode_currency_exponent(decode_hex("0A").unwrap()).unwrap_err(),
+            "currency-exponent parse failed: KRN_ERR_INVALID_ARGUMENT"
+        );
+    }
+
+    #[test]
+    fn transaction_type_output_exposes_runtime_service_mapping() {
+        let out = decode_transaction_type(decode_hex("01").unwrap()).unwrap();
+
+        assert!(out.contains("type=transaction-type"));
+        assert!(out.contains("raw=0x01"));
+        assert!(out.contains("runtime_service=cash"));
+        assert!(out.contains("cvm_condition_non_atm=manual-cash"));
+        assert!(out.contains("cvm_condition_atm=unattended-cash"));
+        assert!(out.contains("authority=runtime-cvm-trm-service-mapping"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        let cashback = decode_transaction_type(decode_hex("09").unwrap()).unwrap();
+        assert!(cashback.contains("runtime_service=cashback"));
+        assert!(cashback.contains("cvm_condition_non_atm=purchase-with-cashback"));
+
+        let profile_defined = decode_transaction_type(decode_hex("99").unwrap()).unwrap();
+        assert!(profile_defined.contains("runtime_service=goods-or-services"));
+        assert!(profile_defined.contains("authority=profile-defined-or-unmapped"));
+
+        assert_eq!(
+            decode_transaction_type(vec![]).unwrap_err(),
+            "transaction-type must be exactly 1 byte"
+        );
+    }
+
+    #[test]
     fn terminal_type_output_names_emv_online_capability() {
         let out = decode_terminal_type(decode_hex("22").unwrap()).unwrap();
 
@@ -1626,6 +1723,17 @@ mod tests {
 
         assert!(out.contains("type=date"));
         assert!(out.contains("profile_date=2026-05-23"));
+    }
+
+    #[test]
+    fn cli_routes_currency_exponent_and_transaction_type_modes() {
+        let exponent = run(&[string_arg("currency-exponent"), string_arg("02")]).unwrap();
+        assert!(exponent.contains("type=currency-exponent"));
+        assert!(exponent.contains("exponent=2"));
+
+        let transaction_type = run(&[string_arg("transaction-type"), string_arg("09")]).unwrap();
+        assert!(transaction_type.contains("type=transaction-type"));
+        assert!(transaction_type.contains("runtime_service=cashback"));
     }
 
     #[test]

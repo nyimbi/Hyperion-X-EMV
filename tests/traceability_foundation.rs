@@ -1199,10 +1199,14 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(parsing.contains("amount_conditions_are_enforced"));
         assert!(parsing.contains("terminal_support_condition_matches_candidate_cvm_capability"));
         assert!(parsing.contains("transaction_type_conditions_select_only_matching_rules"));
+        assert!(parsing.contains("transaction_type_exposes_runtime_service_mapping"));
         assert!(parsing.contains("cvm_transaction_type_uses_terminal_and_transaction_tags"));
         assert!(parsing.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(parsing.contains("offline_pin_and_signature_selects_composite_actions"));
         assert!(parsing.contains("cvm_list_output_names_rules_without_handles"));
+        assert!(parsing.contains(
+            "krn_emv_decode::tests::transaction_type_output_exposes_runtime_service_mapping"
+        ));
         assert!(parsing.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(parsing.contains("rtm_promotes_cvm_outcome_evidence"));
 
@@ -2713,6 +2717,12 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         ));
         assert!(catalogue
             .contains("krn_emv_decode::tests::date_output_uses_runtime_calendar_validation"));
+        assert!(catalogue.contains(
+            "krn_emv_decode::tests::currency_exponent_output_uses_runtime_param_validation"
+        ));
+        assert!(catalogue.contains(
+            "krn_emv_decode::tests::transaction_type_output_exposes_runtime_service_mapping"
+        ));
         assert!(catalogue
             .contains("krn_emv_decode::tests::terminal_type_output_names_emv_online_capability"));
         assert!(
@@ -3137,6 +3147,10 @@ fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
         let floor = csv_row_for_requirement(csv, "KRN-TRM-001").unwrap();
         assert!(floor.contains("evaluates_floor_exception_velocity_random_and_merchant_bits"));
         assert!(floor.contains("floor_limit_uses_transaction_type_profile_override"));
+        assert!(floor.contains("transaction_type_exposes_runtime_service_mapping"));
+        assert!(floor.contains(
+            "krn_emv_decode::tests::transaction_type_output_exposes_runtime_service_mapping"
+        ));
         assert!(floor.contains("loads_profile_annex_when_signature_is_verified"));
         assert!(floor.contains("rejects_cfg_002_profile_schema_and_field_failures"));
         assert!(floor.contains("rejects_oversized_transaction_type_floor_limit_profiles"));
@@ -3286,8 +3300,13 @@ fn rtm_promotes_api_abi_and_callback_validation_evidence() {
         assert!(amount_currency.contains("transaction_params_reject_non_three_digit_numeric_codes"));
         assert!(amount_currency
             .contains("numeric::tests::encodes_and_decodes_fixed_numeric_bcd_amounts"));
+        assert!(amount_currency
+            .contains("transaction::tests::currency_exponent_matches_transaction_param_domain"));
         assert!(amount_currency.contains(
             "krn_emv_decode::tests::amount_output_decodes_minor_units_without_exponent_assumption"
+        ));
+        assert!(amount_currency.contains(
+            "krn_emv_decode::tests::currency_exponent_output_uses_runtime_param_validation"
         ));
 
         let caller_buffers = csv_row_for_requirement(csv, "KRN-API-005").unwrap();

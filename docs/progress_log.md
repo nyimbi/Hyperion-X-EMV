@@ -4,6 +4,36 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:25:50Z
+
+- Increment completed: centralize transaction metadata validation for currency
+  exponent and transaction type, then expose both through pre-lab decoder modes.
+- Research note: the specification and engineering notes call out terminal
+  country/currency and transaction type as data-driven inputs for DOL/CDOL,
+  CVM, TRM, and amount interpretation. Hyperion keeps scheme-specific
+  semantics out of the decoder while making the current runtime mapping
+  inspectable.
+- Code impact: `src/transaction.rs` now validates `5F36`'s one-byte exponent
+  domain and names the runtime service/CVM mapping for `9C`; FFI transaction
+  parameter validation and CVM/service classification use that shared module;
+  `krn_emv_decode` now accepts `currency-exponent` and `transaction-type`.
+- Evidence updated:
+  `transaction::tests::currency_exponent_matches_transaction_param_domain`,
+  `transaction::tests::transaction_type_exposes_runtime_service_mapping`,
+  `krn_emv_decode::tests::currency_exponent_output_uses_runtime_param_validation`,
+  `krn_emv_decode::tests::transaction_type_output_exposes_runtime_service_mapping`,
+  `krn_emv_decode::tests::cli_routes_currency_exponent_and_transaction_type_modes`,
+  and API/CVM/TRM/TLV RTM guards.
+- Verification: focused transaction module, decoder, and RTM tests; `cargo
+  fmt --check`; `git diff --check`; `cargo test`; `cargo test --examples`;
+  `cargo clippy --all-targets --all-features -- -D warnings`; decoder CLI
+  smokes for `currency-exponent 02` and `transaction-type 09`; and
+  deterministic pre-lab artifact drift checks for the trace pack, quality
+  gates, ABI conformance statement, scheme profile dictionary, and no-crash
+  smoke artifact.
+- Remaining external blockers: licensed scheme/profile material still governs
+  final transaction-type semantics beyond the runtime mappings named here.
+
 ## 2026-05-23T10:18:08Z
 
 - Increment completed: add parser-backed EMV date decoding to pre-lab trace
