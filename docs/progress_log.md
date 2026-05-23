@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T00:00:46Z
+
+- Increment completed: bind certification-scope bundled scheme declarations to
+  loaded scheme profiles.
+- Code impact: certification profile loading now rejects signed scope material
+  when a loaded `scheme_profile` is not declared as bundled, or when a bundled
+  scheme declaration has no corresponding loaded profile.
+- Evidence updated:
+  `config::tests::rejects_invalid_certification_scope_boundaries` now covers
+  mismatches between declared bundled schemes and actual loaded scheme profiles
+  in both directions.
+- Remaining external blockers: certification still needs accepted coverage,
+  full EMV integration, external static-analysis, fuzzing/no-crash, lab traces,
+  scheme/CAPK/profile authority, device/PED evidence, and approval reports.
+
 ## 2026-05-22T23:53:12Z
 
 - Increment completed: reject ambiguous signed provenance metadata.

@@ -85,6 +85,10 @@ pub struct ProfileSource {
     pub verification: String,
 }
 
+struct CertificationScope {
+    bundled_scheme_profiles: Vec<String>,
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub struct SchemeProfile {
     pub scheme_name: String,
@@ -241,7 +245,7 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
     )?;
     validate_profile_schema_version(object, policy.mode)?;
     let profile_class = parse_profile_class(object, policy.mode)?;
-    parse_certification_scope(
+    let certification_scope = parse_certification_scope(
         object.get("certification_scope"),
         profile_class,
         policy.mode,
@@ -266,6 +270,7 @@ pub fn load_profile_set(json: &[u8], policy: &ConfigLoadPolicy) -> KernelResult<
         )?);
     }
     reject_duplicate_scheme_rids(&schemes)?;
+    validate_certification_scope_scheme_profiles(certification_scope.as_ref(), &schemes)?;
     Ok(ProfileSet {
         version: policy.candidate_version,
         profile_class,
@@ -279,6 +284,31 @@ fn reject_duplicate_scheme_rids(schemes: &[SchemeProfile]) -> KernelResult<()> {
         if schemes[..index].iter().any(|prior| prior.rid == scheme.rid) {
             return Err(KernelError::InvalidProfile);
         }
+    }
+    Ok(())
+}
+
+fn validate_certification_scope_scheme_profiles(
+    scope: Option<&CertificationScope>,
+    schemes: &[SchemeProfile],
+) -> KernelResult<()> {
+    let Some(scope) = scope else {
+        return Ok(());
+    };
+    if scope.bundled_scheme_profiles.len() != schemes.len() {
+        return Err(KernelError::InvalidProfile);
+    }
+    if schemes.iter().any(|scheme| {
+        !scope
+            .bundled_scheme_profiles
+            .iter()
+            .any(|bundled_scheme| bundled_scheme == &scheme.scheme_name)
+    }) || scope.bundled_scheme_profiles.iter().any(|bundled_scheme| {
+        !schemes
+            .iter()
+            .any(|scheme| &scheme.scheme_name == bundled_scheme)
+    }) {
+        return Err(KernelError::InvalidProfile);
     }
     Ok(())
 }
@@ -396,11 +426,11 @@ fn parse_certification_scope(
     value: Option<&JsonValue>,
     profile_class: ProfileClass,
     mode: BuildMode,
-) -> KernelResult<()> {
+) -> KernelResult<Option<CertificationScope>> {
     let Some(value) = value else {
         return match profile_class {
             ProfileClass::Certification => Err(KernelError::InvalidProfile),
-            ProfileClass::ExampleOnly => Ok(()),
+            ProfileClass::ExampleOnly => Ok(None),
         };
     };
     let scope = value.as_object()?;
@@ -416,7 +446,7 @@ fn parse_certification_scope(
         ],
     )?;
     if profile_class == ProfileClass::ExampleOnly {
-        return Ok(());
+        return Ok(None);
     }
 
     let bundled = required_string_set(scope, "bundled_scheme_profiles", true)?;
@@ -446,7 +476,9 @@ fn parse_certification_scope(
     if !required_bool(scope, "production_profile_bundle_required")? {
         return Err(KernelError::InvalidProfile);
     }
-    Ok(())
+    Ok(Some(CertificationScope {
+        bundled_scheme_profiles: bundled,
+    }))
 }
 
 fn parse_scheme(
@@ -1681,6 +1713,30 @@ mod tests {
         );
         assert_eq!(
             load_profile_set(overlap.as_bytes(), &policy(SignatureStatus::Verified)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let undeclared_loaded_scheme =
+            profile.replace(r#""scheme_name": "Visa""#, r#""scheme_name": "Mastercard""#);
+        assert_eq!(
+            load_profile_set(
+                undeclared_loaded_scheme.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let unloaded_bundled_scheme = profile.replace(
+            r#""bundled_scheme_profiles": ["Visa"]"#,
+            r#""bundled_scheme_profiles": ["Visa", "Discover"]"#,
+        );
+        assert_eq!(
+            load_profile_set(
+                unloaded_bundled_scheme.as_bytes(),
+                &policy(SignatureStatus::Verified)
+            )
+            .unwrap_err(),
             KernelError::InvalidProfile
         );
 
