@@ -34,6 +34,9 @@ The repository can provide:
 - Build provenance hashes.
 - Runtime trace identity for ABI version, profile version, and loaded profile
   SHA-256.
+- A generated certification evidence checklist that maps each open external
+  blocker to required authorities, attachments, metadata, acceptance gates, and
+  repository support.
 - A static certification report workbench and JSON/Markdown report-pack exports.
 - Open issue tracking for missing external evidence.
 - A shared place for community review and test contributions.
@@ -78,6 +81,11 @@ If a claim cannot be tied to a specific artifact set, it is not ready.
 ## Hyperion Open Issues
 
 The controlling external blocker list is `docs/certification_open_issues.md`.
+The generated checklist in `docs/certification_evidence_checklist.json` and
+`docs/certification_evidence_checklist.md` turns that register into an
+attachment plan for report production. It does not close any item by itself; it
+names what must be attached and accepted before an item can close.
+
 At the time this tutorial was written, final certification still depends on:
 
 - Signed profile authority.
@@ -192,6 +200,31 @@ device evidence, PCI/PED evidence, and signed conformance templates. It is a
 drift-control artifact, not implementation authority. Licensed standards,
 scheme profiles, lab instructions, and approval artifacts still prevail.
 
+## Evidence Attachment Checklist
+
+Run the checklist generator whenever certification package contents change:
+
+```sh
+cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
+```
+
+The JSON output is intended for tooling and the Markdown output is intended for
+human review. Each row records:
+
+- The controlling `CERT-OPEN-*` issue.
+- The external authority or signer.
+- The required attachment.
+- Metadata required to bind that attachment to the submitted binary, profile
+  set, device, and test-tool scope.
+- The acceptance gate that must be satisfied before the open issue can close.
+- Repository-controlled support artifacts that help reviewers inspect the
+  claim.
+
+Treat this checklist as the intake ledger for crowdsourced testing and
+certification preparation. Community contributors can add better fixtures,
+trace replays, validation tests, and reports, but closure still requires the
+external authority named in the row.
+
 ## Crowdsourced Certification Preparation
 
 Crowdsourcing can help before formal submission:
@@ -213,6 +246,7 @@ Before a certification-facing submission, confirm:
 
 - `cargo test` passes.
 - `cargo test --examples` passes.
+- `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` reproduces the current evidence checklist.
 - `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` produces the current report workbench.
 - `cargo run --quiet --example krn_basic_pos` completes the basic scripted PoS integration.
 - `cargo fmt --check` passes.

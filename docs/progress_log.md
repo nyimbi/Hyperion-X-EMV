@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T22:24:17Z
+
+- Increment completed: add a deterministic certification evidence attachment
+  checklist for report production and certification package assembly.
+- Tooling impact: `krn_certification_evidence_checklist` now emits JSON and
+  Markdown checklists that map every `CERT-OPEN-*` blocker to the external
+  authority, required attachment, required metadata, acceptance gate,
+  repository support, and pending status.
+- UI/CI impact: the certification workbench now includes an Evidence view and
+  the pre-lab workflow checks checklist JSON/Markdown drift alongside the
+  report-pack exports.
+- Remaining external blockers: the checklist is intake and attachment-control
+  tooling only; lab, scheme, device, PCI/PED, security-assessment, coverage,
+  integration, static/fuzz, signed-conformance, CAPK, ODA, C-8, and APDU trace
+  evidence still require accepted external artifacts before closure.
+
 ## 2026-05-23T13:54:59Z
 
 - Increment completed: add the first user-facing certification report workbench

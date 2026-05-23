@@ -300,6 +300,13 @@ traceability_matrix_hash
 
 must all be recorded in the lab submission manifest.
 
+The generated evidence checklist in
+`docs/certification_evidence_checklist.json` and
+`docs/certification_evidence_checklist.md` is the working intake ledger for
+this freeze. Each `CERT-OPEN-*` row must carry an authority, attachment, hash,
+date, submitted-build scope, and acceptance gate before the corresponding open
+issue can close.
+
 ---
 
 ## The key certification point

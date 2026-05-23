@@ -58,6 +58,12 @@ jobs:
       - name: Public standards watch drift
         run: cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
 
+      - name: Certification evidence checklist JSON drift
+        run: cargo run --quiet --example krn_certification_evidence_checklist -- --json | diff -u docs/certification_evidence_checklist.json -
+
+      - name: Certification evidence checklist Markdown drift
+        run: cargo run --quiet --example krn_certification_evidence_checklist -- --markdown | diff -u docs/certification_evidence_checklist.md -
+
       - name: Certification report UI drift
         run: cargo run --quiet --example krn_certification_report_ui -- --html | diff -u docs/certification_report_ui.html -
 

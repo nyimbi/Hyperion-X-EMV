@@ -14,6 +14,7 @@ pub mod conformance;
 pub mod cvm;
 pub mod dol;
 pub mod error;
+pub mod evidence;
 pub mod ffi;
 pub mod fsm;
 pub mod gac;

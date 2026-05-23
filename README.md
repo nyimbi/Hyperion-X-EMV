@@ -21,6 +21,8 @@ tool results, and approval artifacts prevail over this repository on conflict.
   `docs/requirements-traceability-matrix.csv`.
 - Public standards drift watch: `docs/standards_watch.md` and
   `docs/public_standards_watch.json`.
+- Certification evidence checklist: `docs/certification_evidence_checklist.json`
+  and `docs/certification_evidence_checklist.md`.
 - Clean-room open-source reference review: `docs/open_source.md`.
 - Tutorial learning path: `docs/tutorial/README.md`.
 - 100% coverage workflow: `docs/coverage.md` and `scripts/coverage_100.sh`.
@@ -255,6 +257,9 @@ controlled evidence:
   manifest.
 - `krn_public_standards_watch`: emits the public standards-watch signal
   manifest.
+- `krn_certification_evidence_checklist`: emits JSON and Markdown attachment
+  checklists that map every `CERT-OPEN-*` blocker to the required external
+  authority, artifact, metadata, acceptance gate, and repository support.
 - `krn_certification_report_ui`: emits deterministic JSON, Markdown, and a
   static HTML workbench for report production and certification artifact review.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
@@ -273,6 +278,7 @@ cargo run --quiet --example krn_emv_decode -- termcap E0B0C8
 cargo run --quiet --example krn_emv_decode -- add-termcap 7080F0F0FF
 cargo run --quiet --example krn_emv_decode -- ttq 36004000
 cargo run --quiet --example krn_emv_decode -- sw generate-ac 9000
+cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
 cargo run --quiet --example krn_basic_pos
 ```
@@ -297,6 +303,10 @@ The `docs/` directory is part of the executable baseline:
   manifest.
 - `public_standards_watch.json`: generated public standards-watch signal
   manifest.
+- `certification_evidence_checklist.json`: generated external evidence
+  attachment checklist.
+- `certification_evidence_checklist.md`: generated Markdown attachment
+  checklist for certification package review.
 - `certification_report_pack.json`: generated report-pack index for artifact
   and external-report tracking.
 - `certification_report_pack.md`: generated Markdown report-pack export.
