@@ -49,7 +49,9 @@ use crate::selection::{
 use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
 use crate::taa::{decide as decide_taa, ActionCodes, TaaInput, TerminalAction};
-use crate::terminal::{terminal_type_online_capable, TerminalCapabilities};
+use crate::terminal::{
+    terminal_type_online_capable, AdditionalTerminalCapabilities, TerminalCapabilities,
+};
 use crate::trace::{mask_apdu_command, mask_apdu_response, ApduTraceContext, LogPolicy};
 use crate::transaction::{CurrencyExponent, CvmTransactionClass, RuntimeService, TransactionType};
 use crate::trm::{evaluate as evaluate_trm, OfflineCounter, TrmInput};
@@ -217,6 +219,7 @@ pub struct KrnContext {
     cvm_pin_handles: CvmPinHandles,
     cvm_capabilities: RuntimeCvmCapabilities,
     terminal_capabilities: Option<TerminalCapabilities>,
+    additional_terminal_capabilities: Option<AdditionalTerminalCapabilities>,
     terminal_transaction_qualifiers: Option<TerminalTransactionQualifiers>,
     offline_counter: Option<OfflineCounter>,
     trm_random_sample_basis_points: Option<u16>,
@@ -252,6 +255,7 @@ impl KrnContext {
             cvm_pin_handles: CvmPinHandles::none(),
             cvm_capabilities: RuntimeCvmCapabilities::default(),
             terminal_capabilities: None,
+            additional_terminal_capabilities: None,
             terminal_transaction_qualifiers: None,
             offline_counter: None,
             trm_random_sample_basis_points: None,
@@ -284,6 +288,7 @@ impl KrnContext {
         self.cvm_pin_handles = CvmPinHandles::none();
         self.cvm_capabilities = RuntimeCvmCapabilities::default();
         self.terminal_capabilities = None;
+        self.additional_terminal_capabilities = None;
         self.terminal_transaction_qualifiers = None;
         self.offline_counter = None;
         self.trm_random_sample_basis_points = None;
@@ -449,6 +454,7 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.cvm_pin_handles = CvmPinHandles::none();
         ctx.cvm_capabilities = RuntimeCvmCapabilities::default();
         ctx.terminal_capabilities = None;
+        ctx.additional_terminal_capabilities = None;
         ctx.terminal_transaction_qualifiers = None;
         ctx.offline_counter = None;
         ctx.trm_random_sample_basis_points = None;
@@ -483,6 +489,39 @@ pub unsafe extern "C" fn krn_set_terminal_capabilities(
     }
     let capabilities = TerminalCapabilities::parse(&[byte1, byte2, byte3]);
     ctx.terminal_capabilities = match capabilities {
+        Ok(capabilities) => Some(capabilities),
+        Err(err) => return ctx.set_result(Err(err)),
+    };
+    ctx.set_result(Ok(0usize))
+}
+
+/// Registers EMV tag 9F40 Additional Terminal Capabilities for the current transaction.
+///
+/// Additional Terminal Capabilities are cleared whenever new transaction
+/// parameters are set, so callers must set them after
+/// [`krn_set_transaction_params`] for each transaction that needs non-zero
+/// 9F40 data in PDOL/CDOL construction.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer.
+#[no_mangle]
+pub unsafe extern "C" fn krn_set_additional_terminal_capabilities(
+    ctx: *mut KrnContext,
+    byte1: u8,
+    byte2: u8,
+    byte3: u8,
+    byte4: u8,
+    byte5: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let capabilities = AdditionalTerminalCapabilities::parse(&[byte1, byte2, byte3, byte4, byte5]);
+    ctx.additional_terminal_capabilities = match capabilities {
         Ok(capabilities) => Some(capabilities),
         Err(err) => return ctx.set_result(Err(err)),
     };
@@ -1570,14 +1609,20 @@ fn bool_flag(value: u8) -> Result<bool, KernelError> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct TerminalDolInputs {
+    terminal_capabilities: Option<TerminalCapabilities>,
+    additional_terminal_capabilities: Option<AdditionalTerminalCapabilities>,
+    terminal_transaction_qualifiers: Option<TerminalTransactionQualifiers>,
+}
+
 fn transaction_data_store(
     params: &StoredTxnParams,
     unpredictable_number: [u8; 4],
     transaction_date: EmvDate,
     tvr: Tvr,
     tsi: Tsi,
-    terminal_capabilities: Option<TerminalCapabilities>,
-    terminal_transaction_qualifiers: Option<TerminalTransactionQualifiers>,
+    terminal_inputs: TerminalDolInputs,
 ) -> Result<DataStore, KernelError> {
     let mut data = DataStore::new();
     data.put(
@@ -1599,10 +1644,14 @@ fn transaction_data_store(
     )?;
     data.put(&[0x9c], &[params.transaction_type])?;
     data.put(&[0x9a], &emv_date_bcd(transaction_date))?;
-    if let Some(terminal_capabilities) = terminal_capabilities {
+    if let Some(terminal_capabilities) = terminal_inputs.terminal_capabilities {
         data.put(&[0x9f, 0x33], &terminal_capabilities.raw())?;
     }
-    if let Some(terminal_transaction_qualifiers) = terminal_transaction_qualifiers {
+    if let Some(additional_terminal_capabilities) = terminal_inputs.additional_terminal_capabilities
+    {
+        data.put(&[0x9f, 0x40], &additional_terminal_capabilities.raw())?;
+    }
+    if let Some(terminal_transaction_qualifiers) = terminal_inputs.terminal_transaction_qualifiers {
         data.put(&[0x9f, 0x66], &terminal_transaction_qualifiers.raw())?;
     }
     data.put(&[0x9f, 0x35], &[params.terminal_type])?;
@@ -3312,8 +3361,11 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         transaction_date,
         ctx.tvr,
         ctx.tsi,
-        ctx.terminal_capabilities,
-        ctx.terminal_transaction_qualifiers,
+        TerminalDolInputs {
+            terminal_capabilities: ctx.terminal_capabilities,
+            additional_terminal_capabilities: ctx.additional_terminal_capabilities,
+            terminal_transaction_qualifiers: ctx.terminal_transaction_qualifiers,
+        },
     ) {
         Ok(data) => data,
         Err(err) => {
@@ -3869,8 +3921,7 @@ mod tests {
             },
             Tvr::cleared(),
             Tsi::cleared(),
-            None,
-            None,
+            TerminalDolInputs::default(),
         )
         .unwrap();
         assert_eq!(
@@ -4063,8 +4114,7 @@ mod tests {
             },
             Tvr::cleared(),
             Tsi::cleared(),
-            None,
-            None,
+            TerminalDolInputs::default(),
         )
         .unwrap();
         assert_eq!(data.get(&[0x5f, 0x2a]), Some(&[0x08, 0x40][..]));
@@ -5139,8 +5189,17 @@ mod tests {
             },
             Tvr::cleared(),
             Tsi::cleared(),
-            Some(TerminalCapabilities::parse(&[0xe0, 0xb0, 0xc8]).unwrap()),
-            Some(TerminalTransactionQualifiers::parse(&[0x36, 0x00, 0x40, 0x00]).unwrap()),
+            TerminalDolInputs {
+                terminal_capabilities: Some(
+                    TerminalCapabilities::parse(&[0xe0, 0xb0, 0xc8]).unwrap(),
+                ),
+                additional_terminal_capabilities: Some(
+                    AdditionalTerminalCapabilities::parse(&[0x70, 0x80, 0xf0, 0xf0, 0xff]).unwrap(),
+                ),
+                terminal_transaction_qualifiers: Some(
+                    TerminalTransactionQualifiers::parse(&[0x36, 0x00, 0x40, 0x00]).unwrap(),
+                ),
+            },
         )
         .unwrap();
         let record_with_card_and_terminal_data = [
@@ -5219,8 +5278,7 @@ mod tests {
             },
             Tvr::cleared(),
             Tsi::cleared(),
-            None,
-            None,
+            TerminalDolInputs::default(),
         )
         .unwrap();
         let record_with_card_and_un = [

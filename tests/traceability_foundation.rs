@@ -31,11 +31,12 @@ use hyperion_emv::ffi::{
     krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
     krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
     krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
-    krn_set_cvm_capabilities, krn_set_nonvolatile_offline_counter, krn_set_offline_pin_handle,
-    krn_set_terminal_capabilities, krn_set_terminal_transaction_qualifiers,
-    krn_set_transaction_params, KrnConfigBlob, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT,
-    KRN_SCRIPT_PHASE_AFTER_FINAL_GAC, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
+    krn_set_additional_terminal_capabilities, krn_set_cvm_capabilities,
+    krn_set_nonvolatile_offline_counter, krn_set_offline_pin_handle, krn_set_terminal_capabilities,
+    krn_set_terminal_transaction_qualifiers, krn_set_transaction_params, KrnConfigBlob, KrnOutcome,
+    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
+    KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
+    KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
 };
 use hyperion_emv::fsm::{
     transition, validate_state_machine_annex, FsmEvent, FsmState, TransactionFsm,
@@ -282,6 +283,24 @@ unsafe extern "C" fn it_terminal_qualifiers_transmit_apdu(
     write_terminal_qualifiers_response(command, count, resp, resp_len)
 }
 
+unsafe extern "C" fn it_additional_terminal_capabilities_transmit_apdu(
+    cmd: *const u8,
+    cmd_len: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+    timeout_ms: i32,
+    user_data: *mut c_void,
+) -> i32 {
+    let command = std::slice::from_raw_parts(cmd, cmd_len);
+    let script = &*(user_data as *const TerminalCapabilitiesScript);
+    let count = script.counter.fetch_add(1, Ordering::SeqCst);
+    script.commands.lock().unwrap().push(command.to_vec());
+    IT_TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+    IT_TRANSMITTED_LEN.store(cmd_len, Ordering::SeqCst);
+    IT_TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+    write_additional_terminal_capabilities_response(command, count, resp, resp_len)
+}
+
 unsafe extern "C" fn it_host_timeout_transmit_apdu(
     _cmd: *const u8,
     _cmd_len: usize,
@@ -421,6 +440,25 @@ unsafe fn write_terminal_qualifiers_response(
     hyperion_emv::KernelError::Ok.code()
 }
 
+unsafe fn write_additional_terminal_capabilities_response(
+    command: &[u8],
+    count: usize,
+    resp: *mut u8,
+    resp_len: *mut usize,
+) -> i32 {
+    let response = match count {
+        1 => hex("6F148407A0000000031010A5099F38069F40059F37049000"),
+        _ => return write_scripted_response(command, count, resp, resp_len),
+    };
+    let capacity = *resp_len;
+    *resp_len = response.len();
+    if capacity < response.len() {
+        return hyperion_emv::KernelError::BufferTooSmall.code();
+    }
+    ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+    hyperion_emv::KernelError::Ok.code()
+}
+
 unsafe extern "C" fn it_unpredictable_number(
     out: *mut u8,
     out_len: usize,
@@ -485,6 +523,7 @@ fn rtm_contains_foundation_requirements_under_test() {
         "KRN-TVR-003",
         "KRN-TSI-001",
         "KRN-TERMCAP-001",
+        "KRN-ADDTERMCAP-001",
         "KRN-TTQ-001",
         "KRN-CID-001",
         "KRN-CVM-001",
@@ -1422,7 +1461,7 @@ fn both_rtms_cover_pin_and_cvm_results_rows_independently() {
 
 #[test]
 fn both_rtms_cover_terminal_capability_rows_independently() {
-    for krn_id in ["KRN-TERMCAP-001", "KRN-TTQ-001"] {
+    for krn_id in ["KRN-TERMCAP-001", "KRN-ADDTERMCAP-001", "KRN-TTQ-001"] {
         assert!(CURRENT_RTM.contains(krn_id), "current RTM missing {krn_id}");
         assert!(LEGACY_RTM.contains(krn_id), "legacy RTM missing {krn_id}");
     }
@@ -2657,6 +2696,21 @@ fn rtm_promotes_terminal_capability_and_ttq_evidence() {
             "krn_emv_decode::tests::terminal_capabilities_output_names_standard_bits_and_flags_rfu"
         ));
         assert!(termcap.contains("rtm_promotes_terminal_capability_and_ttq_evidence"));
+
+        let addtermcap =
+            csv_row_for_requirement(csv, "KRN-ADDTERMCAP-001").expect("RTM row exists");
+        assert!(
+            !addtermcap.contains("PDOL and online handoff evidence"),
+            "KRN-ADDTERMCAP-001 should cite executable 9F40 PDOL and handoff evidence"
+        );
+        assert!(addtermcap.contains("krn_addtermcap_001_supplies_9f40_to_pdol_and_online_handoff"));
+        assert!(addtermcap.contains(
+            "terminal::tests::parses_additional_terminal_capabilities_as_exact_terminal_bitmap"
+        ));
+        assert!(addtermcap.contains(
+            "krn_emv_decode::tests::additional_terminal_capabilities_output_reports_shape_without_profile_semantics"
+        ));
+        assert!(addtermcap.contains("rtm_promotes_terminal_capability_and_ttq_evidence"));
 
         let ttq = csv_row_for_requirement(csv, "KRN-TTQ-001").expect("RTM row exists");
         assert!(
@@ -5225,6 +5279,100 @@ fn krn_termcap_001_supplies_9f33_to_pdol_and_online_handoff() {
 }
 
 #[test]
+fn krn_addtermcap_001_supplies_9f40_to_pdol_and_online_handoff() {
+    unsafe {
+        assert_eq!(
+            krn_set_additional_terminal_capabilities(ptr::null_mut(), 0x70, 0x80, 0xf0, 0xf0, 0xff),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+
+        let script = TerminalCapabilitiesScript {
+            counter: AtomicUsize::new(0),
+            commands: Mutex::new(Vec::new()),
+        };
+        let mut ctx = ptr::null_mut();
+        let runtime = KrnRuntime {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnRuntime>() as u32,
+            transmit_apdu: Some(it_additional_terminal_capabilities_transmit_apdu),
+            get_unpredictable_number: Some(it_unpredictable_number),
+            contactless_outcome: None,
+            user_data: &script as *const TerminalCapabilitiesScript as *mut c_void,
+        };
+        assert_eq!(
+            krn_init(ptr::null(), &runtime, &mut ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_load_profiles_verified(
+                ctx,
+                SCHEME_PROFILES.as_ptr(),
+                SCHEME_PROFILES.len(),
+                1,
+                2,
+                26,
+                5,
+                21,
+            ),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let params = KrnTxnParams {
+            struct_size: core::mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_500,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 0,
+        };
+        assert_eq!(
+            krn_set_transaction_params(ctx, &params),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(
+            krn_set_additional_terminal_capabilities(ctx, 0x70, 0x80, 0xf0, 0xf0, 0xff),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired as i32);
+
+        let commands = script.commands.lock().unwrap();
+        assert!(
+            commands
+                .iter()
+                .any(|command| command == &hex("80A800000B83097080F0F0FF0102030400")),
+            "GPO command did not include 9F40 PDOL bytes"
+        );
+        drop(commands);
+
+        let mut auth_len = 0usize;
+        assert_eq!(
+            krn_get_online_authorization_data(ctx, ptr::null_mut(), &mut auth_len),
+            hyperion_emv::KernelError::BufferTooSmall.code()
+        );
+        let mut auth = vec![0u8; auth_len];
+        assert_eq!(
+            krn_get_online_authorization_data(ctx, auth.as_mut_ptr(), &mut auth_len),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        let auth_tlvs = tlv::parse_many(&auth).unwrap();
+        assert_eq!(
+            tlv::find_first(&auth_tlvs, &[0x9f, 0x40]),
+            Some(&[0x70, 0x80, 0xf0, 0xf0, 0xff][..])
+        );
+        assert_eq!(
+            krn_get_last_error(ctx),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        krn_context_free(ctx);
+    }
+}
+
+#[test]
 fn krn_ttq_001_supplies_9f66_to_contactless_pdol_and_online_handoff() {
     unsafe {
         assert_eq!(
@@ -6292,7 +6440,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         PRELAB_NO_CRASH_SMOKE.contains("repository-controlled parser and APDU boundary smoke only")
     );
     assert!(PRELAB_NO_CRASH_SMOKE.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
-    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":20"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":21"));
     for case_id in [
         "TLV-VALID-RECORD-TEMPLATE",
         "TLV-TRUNCATED-HIGH-TAG",
@@ -6303,6 +6451,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         "TRANSACTION-TYPE-VALID-CASHBACK",
         "TERMINAL-TYPE-UNKNOWN",
         "TERMINAL-CAPABILITIES-SHORT",
+        "ADDITIONAL-TERMINAL-CAPABILITIES-SHORT",
         "TTQ-SHORT",
         "AIP-SHORT",
         "AUC-SHORT",
@@ -6323,6 +6472,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
     assert!(PRELAB_NO_CRASH_SMOKE.contains("record::summarize_track2_equivalent_data"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::TerminalType::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::TerminalCapabilities::parse"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::AdditionalTerminalCapabilities::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("c8::TerminalTransactionQualifiers::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("aip::ApplicationInterchangeProfile::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("restrictions::ApplicationUsageControl::parse"));
@@ -6330,6 +6480,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab no-crash smoke artifact"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Track 2 shape"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Terminal Capabilities"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Additional Terminal Capabilities"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Terminal Transaction Qualifiers"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("AIP"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CVM Results"));
@@ -6350,6 +6501,8 @@ fn scheme_profile_dictionary_is_generated_masked_and_scoped() {
     assert!(SCHEME_PROFILE_DICTIONARY.contains("Interfaces: contact, contactless"));
     assert!(SCHEME_PROFILE_DICTIONARY
         .contains("Terminal capabilities: 9F33 is supplied through the ABI"));
+    assert!(SCHEME_PROFILE_DICTIONARY
+        .contains("Additional Terminal Capabilities: 9F40 is supplied through the ABI"));
     assert!(SCHEME_PROFILE_DICTIONARY.contains("TTQ: 9F66 is supplied through the ABI"));
     assert!(SCHEME_PROFILE_DICTIONARY
         .contains("TAC: denial=0000000000, online=E0F8C80000, default=8000000000"));

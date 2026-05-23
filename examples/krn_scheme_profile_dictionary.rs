@@ -115,6 +115,10 @@ fn render_dictionary(profile_set: &ProfileSet) -> String {
             );
             let _ = writeln!(
                 out,
+                "- Additional Terminal Capabilities: 9F40 is supplied through the ABI, not embedded in this profile"
+            );
+            let _ = writeln!(
+                out,
                 "- TTQ: 9F66 is supplied through the ABI for contactless DOL data, not embedded in this profile"
             );
             let _ = writeln!(out, "- Floor limit: {}", aid.floor_limit);
@@ -271,6 +275,8 @@ mod tests {
         assert!(markdown.contains("- Interfaces: contact, contactless"));
         assert!(markdown.contains("- TTQ: 9F66 is supplied through the ABI"));
         assert!(markdown.contains("- Terminal capabilities: 9F33 is supplied through the ABI"));
+        assert!(markdown
+            .contains("- Additional Terminal Capabilities: 9F40 is supplied through the ABI"));
         assert!(
             markdown.contains("- TAC: denial=0000000000, online=E0F8C80000, default=8000000000")
         );

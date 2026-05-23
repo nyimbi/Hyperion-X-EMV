@@ -7,7 +7,7 @@ use crate::error::{KernelError, KernelResult};
 use crate::numeric;
 use crate::record;
 use crate::restrictions::{ApplicationUsageControl, EmvDate};
-use crate::terminal::{TerminalCapabilities, TerminalType};
+use crate::terminal::{AdditionalTerminalCapabilities, TerminalCapabilities, TerminalType};
 use crate::transaction::{CurrencyExponent, TransactionType};
 use crate::{gac, issuer, tlv, trace};
 use core::fmt::Write;
@@ -245,6 +245,12 @@ const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
         run: smoke_short_terminal_capabilities,
     },
     NoCrashSmokeCase {
+        id: "ADDITIONAL-TERMINAL-CAPABILITIES-SHORT",
+        surface: "terminal::AdditionalTerminalCapabilities::parse",
+        expected: KernelError::ParseError,
+        run: smoke_short_additional_terminal_capabilities,
+    },
+    NoCrashSmokeCase {
         id: "TTQ-SHORT",
         surface: "c8::TerminalTransactionQualifiers::parse",
         expected: KernelError::ParseError,
@@ -387,6 +393,10 @@ fn smoke_unknown_terminal_type() -> KernelResult<()> {
 
 fn smoke_short_terminal_capabilities() -> KernelResult<()> {
     TerminalCapabilities::parse(&[0xe0, 0xb0]).map(|_| ())
+}
+
+fn smoke_short_additional_terminal_capabilities() -> KernelResult<()> {
+    AdditionalTerminalCapabilities::parse(&[0x70, 0x80, 0xf0, 0xf0]).map(|_| ())
 }
 
 fn smoke_short_terminal_transaction_qualifiers() -> KernelResult<()> {

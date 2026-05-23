@@ -4,6 +4,37 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:45:23Z
+
+- Increment completed: add typed Additional Terminal Capabilities (`9F40`)
+  runtime ownership and route ABI, DOL, online handoff, decoder, profile
+  dictionary, and no-crash evidence through it.
+- Research note: `9F40` is already a terminal-owned five-byte EMV data object
+  in the repository TLV catalogue and is blocked from card-originated overwrite.
+  Hyperion now treats it like other terminal-owned DOL data: exact-length,
+  parser-owned runtime input with profile/lab acceptance preserved externally.
+- Code impact: `src/terminal.rs` now exposes `AdditionalTerminalCapabilities`;
+  `KrnContext` clears and stores typed `9F40` per transaction; DOL construction
+  and online authorization evidence include `9F40` only when supplied through
+  the ABI; `krn_emv_decode add-termcap` reports shape and set-bit positions
+  without assigning unreviewed profile semantics.
+- Evidence updated: regenerated `docs/prelab_no_crash_smoke.json` and
+  `docs/scheme_profile_dictionary.md`, added `KRN-ADDTERMCAP-001` to both RTM
+  annexes, refreshed the lab manifest and open-source adaptation backlog, and
+  tightened traceability guards for the new no-crash, decoder, RTM, profile
+  dictionary, and online handoff evidence.
+- Verification: focused Additional Terminal Capabilities parser, ABI/DOL
+  handoff, online authorization package, decoder, RTM, profile dictionary, and
+  no-crash reproducibility tests; `krn_emv_decode add-termcap` CLI smoke;
+  `cargo fmt --check`; `git diff --check`; `cargo test`; `cargo test
+  --examples`; `cargo clippy --all-targets --all-features -- -D warnings`;
+  and deterministic artifact drift checks for the ABI conformance statement,
+  trace pack, scheme profile dictionary, quality gates, and no-crash smoke
+  artifact.
+- Remaining external blockers: final terminal capability acceptance still
+  depends on licensed profile/lab reconciliation and accepted terminal/device
+  scope.
+
 ## 2026-05-23T11:30:21Z
 
 - Increment completed: add a typed contactless Terminal Transaction Qualifiers

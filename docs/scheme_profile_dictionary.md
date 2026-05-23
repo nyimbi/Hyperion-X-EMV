@@ -31,6 +31,7 @@ This is a repository-controlled review aid. It does not replace lab, scheme, acq
 - Partial selection: true
 - Interfaces: contact, contactless
 - Terminal capabilities: 9F33 is supplied through the ABI, not embedded in this profile
+- Additional Terminal Capabilities: 9F40 is supplied through the ABI, not embedded in this profile
 - TTQ: 9F66 is supplied through the ABI for contactless DOL data, not embedded in this profile
 - Floor limit: 0
 - Contact CVM limit: 5000
@@ -76,6 +77,7 @@ This is a repository-controlled review aid. It does not replace lab, scheme, acq
 - Partial selection: false
 - Interfaces: contact, contactless
 - Terminal capabilities: 9F33 is supplied through the ABI, not embedded in this profile
+- Additional Terminal Capabilities: 9F40 is supplied through the ABI, not embedded in this profile
 - TTQ: 9F66 is supplied through the ABI for contactless DOL data, not embedded in this profile
 - Floor limit: 0
 - Contact CVM limit: 10000

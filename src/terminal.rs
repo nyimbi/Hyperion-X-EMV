@@ -122,6 +122,32 @@ pub fn terminal_type_online_capable(raw: u8) -> KernelResult<bool> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AdditionalTerminalCapabilities {
+    raw: [u8; 5],
+}
+
+impl AdditionalTerminalCapabilities {
+    pub fn parse(raw: &[u8]) -> KernelResult<Self> {
+        let raw: [u8; 5] = raw.try_into().map_err(|_| KernelError::ParseError)?;
+        Ok(Self { raw })
+    }
+
+    pub fn raw(self) -> [u8; 5] {
+        self.raw
+    }
+
+    pub fn bit_is_set(self, byte_index: usize, mask: u8) -> bool {
+        self.raw
+            .get(byte_index)
+            .is_some_and(|byte| byte & mask != 0)
+    }
+
+    pub fn set_bit_count(self) -> usize {
+        self.raw.iter().map(|byte| byte.count_ones() as usize).sum()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TerminalCapabilityBit {
     byte_index: usize,
     mask: u8,
@@ -282,6 +308,23 @@ mod tests {
         assert_eq!(
             terminal_type_online_capable(0x99).unwrap_err(),
             KernelError::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn parses_additional_terminal_capabilities_as_exact_terminal_bitmap() {
+        let capabilities =
+            AdditionalTerminalCapabilities::parse(&[0x70, 0x80, 0xf0, 0xf0, 0xff]).unwrap();
+
+        assert_eq!(capabilities.raw(), [0x70, 0x80, 0xf0, 0xf0, 0xff]);
+        assert!(capabilities.bit_is_set(0, 0x40));
+        assert!(capabilities.bit_is_set(1, 0x80));
+        assert!(capabilities.bit_is_set(2, 0x10));
+        assert!(capabilities.bit_is_set(4, 0x01));
+        assert_eq!(capabilities.set_bit_count(), 20);
+        assert_eq!(
+            AdditionalTerminalCapabilities::parse(&[0x70, 0x80, 0xf0, 0xf0]).unwrap_err(),
+            KernelError::ParseError
         );
     }
 

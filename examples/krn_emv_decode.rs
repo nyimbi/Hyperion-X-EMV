@@ -11,7 +11,9 @@ use hyperion_emv::record::summarize_track2_equivalent_data;
 use hyperion_emv::restrictions::{ApplicationUsageControl, EmvDate};
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
-use hyperion_emv::terminal::{TerminalCapabilities, TerminalType, TERMINAL_CAPABILITY_BITS};
+use hyperion_emv::terminal::{
+    AdditionalTerminalCapabilities, TerminalCapabilities, TerminalType, TERMINAL_CAPABILITY_BITS,
+};
 use hyperion_emv::tlv;
 use hyperion_emv::trace::{mask_apdu_response, ApduTraceContext, LogPolicy, MaskedValue};
 use hyperion_emv::transaction::{CurrencyExponent, TransactionType};
@@ -65,6 +67,9 @@ fn run(args: &[String]) -> Result<String, String> {
         "termcap" | "terminal-capabilities" => {
             decode_terminal_capabilities(arg_hex(args, 1, "termcap")?)
         }
+        "add-termcap" | "additional-terminal-capabilities" => {
+            decode_additional_terminal_capabilities(arg_hex(args, 1, "add-termcap")?)
+        }
         "ttq" => decode_terminal_transaction_qualifiers(arg_hex(args, 1, "ttq")?),
         "ctq" => decode_profile_defined_bitmap("ctq", arg_hex(args, 1, "ctq")?, 1),
         "sw" => {
@@ -91,7 +96,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|track2|date|currency-exponent|transaction-type|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|track2|date|currency-exponent|transaction-type|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|add-termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -589,6 +594,18 @@ fn decode_terminal_capabilities(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "raw={}", hex_upper(&capabilities.raw()));
     let _ = writeln!(out, "rfu_bits={}", capabilities.has_rfu_bits());
     append_terminal_capability_bits(&mut out, capabilities);
+    Ok(out)
+}
+
+fn decode_additional_terminal_capabilities(bytes: Vec<u8>) -> Result<String, String> {
+    let capabilities = AdditionalTerminalCapabilities::parse(&bytes)
+        .map_err(|_| "Additional Terminal Capabilities must be exactly 5 bytes".to_string())?;
+    let mut out = String::new();
+    let _ = writeln!(out, "type=additional-terminal-capabilities");
+    let _ = writeln!(out, "raw={}", hex_upper(&capabilities.raw()));
+    let _ = writeln!(out, "authority=terminal-profile");
+    let _ = writeln!(out, "set_bit_count={}", capabilities.set_bit_count());
+    append_profile_defined_bits(&mut out, &capabilities.raw());
     Ok(out)
 }
 
@@ -1457,6 +1474,24 @@ mod tests {
 
         let rfu = decode_terminal_capabilities(decode_hex("010001").unwrap()).unwrap();
         assert!(rfu.contains("rfu_bits=true"));
+    }
+
+    #[test]
+    fn additional_terminal_capabilities_output_reports_shape_without_profile_semantics() {
+        let out =
+            decode_additional_terminal_capabilities(decode_hex("7080F0F0FF").unwrap()).unwrap();
+
+        assert!(out.contains("type=additional-terminal-capabilities"));
+        assert!(out.contains("raw=7080F0F0FF"));
+        assert!(out.contains("authority=terminal-profile"));
+        assert!(out.contains("set_bit_count=20"));
+        assert!(out.contains("bit=byte1.b2"));
+        assert!(out.contains("bit=byte2.b1"));
+        assert!(out.contains("bit=byte5.b8"));
+        assert_eq!(
+            decode_additional_terminal_capabilities(decode_hex("7080F0F0").unwrap()).unwrap_err(),
+            "Additional Terminal Capabilities must be exactly 5 bytes"
+        );
     }
 
     #[test]
