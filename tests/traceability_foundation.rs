@@ -2693,11 +2693,16 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         assert!(dol.contains("krn_dda_001_internal_authenticate_uses_ddol_values"));
         assert!(dol.contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers"));
 
+        let dol_trace = csv_row_for_requirement(csv, "KRN-DOL-001").unwrap();
+        assert!(dol_trace.contains("krn_emv_decode::tests::dol_output_lists_tags_and_lengths"));
+
         let catalogue = csv_row_for_requirement(csv, "KRN-TLV-004").unwrap();
         assert!(
             catalogue.contains("tlv_catalogue_uses_required_schema_and_profile_defined_markers")
         );
         assert!(catalogue.contains("tlv_catalogue_contains_required_foundation_tags"));
+        assert!(catalogue.contains("krn_emv_decode::tests::tlv_output_suppresses_values"));
+        assert!(catalogue.contains("krn_emv_decode::tests::dol_output_lists_tags_and_lengths"));
         assert!(catalogue.contains(
             "krn_emv_decode::tests::tag_list_output_lists_primitive_tags_without_values"
         ));

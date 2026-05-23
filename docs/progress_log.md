@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:51:45Z
+
+- Increment completed: make `krn_emv_decode` TLV, DOL, and primitive tag-list
+  output consult the controlled TLV catalogue for tag names, type, length rule,
+  and sensitive-data classification.
+- Research note: refreshed the local `emvpt`, `openemv/emv-utils`, and
+  `greenboxal/emv-kernel` reference clones. The useful adaptation is
+  operator-facing tag dictionaries in standalone trace tools; Hyperion keeps
+  the source of truth in `docs/tlv_catalogue.csv` and does not copy reference
+  code or treat open-source tag tables as certification authority.
+- Code impact: decoder output remains value-suppressed for TLV values and
+  value-free for DOL/tag-list data, but now reports catalogue hit/missing status
+  plus metadata needed for lab-trace triage.
+- Evidence updated:
+  `krn_emv_decode::tests::tlv_output_suppresses_values`,
+  `krn_emv_decode::tests::dol_output_lists_tags_and_lengths`,
+  `krn_emv_decode::tests::tag_list_output_lists_primitive_tags_without_values`,
+  and `traceability_foundation::rtm_promotes_tlv_catalogue_and_dol_classification_evidence`.
+- Remaining external blockers: licensed profile/lab review still determines
+  accepted tag semantics, scheme-specific classifications, and formal
+  tool-case mappings.
+
 ## 2026-05-23T09:42:51Z
 
 - Increment completed: add typed CVM Results parsing and pre-lab decode output.

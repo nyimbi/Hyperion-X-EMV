@@ -14,6 +14,7 @@ use std::fmt::Write;
 use std::process;
 
 const MAX_DECODE_TAG_LIST_TAGS: usize = 64;
+const TLV_CATALOGUE: &str = include_str!("../docs/tlv_catalogue.csv");
 
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
@@ -97,13 +98,15 @@ fn decode_tlv(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "type=tlv");
     let _ = writeln!(out, "count={}", flat.len());
     for node in flat {
-        let _ = writeln!(
+        let _ = write!(
             out,
             "tag={} constructed={} len={} value_policy=suppressed",
             hex_upper(node.tag),
             node.constructed,
             node.value.len()
         );
+        append_catalogue_metadata(&mut out, node.tag);
+        let _ = writeln!(out);
     }
     Ok(out)
 }
@@ -114,7 +117,9 @@ fn decode_dol(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "type=dol");
     let _ = writeln!(out, "count={}", entries.len());
     for entry in entries {
-        let _ = writeln!(out, "tag={} len={}", hex_upper(&entry.tag), entry.length);
+        let _ = write!(out, "tag={} len={}", hex_upper(&entry.tag), entry.length);
+        append_catalogue_metadata(&mut out, &entry.tag);
+        let _ = writeln!(out);
     }
     Ok(out)
 }
@@ -126,10 +131,48 @@ fn decode_tag_list(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "type=tag-list");
     let _ = writeln!(out, "count={}", tags.len());
     for tag in tags {
-        let _ = writeln!(out, "tag={}", hex_upper(&tag));
+        let _ = write!(out, "tag={}", hex_upper(&tag));
+        append_catalogue_metadata(&mut out, &tag);
+        let _ = writeln!(out);
     }
     let _ = writeln!(out, "value_policy=not-applicable");
     Ok(out)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct CatalogueEntry<'a> {
+    name: &'a str,
+    tag_type: &'a str,
+    length_rule: &'a str,
+    classification: &'a str,
+}
+
+fn append_catalogue_metadata(out: &mut String, tag: &[u8]) {
+    match catalogue_entry_for(tag) {
+        Some(entry) => {
+            let _ = write!(
+                out,
+                " catalogue=hit name=\"{}\" tag_type=\"{}\" length_rule=\"{}\" classification={}",
+                entry.name, entry.tag_type, entry.length_rule, entry.classification
+            );
+        }
+        None => {
+            let _ = write!(out, " catalogue=missing");
+        }
+    }
+}
+
+fn catalogue_entry_for(tag: &[u8]) -> Option<CatalogueEntry<'static>> {
+    let tag_hex = hex_upper(tag);
+    TLV_CATALOGUE.lines().skip(1).find_map(|line| {
+        let columns = line.split(',').collect::<Vec<_>>();
+        (columns.len() == 10 && columns[0] == tag_hex).then_some(CatalogueEntry {
+            name: columns[1],
+            tag_type: columns[2],
+            length_rule: columns[3],
+            classification: columns[8],
+        })
+    })
 }
 
 fn decode_numeric_code(bytes: Vec<u8>) -> Result<String, String> {
@@ -925,6 +968,10 @@ mod tests {
 
         assert!(out.contains("tag=70 constructed=true len=10"));
         assert!(out.contains("tag=5A constructed=false len=8"));
+        assert!(out.contains(
+            "tag=5A constructed=false len=8 value_policy=suppressed catalogue=hit name=\"PAN\""
+        ));
+        assert!(out.contains("classification=cardholder-data"));
         assert!(out.contains("value_policy=suppressed"));
         assert!(!out.contains("123456789012345F"));
     }
@@ -934,9 +981,13 @@ mod tests {
         let out = decode_dol(decode_hex("9F66049F02069A03").unwrap()).unwrap();
 
         assert!(out.contains("type=dol"));
-        assert!(out.contains("tag=9F66 len=4"));
-        assert!(out.contains("tag=9F02 len=6"));
-        assert!(out.contains("tag=9A len=3"));
+        assert!(out.contains(
+            "tag=9F66 len=4 catalogue=hit name=\"Terminal Transaction Qualifiers (TTQ)\""
+        ));
+        assert!(out.contains("tag=9F02 len=6 catalogue=hit name=\"Amount Authorised\""));
+        assert!(out.contains("tag=9A len=3 catalogue=hit name=\"Transaction Date\""));
+        assert!(out.contains("classification=profile-defined"));
+        assert!(out.contains("classification=non-sensitive"));
     }
 
     #[test]
@@ -945,9 +996,9 @@ mod tests {
 
         assert!(out.contains("type=tag-list"));
         assert!(out.contains("count=3"));
-        assert!(out.contains("tag=82"));
-        assert!(out.contains("tag=9F37"));
-        assert!(out.contains("tag=5F2A"));
+        assert!(out.contains("tag=82 catalogue=hit name=\"Application Interchange Profile (AIP)\""));
+        assert!(out.contains("tag=9F37 catalogue=hit name=\"Unpredictable Number\""));
+        assert!(out.contains("tag=5F2A catalogue=hit name=\"Transaction Currency Code\""));
         assert!(out.contains("value_policy=not-applicable"));
         assert!(!out.contains("len="));
     }

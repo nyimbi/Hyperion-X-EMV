@@ -194,7 +194,9 @@ Useful ideas to adapt:
   JSONL/YAML APDU scripts with expected terminal outcomes.
 - The simulator exposes useful debug modes: stop after connect, stop after read,
   print TLV, print tags, and censor sensitive fields. Hyperion's examples can
-  adopt those command-shape ideas while keeping default output masked.
+  adopt those command-shape ideas while keeping default output masked; the
+  `krn_emv_decode` TLV, DOL, and primitive tag-list modes now enrich output from
+  Hyperion's controlled TLV catalogue instead of importing reference tag tables.
 - Tests cover PAN truncation, track parsing/censoring, BCD conversion, DOL
   construction, PIN verification APDUs, and purchase flow. Hyperion already has
   stronger separation around PIN custody; the borrowable part is fixture-driven
@@ -333,9 +335,11 @@ The following are adaptation candidates, ordered by near-term value:
 
 1. Maintain and extend the `krn_emv_decode` example so lab-trace triage stays
    parser-backed, masked by default, and covers operator-facing TLV, DOL, CVM,
-   primitive tag-list, numeric-code, terminal-type, AIP, CVM Results, bitmap, CID, GENERATE AC response,
-   issuer host-response, status-word, short command APDU, and response APDU envelope decodes before
-   formal test-tool execution.
+   primitive tag-list, numeric-code, terminal-type, AIP, CVM Results, bitmap,
+   CID, GENERATE AC response, issuer host-response, status-word, short command
+   APDU, and response APDU envelope decodes before formal test-tool execution;
+   keep tag names and sensitive-data classifications backed by
+   `docs/tlv_catalogue.csv`.
 2. Continue expanding `docs/prelab_apdu_trace_pack.jsonl` beyond the current
    scenario, command-flow, and response-shape expectation records plus
    maintained PAN, Track 2, cryptogram, issuer-authentication/script, and APDU
