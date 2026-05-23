@@ -119,6 +119,7 @@ cargo test --examples
 cargo clippy --all-targets --all-features -- -D warnings
 cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -
 cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -
+cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -
 ```
 
 Run additional generator diffs when your change affects the relevant artifact.
@@ -136,6 +137,9 @@ When contributing a trace or fixture:
 - State whether redistribution is allowed.
 - Keep fuzz corpora synthetic and hashable; do not commit generated crash
   corpora without a reviewed reproducer and disposition.
+- Prefer manifesting corpus seeds by length, SHA-256, target, and expected
+  parser outcome rather than emitting raw PAN-like, Track 2-like, cryptogram,
+  or issuer-script bytes in documentation.
 
 If redistribution is not allowed, do not commit it to the repository.
 

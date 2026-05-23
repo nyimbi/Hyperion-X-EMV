@@ -81,6 +81,7 @@ const GENERATED_FROM: &[&str] = &[
     "docs/prelab_quality_gates.json",
     "docs/prelab_no_crash_smoke.json",
     "docs/prelab_static_fuzz_plan.json",
+    "docs/prelab_fuzz_seed_corpus.json",
 ];
 
 const CERTIFICATION_CONDITIONS: &[&str] = &[

@@ -24,6 +24,7 @@ tool results, and approval artifacts prevail over this repository on conflict.
 - Tutorial learning path: `docs/tutorial/README.md`.
 - 100% coverage workflow: `docs/coverage.md` and `scripts/coverage_100.sh`.
 - Static/fuzz evidence plan: `docs/prelab_static_fuzz_plan.json`.
+- Fuzz seed corpus manifest: `docs/prelab_fuzz_seed_corpus.json`.
 - Pre-lab CI workflow: `.github/workflows/prelab.yml`.
 - Session progress log: `docs/progress_log.md`.
 
@@ -242,6 +243,9 @@ controlled evidence:
   without raw CAPK modulus disclosure.
 - `krn_prelab_quality_gates`: emits the local quality gate manifest.
 - `krn_prelab_no_crash_smoke`: emits parser/APDU no-crash smoke evidence.
+- `krn_prelab_static_fuzz_plan`: emits the static/fuzz evidence plan.
+- `krn_prelab_fuzz_seed_corpus`: emits the hash-only fuzz seed corpus
+  manifest.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
 - `krn_emv_decode`: decodes lab-triage inputs while suppressing sensitive
@@ -273,6 +277,9 @@ The `docs/` directory is part of the executable baseline:
 - `prelab_apdu_trace_pack.jsonl`: masked local trace fixture.
 - `prelab_quality_gates.json`: local gate manifest.
 - `prelab_no_crash_smoke.json`: no-crash parser/APDU smoke artifact.
+- `prelab_static_fuzz_plan.json`: static-analysis and fuzzing evidence plan.
+- `prelab_fuzz_seed_corpus.json`: hash-only deterministic fuzz seed corpus
+  manifest.
 - `abi_conformance_statement.json`: generated ABI conformance statement.
 - `performance_profile.csv`: product timing buckets and targets.
 - `requirements_traceability.csv`: current RTM.

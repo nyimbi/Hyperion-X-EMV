@@ -4,6 +4,36 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T13:13:53Z
+
+- Increment completed: expand the tutorial glossary into a broader EMV term
+  reference for engineers reading the kernel, tests, and certification
+  evidence.
+- Documentation impact: `docs/tutorial/glossary.md` now covers practical
+  kernel vocabulary across APDUs, application selection, DOLs, cryptograms,
+  ODA, contact/contactless boundaries, issuer scripts, Level 1 / Level 2 /
+  Level 3 responsibilities, sensitive data, and certification authority
+  boundaries.
+- Evidence impact: traceability tests now guard that the tutorial learning path
+  includes the glossary and that key EMV terms remain present.
+
+## 2026-05-23T13:02:36Z
+
+- Increment completed: turn the static/fuzz evidence plan into a replayable
+  deterministic seed-corpus manifest without adding fuzzing dependencies.
+- Code impact: `prelab_fuzz_seed_corpus_json()` now executes 12 synthetic seed
+  cases against TLV, DOL, APDU replay, GENERATE AC response, issuer
+  host-response, and Track 2 shape parser boundaries. It records seed length,
+  SHA-256, target, surface, sensitivity class, expected outcome, and actual
+  outcome while suppressing seed bytes.
+- Evidence updated: added `docs/prelab_fuzz_seed_corpus.json`,
+  `krn_prelab_fuzz_seed_corpus`, CI drift coverage, conformance
+  generated-from coverage, lab manifest coverage, tutorial guidance, and build
+  provenance inputs.
+- Remaining external blockers: `CERT-OPEN-010` still requires real static
+  analysis and fuzzing/no-crash reports with accepted tool versions, corpus
+  hashes, run budgets, findings, and dispositions.
+
 ## 2026-05-23T12:43:43Z
 
 - Increment completed: add a deterministic pre-lab static-analysis and fuzzing

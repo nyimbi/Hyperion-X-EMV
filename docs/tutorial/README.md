@@ -35,8 +35,9 @@ Read these in order if you are new to EMV kernels:
 ## What You Should Know First
 
 You do not need to be an EMV expert before reading. The early tutorials define
-the basic terms: ICC, APDU, AID, TLV, DOL, CVM, TVR, TSI, ARQC, TC, AAC, CAPK,
-and Level 1 / Level 2 / Level 3 boundaries.
+the basic concepts, and the glossary expands the core EMV vocabulary: ICC,
+APDU, AID, TLV, DOL, CVM, TVR, TSI, ARQC, TC, AAC, CAPK, ODA, CDA, GPO, AFL,
+issuer scripts, and Level 1 / Level 2 / Level 3 boundaries.
 
 You should be comfortable with:
 
@@ -66,4 +67,3 @@ project documents for controlled requirements and evidence:
 - `docs/certification_open_issues.md`: external blockers.
 - `docs/requirements_traceability.csv`: requirement-to-evidence mapping.
 - `README.md`: quick project overview and local commands.
-

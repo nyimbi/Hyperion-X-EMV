@@ -5,6 +5,7 @@ use crate::cvm::CvmResults;
 use crate::dol::{self, DataStore, DolEntry};
 use crate::error::{KernelError, KernelResult};
 use crate::numeric;
+use crate::provenance::{sha256, to_hex};
 use crate::record;
 use crate::restrictions::{ApplicationUsageControl, EmvDate};
 use crate::terminal::{AdditionalTerminalCapabilities, TerminalCapabilities, TerminalType};
@@ -43,6 +44,16 @@ struct ReportMetadataRequirement {
     requirement: &'static str,
 }
 
+struct FuzzSeedCase {
+    id: &'static str,
+    target: &'static str,
+    surface: &'static str,
+    sensitivity: &'static str,
+    seed: &'static [u8],
+    expected: KernelError,
+    run: fn(&[u8]) -> KernelResult<()>,
+}
+
 const QUALITY_GATES: &[QualityGate] = &[
     QualityGate {
         id: "PRELAB-CONFORMANCE",
@@ -75,8 +86,13 @@ const QUALITY_GATES: &[QualityGate] = &[
         purpose: "regenerate and compare the static-analysis and fuzzing evidence plan",
     },
     QualityGate {
+        id: "PRELAB-FUZZ-SEED-CORPUS",
+        command: "cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -",
+        purpose: "regenerate and compare the deterministic fuzz seed corpus manifest",
+    },
+    QualityGate {
         id: "PRELAB-BUILD-PROVENANCE",
-        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_emv_decode.rs",
+        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_emv_decode.rs",
         purpose: "emit canonical build provenance for source, controlled annexes, and evidence generators",
     },
     QualityGate {
@@ -242,6 +258,125 @@ const STATIC_FUZZ_REPORT_METADATA: &[ReportMetadataRequirement] = &[
     },
 ];
 
+const FUZZ_SEED_CASES: &[FuzzSeedCase] = &[
+    FuzzSeedCase {
+        id: "TLV-VALID-RECORD-TEMPLATE",
+        target: "fuzz_tlv_parse_many",
+        surface: "tlv::parse_many",
+        sensitivity: "synthetic-non-sensitive",
+        seed: &[0x70, 0x03, 0x5a, 0x01, 0x12],
+        expected: KernelError::Ok,
+        run: seed_tlv_parse_many,
+    },
+    FuzzSeedCase {
+        id: "TLV-TRUNCATED-HIGH-TAG",
+        target: "fuzz_tlv_parse_many",
+        surface: "tlv::parse_many",
+        sensitivity: "synthetic-non-sensitive",
+        seed: &[0x9f],
+        expected: KernelError::ParseError,
+        run: seed_tlv_parse_many,
+    },
+    FuzzSeedCase {
+        id: "DOL-VALID-PDOL",
+        target: "fuzz_dol_parse",
+        surface: "dol::parse_dol",
+        sensitivity: "synthetic-non-sensitive",
+        seed: &[0x9f, 0x37, 0x04, 0x9f, 0x02, 0x06],
+        expected: KernelError::Ok,
+        run: seed_dol_parse,
+    },
+    FuzzSeedCase {
+        id: "DOL-TRUNCATED-TAG",
+        target: "fuzz_dol_parse",
+        surface: "dol::parse_dol",
+        sensitivity: "synthetic-non-sensitive",
+        seed: &[0x9f],
+        expected: KernelError::ParseError,
+        run: seed_dol_parse,
+    },
+    FuzzSeedCase {
+        id: "APDU-VALID-SELECT-PPSE",
+        target: "fuzz_apdu_boundaries",
+        surface: "trace::ReplayExchange::new",
+        sensitivity: "synthetic-non-sensitive",
+        seed: b"\x00\xa4\x04\x00\x0e2PAY.SYS.DDF01\x00",
+        expected: KernelError::Ok,
+        run: seed_replay_exchange_command,
+    },
+    FuzzSeedCase {
+        id: "APDU-TRUNCATED-HEADER",
+        target: "fuzz_apdu_boundaries",
+        surface: "trace::ReplayExchange::new",
+        sensitivity: "synthetic-non-sensitive",
+        seed: &[0x00, 0xa4],
+        expected: KernelError::ParseError,
+        run: seed_replay_exchange_command,
+    },
+    FuzzSeedCase {
+        id: "GAC-FORMAT-80-ARQC",
+        target: "fuzz_gac_response",
+        surface: "gac::parse_generate_ac_response",
+        sensitivity: "synthetic-cryptogram-shaped",
+        seed: &[
+            0x80, 0x0d, 0x80, 0x12, 0x34, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x99,
+            0x88,
+        ],
+        expected: KernelError::Ok,
+        run: seed_gac_response,
+    },
+    FuzzSeedCase {
+        id: "GAC-MISSING-MANDATORY-TAGS",
+        target: "fuzz_gac_response",
+        surface: "gac::parse_generate_ac_response",
+        sensitivity: "synthetic-non-sensitive",
+        seed: &[0x77, 0x00],
+        expected: KernelError::MissingMandatoryTag,
+        run: seed_gac_response,
+    },
+    FuzzSeedCase {
+        id: "ISSUER-HOST-RESPONSE-AUTH-SCRIPT",
+        target: "fuzz_issuer_host_response",
+        surface: "issuer::parse_host_response",
+        sensitivity: "synthetic-issuer-script-shaped",
+        seed: &[
+            0x8a, 0x02, b'0', b'0', 0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+            0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+        ],
+        expected: KernelError::Ok,
+        run: seed_host_response,
+    },
+    FuzzSeedCase {
+        id: "ISSUER-SCRIPT-MALFORMED-COMMAND",
+        target: "fuzz_issuer_host_response",
+        surface: "issuer::parse_host_response",
+        sensitivity: "synthetic-issuer-script-shaped",
+        seed: &[0x8a, 0x02, b'0', b'0', 0x71, 0x04, 0x86, 0x02, 0x00, 0xda],
+        expected: KernelError::ParseError,
+        run: seed_host_response,
+    },
+    FuzzSeedCase {
+        id: "TRACK2-VALID-SHAPE",
+        target: "fuzz_track2_shape",
+        surface: "record::summarize_track2_equivalent_data",
+        sensitivity: "synthetic-track2-shape-hash-only",
+        seed: &[
+            0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45, 0x67, 0x8f,
+        ],
+        expected: KernelError::Ok,
+        run: seed_track2_shape,
+    },
+    FuzzSeedCase {
+        id: "TRACK2-MISSING-SEPARATOR",
+        target: "fuzz_track2_shape",
+        surface: "record::summarize_track2_equivalent_data",
+        sensitivity: "synthetic-track2-shape-hash-only",
+        seed: &[0x12, 0x34, 0x56, 0x78],
+        expected: KernelError::ParseError,
+        run: seed_track2_shape,
+    },
+];
+
 pub fn prelab_quality_gates_json(abi_version: u32) -> String {
     let mut out = String::new();
     out.push('{');
@@ -394,6 +529,70 @@ pub fn prelab_static_fuzz_plan_json() -> String {
     }
     out.push_str("]}\n");
     out
+}
+
+pub fn prelab_fuzz_seed_corpus_json() -> KernelResult<String> {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(&mut out, "type", "prelab-fuzz-seed-corpus");
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "scope",
+        "repository-controlled deterministic fuzz seed corpus manifest only",
+    );
+    out.push_str(",\"does_not_close\":[");
+    push_json_string(&mut out, "CERT-OPEN-010");
+    out.push(']');
+    out.push(',');
+    push_json_number(&mut out, "case_count", FUZZ_SEED_CASES.len() as u64);
+    out.push_str(",\"sensitive_data_policy\":[");
+    for (idx, policy) in [
+        "seed bytes are generated in code and are not emitted in this manifest",
+        "manifest records SHA-256 and length only for all seeds",
+        "PAN-like, Track 2-like, cryptogram-like, and issuer-script-like seeds are synthetic and hash-only",
+        "real cardholder data, clear PIN, private CAPK material, and issuer secrets are forbidden",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_json_string(&mut out, policy);
+    }
+    out.push_str("],\"cases\":[");
+    for (idx, case) in FUZZ_SEED_CASES.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        let actual = match (case.run)(case.seed) {
+            Ok(()) => KernelError::Ok,
+            Err(err) => err,
+        };
+        if actual != case.expected {
+            return Err(KernelError::InternalError);
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", case.id);
+        out.push(',');
+        push_json_str(&mut out, "target", case.target);
+        out.push(',');
+        push_json_str(&mut out, "surface", case.surface);
+        out.push(',');
+        push_json_str(&mut out, "sensitivity", case.sensitivity);
+        out.push(',');
+        push_json_number(&mut out, "seed_len", case.seed.len() as u64);
+        out.push(',');
+        push_json_str(&mut out, "seed_sha256", &to_hex(&sha256(case.seed)));
+        out.push(',');
+        push_json_str(&mut out, "expected", case.expected.name());
+        out.push(',');
+        push_json_str(&mut out, "actual", actual.name());
+        out.push('}');
+    }
+    out.push_str("]}\n");
+    Ok(out)
 }
 
 struct NoCrashSmokeCase {
@@ -677,6 +876,31 @@ fn smoke_replay_invalid_command() -> KernelResult<()> {
         trace::ApduTraceContext::Generic,
     )
     .map(|_| ())
+}
+
+fn seed_tlv_parse_many(input: &[u8]) -> KernelResult<()> {
+    tlv::parse_many(input).map(|_| ())
+}
+
+fn seed_dol_parse(input: &[u8]) -> KernelResult<()> {
+    dol::parse_dol(input).map(|_| ())
+}
+
+fn seed_replay_exchange_command(input: &[u8]) -> KernelResult<()> {
+    trace::ReplayExchange::new(input, &[], [0x90, 0x00], trace::ApduTraceContext::Generic)
+        .map(|_| ())
+}
+
+fn seed_gac_response(input: &[u8]) -> KernelResult<()> {
+    gac::parse_generate_ac_response(input).map(|_| ())
+}
+
+fn seed_host_response(input: &[u8]) -> KernelResult<()> {
+    issuer::parse_host_response(input).map(|_| ())
+}
+
+fn seed_track2_shape(input: &[u8]) -> KernelResult<()> {
+    record::summarize_track2_equivalent_data(input).map(|_| ())
 }
 
 fn push_json_number(out: &mut String, key: &str, value: u64) {
