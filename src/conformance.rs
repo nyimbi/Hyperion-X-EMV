@@ -79,6 +79,7 @@ const GENERATED_FROM: &[&str] = &[
     "docs/oda_test_vectors.json",
     "docs/prelab_apdu_trace_pack.jsonl",
     "docs/prelab_quality_gates.json",
+    "docs/prelab_no_crash_smoke.json",
 ];
 
 const CERTIFICATION_CONDITIONS: &[&str] = &[

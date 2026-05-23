@@ -1,3 +1,7 @@
+use crate::apdu::{self, CdaRequestControl, CryptogramRequest};
+use crate::dol::{self, DataStore, DolEntry};
+use crate::error::{KernelError, KernelResult};
+use crate::{gac, issuer, tlv, trace};
 use core::fmt::Write;
 
 struct QualityGate {
@@ -34,8 +38,13 @@ const QUALITY_GATES: &[QualityGate] = &[
         purpose: "regenerate and compare this pre-lab quality gate manifest",
     },
     QualityGate {
+        id: "PRELAB-NO-CRASH-SMOKE",
+        command: "cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -",
+        purpose: "regenerate and compare the deterministic parser/APDU no-crash smoke artifact",
+    },
+    QualityGate {
         id: "PRELAB-BUILD-PROVENANCE",
-        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
+        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs",
         purpose: "emit canonical build provenance for source, controlled annexes, and evidence generators",
     },
     QualityGate {
@@ -163,6 +172,156 @@ pub fn prelab_quality_gates_json(abi_version: u32) -> String {
     }
     out.push_str("]}\n");
     out
+}
+
+struct NoCrashSmokeCase {
+    id: &'static str,
+    surface: &'static str,
+    expected: KernelError,
+    run: fn() -> KernelResult<()>,
+}
+
+const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
+    NoCrashSmokeCase {
+        id: "TLV-VALID-RECORD-TEMPLATE",
+        surface: "tlv::parse_many",
+        expected: KernelError::Ok,
+        run: smoke_valid_tlv_record_template,
+    },
+    NoCrashSmokeCase {
+        id: "TLV-TRUNCATED-HIGH-TAG",
+        surface: "tlv::parse_many",
+        expected: KernelError::ParseError,
+        run: smoke_truncated_tlv_high_tag,
+    },
+    NoCrashSmokeCase {
+        id: "DOL-TRUNCATED-TAG",
+        surface: "dol::parse_dol",
+        expected: KernelError::ParseError,
+        run: smoke_truncated_dol_tag,
+    },
+    NoCrashSmokeCase {
+        id: "APDU-OVERSIZE-GPO-PDOL",
+        surface: "apdu::get_processing_options",
+        expected: KernelError::LengthOverflow,
+        run: smoke_oversize_gpo_pdol,
+    },
+    NoCrashSmokeCase {
+        id: "APDU-GENERATE-AC-BAD-CDA-BITS",
+        surface: "apdu::generate_ac",
+        expected: KernelError::InvalidProfile,
+        run: smoke_generate_ac_bad_cda_bits,
+    },
+    NoCrashSmokeCase {
+        id: "ISSUER-SCRIPT-MALFORMED-COMMAND",
+        surface: "issuer::parse_host_response",
+        expected: KernelError::ParseError,
+        run: smoke_malformed_issuer_script_command,
+    },
+    NoCrashSmokeCase {
+        id: "GAC-MISSING-MANDATORY-TAGS",
+        surface: "gac::parse_generate_ac_response",
+        expected: KernelError::MissingMandatoryTag,
+        run: smoke_gac_missing_mandatory_tags,
+    },
+    NoCrashSmokeCase {
+        id: "REPLAY-STRUCTURALLY-INVALID-COMMAND",
+        surface: "trace::ReplayExchange::new",
+        expected: KernelError::ParseError,
+        run: smoke_replay_invalid_command,
+    },
+];
+
+pub fn prelab_no_crash_smoke_json() -> KernelResult<String> {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(&mut out, "type", "prelab-no-crash-smoke");
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "scope",
+        "repository-controlled parser and APDU boundary smoke only",
+    );
+    out.push_str(",\"does_not_close\":[");
+    push_json_string(&mut out, "CERT-OPEN-010");
+    out.push(']');
+    out.push(',');
+    push_json_number(&mut out, "case_count", NO_CRASH_SMOKE_CASES.len() as u64);
+    out.push_str(",\"cases\":[");
+    for (idx, case) in NO_CRASH_SMOKE_CASES.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        let actual = match (case.run)() {
+            Ok(()) => KernelError::Ok,
+            Err(err) => err,
+        };
+        if actual != case.expected {
+            return Err(KernelError::InternalError);
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", case.id);
+        out.push(',');
+        push_json_str(&mut out, "surface", case.surface);
+        out.push(',');
+        push_json_str(&mut out, "expected", case.expected.name());
+        out.push(',');
+        push_json_str(&mut out, "actual", actual.name());
+        out.push('}');
+    }
+    out.push_str("]}\n");
+    Ok(out)
+}
+
+fn smoke_valid_tlv_record_template() -> KernelResult<()> {
+    tlv::parse_many(&[0x70, 0x03, 0x5a, 0x01, 0x12]).map(|_| ())
+}
+
+fn smoke_truncated_tlv_high_tag() -> KernelResult<()> {
+    tlv::parse_many(&[0x9f]).map(|_| ())
+}
+
+fn smoke_truncated_dol_tag() -> KernelResult<()> {
+    dol::parse_dol(&[0x9f]).map(|_| ())
+}
+
+fn smoke_oversize_gpo_pdol() -> KernelResult<()> {
+    apdu::get_processing_options(
+        &[DolEntry {
+            tag: vec![0x9f, 0x37],
+            length: apdu::MAX_GPO_PDOL_VALUE_LEN + 1,
+        }],
+        &DataStore::new(),
+    )
+    .map(|_| ())
+}
+
+fn smoke_generate_ac_bad_cda_bits() -> KernelResult<()> {
+    apdu::generate_ac(
+        CryptogramRequest::Arqc,
+        &[0x00],
+        CdaRequestControl::P1LowBits(0xc0),
+    )
+    .map(|_| ())
+}
+
+fn smoke_malformed_issuer_script_command() -> KernelResult<()> {
+    issuer::parse_host_response(&[0x8a, 0x02, b'0', b'0', 0x71, 0x04, 0x86, 0x02, 0x00, 0xda])
+        .map(|_| ())
+}
+
+fn smoke_gac_missing_mandatory_tags() -> KernelResult<()> {
+    gac::parse_generate_ac_response(&[0x77, 0x00]).map(|_| ())
+}
+
+fn smoke_replay_invalid_command() -> KernelResult<()> {
+    trace::ReplayExchange::new(
+        &[0x00, 0xa4],
+        &[],
+        [0x90, 0x00],
+        trace::ApduTraceContext::Generic,
+    )
+    .map(|_| ())
 }
 
 fn push_json_number(out: &mut String, key: &str, value: u64) {

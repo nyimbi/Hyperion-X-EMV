@@ -59,7 +59,7 @@ use hyperion_emv::oda::{
 };
 use hyperion_emv::perf::{parse_performance_profile, PerfAccumulator, PerfStage};
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
-use hyperion_emv::quality::prelab_quality_gates_json;
+use hyperion_emv::quality::{prelab_no_crash_smoke_json, prelab_quality_gates_json};
 use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
@@ -103,6 +103,7 @@ const CERTIFICATION_OPEN_ISSUES: &str = include_str!("../docs/certification_open
 const STANDARDS_WATCH: &str = include_str!("../docs/standards_watch.md");
 const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
 const PRELAB_QUALITY_GATES: &str = include_str!("../docs/prelab_quality_gates.json");
+const PRELAB_NO_CRASH_SMOKE: &str = include_str!("../docs/prelab_no_crash_smoke.json");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
 static IT_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -1452,6 +1453,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_trace_pack"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_quality_gates.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_no_crash_smoke.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_no_crash_smoke"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("certification-freeze hash checklist"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("kernel_binary_hash"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("config_bundle_hash"));
@@ -1467,7 +1470,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
     assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
     for required_hash in [
@@ -1496,6 +1499,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/open_source.md".to_string(),
         "docs/performance_profile.csv".to_string(),
         "docs/prelab_apdu_trace_pack.jsonl".to_string(),
+        "docs/prelab_no_crash_smoke.json".to_string(),
         "docs/prelab_quality_gates.json".to_string(),
         "docs/requirements-traceability-matrix.csv".to_string(),
         "docs/requirements_traceability.csv".to_string(),
@@ -1509,6 +1513,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_build_manifest.rs".to_string(),
         "examples/krn_cabi_script_adapter.rs".to_string(),
         "examples/krn_emv_decode.rs".to_string(),
+        "examples/krn_prelab_no_crash_smoke.rs".to_string(),
         "examples/krn_scheme_profile_dictionary.rs".to_string(),
         "examples/krn_prelab_quality_gates.rs".to_string(),
         "examples/krn_prelab_trace_pack.rs".to_string(),
@@ -1552,6 +1557,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/open_source.md",
         "docs/performance_profile.csv",
         "docs/prelab_apdu_trace_pack.jsonl",
+        "docs/prelab_no_crash_smoke.json",
         "docs/prelab_quality_gates.json",
         "docs/requirements-traceability-matrix.csv",
         "docs/requirements_traceability.csv",
@@ -1565,6 +1571,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_build_manifest.rs",
         "examples/krn_cabi_script_adapter.rs",
         "examples/krn_emv_decode.rs",
+        "examples/krn_prelab_no_crash_smoke.rs",
         "examples/krn_scheme_profile_dictionary.rs",
         "examples/krn_prelab_quality_gates.rs",
         "examples/krn_prelab_trace_pack.rs",
@@ -1823,6 +1830,7 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "docs/standards_watch.md",
             "docs/prelab_apdu_trace_pack.jsonl",
             "docs/prelab_quality_gates.json",
+            "docs/prelab_no_crash_smoke.json",
             "docs/scheme_profiles.cert.json",
             "EMV-B1",
             "EMV-B2",
@@ -6108,7 +6116,8 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -",
         "cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -6151,6 +6160,37 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Static analysis report"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("- [ ] Fuzzing report"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("pre-lab quality gate manifest does not close"));
+}
+
+#[test]
+fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
+    let generated = prelab_no_crash_smoke_json().unwrap();
+
+    assert_eq!(PRELAB_NO_CRASH_SMOKE, generated);
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"type\":\"prelab-no-crash-smoke\""));
+    assert!(
+        PRELAB_NO_CRASH_SMOKE.contains("repository-controlled parser and APDU boundary smoke only")
+    );
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":8"));
+    for case_id in [
+        "TLV-VALID-RECORD-TEMPLATE",
+        "TLV-TRUNCATED-HIGH-TAG",
+        "DOL-TRUNCATED-TAG",
+        "APDU-OVERSIZE-GPO-PDOL",
+        "APDU-GENERATE-AC-BAD-CDA-BITS",
+        "ISSUER-SCRIPT-MALFORMED-COMMAND",
+        "GAC-MISSING-MANDATORY-TAGS",
+        "REPLAY-STRUCTURALLY-INVALID-COMMAND",
+    ] {
+        assert!(
+            PRELAB_NO_CRASH_SMOKE.contains(case_id),
+            "no-crash smoke missing case {case_id}"
+        );
+    }
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab no-crash smoke artifact"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("static-analysis and fuzzing report evidence"));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-010"));
 }
 
 #[test]

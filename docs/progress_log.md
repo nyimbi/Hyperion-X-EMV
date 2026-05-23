@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T08:43:44Z
+
+- Increment completed: add a deterministic pre-lab parser/APDU no-crash smoke
+  artifact.
+- Research note: `CERT-OPEN-010` remains an external-report blocker; the local
+  smoke artifact is repository-controlled evidence that selected malformed and
+  valid parser inputs return typed outcomes without replacing tool-versioned
+  static-analysis or fuzz/no-crash reports.
+- Code impact: `prelab_no_crash_smoke_json()` exercises TLV, DOL, command APDU,
+  issuer host-response, GENERATE AC response, and replay-adapter boundary cases
+  and fails closed if any case returns a different typed outcome.
+- Evidence updated: `docs/prelab_no_crash_smoke.json`,
+  `examples/krn_prelab_no_crash_smoke.rs`, `docs/prelab_quality_gates.json`,
+  `docs/abi_conformance_statement.json`, the lab manifest, and build
+  provenance expectations now include the no-crash smoke artifact while
+  preserving `does_not_close = CERT-OPEN-010`.
+- Remaining external blockers: accepted coverage, full EMV integration,
+  static-analysis, fuzz/no-crash, lab trace, signed profile/CAPK, device/PED,
+  third-party security, and approval reports are still required.
+
 ## 2026-05-23T08:33:46Z
 
 - Increment completed: harden CDCVM recognition at the CTQ/profile boundary.
