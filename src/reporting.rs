@@ -194,7 +194,7 @@ const REQUIRED_REPORTS: &[RequiredReport] = &[
         id: "CERT-REPORT-COVERAGE",
         title: "100% unit coverage report",
         status: "pending external attachment",
-        required_evidence: "submitted commit, tool versions, target, feature set, and HTML/XML or lab-accepted report",
+        required_evidence: "submitted commit, tool versions, target, feature set, coverage metadata JSON, and HTML/XML or lab-accepted report",
         closure_gate: "CERT-OPEN-009",
     },
     RequiredReport {

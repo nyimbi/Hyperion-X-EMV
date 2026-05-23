@@ -35,6 +35,10 @@ The script:
 - Fails unless line coverage reaches 100%.
 - Writes an HTML report under `target/coverage/html`.
 - Writes a local staging note under `target/coverage/README.txt`.
+- Writes machine-readable run metadata under `target/coverage/metadata.json`,
+  including source commit, Cargo version, Rust compiler version, target triple,
+  `cargo-llvm-cov` version, target/feature scope, threshold, enforcement mode,
+  and the `CERT-OPEN-009` non-closure marker.
 
 The strict 100% gate is the default. For pre-lab measurement without closing
 the certification blocker, set `KRN_COVERAGE_ENFORCE=0`:
@@ -77,6 +81,11 @@ a measurement artifact while `CERT-OPEN-009` remains open, not a claim that the
 The CI artifact is still pre-lab evidence. It becomes certification-facing only
 after the submitted binary, profiles, CAPKs, vectors, traceability matrix, and
 reviewer acceptance are bound into the lab submission package.
+
+The uploaded `target/coverage` directory must contain both the HTML report and
+`metadata.json`. The metadata file is intended for report production and
+submission review; it is not proof of 100% coverage unless the enforcing mode
+was used and the report is accepted for the submitted artifact set.
 
 ## Contributor Use
 

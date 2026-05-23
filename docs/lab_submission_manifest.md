@@ -38,7 +38,7 @@
 - [x] Basic PoS integration example (`krn_basic_pos`) – scripted terminal sale showing C ABI initialization, signed profile loading, transaction parameters, reader APDU callbacks, online authorization handoff, host approval with issuer authentication data, issuer authentication, and final GENERATE AC; not a certified payment application
 - [x] Reproducible build provenance – `cargo run --example krn_build_manifest -- src Cargo.lock Cargo.toml docs/...` emits canonical JSON with controlled relative artifact names and SHA-256 for every kernel source module, the manifest tool, profile dictionary generator, decoder utility, C ABI script adapter, lockfile, open-source reference review, and controlled annexes
 - [x] Source code (MIT-licensed repository source; third-party standards, scheme materials, CAPKs, lab vectors, test-tool outputs, signed profiles, device evidence, PCI/PED evidence, and approval artifacts remain governed by their own authorities)
-- [ ] Unit test report (100% coverage; prepared with `scripts/coverage_100.sh` / `docs/coverage.md` or lab-accepted equivalent) – [to be attached]
+- [ ] Unit test report (100% coverage; prepared with `scripts/coverage_100.sh` / `docs/coverage.md` or lab-accepted equivalent, including `target/coverage/metadata.json` with commit, toolchain, target, feature, threshold, and enforcement metadata) – [to be attached]
 - [ ] Integration test report (100% of EMV test plan) – [to be attached]
 - [ ] Static analysis report (accepted for the Rust/product submission context) – [to be attached]
 - [ ] Fuzzing report (1M iterations, no crashes) – [to be attached]

@@ -236,7 +236,8 @@ integration, static analysis, fuzzing, lab trace, or approval reports.
 The repository coverage workflow is documented in `docs/coverage.md` and
 implemented by `scripts/coverage_100.sh`. By default it uses `cargo-llvm-cov`
 to fail unless line coverage reaches 100%, then stages an HTML report under
-`target/coverage/html`. The CI workflow runs the same script with
+`target/coverage/html` plus run metadata under `target/coverage/metadata.json`.
+The CI workflow runs the same script with
 `KRN_COVERAGE_ENFORCE=0` to upload a measurement artifact while
 `CERT-OPEN-009` remains open. A final enforced run is required before the
 coverage report can be submitted as certification evidence.

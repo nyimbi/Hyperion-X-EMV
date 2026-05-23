@@ -6701,6 +6701,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_evidence_checklist.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"evidence_requirements\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("CERT-REPORT-COVERAGE"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("coverage metadata JSON"));
     assert!(CERTIFICATION_REPORT_PACK.contains("CERT-OPEN-012"));
     assert!(CERTIFICATION_REPORT_PACK.contains("pending external attachment"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_basic_pos"));
@@ -6746,6 +6747,8 @@ fn certification_evidence_checklist_is_reproducible_and_scoped() {
         "PCI-recognized laboratory validation",
         "krn_get_profile_sha256",
         "scripts/coverage_100.sh",
+        "coverage metadata JSON",
+        "cargo-llvm-cov version",
         "docs/prelab_apdu_trace_pack.jsonl",
     ] {
         assert!(
@@ -6777,9 +6780,20 @@ fn coverage_report_workflow_requires_100_percent_without_closing_cert_open_009()
     assert!(COVERAGE_SCRIPT.contains("--all-targets"));
     assert!(COVERAGE_SCRIPT.contains("--all-features"));
     assert!(COVERAGE_SCRIPT.contains("--output-dir target/coverage"));
+    assert!(COVERAGE_SCRIPT.contains("target/coverage/metadata.json"));
+    assert!(COVERAGE_SCRIPT.contains("hyperion-coverage-report-metadata"));
+    assert!(COVERAGE_SCRIPT.contains("source_commit"));
+    assert!(COVERAGE_SCRIPT.contains("cargo_version"));
+    assert!(COVERAGE_SCRIPT.contains("rustc_version"));
+    assert!(COVERAGE_SCRIPT.contains("target_triple"));
+    assert!(COVERAGE_SCRIPT.contains("coverage_tool_version"));
+    assert!(COVERAGE_SCRIPT.contains("\"line_coverage_threshold\":100"));
+    assert!(COVERAGE_SCRIPT.contains("\"does_not_close\":\"CERT-OPEN-009\""));
     assert!(COVERAGE_WORKFLOW.contains("KRN_COVERAGE_ENFORCE=0"));
+    assert!(COVERAGE_WORKFLOW.contains("metadata.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("scripts/coverage_100.sh"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("100% coverage"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("target/coverage/metadata.json"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("Unit coverage report at 100%"));
 }
 

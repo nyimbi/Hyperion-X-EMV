@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T23:01:40Z
+
+- Increment completed: add machine-readable coverage-report metadata so
+  pre-lab and submission review tooling can reconcile the generated coverage
+  report with the source commit, Cargo/Rust toolchain, target triple,
+  `cargo-llvm-cov` version, target/feature scope, threshold, enforcement mode,
+  and `CERT-OPEN-009` non-closure marker.
+- Tooling impact: `scripts/coverage_100.sh` now stages
+  `target/coverage/metadata.json` beside the HTML report and local README.
+- Evidence impact: coverage documentation, lab manifest requirements,
+  certification evidence checklist content, certification report-pack content,
+  and traceability tests now reference the metadata file.
+- Verification: `cargo fmt --check`, `sh -n scripts/coverage_100.sh`, focused
+  traceability tests for coverage/report/evidence/CI boundaries, generated
+  JSON/Markdown/HTML drift checks, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `git diff --check` all passed locally.
+- Remaining external blockers: local `cargo-llvm-cov` is not installed in this
+  environment, so no formal local coverage report was generated in this
+  increment; `CERT-OPEN-009` remains open until the accepted 100% coverage
+  report and full EMV integration report are attached for the submitted
+  artifact set.
+
 ## 2026-05-23T22:24:17Z
 
 - Increment completed: add a deterministic certification evidence attachment
