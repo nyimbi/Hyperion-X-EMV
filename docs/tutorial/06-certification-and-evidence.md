@@ -1,0 +1,189 @@
+# Certification And Evidence
+
+This tutorial explains what must be true before Hyperion can support a final
+certification claim. It is intentionally conservative: certification is proven
+by accepted evidence, not by repository statements.
+
+## What Certification Means
+
+Certification means the claimed product, binary, profile set, device, interface,
+and payment application scope have been tested and accepted by the relevant
+authorities. For EMV products, that can involve:
+
+- EMVCo Level 2 testing.
+- Scheme-specific approval.
+- Acquirer acceptance.
+- Device and Level 1 evidence.
+- PCI PTS POI evidence for PIN and device security boundaries.
+- Recognized lab reports.
+- Signed profile, CAPK, trace, and conformance artifacts.
+
+The exact path depends on product scope.
+
+## What Hyperion Can Provide
+
+The repository can provide:
+
+- Source code and documentation under MIT license.
+- Rust tests and traceability guards.
+- Controlled annexes.
+- Generated ABI conformance JSON.
+- Masked pre-lab APDU trace fixtures.
+- Quality-gate manifest.
+- No-crash smoke artifact.
+- Build provenance hashes.
+- Open issue tracking for missing external evidence.
+- A shared place for community review and test contributions.
+
+This can reduce the cost and ambiguity of certification preparation.
+
+## What Hyperion Cannot Self-Certify
+
+The repository cannot provide final approval by itself. These remain external:
+
+- Licensed EMVCo standards and lab interpretation.
+- Scheme and acquirer rule acceptance.
+- Accepted CAPK bundle and provenance.
+- Lab-supplied SDA, DDA, CDA, APDU, and contactless test vectors.
+- Full lab/test-tool APDU trace pack.
+- Device and L1 approval evidence.
+- PCI PTS/PED statement.
+- 100% unit coverage report for the submitted build.
+- Full EMV integration report for the submitted profile set.
+- Static-analysis and fuzzing reports accepted for the submission context.
+- Third-party security assessment.
+- Signed approval artifacts.
+
+## The Certification Package Mindset
+
+Every final claim should identify:
+
+- Product name and version.
+- Submitted kernel binary hash.
+- Submitted configuration bundle hash.
+- CAPK bundle hash.
+- Scheme profile hash.
+- Test vector bundle hash.
+- Traceability matrix hash.
+- Device and L1 evidence references.
+- PCI/PED evidence references.
+- Test-tool version and lab environment.
+- Open findings and accepted residual risks.
+
+If a claim cannot be tied to a specific artifact set, it is not ready.
+
+## Hyperion Open Issues
+
+The controlling external blocker list is `docs/certification_open_issues.md`.
+At the time this tutorial was written, final certification still depends on:
+
+- Signed profile authority.
+- Scheme and acquirer accepted AID/TAC/IAC/limit configuration.
+- Accepted CAPKs.
+- Lab-supplied ODA vectors.
+- Contactless C-8 package and bulletin reconciliation.
+- Device and L1 evidence.
+- PCI/PED evidence.
+- Third-party security assessment.
+- 100% coverage and full integration reports.
+- Static-analysis and fuzzing reports.
+- Signed conformance template.
+- Full masked lab APDU trace pack.
+
+Do not close those issues with local repository tests alone.
+
+## Coverage Requirement
+
+Hyperion now targets a formal 100% unit coverage report before final
+certification submission. The report must match the submitted binary, profiles,
+and annex hashes. A passing `cargo test` run is necessary but not sufficient:
+it proves tests pass, not that every unit coverage obligation has been measured
+and accepted.
+
+Coverage should be treated as a certification artifact:
+
+- Record tool name and version.
+- Record compiler and target.
+- Record exact source commit.
+- Record profile and feature flags.
+- Attach HTML/XML or lab-accepted report format.
+- Explain exclusions, if any, and get them accepted.
+
+## Integration Report Requirement
+
+The full EMV integration report should prove that the kernel, terminal
+application, device, profile set, and host path work together across the
+claimed EMV test plan. This is different from unit coverage.
+
+It should include:
+
+- Test plan version.
+- Test-tool version.
+- Profile set and hashes.
+- Device model and firmware.
+- APDU trace references.
+- Expected and actual outcomes.
+- Deviations and dispositions.
+- Lab or reviewer acceptance.
+
+## Static Analysis And Fuzzing
+
+Static analysis and fuzzing reports should include:
+
+- Tool names and versions.
+- Commands and configuration.
+- Corpus description.
+- Iteration counts and duration.
+- Coverage or path metrics if available.
+- Findings, remediations, and accepted residual issues.
+
+Hyperion's no-crash smoke artifact is useful, but it does not replace the
+formal fuzzing report.
+
+## Lab Trace Pack
+
+The repository includes a deterministic masked pre-lab trace fixture. Final
+certification still needs the full lab/test-tool trace pack for the accepted
+scope.
+
+The final trace pack should:
+
+- Cover every applicable test case.
+- Preserve ordering and status words.
+- Include profile and ABI identity metadata.
+- Mask sensitive cardholder and cryptographic material.
+- Tie traces to the submitted build and profile hashes.
+- Be accepted by the lab or scheme reviewer.
+
+## Crowdsourced Certification Preparation
+
+Crowdsourcing can help before formal submission:
+
+- More parser edge cases.
+- More APDU replay fixtures.
+- More trace redaction tests.
+- More profile validation tests.
+- Better tutorial and integration documentation.
+- Independent security review.
+- Portability reports for terminal platforms.
+
+Crowdsourcing cannot replace final authority. It can make the submitted package
+stronger, easier to inspect, and less likely to fail late.
+
+## Practical Readiness Checklist
+
+Before a certification-facing submission, confirm:
+
+- `cargo test` passes.
+- `cargo test --examples` passes.
+- `cargo fmt --check` passes.
+- `cargo clippy --all-targets --all-features -- -D warnings` passes.
+- Controlled evidence generators reproduce checked-in artifacts.
+- The 100% coverage report is attached.
+- Full EMV integration report is attached.
+- Static-analysis and fuzzing reports are attached.
+- CAPKs and profiles are accepted and signed.
+- Device, L1, and PCI/PED evidence are attached.
+- Full masked lab APDU trace pack is attached.
+- `docs/certification_open_issues.md` has no open item for the claimed scope.
+

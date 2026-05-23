@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:59:43Z
+
+- Increment completed: add `docs/tutorial/` as a structured learning path for
+  engineers, fintech teams, reviewers, integrators, and certification
+  coordinators.
+- Documentation impact: tutorials now explain what an EMV kernel is, where it
+  fits in the payment stack, the transaction lifecycle, Hyperion architecture,
+  local usage and evidence generation, certification evidence requirements,
+  testing contribution rules, clean-room boundaries, and core glossary terms.
+- README impact: the project status list now points new readers to the tutorial
+  entry point.
+- Remaining external blockers: tutorials educate contributors and integrators,
+  but final certification still depends on the external evidence tracked in
+  `docs/certification_open_issues.md`.
+
 ## 2026-05-23T11:56:32Z
 
 - Increment completed: raise the pending unit coverage report target to 100%

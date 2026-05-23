@@ -21,6 +21,7 @@ tool results, and approval artifacts prevail over this repository on conflict.
   `docs/requirements-traceability-matrix.csv`.
 - Public standards drift watch: `docs/standards_watch.md`.
 - Clean-room open-source reference review: `docs/open_source.md`.
+- Tutorial learning path: `docs/tutorial/README.md`.
 - Session progress log: `docs/progress_log.md`.
 
 Repository-controlled evidence is intentionally separated from external
