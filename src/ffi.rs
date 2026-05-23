@@ -4,7 +4,8 @@ use crate::c8::{
     evaluate_contactless_limits, evaluate_relay_resistance, outcome_from_limit_decision,
     outcome_from_relay_resistance_failure, AlternateInterface, ContactlessLimitDecision,
     ContactlessLimitInput, ContactlessOutcome, ContactlessOutcomeCode, KrnContactlessOutcome,
-    RelayResistanceDecision, RelayResistanceFailureOutcome, StartSignal, UiRequest, UiStatus,
+    RelayResistanceDecision, RelayResistanceFailureOutcome, StartSignal,
+    TerminalTransactionQualifiers, UiRequest, UiStatus,
 };
 use crate::cid::CryptogramType;
 use crate::config::{
@@ -216,7 +217,7 @@ pub struct KrnContext {
     cvm_pin_handles: CvmPinHandles,
     cvm_capabilities: RuntimeCvmCapabilities,
     terminal_capabilities: Option<TerminalCapabilities>,
-    terminal_transaction_qualifiers: Option<[u8; 4]>,
+    terminal_transaction_qualifiers: Option<TerminalTransactionQualifiers>,
     offline_counter: Option<OfflineCounter>,
     trm_random_sample_basis_points: Option<u16>,
     last_unpredictable_number: Option<[u8; 4]>,
@@ -511,7 +512,11 @@ pub unsafe extern "C" fn krn_set_terminal_transaction_qualifiers(
     if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
-    ctx.terminal_transaction_qualifiers = Some([byte1, byte2, byte3, byte4]);
+    let ttq = TerminalTransactionQualifiers::parse(&[byte1, byte2, byte3, byte4]);
+    ctx.terminal_transaction_qualifiers = match ttq {
+        Ok(ttq) => Some(ttq),
+        Err(err) => return ctx.set_result(Err(err)),
+    };
     ctx.set_result(Ok(0usize))
 }
 
@@ -1572,7 +1577,7 @@ fn transaction_data_store(
     tvr: Tvr,
     tsi: Tsi,
     terminal_capabilities: Option<TerminalCapabilities>,
-    terminal_transaction_qualifiers: Option<[u8; 4]>,
+    terminal_transaction_qualifiers: Option<TerminalTransactionQualifiers>,
 ) -> Result<DataStore, KernelError> {
     let mut data = DataStore::new();
     data.put(
@@ -1598,7 +1603,7 @@ fn transaction_data_store(
         data.put(&[0x9f, 0x33], &terminal_capabilities.raw())?;
     }
     if let Some(terminal_transaction_qualifiers) = terminal_transaction_qualifiers {
-        data.put(&[0x9f, 0x66], &terminal_transaction_qualifiers)?;
+        data.put(&[0x9f, 0x66], &terminal_transaction_qualifiers.raw())?;
     }
     data.put(&[0x9f, 0x35], &[params.terminal_type])?;
     data.put(&[0x9f, 0x15], &params.merchant_category_code)?;
@@ -5135,7 +5140,7 @@ mod tests {
             Tvr::cleared(),
             Tsi::cleared(),
             Some(TerminalCapabilities::parse(&[0xe0, 0xb0, 0xc8]).unwrap()),
-            Some([0x36, 0x00, 0x40, 0x00]),
+            Some(TerminalTransactionQualifiers::parse(&[0x36, 0x00, 0x40, 0x00]).unwrap()),
         )
         .unwrap();
         let record_with_card_and_terminal_data = [

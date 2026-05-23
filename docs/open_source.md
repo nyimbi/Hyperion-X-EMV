@@ -337,8 +337,8 @@ The following are adaptation candidates, ordered by near-term value:
    parser-backed, masked by default, and covers operator-facing TLV, DOL, CVM,
    primitive tag-list, numeric-code, fixed numeric amount, Track 2 shape, EMV
    date, currency exponent, transaction type, terminal-type, Terminal
-   Capabilities, AIP, Application Usage Control, CVM Results, bitmap, CID,
-   GENERATE AC response, issuer
+   Capabilities, Terminal Transaction Qualifiers, AIP, Application Usage
+   Control, CVM Results, bitmap, CID, GENERATE AC response, issuer
    host-response, status-word, short command APDU, and response APDU envelope
    decodes before formal test-tool execution;
    keep tag names and

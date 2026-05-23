@@ -208,6 +208,32 @@ pub struct ContactlessLimitInput {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalTransactionQualifiers {
+    raw: [u8; 4],
+}
+
+impl TerminalTransactionQualifiers {
+    pub fn parse(raw: &[u8]) -> KernelResult<Self> {
+        let raw: [u8; 4] = raw.try_into().map_err(|_| KernelError::ParseError)?;
+        Ok(Self { raw })
+    }
+
+    pub fn raw(self) -> [u8; 4] {
+        self.raw
+    }
+
+    pub fn bit_is_set(self, byte_index: usize, mask: u8) -> bool {
+        self.raw
+            .get(byte_index)
+            .is_some_and(|byte| byte & mask != 0)
+    }
+
+    pub fn set_bit_count(self) -> usize {
+        self.raw.iter().map(|byte| byte.count_ones() as usize).sum()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ContactlessLimitDecision {
     Allowed,
     CvmRequired,
@@ -647,6 +673,23 @@ mod tests {
                 ..base
             }),
             ContactlessLimitDecision::AlternateInterface
+        );
+    }
+
+    #[test]
+    fn parses_terminal_transaction_qualifiers_as_profile_defined_bitmap() {
+        let ttq = TerminalTransactionQualifiers::parse(&[0x36, 0x00, 0x40, 0x00]).unwrap();
+
+        assert_eq!(ttq.raw(), [0x36, 0x00, 0x40, 0x00]);
+        assert!(ttq.bit_is_set(0, 0x20));
+        assert!(ttq.bit_is_set(0, 0x10));
+        assert!(ttq.bit_is_set(0, 0x04));
+        assert!(ttq.bit_is_set(0, 0x02));
+        assert!(ttq.bit_is_set(2, 0x40));
+        assert_eq!(ttq.set_bit_count(), 5);
+        assert_eq!(
+            TerminalTransactionQualifiers::parse(&[0x36, 0x00]).unwrap_err(),
+            KernelError::ParseError
         );
     }
 

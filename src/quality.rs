@@ -1,5 +1,6 @@
 use crate::aip::ApplicationInterchangeProfile;
 use crate::apdu::{self, CdaRequestControl, CryptogramRequest};
+use crate::c8::TerminalTransactionQualifiers;
 use crate::cvm::CvmResults;
 use crate::dol::{self, DataStore, DolEntry};
 use crate::error::{KernelError, KernelResult};
@@ -244,6 +245,12 @@ const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
         run: smoke_short_terminal_capabilities,
     },
     NoCrashSmokeCase {
+        id: "TTQ-SHORT",
+        surface: "c8::TerminalTransactionQualifiers::parse",
+        expected: KernelError::ParseError,
+        run: smoke_short_terminal_transaction_qualifiers,
+    },
+    NoCrashSmokeCase {
         id: "AIP-SHORT",
         surface: "aip::ApplicationInterchangeProfile::parse",
         expected: KernelError::MissingMandatoryTag,
@@ -380,6 +387,10 @@ fn smoke_unknown_terminal_type() -> KernelResult<()> {
 
 fn smoke_short_terminal_capabilities() -> KernelResult<()> {
     TerminalCapabilities::parse(&[0xe0, 0xb0]).map(|_| ())
+}
+
+fn smoke_short_terminal_transaction_qualifiers() -> KernelResult<()> {
+    TerminalTransactionQualifiers::parse(&[0x36, 0x00]).map(|_| ())
 }
 
 fn smoke_short_aip() -> KernelResult<()> {

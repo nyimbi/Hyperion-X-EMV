@@ -2664,6 +2664,9 @@ fn rtm_promotes_terminal_capability_and_ttq_evidence() {
             "KRN-TTQ-001 should cite executable 9F66 contactless PDOL evidence"
         );
         assert!(ttq.contains("krn_ttq_001_supplies_9f66_to_contactless_pdol_and_online_handoff"));
+        assert!(ttq.contains(
+            "c8::tests::parses_terminal_transaction_qualifiers_as_profile_defined_bitmap"
+        ));
         assert!(ttq.contains("krn_emv_decode::tests::ttq_and_ctq_output_profile_defined_bitmaps"));
         assert!(ttq.contains("rtm_promotes_terminal_capability_and_ttq_evidence"));
     }
@@ -6289,7 +6292,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         PRELAB_NO_CRASH_SMOKE.contains("repository-controlled parser and APDU boundary smoke only")
     );
     assert!(PRELAB_NO_CRASH_SMOKE.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
-    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":19"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":20"));
     for case_id in [
         "TLV-VALID-RECORD-TEMPLATE",
         "TLV-TRUNCATED-HIGH-TAG",
@@ -6300,6 +6303,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         "TRANSACTION-TYPE-VALID-CASHBACK",
         "TERMINAL-TYPE-UNKNOWN",
         "TERMINAL-CAPABILITIES-SHORT",
+        "TTQ-SHORT",
         "AIP-SHORT",
         "AUC-SHORT",
         "CVM-RESULTS-SHORT",
@@ -6319,12 +6323,14 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
     assert!(PRELAB_NO_CRASH_SMOKE.contains("record::summarize_track2_equivalent_data"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::TerminalType::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::TerminalCapabilities::parse"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("c8::TerminalTransactionQualifiers::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("aip::ApplicationInterchangeProfile::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("restrictions::ApplicationUsageControl::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("cvm::CvmResults::parse"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab no-crash smoke artifact"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Track 2 shape"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Terminal Capabilities"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Terminal Transaction Qualifiers"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("AIP"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CVM Results"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("static-analysis and fuzzing report evidence"));

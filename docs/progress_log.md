@@ -4,6 +4,33 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:30:21Z
+
+- Increment completed: add a typed contactless Terminal Transaction Qualifiers
+  (`9F66`) value and route ABI, DOL, decoder, and no-crash evidence through it.
+- Research note: TTQ remains profile-defined contactless data, so Hyperion
+  treats it as exact-length, parser-owned runtime input while avoiding invented
+  scheme semantics. Final TTQ meaning and acceptance remain licensed/profile
+  and lab responsibilities.
+- Code impact: `src/c8.rs` now exposes `TerminalTransactionQualifiers` with
+  exact four-byte parsing and profile-defined bit inspection; `KrnContext` now
+  stores typed TTQ after ABI registration; transaction DOL data emits
+  `TerminalTransactionQualifiers::raw()`; `krn_emv_decode ttq` uses the shared
+  parser and reports profile-defined bit count; `src/quality.rs` adds a
+  malformed TTQ no-crash case.
+- Evidence updated: regenerated `docs/prelab_no_crash_smoke.json`, updated both
+  RTM annexes for runtime TTQ parser coverage, refreshed the lab manifest and
+  open-source adaptation backlog, and tightened traceability guards for the new
+  no-crash case and RTM evidence.
+- Verification: focused TTQ parser, runtime handoff, decoder, RTM, and
+  no-crash reproducibility tests; `cargo fmt --check`; `git diff --check`;
+  `cargo test`; `cargo test --examples`; `cargo clippy --all-targets
+  --all-features -- -D warnings`; and deterministic artifact drift checks for
+  the ABI conformance statement, trace pack, scheme profile dictionary, quality
+  gates, and no-crash smoke artifact.
+- Remaining external blockers: final TTQ semantics and contactless profile
+  acceptance still depend on licensed scheme/lab reconciliation.
+
 ## 2026-05-23T11:21:51Z
 
 - Increment completed: carry Terminal Capabilities (`9F33`) as a typed runtime

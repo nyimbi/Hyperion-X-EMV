@@ -1,4 +1,5 @@
 use hyperion_emv::aip::ApplicationInterchangeProfile;
+use hyperion_emv::c8::TerminalTransactionQualifiers;
 use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::decode_hex;
 use hyperion_emv::cvm::{parse_cvm_list, CvmMethod, CvmResultStatus, CvmResults};
@@ -64,7 +65,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "termcap" | "terminal-capabilities" => {
             decode_terminal_capabilities(arg_hex(args, 1, "termcap")?)
         }
-        "ttq" => decode_profile_defined_bitmap("ttq", arg_hex(args, 1, "ttq")?, 4),
+        "ttq" => decode_terminal_transaction_qualifiers(arg_hex(args, 1, "ttq")?),
         "ctq" => decode_profile_defined_bitmap("ctq", arg_hex(args, 1, "ctq")?, 1),
         "sw" => {
             if args.len() != 3 {
@@ -604,6 +605,18 @@ fn decode_profile_defined_bitmap(
     let _ = writeln!(out, "raw={}", hex_upper(&bytes));
     let _ = writeln!(out, "scheme_policy=profile-defined");
     append_profile_defined_bits(&mut out, &bytes);
+    Ok(out)
+}
+
+fn decode_terminal_transaction_qualifiers(bytes: Vec<u8>) -> Result<String, String> {
+    let ttq = TerminalTransactionQualifiers::parse(&bytes)
+        .map_err(|_| "ttq must be exactly 4 bytes".to_string())?;
+    let mut out = String::new();
+    let _ = writeln!(out, "type=ttq");
+    let _ = writeln!(out, "raw={}", hex_upper(&ttq.raw()));
+    let _ = writeln!(out, "scheme_policy=profile-defined");
+    let _ = writeln!(out, "set_bit_count={}", ttq.set_bit_count());
+    append_profile_defined_bits(&mut out, &ttq.raw());
     Ok(out)
 }
 
@@ -1448,11 +1461,12 @@ mod tests {
 
     #[test]
     fn ttq_and_ctq_output_profile_defined_bitmaps() {
-        let ttq = decode_profile_defined_bitmap("ttq", decode_hex("36004000").unwrap(), 4).unwrap();
+        let ttq = decode_terminal_transaction_qualifiers(decode_hex("36004000").unwrap()).unwrap();
         let ctq = decode_profile_defined_bitmap("ctq", decode_hex("20").unwrap(), 1).unwrap();
 
         assert!(ttq.contains("type=ttq"));
         assert!(ttq.contains("scheme_policy=profile-defined"));
+        assert!(ttq.contains("set_bit_count=5"));
         assert!(ttq.contains("bit=byte1.b3"));
         assert!(ttq.contains("bit=byte1.b4"));
         assert!(ttq.contains("bit=byte3.b2"));
