@@ -25,6 +25,7 @@ pub mod perf;
 pub mod provenance;
 pub mod quality;
 pub mod record;
+pub mod reporting;
 pub mod restrictions;
 pub mod selection;
 mod sha1;

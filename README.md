@@ -26,6 +26,9 @@ tool results, and approval artifacts prevail over this repository on conflict.
 - 100% coverage workflow: `docs/coverage.md` and `scripts/coverage_100.sh`.
 - Static/fuzz evidence plan: `docs/prelab_static_fuzz_plan.json`.
 - Fuzz seed corpus manifest: `docs/prelab_fuzz_seed_corpus.json`.
+- Certification report workbench: `docs/certification_report_ui.html`,
+  `docs/certification_report_pack.json`, and
+  `docs/certification_report_pack.md`.
 - Pre-lab CI workflow: `.github/workflows/prelab.yml`.
 - Session progress log: `docs/progress_log.md`.
 
@@ -252,8 +255,12 @@ controlled evidence:
   manifest.
 - `krn_public_standards_watch`: emits the public standards-watch signal
   manifest.
+- `krn_certification_report_ui`: emits deterministic JSON, Markdown, and a
+  static HTML workbench for report production and certification artifact review.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
+- `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks
+  through host approval, issuer authentication, and final GENERATE AC.
 - `krn_emv_decode`: decodes lab-triage inputs while suppressing sensitive
   payload values by default.
 
@@ -266,6 +273,8 @@ cargo run --quiet --example krn_emv_decode -- termcap E0B0C8
 cargo run --quiet --example krn_emv_decode -- add-termcap 7080F0F0FF
 cargo run --quiet --example krn_emv_decode -- ttq 36004000
 cargo run --quiet --example krn_emv_decode -- sw generate-ac 9000
+cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
+cargo run --quiet --example krn_basic_pos
 ```
 
 ## Controlled Annexes
@@ -288,6 +297,10 @@ The `docs/` directory is part of the executable baseline:
   manifest.
 - `public_standards_watch.json`: generated public standards-watch signal
   manifest.
+- `certification_report_pack.json`: generated report-pack index for artifact
+  and external-report tracking.
+- `certification_report_pack.md`: generated Markdown report-pack export.
+- `certification_report_ui.html`: generated static report workbench UI.
 - `abi_conformance_statement.json`: generated ABI conformance statement.
 - `performance_profile.csv`: product timing buckets and targets.
 - `requirements_traceability.csv`: current RTM.

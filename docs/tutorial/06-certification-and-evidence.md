@@ -34,6 +34,7 @@ The repository can provide:
 - Build provenance hashes.
 - Runtime trace identity for ABI version, profile version, and loaded profile
   SHA-256.
+- A static certification report workbench and JSON/Markdown report-pack exports.
 - Open issue tracking for missing external evidence.
 - A shared place for community review and test contributions.
 
@@ -212,6 +213,8 @@ Before a certification-facing submission, confirm:
 
 - `cargo test` passes.
 - `cargo test --examples` passes.
+- `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` produces the current report workbench.
+- `cargo run --quiet --example krn_basic_pos` completes the basic scripted PoS integration.
 - `cargo fmt --check` passes.
 - `cargo clippy --all-targets --all-features -- -D warnings` passes.
 - Controlled evidence generators reproduce checked-in artifacts.

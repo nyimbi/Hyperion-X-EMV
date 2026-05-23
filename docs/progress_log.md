@@ -4,6 +4,22 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T13:54:59Z
+
+- Increment completed: add the first user-facing certification report workbench
+  and a basic PoS integration example.
+- Tooling impact: `krn_certification_report_ui` now emits deterministic JSON,
+  Markdown, and static HTML that index repository artifacts, required external
+  reports, report-production commands, and open certification gates.
+- Integration impact: `krn_basic_pos` demonstrates a scripted sale through the
+  C ABI, including profile loading, transaction parameters, reader APDU
+  callbacks, online authorization handoff, host approval with issuer
+  authentication data, issuer authentication, and final GENERATE AC.
+- Remaining external blockers: the workbench and PoS example are pre-lab
+  tooling only; they do not replace certified terminal software, lab trace
+  packs, coverage reports, static/fuzz reports, device evidence, PCI/PED
+  evidence, or signed approval artifacts.
+
 ## 2026-05-23T13:43:12Z
 
 - Increment completed: bind runtime profile identity to the exact signed

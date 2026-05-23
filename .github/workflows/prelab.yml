@@ -58,6 +58,18 @@ jobs:
       - name: Public standards watch drift
         run: cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
 
+      - name: Certification report UI drift
+        run: cargo run --quiet --example krn_certification_report_ui -- --html | diff -u docs/certification_report_ui.html -
+
+      - name: Certification report JSON drift
+        run: cargo run --quiet --example krn_certification_report_ui -- --json | diff -u docs/certification_report_pack.json -
+
+      - name: Certification report Markdown drift
+        run: cargo run --quiet --example krn_certification_report_ui -- --markdown | diff -u docs/certification_report_pack.md -
+
+      - name: Basic PoS integration smoke
+        run: cargo run --quiet --example krn_basic_pos
+
       - name: Whitespace
         run: git diff --check
 

@@ -83,6 +83,9 @@ const GENERATED_FROM: &[&str] = &[
     "docs/prelab_static_fuzz_plan.json",
     "docs/prelab_fuzz_seed_corpus.json",
     "docs/public_standards_watch.json",
+    "docs/certification_report_pack.json",
+    "docs/certification_report_pack.md",
+    "docs/certification_report_ui.html",
 ];
 
 const CERTIFICATION_CONDITIONS: &[&str] = &[

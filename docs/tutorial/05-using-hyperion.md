@@ -55,6 +55,8 @@ cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_c
 cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -
 cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -
 cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
+cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
+cargo run --quiet --example krn_basic_pos
 ```
 
 If a generator output changes, the code or annex that caused the change should
@@ -66,7 +68,7 @@ The build manifest generator emits canonical hashes for source modules,
 controlled annexes, and evidence generators:
 
 ```sh
-cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs
+cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_report_ui.rs examples/krn_basic_pos.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs
 ```
 
 Use this when preparing a submission package or checking that source and annex
@@ -118,6 +120,12 @@ rewriting the Level 2 logic. The integration should:
 The ABI is defensive about buffer ownership. Callers should probe output sizes,
 allocate caller-owned buffers, and retry with sufficient capacity.
 
+The `krn_basic_pos` example is the smallest end-to-end integration shape in the
+repository. It creates a C ABI context, loads the certification profile fixture,
+sets sale parameters, routes APDUs through a scripted reader, sends ARQC data
+to a stub host, applies the host response, performs issuer authentication, and
+finishes with second GENERATE AC.
+
 ## Profile Usage
 
 Do not treat bundled example or fixture profiles as production authority.
@@ -137,6 +145,10 @@ Certification and production profile loading should use:
 Hyperion rejects example-only profiles in certification and production modes.
 Integrations should store the reported profile version and SHA-256 alongside
 build hashes, trace packs, and test-tool outputs.
+
+For report production, `krn_certification_report_ui` emits a static workbench
+and JSON/Markdown exports that index repository artifacts, pending external
+reports, and the commands needed to regenerate evidence.
 
 ## Trace Usage
 
