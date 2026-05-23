@@ -27,6 +27,7 @@ use crate::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseFormat};
 use crate::issuer::{
     apply_script_results, parse_host_response, HostResponse, ScriptCommandResult, ScriptPhase,
 };
+use crate::numeric::encode_numeric_bcd_fixed;
 use crate::oda::{
     apply_oda_outcome, parse_internal_authenticate_response,
     recover_and_verify_public_key_certificate, recover_and_verify_signed_application_data,
@@ -1573,20 +1574,20 @@ fn transaction_data_store(
     let mut data = DataStore::new();
     data.put(
         &[0x9f, 0x02],
-        &numeric_bcd_fixed(params.amount_authorised_minor, 6)?,
+        &encode_numeric_bcd_fixed(params.amount_authorised_minor, 6)?,
     )?;
     data.put(
         &[0x9f, 0x03],
-        &numeric_bcd_fixed(params.amount_other_minor, 6)?,
+        &encode_numeric_bcd_fixed(params.amount_other_minor, 6)?,
     )?;
     data.put(
         &[0x5f, 0x2a],
-        &numeric_bcd_fixed(params.currency_code as u64, 2)?,
+        &encode_numeric_bcd_fixed(params.currency_code as u64, 2)?,
     )?;
     data.put(&[0x5f, 0x36], &[params.currency_exponent])?;
     data.put(
         &[0x9f, 0x1a],
-        &numeric_bcd_fixed(params.terminal_country_code as u64, 2)?,
+        &encode_numeric_bcd_fixed(params.terminal_country_code as u64, 2)?,
     )?;
     data.put(&[0x9c], &[params.transaction_type])?;
     data.put(&[0x9a], &emv_date_bcd(transaction_date))?;
@@ -1695,30 +1696,6 @@ fn emv_date_bcd(date: EmvDate) -> [u8; 3] {
 
 fn decimal_bcd(value: u8) -> u8 {
     ((value / 10) << 4) | (value % 10)
-}
-
-fn numeric_bcd_fixed(value: u64, bytes: usize) -> Result<Vec<u8>, KernelError> {
-    let digits = bytes.checked_mul(2).ok_or(KernelError::LengthOverflow)?;
-    let max = 10u64
-        .checked_pow(digits as u32)
-        .ok_or(KernelError::LengthOverflow)?;
-    if value >= max {
-        return Err(KernelError::InvalidArgument);
-    }
-
-    let mut out = vec![0u8; bytes];
-    let mut remaining = value;
-    for index in (0..digits).rev() {
-        let digit = (remaining % 10) as u8;
-        remaining /= 10;
-        let byte = index / 2;
-        if index % 2 == 0 {
-            out[byte] |= digit << 4;
-        } else {
-            out[byte] |= digit;
-        }
-    }
-    Ok(out)
 }
 
 fn apply_transition(ctx: &mut KrnContext, event: FsmEvent) -> Result<(), KernelError> {
@@ -2204,7 +2181,7 @@ fn fixed_slice<const N: usize>(value: &[u8]) -> Result<[u8; N], KernelError> {
 }
 
 fn fixed_numeric_bcd<const N: usize>(value: u64) -> Result<[u8; N], KernelError> {
-    let encoded = numeric_bcd_fixed(value, N)?;
+    let encoded = encode_numeric_bcd_fixed(value, N)?;
     fixed_slice(&encoded)
 }
 

@@ -4,6 +4,33 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:12:10Z
+
+- Increment completed: share fixed numeric BCD amount handling between runtime
+  9F02/9F03 construction and pre-lab decoder evidence.
+- Research note: amount tags are six-byte numeric BCD fields in transaction
+  data, but display formatting depends on terminal/acquirer currency exponent
+  configuration. Hyperion therefore reports raw digits and minor units without
+  deriving a decimal currency value in generic trace tooling.
+- Code impact: `src/numeric.rs` now centralizes fixed numeric BCD encode/decode
+  validation, the FFI transaction data path uses that shared encoder for
+  amount and numeric-code-like fields, and `krn_emv_decode amount <hex>`
+  reports minor units for non-sensitive 9F02/9F03 triage.
+- Evidence updated:
+  `numeric::tests::encodes_and_decodes_fixed_numeric_bcd_amounts`,
+  `numeric::tests::rejects_fixed_numeric_bcd_overflow_and_non_bcd_nibbles`,
+  `krn_emv_decode::tests::amount_output_decodes_minor_units_without_exponent_assumption`,
+  `krn_emv_decode::tests::cli_routes_amount_mode`, and API/TLV RTM guards.
+- Verification: focused numeric, decoder, and RTM tests; `cargo fmt --check`;
+  `git diff --check`; `cargo test`; `cargo test --examples`;
+  `cargo clippy --all-targets --all-features -- -D warnings`; decoder CLI
+  smoke for `amount 000000001234`; and deterministic pre-lab artifact drift
+  checks for the trace pack, quality gates, ABI conformance statement, scheme
+  profile dictionary, and no-crash smoke artifact.
+- Remaining external blockers: lab-tool amount/currency display crosswalk,
+  acquirer receipt-format rules, and scheme-specific amount presentation
+  remain outside the raw kernel decoder.
+
 ## 2026-05-23T10:04:22Z
 
 - Increment completed: tighten EMV/ISO date validation so February 29 is accepted

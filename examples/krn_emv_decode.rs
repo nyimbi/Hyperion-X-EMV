@@ -5,6 +5,7 @@ use hyperion_emv::cvm::{parse_cvm_list, CvmMethod, CvmResultStatus, CvmResults};
 use hyperion_emv::dol::parse_dol;
 use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::issuer::{parse_host_response, ScriptPhase};
+use hyperion_emv::numeric::{bcd_digits, decode_numeric_bcd_fixed};
 use hyperion_emv::restrictions::ApplicationUsageControl;
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
@@ -38,6 +39,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "dol" => decode_dol(arg_hex(args, 1, "dol")?),
         "tag-list" => decode_tag_list(arg_hex(args, 1, "tag-list")?),
         "numeric-code" => decode_numeric_code(arg_hex(args, 1, "numeric-code")?),
+        "amount" | "amount-authorised" | "amount-other" => decode_amount(arg_hex(args, 1, mode)?),
         "terminal-type" => decode_terminal_type(arg_hex(args, 1, "terminal-type")?),
         "aip" => decode_aip(arg_hex(args, 1, "aip")?),
         "auc" | "application-usage-control" => {
@@ -79,7 +81,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -184,7 +186,7 @@ fn decode_numeric_code(bytes: Vec<u8>) -> Result<String, String> {
         .try_into()
         .map_err(|_| "numeric-code must be exactly 2 BCD bytes".to_string())?;
     let digits =
-        bcd_digits(&raw).ok_or_else(|| "numeric-code contains non-BCD nibbles".to_string())?;
+        bcd_digits(&raw).map_err(|_| "numeric-code contains non-BCD nibbles".to_string())?;
     if digits[0] != 0 {
         return Err("numeric-code must encode a three-digit value as 0XXX BCD".to_string());
     }
@@ -201,6 +203,25 @@ fn decode_numeric_code(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "code={value:03}");
     let _ = writeln!(out, "field_shape=three-digit-code-in-two-byte-bcd");
     let _ = writeln!(out, "authority=profile-or-lab-defined");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_amount(bytes: Vec<u8>) -> Result<String, String> {
+    let raw: [u8; 6] = bytes
+        .try_into()
+        .map_err(|_| "amount must be exactly 6 BCD bytes".to_string())?;
+    let minor_units = decode_numeric_bcd_fixed(&raw)
+        .map_err(|_| "amount contains non-BCD nibbles".to_string())?;
+    let digits = bcd_digits(&raw).map_err(|_| "amount contains non-BCD nibbles".to_string())?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=amount");
+    let _ = writeln!(out, "raw={}", hex_upper(&raw));
+    let _ = writeln!(out, "digits={}", digit_string(&digits));
+    let _ = writeln!(out, "minor_units={minor_units}");
+    let _ = writeln!(out, "field_shape=six-byte-fixed-numeric-bcd");
+    let _ = writeln!(out, "authority=runtime-amount-minor-unit-mapping");
     let _ = writeln!(out, "value_policy=non-sensitive");
     Ok(out)
 }
@@ -286,14 +307,11 @@ fn decode_application_usage_control(bytes: Vec<u8>) -> Result<String, String> {
     Ok(out)
 }
 
-fn bcd_digits(bytes: &[u8; 2]) -> Option<[u8; 4]> {
-    let digits = [
-        bytes[0] >> 4,
-        bytes[0] & 0x0f,
-        bytes[1] >> 4,
-        bytes[1] & 0x0f,
-    ];
-    digits.iter().all(|digit| *digit <= 9).then_some(digits)
+fn digit_string(digits: &[u8]) -> String {
+    digits
+        .iter()
+        .map(|digit| char::from(b'0' + *digit))
+        .collect()
 }
 
 fn decode_cvm_list(bytes: Vec<u8>) -> Result<String, String> {
@@ -1091,6 +1109,30 @@ mod tests {
     }
 
     #[test]
+    fn amount_output_decodes_minor_units_without_exponent_assumption() {
+        let out = decode_amount(decode_hex("000000001234").unwrap()).unwrap();
+
+        assert!(out.contains("type=amount"));
+        assert!(out.contains("raw=000000001234"));
+        assert!(out.contains("digits=000000001234"));
+        assert!(out.contains("minor_units=1234"));
+        assert!(out.contains("field_shape=six-byte-fixed-numeric-bcd"));
+        assert!(out.contains("authority=runtime-amount-minor-unit-mapping"));
+        assert!(out.contains("value_policy=non-sensitive"));
+        assert!(!out.contains("currency"));
+        assert!(!out.contains("decimal"));
+
+        assert_eq!(
+            decode_amount(vec![0x00, 0x00, 0x00, 0x12, 0x34]).unwrap_err(),
+            "amount must be exactly 6 BCD bytes"
+        );
+        assert_eq!(
+            decode_amount(decode_hex("0000000A1234").unwrap()).unwrap_err(),
+            "amount contains non-BCD nibbles"
+        );
+    }
+
+    #[test]
     fn terminal_type_output_names_emv_online_capability() {
         let out = decode_terminal_type(decode_hex("22").unwrap()).unwrap();
 
@@ -1509,6 +1551,14 @@ mod tests {
 
         assert!(out.contains("type=numeric-code"));
         assert!(out.contains("code=840"));
+    }
+
+    #[test]
+    fn cli_routes_amount_mode() {
+        let out = run(&[string_arg("amount"), string_arg("000000001234")]).unwrap();
+
+        assert!(out.contains("type=amount"));
+        assert!(out.contains("minor_units=1234"));
     }
 
     #[test]

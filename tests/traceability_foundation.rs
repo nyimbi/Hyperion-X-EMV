@@ -2708,6 +2708,9 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         ));
         assert!(catalogue
             .contains("krn_emv_decode::tests::numeric_code_output_enforces_three_digit_bcd_shape"));
+        assert!(catalogue.contains(
+            "krn_emv_decode::tests::amount_output_decodes_minor_units_without_exponent_assumption"
+        ));
         assert!(catalogue
             .contains("krn_emv_decode::tests::terminal_type_output_names_emv_online_capability"));
         assert!(
@@ -3276,6 +3279,11 @@ fn rtm_promotes_api_abi_and_callback_validation_evidence() {
         );
         assert!(amount_currency.contains("transaction_params_clear_previous_transaction_artifacts"));
         assert!(amount_currency.contains("transaction_params_reject_non_three_digit_numeric_codes"));
+        assert!(amount_currency
+            .contains("numeric::tests::encodes_and_decodes_fixed_numeric_bcd_amounts"));
+        assert!(amount_currency.contains(
+            "krn_emv_decode::tests::amount_output_decodes_minor_units_without_exponent_assumption"
+        ));
 
         let caller_buffers = csv_row_for_requirement(csv, "KRN-API-005").unwrap();
         assert!(

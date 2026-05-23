@@ -19,6 +19,7 @@ pub mod fsm;
 pub mod gac;
 pub mod gpo;
 pub mod issuer;
+pub mod numeric;
 pub mod oda;
 pub mod perf;
 pub mod provenance;
