@@ -1,3 +1,4 @@
+use hyperion_emv::aip::ApplicationInterchangeProfile;
 use hyperion_emv::cid::{Cid, CryptogramType};
 use hyperion_emv::config::decode_hex;
 use hyperion_emv::cvm::{parse_cvm_list, CvmMethod};
@@ -35,6 +36,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "tag-list" => decode_tag_list(arg_hex(args, 1, "tag-list")?),
         "numeric-code" => decode_numeric_code(arg_hex(args, 1, "numeric-code")?),
         "terminal-type" => decode_terminal_type(arg_hex(args, 1, "terminal-type")?),
+        "aip" => decode_aip(arg_hex(args, 1, "aip")?),
         "cvm-list" => decode_cvm_list(arg_hex(args, 1, "cvm-list")?),
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
         "tsi" => decode_tsi(arg_hex(args, 1, "tsi")?),
@@ -69,7 +71,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|cvm-list|tvr|tsi|cid|gac|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -167,6 +169,22 @@ fn decode_terminal_type(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "location={}", terminal_type.location().label());
     let _ = writeln!(out, "online_capable={}", terminal_type.online_capable());
     let _ = writeln!(out, "authority=emv-profile-defined");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_aip(bytes: Vec<u8>) -> Result<String, String> {
+    let aip = ApplicationInterchangeProfile::parse(&bytes)
+        .map_err(|err| format!("AIP parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=aip");
+    let _ = writeln!(out, "raw={}", hex_upper(&aip.raw()));
+    let _ = writeln!(out, "sda_supported={}", aip.sda_supported());
+    let _ = writeln!(out, "dda_supported={}", aip.dda_supported());
+    let _ = writeln!(out, "cda_supported={}", aip.cda_supported());
+    let _ = writeln!(out, "oda_required={}", aip.oda_required());
+    let _ = writeln!(out, "authority=runtime-profile-mapping");
     let _ = writeln!(out, "value_policy=non-sensitive");
     Ok(out)
 }
@@ -911,6 +929,28 @@ mod tests {
     }
 
     #[test]
+    fn aip_output_names_runtime_oda_capabilities() {
+        let out = decode_aip(decode_hex("C080").unwrap()).unwrap();
+
+        assert!(out.contains("type=aip"));
+        assert!(out.contains("raw=C080"));
+        assert!(out.contains("sda_supported=true"));
+        assert!(out.contains("dda_supported=true"));
+        assert!(out.contains("cda_supported=true"));
+        assert!(out.contains("oda_required=true"));
+        assert!(out.contains("authority=runtime-profile-mapping"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        let no_oda = decode_aip(decode_hex("0000").unwrap()).unwrap();
+        assert!(no_oda.contains("oda_required=false"));
+
+        assert_eq!(
+            decode_aip(vec![0x80]).unwrap_err(),
+            "AIP parse failed: KRN_ERR_MISSING_MANDATORY_TAG"
+        );
+    }
+
+    #[test]
     fn cvm_list_output_names_rules_without_handles() {
         let out = decode_cvm_list(decode_hex("00000000000003E8430302031F03").unwrap()).unwrap();
 
@@ -1181,6 +1221,14 @@ mod tests {
 
         assert!(out.contains("type=terminal-type"));
         assert!(out.contains("online_capable=true"));
+    }
+
+    #[test]
+    fn cli_routes_aip_mode() {
+        let out = run(&[string_arg("aip"), string_arg("C080")]).unwrap();
+
+        assert!(out.contains("type=aip"));
+        assert!(out.contains("oda_required=true"));
     }
 
     #[test]

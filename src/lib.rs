@@ -5,6 +5,7 @@
 //! points, while the Rust modules retain explicit state and typed errors.
 
 pub mod afl;
+pub mod aip;
 pub mod apdu;
 pub mod c8;
 pub mod cid;

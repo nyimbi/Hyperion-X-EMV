@@ -1,4 +1,5 @@
 use crate::afl::{parse_afl, AflEntry};
+use crate::aip::ApplicationInterchangeProfile;
 use crate::dol::{parse_dol, DolEntry};
 use crate::error::{KernelError, KernelResult};
 use crate::tlv;
@@ -90,10 +91,7 @@ fn parse_template_80(value: &[u8]) -> KernelResult<GpoResponse> {
 }
 
 fn fixed_aip(value: &[u8]) -> KernelResult<[u8; 2]> {
-    if value.len() != 2 {
-        return Err(KernelError::MissingMandatoryTag);
-    }
-    Ok([value[0], value[1]])
+    Ok(ApplicationInterchangeProfile::parse(value)?.raw())
 }
 
 #[cfg(test)]

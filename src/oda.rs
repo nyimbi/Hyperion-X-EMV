@@ -1,3 +1,4 @@
+use crate::aip::ApplicationInterchangeProfile;
 use crate::config::{decode_hex, Capk, ProfileSet};
 use crate::dol::DataStore;
 use crate::error::{KernelError, KernelResult};
@@ -244,18 +245,16 @@ pub fn selection_input_from_aip(
     profile_cda_allowed: bool,
     terminal_supports_dynamic_authentication: bool,
 ) -> OdaSelectionInput {
-    let aip_sda_supported = aip[0] & 0x80 != 0;
-    let aip_dda_supported = aip[0] & 0x40 != 0;
-    let aip_cda_supported = aip[1] & 0x80 != 0;
+    let aip = ApplicationInterchangeProfile::new(aip);
     OdaSelectionInput {
-        aip_sda_supported,
-        aip_dda_supported,
-        aip_cda_supported,
+        aip_sda_supported: aip.sda_supported(),
+        aip_dda_supported: aip.dda_supported(),
+        aip_cda_supported: aip.cda_supported(),
         profile_sda_allowed: true,
         profile_dda_allowed: true,
         profile_cda_allowed,
         terminal_supports_dynamic_authentication,
-        oda_required: aip_sda_supported || aip_dda_supported || aip_cda_supported,
+        oda_required: aip.oda_required(),
     }
 }
 

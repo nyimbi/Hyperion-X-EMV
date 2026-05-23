@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:26:19Z
+
+- Increment completed: add controlled AIP parsing and pre-lab decode output.
+- Research note: AIP is non-sensitive transaction capability evidence that
+  drives GPO parsing and ODA selection; exposing the runtime-consumed ODA
+  capability bits in `krn_emv_decode` improves lab-trace triage without
+  treating public reference decoders as certification evidence.
+- Code impact: `src/aip.rs` centralizes two-byte AIP validation and the
+  runtime ODA capability predicates used by GPO parsing, ODA selection, and
+  `krn_emv_decode aip <hex>`.
+- Evidence updated: `aip::tests::parses_runtime_oda_capability_bits`,
+  `aip::tests::rejects_non_two_byte_aip_values`, and
+  `krn_emv_decode::tests::aip_output_names_runtime_oda_capabilities` are bound
+  into GPO and TLV traceability rows and the lab-manifest decoder scope.
+- Remaining external blockers: licensed scheme/profile rules and lab traces
+  still define the accepted interpretation of any AIP bits outside the runtime
+  predicates used here.
+
 ## 2026-05-23T09:17:03Z
 
 - Increment completed: share EMV terminal-type validation between runtime
