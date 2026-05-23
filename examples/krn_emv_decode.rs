@@ -5,6 +5,7 @@ use hyperion_emv::cvm::{parse_cvm_list, CvmMethod, CvmResultStatus, CvmResults};
 use hyperion_emv::dol::parse_dol;
 use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::issuer::{parse_host_response, ScriptPhase};
+use hyperion_emv::restrictions::ApplicationUsageControl;
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::terminal::TerminalType;
@@ -39,6 +40,9 @@ fn run(args: &[String]) -> Result<String, String> {
         "numeric-code" => decode_numeric_code(arg_hex(args, 1, "numeric-code")?),
         "terminal-type" => decode_terminal_type(arg_hex(args, 1, "terminal-type")?),
         "aip" => decode_aip(arg_hex(args, 1, "aip")?),
+        "auc" | "application-usage-control" => {
+            decode_application_usage_control(arg_hex(args, 1, "auc")?)
+        }
         "cvm-list" => decode_cvm_list(arg_hex(args, 1, "cvm-list")?),
         "cvm-results" => decode_cvm_results(arg_hex(args, 1, "cvm-results")?),
         "tvr" => decode_tvr(arg_hex(args, 1, "tvr")?),
@@ -75,7 +79,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -231,6 +235,53 @@ fn decode_aip(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "cda_supported={}", aip.cda_supported());
     let _ = writeln!(out, "oda_required={}", aip.oda_required());
     let _ = writeln!(out, "authority=runtime-profile-mapping");
+    let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_application_usage_control(bytes: Vec<u8>) -> Result<String, String> {
+    let auc = ApplicationUsageControl::parse(&bytes)
+        .map_err(|err| format!("AUC parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=application-usage-control");
+    let _ = writeln!(out, "raw={}", hex_upper(&auc.raw()));
+    let _ = writeln!(out, "domestic_cash={}", auc.valid_for_domestic_cash());
+    let _ = writeln!(
+        out,
+        "international_cash={}",
+        auc.valid_for_international_cash()
+    );
+    let _ = writeln!(out, "domestic_goods={}", auc.valid_for_domestic_goods());
+    let _ = writeln!(
+        out,
+        "international_goods={}",
+        auc.valid_for_international_goods()
+    );
+    let _ = writeln!(
+        out,
+        "domestic_services={}",
+        auc.valid_for_domestic_services()
+    );
+    let _ = writeln!(
+        out,
+        "international_services={}",
+        auc.valid_for_international_services()
+    );
+    let _ = writeln!(out, "valid_at_atm={}", auc.valid_at_atm());
+    let _ = writeln!(out, "valid_other_than_atm={}", auc.valid_other_than_atm());
+    let _ = writeln!(
+        out,
+        "domestic_cashback={}",
+        auc.valid_for_domestic_cashback()
+    );
+    let _ = writeln!(
+        out,
+        "international_cashback={}",
+        auc.valid_for_international_cashback()
+    );
+    let _ = writeln!(out, "byte2_rfu_mask=0x{:02X}", auc.byte2_rfu_mask());
+    let _ = writeln!(out, "authority=runtime-processing-restrictions-mapping");
     let _ = writeln!(out, "value_policy=non-sensitive");
     Ok(out)
 }
@@ -1087,6 +1138,35 @@ mod tests {
     }
 
     #[test]
+    fn auc_output_names_usage_control_bits_without_policy_override() {
+        let out = decode_application_usage_control(decode_hex("FF80").unwrap()).unwrap();
+
+        assert!(out.contains("type=application-usage-control"));
+        assert!(out.contains("raw=FF80"));
+        assert!(out.contains("domestic_cash=true"));
+        assert!(out.contains("international_cash=true"));
+        assert!(out.contains("domestic_goods=true"));
+        assert!(out.contains("international_goods=true"));
+        assert!(out.contains("domestic_services=true"));
+        assert!(out.contains("international_services=true"));
+        assert!(out.contains("valid_at_atm=true"));
+        assert!(out.contains("valid_other_than_atm=true"));
+        assert!(out.contains("domestic_cashback=true"));
+        assert!(out.contains("international_cashback=false"));
+        assert!(out.contains("byte2_rfu_mask=0x00"));
+        assert!(out.contains("authority=runtime-processing-restrictions-mapping"));
+        assert!(out.contains("value_policy=non-sensitive"));
+
+        let rfu = decode_application_usage_control(decode_hex("0001").unwrap()).unwrap();
+        assert!(rfu.contains("byte2_rfu_mask=0x01"));
+
+        assert_eq!(
+            decode_application_usage_control(vec![0xff]).unwrap_err(),
+            "AUC parse failed: KRN_ERR_PARSE_ERROR"
+        );
+    }
+
+    #[test]
     fn cvm_list_output_names_rules_without_handles() {
         let out = decode_cvm_list(decode_hex("00000000000003E8430302031F03").unwrap()).unwrap();
 
@@ -1445,6 +1525,14 @@ mod tests {
 
         assert!(out.contains("type=aip"));
         assert!(out.contains("oda_required=true"));
+    }
+
+    #[test]
+    fn cli_routes_auc_mode() {
+        let out = run(&[string_arg("auc"), string_arg("FF80")]).unwrap();
+
+        assert!(out.contains("type=application-usage-control"));
+        assert!(out.contains("domestic_cashback=true"));
     }
 
     #[test]

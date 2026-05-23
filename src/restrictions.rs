@@ -66,6 +66,59 @@ impl ApplicationUsageControl {
         Self { bytes }
     }
 
+    pub fn parse(raw: &[u8]) -> KernelResult<Self> {
+        let bytes: [u8; 2] = raw.try_into().map_err(|_| KernelError::ParseError)?;
+        Ok(Self::new(bytes))
+    }
+
+    pub fn raw(self) -> [u8; 2] {
+        self.bytes
+    }
+
+    pub fn valid_for_domestic_cash(self) -> bool {
+        self.is_set(Self::DOMESTIC_CASH)
+    }
+
+    pub fn valid_for_international_cash(self) -> bool {
+        self.is_set(Self::INTERNATIONAL_CASH)
+    }
+
+    pub fn valid_for_domestic_goods(self) -> bool {
+        self.is_set(Self::DOMESTIC_GOODS)
+    }
+
+    pub fn valid_for_international_goods(self) -> bool {
+        self.is_set(Self::INTERNATIONAL_GOODS)
+    }
+
+    pub fn valid_for_domestic_services(self) -> bool {
+        self.is_set(Self::DOMESTIC_SERVICES)
+    }
+
+    pub fn valid_for_international_services(self) -> bool {
+        self.is_set(Self::INTERNATIONAL_SERVICES)
+    }
+
+    pub fn valid_at_atm(self) -> bool {
+        self.is_set(Self::VALID_AT_ATM)
+    }
+
+    pub fn valid_other_than_atm(self) -> bool {
+        self.is_set(Self::VALID_OTHER_THAN_ATM)
+    }
+
+    pub fn valid_for_domestic_cashback(self) -> bool {
+        self.is_set(Self::DOMESTIC_CASHBACK)
+    }
+
+    pub fn valid_for_international_cashback(self) -> bool {
+        self.is_set(Self::INTERNATIONAL_CASHBACK)
+    }
+
+    pub fn byte2_rfu_mask(self) -> u8 {
+        self.bytes[1] & 0x3f
+    }
+
     pub fn allows(self, region: TransactionRegion, service: ServiceType) -> bool {
         let (channel_mask, service_mask) = match (region, service) {
             (TransactionRegion::Domestic, ServiceType::Cash) => {
@@ -281,6 +334,28 @@ mod tests {
             international_cashback.allows(TransactionRegion::International, ServiceType::Cashback)
         );
         assert!(!international_cashback.allows(TransactionRegion::Domestic, ServiceType::Cashback));
+    }
+
+    #[test]
+    fn parses_auc_and_exposes_named_usage_bits() {
+        let auc = ApplicationUsageControl::parse(&[0xff, 0xc1]).unwrap();
+
+        assert_eq!(auc.raw(), [0xff, 0xc1]);
+        assert!(auc.valid_for_domestic_cash());
+        assert!(auc.valid_for_international_cash());
+        assert!(auc.valid_for_domestic_goods());
+        assert!(auc.valid_for_international_goods());
+        assert!(auc.valid_for_domestic_services());
+        assert!(auc.valid_for_international_services());
+        assert!(auc.valid_at_atm());
+        assert!(auc.valid_other_than_atm());
+        assert!(auc.valid_for_domestic_cashback());
+        assert!(auc.valid_for_international_cashback());
+        assert_eq!(auc.byte2_rfu_mask(), 0x01);
+        assert_eq!(
+            ApplicationUsageControl::parse(&[0xff]).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]

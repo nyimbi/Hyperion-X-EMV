@@ -2714,6 +2714,9 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
             catalogue.contains("krn_emv_decode::tests::aip_output_names_runtime_oda_capabilities")
         );
         assert!(catalogue.contains(
+            "krn_emv_decode::tests::auc_output_names_usage_control_bits_without_policy_override"
+        ));
+        assert!(catalogue.contains(
             "krn_emv_decode::tests::host_response_output_suppresses_issuer_authentication_and_scripts"
         ));
         assert!(catalogue.contains(
@@ -3197,11 +3200,19 @@ fn rtm_promotes_processing_restriction_evidence() {
 
         let order = csv_row_for_requirement(csv, "KRN-REST-001").unwrap();
         assert!(order.contains("parses_valid_bcd_dates_and_rejects_invalid_values"));
+        assert!(order.contains("parses_auc_and_exposes_named_usage_bits"));
         assert!(order.contains("evaluates_version_dates_auc_and_new_card_bits"));
+        assert!(order.contains(
+            "krn_emv_decode::tests::auc_output_names_usage_control_bits_without_policy_override"
+        ));
 
         let non_standard = csv_row_for_requirement(csv, "KRN-REST-002").unwrap();
         assert!(non_standard
             .contains("auc_enforces_terminal_channel_and_region_specific_cashback_bits"));
+        assert!(non_standard.contains("parses_auc_and_exposes_named_usage_bits"));
+        assert!(non_standard.contains(
+            "krn_emv_decode::tests::auc_output_names_usage_control_bits_without_policy_override"
+        ));
         assert!(non_standard.contains("does_not_set_non_standard_bits_for_allowed_transaction"));
     }
 }

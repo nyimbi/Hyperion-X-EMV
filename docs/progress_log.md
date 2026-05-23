@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:57:23Z
+
+- Increment completed: add typed Application Usage Control (`9F07`) parsing and
+  pre-lab decode output for processing-restriction triage.
+- Research note: public EMV tag references and open-source decoder/tooling
+  patterns consistently frame `9F07` as a two-byte issuer usage-control object
+  for domestic/international cash, goods, services, ATM, other-terminal, and
+  cashback permissions. Hyperion keeps final semantics under licensed
+  EMV/profile review and uses the public material only to guide operator-facing
+  trace readability.
+- Code impact: `src/restrictions.rs` now exposes `ApplicationUsageControl::parse`,
+  raw-byte access, named usage-bit predicates, and byte-2 RFU mask reporting;
+  `krn_emv_decode auc <hex>` reports the same runtime mapping without changing
+  processing-restriction policy.
+- Evidence updated:
+  `restrictions::tests::parses_auc_and_exposes_named_usage_bits`,
+  `krn_emv_decode::tests::auc_output_names_usage_control_bits_without_policy_override`,
+  `krn_emv_decode::tests::cli_routes_auc_mode`, and the processing-restriction
+  plus TLV-catalogue RTM guards.
+- Remaining external blockers: licensed EMV/scheme review still determines
+  final AUC service semantics, RFU treatment, and lab-tool mapping.
+
 ## 2026-05-23T09:51:45Z
 
 - Increment completed: make `krn_emv_decode` TLV, DOL, and primitive tag-list
