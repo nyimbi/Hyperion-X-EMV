@@ -58,7 +58,7 @@ The kernel **SHALL** implement CVM processing as defined in EMV Book 3, using 
 | `0x1F` | No CVM required | No cardholder verification |
 | `0x20`‑`0x3F` | Scheme‑specific / contactless | Defined in C‑8 or scheme profile |
 
-**CDCVM (Consumer Device CVM)** is **not** a universal EMV Book 3 CVM code. It is indicated through **contactless transaction qualifiers (CTQ) and card capabilities**. The kernel **SHALL** evaluate CDCVM availability from the contactless kernel data (e.g., CTQ bit 5) and **SHALL NOT** rely on a fixed CVM code `0x05`.
+**CDCVM (Consumer Device CVM)** is **not** a universal EMV Book 3 CVM code. It is indicated through **contactless transaction qualifiers (CTQ) and card capabilities**. The kernel **SHALL** evaluate CDCVM availability from the active contactless profile and well-formed contactless kernel data (e.g., CTQ bit 5) and **SHALL NOT** rely on a fixed CVM code `0x05`.
 
 > **KRN‑CVM‑003**: The kernel **SHALL** use the above CVM code table as normative. CDCVM handling **SHALL** be contactless‑profile specific.
 

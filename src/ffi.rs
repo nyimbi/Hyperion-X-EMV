@@ -2232,8 +2232,14 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
             .get(&[0x8e])
             .ok_or(KernelError::MissingMandatoryTag)?,
     )?;
-    let cdcvm_performed = ctx.cvm_capabilities.cdcvm_performed
-        || selected_aid_profile(ctx).is_ok_and(|aid| contactless_ctq_indicates_cdcvm(ctx, aid));
+    let contactless_interface = params.interface_preference == 2;
+    let cdcvm_performed = if !contactless_interface {
+        false
+    } else if ctx.cvm_capabilities.cdcvm_performed {
+        true
+    } else {
+        contactless_ctq_indicates_cdcvm(ctx, selected_aid_profile(ctx)?, true)?
+    };
     let outcome = evaluate_cvm(
         &cvm_list,
         CvmContext {
@@ -2243,7 +2249,7 @@ fn run_cvm_processing(ctx: &mut KrnContext, params: &StoredTxnParams) -> Result<
                 params,
             )?,
             transaction_type: cvm_transaction_type(params),
-            interface: if params.interface_preference == 2 {
+            interface: if contactless_interface {
                 CvmInterface::Contactless
             } else {
                 CvmInterface::Contact
@@ -2330,7 +2336,7 @@ fn run_contactless_limit_processing(
         contactless_transaction_limit: aid.contactless_transaction_limit,
         contactless_cvm_limit: aid.contactless_cvm_limit,
         floor_limit: aid.floor_limit,
-        cvm_satisfied: contactless_cvm_satisfied(ctx, aid),
+        cvm_satisfied: contactless_cvm_satisfied(ctx, aid, params.interface_preference == 2)?,
     });
 
     match decision {
@@ -2446,21 +2452,33 @@ fn is_final_outcome_state(ctx: &KrnContext) -> bool {
     ctx.state == KernelState::FinalOutcome && matches!(ctx.fsm_state, FsmState::S14 | FsmState::S16)
 }
 
-fn contactless_cvm_satisfied(ctx: &KrnContext, aid: &AidProfile) -> bool {
+fn contactless_cvm_satisfied(
+    ctx: &KrnContext,
+    aid: &AidProfile,
+    contactless_interface: bool,
+) -> Result<bool, KernelError> {
     let cvm_result_succeeded = ctx
         .card_data
         .get(&[0x9f, 0x34])
         .is_some_and(|result| result.len() == 3 && result[2] == 0x02);
-    cvm_result_succeeded || contactless_ctq_indicates_cdcvm(ctx, aid)
+    Ok(cvm_result_succeeded || contactless_ctq_indicates_cdcvm(ctx, aid, contactless_interface)?)
 }
 
-fn contactless_ctq_indicates_cdcvm(ctx: &KrnContext, aid: &AidProfile) -> bool {
-    aid.cdcvm_supported
-        && ctx
-            .card_data
-            .get(&[0x9f, 0x6c])
-            .and_then(|ctq| ctq.first())
-            .is_some_and(|byte| byte & 0x10 != 0)
+fn contactless_ctq_indicates_cdcvm(
+    ctx: &KrnContext,
+    aid: &AidProfile,
+    contactless_interface: bool,
+) -> Result<bool, KernelError> {
+    if !contactless_interface || !aid.cdcvm_supported {
+        return Ok(false);
+    }
+    let Some(ctq) = ctx.card_data.get(&[0x9f, 0x6c]) else {
+        return Ok(false);
+    };
+    if ctq.len() != 2 {
+        return Err(KernelError::ParseError);
+    }
+    Ok(ctq[0] & 0x10 != 0)
 }
 
 fn transaction_currency_matches_application(
@@ -5862,7 +5880,7 @@ mod tests {
         ctx.fsm_state = FsmState::S8;
         ctx.state = KernelState::TerminalRiskManagement;
         ctx.final_outcome = None;
-        ctx.card_data.put(&[0x9f, 0x6c], &[0x10]).unwrap();
+        ctx.card_data.put(&[0x9f, 0x6c], &[0x10, 0x00]).unwrap();
         CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
         assert_eq!(
             run_contactless_limit_processing(&mut ctx, runtime, &profiles, &params),
@@ -5870,6 +5888,29 @@ mod tests {
         );
         assert_eq!(CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst), 0);
         assert_eq!(ctx.final_outcome, None);
+    }
+
+    #[test]
+    fn contactless_cdcvm_requires_profile_ctq_and_contactless_interface() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.card_data.put(&[0x9f, 0x6c], &[0x10, 0x00]).unwrap();
+        let aid = selected_aid_profile(&ctx).unwrap();
+        assert_eq!(contactless_ctq_indicates_cdcvm(&ctx, aid, true), Ok(true));
+        assert_eq!(contactless_ctq_indicates_cdcvm(&ctx, aid, false), Ok(false));
+
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].cdcvm_supported = false;
+        let aid = selected_aid_profile(&ctx).unwrap();
+        assert_eq!(contactless_ctq_indicates_cdcvm(&ctx, aid, true), Ok(false));
+
+        let mut malformed = KrnContext::new();
+        install_profile_selection(&mut malformed);
+        malformed.card_data.put(&[0x9f, 0x6c], &[0x10]).unwrap();
+        let aid = selected_aid_profile(&malformed).unwrap();
+        assert_eq!(
+            contactless_ctq_indicates_cdcvm(&malformed, aid, true).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]

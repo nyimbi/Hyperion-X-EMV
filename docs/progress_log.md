@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T08:33:46Z
+
+- Increment completed: harden CDCVM recognition at the CTQ/profile boundary.
+- Research note: `docs/spec.md` treats CDCVM as contactless-profile specific
+  and CTQ/card-capability driven, not as a universal Book 3 CVM code or a
+  single unvalidated card byte.
+- Code impact: CDCVM recognition now requires a contactless transaction,
+  signed-profile `cdcvm_supported = true`, and well-formed two-byte `9F6C`.
+  Malformed `9F6C` now returns `ParseError` instead of being silently ignored,
+  and contact transactions cannot satisfy CDCVM through contactless CTQ data.
+- Evidence updated:
+  `ffi::tests::contactless_cdcvm_requires_profile_ctq_and_contactless_interface`
+  covers the profile/interface/CTQ-shape boundary, and both RTM CSVs cite it
+  under `KRN-CLESS-004` and `KRN-CVM-004`.
+- Remaining external blockers: scheme-specific CTQ semantics remain subject to
+  licensed profile and lab reconciliation; certification still needs accepted
+  coverage, full EMV integration, static-analysis, fuzzing/no-crash, lab
+  traces, signed profile/CAPK authority, device/PED evidence, and approval
+  reports.
+
 ## 2026-05-23T08:27:07Z
 
 - Increment completed: add an explicit certification-freeze hash checklist to

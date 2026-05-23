@@ -6311,6 +6311,9 @@ fn rtm_promotes_contactless_entry_outcome_limit_and_cdcvm_evidence() {
             let cdcvm = csv_row_for_requirement(csv, id).unwrap();
             assert!(cdcvm.contains("contactless_scheme_specific_cdcvm_is_profile_context_driven"));
             assert!(
+                cdcvm.contains("contactless_cdcvm_requires_profile_ctq_and_contactless_interface")
+            );
+            assert!(
                 cdcvm.contains("contactless_limit_processing_uses_profile_limits_and_ctq_cdcvm")
             );
             assert!(cdcvm.contains("contactless_cdcvm_is_not_hardcoded_to_cvm_code_0x05"));
