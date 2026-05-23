@@ -4,6 +4,29 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:59:06Z
+
+- Increment completed: extend the deterministic pre-lab no-crash smoke artifact
+  with Track 2 Equivalent Data parser coverage.
+- Research note: `CERT-OPEN-010` still requires accepted static-analysis and
+  fuzzing/no-crash reports with tool versions and corpus. This repository smoke
+  remains a bounded engineering artifact, but it now exercises the same
+  shape-only Track 2 parser used by `krn_emv_decode`.
+- Code impact: `src/quality.rs` now includes valid Track 2 shape and malformed
+  missing-separator cases through `record::summarize_track2_equivalent_data`.
+- Evidence updated: regenerated `docs/prelab_no_crash_smoke.json`, updated the
+  lab manifest's no-crash and decoder coverage text, and tightened
+  `traceability_foundation::prelab_no_crash_smoke_is_reproducible_and_scoped`
+  to require the new cases and Track 2 coverage wording.
+- Verification: focused no-crash artifact generation and reproducibility tests;
+  `cargo fmt --check`; `git diff --check`; `cargo test`; `cargo test
+  --examples`; `cargo clippy --all-targets --all-features -- -D warnings`;
+  and deterministic artifact drift checks for the ABI conformance statement,
+  trace pack, scheme profile dictionary, quality gates, and no-crash smoke
+  artifact.
+- Remaining external blockers: the formal static-analysis and fuzzing/no-crash
+  report package remains open under `CERT-OPEN-010`.
+
 ## 2026-05-23T10:51:48Z
 
 - Increment completed: refresh public EMVCo standards-watch evidence for the

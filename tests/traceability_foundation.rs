@@ -6287,7 +6287,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         PRELAB_NO_CRASH_SMOKE.contains("repository-controlled parser and APDU boundary smoke only")
     );
     assert!(PRELAB_NO_CRASH_SMOKE.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
-    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":12"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":14"));
     for case_id in [
         "TLV-VALID-RECORD-TEMPLATE",
         "TLV-TRUNCATED-HIGH-TAG",
@@ -6296,6 +6296,8 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         "DATE-NONLEAP-FEBRUARY-29",
         "CURRENCY-EXPONENT-INVALID",
         "TRANSACTION-TYPE-VALID-CASHBACK",
+        "TRACK2-VALID-SHAPE",
+        "TRACK2-MISSING-SEPARATOR",
         "APDU-OVERSIZE-GPO-PDOL",
         "APDU-GENERATE-AC-BAD-CDA-BITS",
         "ISSUER-SCRIPT-MALFORMED-COMMAND",
@@ -6307,7 +6309,9 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
             "no-crash smoke missing case {case_id}"
         );
     }
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("record::summarize_track2_equivalent_data"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab no-crash smoke artifact"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Track 2 shape"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("static-analysis and fuzzing report evidence"));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-010"));
 }

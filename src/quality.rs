@@ -2,6 +2,7 @@ use crate::apdu::{self, CdaRequestControl, CryptogramRequest};
 use crate::dol::{self, DataStore, DolEntry};
 use crate::error::{KernelError, KernelResult};
 use crate::numeric;
+use crate::record;
 use crate::restrictions::EmvDate;
 use crate::transaction::{CurrencyExponent, TransactionType};
 use crate::{gac, issuer, tlv, trace};
@@ -228,6 +229,18 @@ const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
         run: smoke_valid_transaction_type,
     },
     NoCrashSmokeCase {
+        id: "TRACK2-VALID-SHAPE",
+        surface: "record::summarize_track2_equivalent_data",
+        expected: KernelError::Ok,
+        run: smoke_valid_track2_shape,
+    },
+    NoCrashSmokeCase {
+        id: "TRACK2-MISSING-SEPARATOR",
+        surface: "record::summarize_track2_equivalent_data",
+        expected: KernelError::ParseError,
+        run: smoke_track2_missing_separator,
+    },
+    NoCrashSmokeCase {
         id: "APDU-OVERSIZE-GPO-PDOL",
         surface: "apdu::get_processing_options",
         expected: KernelError::LengthOverflow,
@@ -326,6 +339,17 @@ fn smoke_invalid_currency_exponent() -> KernelResult<()> {
 
 fn smoke_valid_transaction_type() -> KernelResult<()> {
     TransactionType::parse(&[0x09]).map(|_| ())
+}
+
+fn smoke_valid_track2_shape() -> KernelResult<()> {
+    record::summarize_track2_equivalent_data(&[
+        0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45, 0x67, 0x8f,
+    ])
+    .map(|_| ())
+}
+
+fn smoke_track2_missing_separator() -> KernelResult<()> {
+    record::summarize_track2_equivalent_data(&[0x12, 0x34, 0x56, 0x78]).map(|_| ())
 }
 
 fn smoke_oversize_gpo_pdol() -> KernelResult<()> {
