@@ -553,7 +553,7 @@ typedef enum {
 
 | Test Level | Scope | Required Coverage |
 |------------|-------|-------------------|
-| Unit | Each function (TLV, APDU builder, TVR mutation) | ≥95% branch coverage |
+| Unit | Each function (TLV, APDU builder, TVR mutation) | 100% branch coverage |
 | Integration | Full transaction with simulated card (APDU scripts) | All certification test cases |
 | Fuzz | APDU parser, TLV parser | 1 million iterations with malformed input |
 | Simulator | EMVCo test tool (e.g., Fime Eval4dev) | Pass all relevant test plans |

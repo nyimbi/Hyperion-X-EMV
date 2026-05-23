@@ -6404,7 +6404,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         );
     }
     for pending_report in [
-        "Unit coverage report >=95%",
+        "Unit coverage report 100%",
         "Full EMV test-plan integration report",
         "Static-analysis report accepted for the submission context",
         "Fuzzing/no-crash report with tool versions and corpus",

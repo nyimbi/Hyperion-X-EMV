@@ -320,6 +320,8 @@ Tests are organized around certification-sensitive behavior:
 - Example tests for operator tooling and evidence generators.
 - Deterministic artifact drift checks for generated annexes.
 - No-crash smoke coverage for malformed parser and APDU boundaries.
+- A 100% unit coverage target for the Rust kernel before any final
+  certification submission.
 
 The project prefers evidence that proves a concrete requirement over broad
 "looks green" claims.
@@ -351,7 +353,7 @@ the repository before final certification claims:
 - Scheme/acquirer-approved AID, TAC/IAC, limit, CDA-control, and kernel
   profile bundle.
 - Full masked lab APDU trace pack.
-- Unit coverage report and full EMV integration report for the submitted
+- 100% unit coverage report and full EMV integration report for the submitted
   binary/profile set.
 - Static analysis and fuzzing reports with accepted findings.
 - PCI PTS/PED integration statement.

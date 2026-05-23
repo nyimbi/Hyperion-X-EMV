@@ -4,6 +4,20 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:56:32Z
+
+- Increment completed: raise the pending unit coverage report target to 100%
+  across the controlled quality manifest, lab manifest, certification open
+  issues, README testing strategy, and traceability guard.
+- Evidence impact: `prelab_quality_gates_json()` and
+  `docs/prelab_quality_gates.json` now agree that the formal unit coverage
+  report remains pending until it proves 100% coverage for the submitted Rust
+  kernel.
+- Remaining external blockers: repository tests can prove behavior locally, but
+  final certification still requires an attached coverage report and full EMV
+  integration report that match the submitted binary, profiles, and annex
+  hashes.
+
 ## 2026-05-23T11:54:30Z
 
 - Increment completed: switch repository source licensing from proprietary to

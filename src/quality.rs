@@ -83,7 +83,7 @@ const QUALITY_GATES: &[QualityGate] = &[
 ];
 
 const EXTERNAL_REPORTS_PENDING: &[&str] = &[
-    "Unit coverage report >=95%",
+    "Unit coverage report 100%",
     "Full EMV test-plan integration report",
     "Static-analysis report accepted for the submission context",
     "Fuzzing/no-crash report with tool versions and corpus",

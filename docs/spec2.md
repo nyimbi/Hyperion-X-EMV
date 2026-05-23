@@ -715,7 +715,7 @@ The kernel shall meet the following performance targets, depending on deployment
 
 | Test Level | Scope | Coverage Target |
 |------------|-------|-----------------|
-| Unit | Each function (TLV, APDU builder, TVR/TSI, state machine) | ≥95% branch coverage |
+| Unit | Each function (TLV, APDU builder, TVR/TSI, state machine) | 100% branch coverage |
 | Integration | Full transaction with simulated card (APDU script replay) | 100% of EMV test plan for each scheme |
 | Fuzz | APDU parser, TLV parser, configuration parser | 1 million iterations, no crash/memory leak |
 | Simulator | Run EMVCo test tool (e.g., Fime Eval4dev) | Pass all relevant test cases for target schemes |
