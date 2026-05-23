@@ -432,11 +432,16 @@ pub unsafe extern "C" fn krn_set_transaction_params(
         ctx.tvr = Tvr::cleared();
         ctx.tsi = Tsi::cleared();
         ctx.selected_application = None;
+        ctx.selected_oda_method = None;
         ctx.requested_cryptogram = None;
         ctx.first_gac_response = None;
+        ctx.final_gac_response = None;
+        ctx.final_outcome = None;
         ctx.online_authorization_data = None;
         ctx.host_response = None;
+        ctx.issuer_script_results.clear();
         ctx.card_data = DataStore::new();
+        ctx.offline_auth_records.clear();
         ctx.cvm_pin_handles = CvmPinHandles::none();
         ctx.cvm_capabilities = RuntimeCvmCapabilities::default();
         ctx.terminal_capabilities = None;
@@ -3969,6 +3974,87 @@ mod tests {
                 KernelError::InvalidArgument
             );
         }
+    }
+
+    #[test]
+    fn transaction_params_clear_previous_transaction_artifacts() {
+        let mut ctx = KrnContext::new();
+        ctx.selected_oda_method = Some(OdaMethod::Sda);
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        ctx.first_gac_response = Some(GenerateAcResponse {
+            cid: crate::cid::Cid::new(0x80),
+            application_cryptogram: [0x11; 8],
+            atc: [0x00, 0x01],
+            issuer_application_data: vec![0x9f, 0x10, 0x01],
+            icc_dynamic_number: Some(vec![0x01, 0x02, 0x03, 0x04]),
+            signed_dynamic_application_data: None,
+        });
+        ctx.final_gac_response = Some(GenerateAcResponse {
+            cid: crate::cid::Cid::new(0x40),
+            application_cryptogram: [0x22; 8],
+            atc: [0x00, 0x02],
+            issuer_application_data: Vec::new(),
+            icc_dynamic_number: None,
+            signed_dynamic_application_data: Some(vec![0xaa; 48]),
+        });
+        ctx.final_outcome = Some(KrnOutcome::ApprovedOnline);
+        ctx.online_authorization_data = Some(vec![0x70, 0x00]);
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
+            issuer_authentication_data: None,
+            scripts: Vec::new(),
+        });
+        ctx.issuer_script_results.push(CapturedIssuerScriptResult {
+            phase: ScriptPhase::BeforeFinalGenerateAc,
+            result: ScriptCommandResult {
+                sw1: 0x90,
+                sw2: 0x00,
+            },
+        });
+        ctx.card_data.put(&[0x9f, 0x10], &[0x01]).unwrap();
+        ctx.offline_auth_records.push(StaticAuthenticationRecord {
+            sfi: 1,
+            record: 1,
+            body: vec![0x70, 0x00],
+        });
+        ctx.last_unpredictable_number = Some([0x01, 0x02, 0x03, 0x04]);
+
+        let params = KrnTxnParams {
+            struct_size: mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_234,
+            amount_other_minor: 56,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: KRN_INTERFACE_CONTACT,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 0,
+        };
+
+        assert_eq!(
+            unsafe { krn_set_transaction_params(&mut ctx, &params) },
+            KernelError::Ok.code()
+        );
+        assert_eq!(ctx.state, KernelState::ParamsSet);
+        assert_eq!(ctx.fsm_state, FsmState::S1);
+        assert!(ctx.selected_oda_method.is_none());
+        assert!(ctx.requested_cryptogram.is_none());
+        assert!(ctx.first_gac_response.is_none());
+        assert!(ctx.final_gac_response.is_none());
+        assert!(ctx.final_outcome.is_none());
+        assert!(ctx.online_authorization_data.is_none());
+        assert!(ctx.host_response.is_none());
+        assert!(ctx.issuer_script_results.is_empty());
+        assert!(ctx.card_data.get(&[0x9f, 0x10]).is_none());
+        assert!(ctx.offline_auth_records.is_empty());
+        assert_eq!(
+            ctx.last_unpredictable_number,
+            Some([0x01, 0x02, 0x03, 0x04])
+        );
     }
 
     #[test]

@@ -3232,6 +3232,7 @@ fn rtm_promotes_api_abi_and_callback_validation_evidence() {
         assert!(
             amount_currency.contains("transaction_params_bind_minor_units_to_currency_exponent")
         );
+        assert!(amount_currency.contains("transaction_params_clear_previous_transaction_artifacts"));
         assert!(amount_currency.contains("transaction_params_reject_non_three_digit_numeric_codes"));
 
         let caller_buffers = csv_row_for_requirement(csv, "KRN-API-005").unwrap();

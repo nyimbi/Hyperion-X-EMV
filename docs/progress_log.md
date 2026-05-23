@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T09:09:47Z
+
+- Increment completed: clear stale transaction artifacts whenever
+  `krn_set_transaction_params` starts a new transaction.
+- Research note: a certification lifecycle boundary must not allow previous
+  ODA, GENERATE AC, host-response, issuer-script, offline-authentication, or
+  card-data evidence to bleed into the next transaction; the unpredictable
+  number repeat detector remains intentionally cross-transaction.
+- Code impact: setting transaction parameters now clears selected ODA method,
+  requested and completed cryptograms, final outcome, online authorization and
+  host response buffers, issuer script results, card data, and offline
+  authentication records before moving to `S1`.
+- Evidence updated: `ffi::tests::transaction_params_clear_previous_transaction_artifacts`
+  covers stale artifact clearing and RNG history preservation, and both RTM
+  annexes cite it under transaction-parameter ABI evidence.
+- Remaining external blockers: lab replay evidence is still required to prove
+  lifecycle isolation across real terminal sessions and scheme-certified
+  profiles.
+
 ## 2026-05-23T09:00:03Z
 
 - Increment completed: require explicit ABI interface selection for every
