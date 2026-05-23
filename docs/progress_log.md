@@ -4,6 +4,34 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T10:47:02Z
+
+- Increment completed: adapt the open-source review's tool-first trace-triage
+  idea by adding parser-backed, shape-only Track 2 Equivalent Data inspection to
+  `krn_emv_decode`.
+- Research note: adjacent EMV utilities and terminal simulators commonly expose
+  Track 2 parsing/censoring helpers for debugging. Hyperion keeps the same
+  operator utility shape but routes it through the runtime read-record
+  cardholder-data parser and suppresses PAN, expiration, service-code, and
+  discretionary digits.
+- Code impact: `src/record.rs` now exposes a `Track2EquivalentDataSummary`
+  carrying only lengths/padding metadata; `krn_emv_decode track2 <hex>` reports
+  that shape without raw value disclosure.
+- Evidence updated:
+  `record::tests::summarizes_track2_equivalent_data_without_exposing_pan`,
+  `krn_emv_decode::tests::track2_output_reports_shape_without_values`,
+  `krn_emv_decode::tests::cli_routes_track2_mode`, both RTM CSVs, and the
+  open-source adaptation backlog.
+- Verification: focused record, decoder, CLI, and RTM tests; `cargo fmt
+  --check`; `git diff --check`; `cargo test`; `cargo test --examples`; `cargo
+  clippy --all-targets --all-features -- -D warnings`; `krn_emv_decode track2`
+  CLI smoke; and deterministic artifact drift checks for the ABI conformance
+  statement, trace pack, scheme profile dictionary, quality gates, and no-crash
+  smoke artifact.
+- Remaining external blockers: this is repository-controlled lab-triage tooling
+  only; final Track 2/cardholder data handling still depends on external
+  certification/security review and lab traces.
+
 ## 2026-05-23T10:39:21Z
 
 - Increment completed: harden the formal log policy so production mode suppresses

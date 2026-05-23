@@ -39,6 +39,18 @@ const GENERATE_AC_OR_DYNAMIC_AUTH_RECORD_TAGS: &[&[u8]] = &[
     &[0x9f, 0x4c], // ICC Dynamic Number
 ];
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Track2EquivalentDataSummary {
+    pub pan_digit_count: usize,
+    pub post_separator_digit_count: usize,
+    pub discretionary_digit_count: usize,
+    pub padded: bool,
+}
+
+pub fn summarize_track2_equivalent_data(value: &[u8]) -> KernelResult<Track2EquivalentDataSummary> {
+    parse_track2_equivalent_data(value).map(|parsed| parsed.summary)
+}
+
 pub fn parse_read_record_body(body: &[u8], data: &mut DataStore) -> KernelResult<usize> {
     let parsed = tlv::parse_many(body)?;
     if parsed.len() != 1 || parsed[0].tag != [0x70] || !parsed[0].constructed {
@@ -143,6 +155,15 @@ fn pan_digits_from_5a(value: &[u8]) -> KernelResult<Vec<u8>> {
 }
 
 fn pan_digits_from_track2(value: &[u8]) -> KernelResult<Vec<u8>> {
+    parse_track2_equivalent_data(value).map(|parsed| parsed.pan_digits)
+}
+
+struct ParsedTrack2EquivalentData {
+    pan_digits: Vec<u8>,
+    summary: Track2EquivalentDataSummary,
+}
+
+fn parse_track2_equivalent_data(value: &[u8]) -> KernelResult<ParsedTrack2EquivalentData> {
     if value.is_empty() {
         return Err(KernelError::ParseError);
     }
@@ -174,7 +195,16 @@ fn pan_digits_from_track2(value: &[u8]) -> KernelResult<Vec<u8>> {
         return Err(KernelError::ParseError);
     }
     validate_pan_length(&pan_digits)?;
-    Ok(pan_digits)
+    let discretionary_digit_count = post_separator_digits - 7;
+    Ok(ParsedTrack2EquivalentData {
+        summary: Track2EquivalentDataSummary {
+            pan_digit_count: pan_digits.len(),
+            post_separator_digit_count: post_separator_digits,
+            discretionary_digit_count,
+            padded: saw_padding,
+        },
+        pan_digits,
+    })
 }
 
 fn validate_pan_length(digits: &[u8]) -> KernelResult<()> {
@@ -412,6 +442,29 @@ mod tests {
             Some(&[0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x5f][..])
         );
         assert!(data.get(&[0x57]).is_some());
+    }
+
+    #[test]
+    fn summarizes_track2_equivalent_data_without_exposing_pan() {
+        let summary = summarize_track2_equivalent_data(&[
+            0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45, 0x67, 0x8f,
+        ])
+        .unwrap();
+
+        assert_eq!(
+            summary,
+            Track2EquivalentDataSummary {
+                pan_digit_count: 12,
+                post_separator_digit_count: 14,
+                discretionary_digit_count: 7,
+                padded: true,
+            }
+        );
+
+        assert_eq!(
+            summarize_track2_equivalent_data(&[0x12, 0x34, 0x56]).unwrap_err(),
+            KernelError::ParseError
+        );
     }
 
     #[test]

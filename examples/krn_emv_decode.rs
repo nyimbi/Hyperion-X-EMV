@@ -6,6 +6,7 @@ use hyperion_emv::dol::parse_dol;
 use hyperion_emv::gac::parse_generate_ac_response;
 use hyperion_emv::issuer::{parse_host_response, ScriptPhase};
 use hyperion_emv::numeric::{bcd_digits, decode_numeric_bcd_fixed};
+use hyperion_emv::record::summarize_track2_equivalent_data;
 use hyperion_emv::restrictions::{ApplicationUsageControl, EmvDate};
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
@@ -41,6 +42,7 @@ fn run(args: &[String]) -> Result<String, String> {
         "tag-list" => decode_tag_list(arg_hex(args, 1, "tag-list")?),
         "numeric-code" => decode_numeric_code(arg_hex(args, 1, "numeric-code")?),
         "amount" | "amount-authorised" | "amount-other" => decode_amount(arg_hex(args, 1, mode)?),
+        "track2" | "track2-equivalent" => decode_track2(arg_hex(args, 1, mode)?),
         "date"
         | "transaction-date"
         | "application-expiration-date"
@@ -88,7 +90,7 @@ fn run(args: &[String]) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|date|currency-exponent|transaction-type|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
+    "usage: krn_emv_decode <tlv|dol|tag-list|numeric-code|amount|track2|date|currency-exponent|transaction-type|terminal-type|aip|auc|cvm-list|cvm-results|tvr|tsi|cid|gac|host-response|termcap|ttq|ctq|apdu> <hex>\n\
      usage: krn_emv_decode sw <context> <SW1SW2>\n\
      usage: krn_emv_decode response-apdu <context> <response-body-plus-SW1SW2>\n\
      contexts: select-pse, select-aid, gpo, read-record, verify, generate-ac,\n\
@@ -230,6 +232,35 @@ fn decode_amount(bytes: Vec<u8>) -> Result<String, String> {
     let _ = writeln!(out, "field_shape=six-byte-fixed-numeric-bcd");
     let _ = writeln!(out, "authority=runtime-amount-minor-unit-mapping");
     let _ = writeln!(out, "value_policy=non-sensitive");
+    Ok(out)
+}
+
+fn decode_track2(bytes: Vec<u8>) -> Result<String, String> {
+    let summary = summarize_track2_equivalent_data(&bytes)
+        .map_err(|err| format!("Track 2 Equivalent Data parse failed: {}", err.name()))?;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "type=track2-equivalent");
+    let _ = writeln!(out, "raw_len={}", bytes.len());
+    let _ = writeln!(out, "pan_digit_count={}", summary.pan_digit_count);
+    let _ = writeln!(
+        out,
+        "post_separator_digit_count={}",
+        summary.post_separator_digit_count
+    );
+    let _ = writeln!(out, "expiration_date_present=true");
+    let _ = writeln!(out, "service_code_present=true");
+    let _ = writeln!(
+        out,
+        "discretionary_digit_count={}",
+        summary.discretionary_digit_count
+    );
+    let _ = writeln!(out, "padded={}", summary.padded);
+    let _ = writeln!(out, "authority=runtime-read-record-cardholder-data-parser");
+    let _ = writeln!(
+        out,
+        "value_policy=pan_expiration_service_code_discretionary_digits_suppressed"
+    );
     Ok(out)
 }
 
@@ -1211,6 +1242,31 @@ mod tests {
     }
 
     #[test]
+    fn track2_output_reports_shape_without_values() {
+        let out = decode_track2(decode_hex("123456789012D25122012345678F").unwrap()).unwrap();
+
+        assert!(out.contains("type=track2-equivalent"));
+        assert!(out.contains("raw_len=14"));
+        assert!(out.contains("pan_digit_count=12"));
+        assert!(out.contains("post_separator_digit_count=14"));
+        assert!(out.contains("expiration_date_present=true"));
+        assert!(out.contains("service_code_present=true"));
+        assert!(out.contains("discretionary_digit_count=7"));
+        assert!(out.contains("padded=true"));
+        assert!(out.contains("authority=runtime-read-record-cardholder-data-parser"));
+        assert!(out
+            .contains("value_policy=pan_expiration_service_code_discretionary_digits_suppressed"));
+        assert!(!out.contains("123456789012"));
+        assert!(!out.contains("2512"));
+        assert!(!out.contains("201"));
+        assert!(!out.contains("2345678"));
+
+        assert!(decode_track2(decode_hex("123456").unwrap())
+            .unwrap_err()
+            .contains("KRN_ERR_PARSE_ERROR"));
+    }
+
+    #[test]
     fn date_output_uses_runtime_calendar_validation() {
         let out = decode_date(decode_hex("260523").unwrap()).unwrap();
 
@@ -1715,6 +1771,19 @@ mod tests {
 
         assert!(out.contains("type=amount"));
         assert!(out.contains("minor_units=1234"));
+    }
+
+    #[test]
+    fn cli_routes_track2_mode() {
+        let out = run(&[
+            string_arg("track2"),
+            string_arg("123456789012D25122012345678F"),
+        ])
+        .unwrap();
+
+        assert!(out.contains("type=track2-equivalent"));
+        assert!(out.contains("pan_digit_count=12"));
+        assert!(!out.contains("123456789012"));
     }
 
     #[test]

@@ -983,6 +983,7 @@ fn rtm_promotes_gpo_and_read_record_evidence() {
         let cardholder_data = csv_row_for_requirement(csv, "KRN-RR-004").expect("RTM row exists");
         assert!(cardholder_data
             .contains("accepts_matching_pan_and_track2_without_unmasked_logging_dependency"));
+        assert!(cardholder_data.contains("summarizes_track2_equivalent_data_without_exposing_pan"));
         assert!(cardholder_data.contains("rejects_mismatched_pan_and_track2_without_partial_store"));
         assert!(cardholder_data
             .contains("rejects_conflicting_cardholder_data_rewrite_without_partial_store"));
@@ -2715,6 +2716,9 @@ fn rtm_promotes_tlv_catalogue_and_dol_classification_evidence() {
         assert!(catalogue.contains(
             "krn_emv_decode::tests::amount_output_decodes_minor_units_without_exponent_assumption"
         ));
+        assert!(
+            catalogue.contains("krn_emv_decode::tests::track2_output_reports_shape_without_values")
+        );
         assert!(catalogue
             .contains("krn_emv_decode::tests::date_output_uses_runtime_calendar_validation"));
         assert!(catalogue.contains(
