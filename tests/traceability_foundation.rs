@@ -2651,6 +2651,8 @@ fn rtm_promotes_terminal_capability_and_ttq_evidence() {
             "KRN-TERMCAP-001 should cite executable 9F33 PDOL and handoff evidence"
         );
         assert!(termcap.contains("krn_termcap_001_supplies_9f33_to_pdol_and_online_handoff"));
+        assert!(termcap
+            .contains("terminal::tests::parses_terminal_capabilities_and_names_standard_bits"));
         assert!(termcap.contains(
             "krn_emv_decode::tests::terminal_capabilities_output_names_standard_bits_and_flags_rfu"
         ));
@@ -6287,7 +6289,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         PRELAB_NO_CRASH_SMOKE.contains("repository-controlled parser and APDU boundary smoke only")
     );
     assert!(PRELAB_NO_CRASH_SMOKE.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
-    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":18"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("\"case_count\":19"));
     for case_id in [
         "TLV-VALID-RECORD-TEMPLATE",
         "TLV-TRUNCATED-HIGH-TAG",
@@ -6297,6 +6299,7 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
         "CURRENCY-EXPONENT-INVALID",
         "TRANSACTION-TYPE-VALID-CASHBACK",
         "TERMINAL-TYPE-UNKNOWN",
+        "TERMINAL-CAPABILITIES-SHORT",
         "AIP-SHORT",
         "AUC-SHORT",
         "CVM-RESULTS-SHORT",
@@ -6315,11 +6318,13 @@ fn prelab_no_crash_smoke_is_reproducible_and_scoped() {
     }
     assert!(PRELAB_NO_CRASH_SMOKE.contains("record::summarize_track2_equivalent_data"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::TerminalType::parse"));
+    assert!(PRELAB_NO_CRASH_SMOKE.contains("terminal::TerminalCapabilities::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("aip::ApplicationInterchangeProfile::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("restrictions::ApplicationUsageControl::parse"));
     assert!(PRELAB_NO_CRASH_SMOKE.contains("cvm::CvmResults::parse"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab no-crash smoke artifact"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Track 2 shape"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Terminal Capabilities"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("AIP"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("CVM Results"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("static-analysis and fuzzing report evidence"));

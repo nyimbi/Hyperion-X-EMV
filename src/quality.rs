@@ -6,7 +6,7 @@ use crate::error::{KernelError, KernelResult};
 use crate::numeric;
 use crate::record;
 use crate::restrictions::{ApplicationUsageControl, EmvDate};
-use crate::terminal::TerminalType;
+use crate::terminal::{TerminalCapabilities, TerminalType};
 use crate::transaction::{CurrencyExponent, TransactionType};
 use crate::{gac, issuer, tlv, trace};
 use core::fmt::Write;
@@ -238,6 +238,12 @@ const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
         run: smoke_unknown_terminal_type,
     },
     NoCrashSmokeCase {
+        id: "TERMINAL-CAPABILITIES-SHORT",
+        surface: "terminal::TerminalCapabilities::parse",
+        expected: KernelError::ParseError,
+        run: smoke_short_terminal_capabilities,
+    },
+    NoCrashSmokeCase {
         id: "AIP-SHORT",
         surface: "aip::ApplicationInterchangeProfile::parse",
         expected: KernelError::MissingMandatoryTag,
@@ -370,6 +376,10 @@ fn smoke_valid_transaction_type() -> KernelResult<()> {
 
 fn smoke_unknown_terminal_type() -> KernelResult<()> {
     TerminalType::parse(0x00).map(|_| ())
+}
+
+fn smoke_short_terminal_capabilities() -> KernelResult<()> {
+    TerminalCapabilities::parse(&[0xe0, 0xb0]).map(|_| ())
 }
 
 fn smoke_short_aip() -> KernelResult<()> {

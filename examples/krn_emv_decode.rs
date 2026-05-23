@@ -10,7 +10,7 @@ use hyperion_emv::record::summarize_track2_equivalent_data;
 use hyperion_emv::restrictions::{ApplicationUsageControl, EmvDate};
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
-use hyperion_emv::terminal::TerminalType;
+use hyperion_emv::terminal::{TerminalCapabilities, TerminalType, TERMINAL_CAPABILITY_BITS};
 use hyperion_emv::tlv;
 use hyperion_emv::trace::{mask_apdu_response, ApduTraceContext, LogPolicy, MaskedValue};
 use hyperion_emv::transaction::{CurrencyExponent, TransactionType};
@@ -581,20 +581,13 @@ fn decode_host_response(bytes: Vec<u8>) -> Result<String, String> {
 }
 
 fn decode_terminal_capabilities(bytes: Vec<u8>) -> Result<String, String> {
-    let raw: [u8; 3] = bytes
-        .try_into()
+    let capabilities = TerminalCapabilities::parse(&bytes)
         .map_err(|_| "Terminal Capabilities must be exactly 3 bytes".to_string())?;
     let mut out = String::new();
     let _ = writeln!(out, "type=terminal-capabilities");
-    let _ = writeln!(out, "raw={}", hex_upper(&raw));
-    let _ = writeln!(
-        out,
-        "rfu_bits={}",
-        raw.iter()
-            .zip(TERMINAL_CAPABILITY_ALLOWED_MASKS)
-            .any(|(byte, allowed)| byte & !allowed != 0)
-    );
-    append_set_bits(&mut out, &raw, &TERMINAL_CAPABILITY_BITS);
+    let _ = writeln!(out, "raw={}", hex_upper(&capabilities.raw()));
+    let _ = writeln!(out, "rfu_bits={}", capabilities.has_rfu_bits());
+    append_terminal_capability_bits(&mut out, capabilities);
     Ok(out)
 }
 
@@ -673,6 +666,19 @@ fn append_profile_defined_bits(out: &mut String, raw: &[u8]) {
                 let _ = writeln!(out, "bit=byte{}.b{}", byte_idx + 1, bit_idx + 1);
                 count += 1;
             }
+        }
+    }
+    if count == 0 {
+        let _ = writeln!(out, "bit_count=0");
+    }
+}
+
+fn append_terminal_capability_bits(out: &mut String, capabilities: TerminalCapabilities) {
+    let mut count = 0usize;
+    for bit in TERMINAL_CAPABILITY_BITS {
+        if capabilities.bit_is_set(bit) {
+            let _ = writeln!(out, "bit={}", bit.name());
+            count += 1;
         }
     }
     if count == 0 {
@@ -1076,59 +1082,6 @@ const TSI_BITS: [BitName; 6] = [
     BitName {
         position: Tsi::SCRIPT_PROCESSING_PERFORMED,
         name: "script-processing-performed",
-    },
-];
-
-const TERMINAL_CAPABILITY_ALLOWED_MASKS: [u8; 3] = [0xe0, 0xf8, 0xe8];
-
-const TERMINAL_CAPABILITY_BITS: [BitName; 12] = [
-    BitName {
-        position: (0, 0x80),
-        name: "manual-key-entry",
-    },
-    BitName {
-        position: (0, 0x40),
-        name: "magnetic-stripe",
-    },
-    BitName {
-        position: (0, 0x20),
-        name: "icc-with-contacts",
-    },
-    BitName {
-        position: (1, 0x80),
-        name: "plaintext-pin-for-icc-verification",
-    },
-    BitName {
-        position: (1, 0x40),
-        name: "enciphered-pin-for-online-verification",
-    },
-    BitName {
-        position: (1, 0x20),
-        name: "signature-paper",
-    },
-    BitName {
-        position: (1, 0x10),
-        name: "enciphered-pin-for-offline-verification",
-    },
-    BitName {
-        position: (1, 0x08),
-        name: "no-cvm-required",
-    },
-    BitName {
-        position: (2, 0x80),
-        name: "sda-supported",
-    },
-    BitName {
-        position: (2, 0x40),
-        name: "dda-supported",
-    },
-    BitName {
-        position: (2, 0x20),
-        name: "card-capture-supported",
-    },
-    BitName {
-        position: (2, 0x08),
-        name: "cda-supported",
     },
 ];
 

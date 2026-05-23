@@ -4,6 +4,33 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T11:17:07Z
+
+- Increment completed: centralize Terminal Capabilities (`9F33`) interpretation
+  in the runtime terminal module and route decoder/no-crash evidence through the
+  shared parser.
+- Research note: the open-source reference review's tool-first validation idea
+  remains useful only when parser logic is owned by Hyperion. This change
+  removes the decoder utility's local 9F33 bit-table copy and keeps
+  `CERT-OPEN-010` open for accepted static-analysis and fuzzing reports.
+- Code impact: `src/terminal.rs` now exposes `TerminalCapabilities`,
+  `TerminalCapabilityBit`, allowed RFU masks, and named 9F33 capability bits;
+  `krn_emv_decode termcap` consumes the shared parser instead of local metadata;
+  `src/quality.rs` adds a malformed Terminal Capabilities no-crash case.
+- Evidence updated: regenerated `docs/prelab_no_crash_smoke.json`, updated both
+  RTM annexes for runtime 9F33 parser coverage, refreshed the lab manifest and
+  open-source adaptation backlog, and tightened traceability guards for the new
+  no-crash case and RTM evidence.
+- Verification: focused Terminal Capabilities parser, decoder CLI,
+  reproducibility, and RTM tests; `cargo fmt --check`; `git diff --check`;
+  `cargo test`; `cargo test --examples`; `cargo clippy --all-targets
+  --all-features -- -D warnings`; and deterministic artifact drift checks for
+  the ABI conformance statement, trace pack, scheme profile dictionary, quality
+  gates, and no-crash smoke artifact.
+- Remaining external blockers: final Terminal Capabilities acceptance still
+  depends on licensed profile/lab reconciliation; the formal static-analysis and
+  fuzzing/no-crash report package remains open under `CERT-OPEN-010`.
+
 ## 2026-05-23T11:06:41Z
 
 - Increment completed: extend the deterministic pre-lab no-crash smoke artifact

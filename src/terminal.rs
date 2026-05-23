@@ -121,6 +121,129 @@ pub fn terminal_type_online_capable(raw: u8) -> KernelResult<bool> {
     TerminalType::parse(raw).map(TerminalType::online_capable)
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalCapabilityBit {
+    byte_index: usize,
+    mask: u8,
+    name: &'static str,
+}
+
+impl TerminalCapabilityBit {
+    pub const fn new(byte_index: usize, mask: u8, name: &'static str) -> Self {
+        Self {
+            byte_index,
+            mask,
+            name,
+        }
+    }
+
+    pub fn byte_index(self) -> usize {
+        self.byte_index
+    }
+
+    pub fn mask(self) -> u8 {
+        self.mask
+    }
+
+    pub fn name(self) -> &'static str {
+        self.name
+    }
+}
+
+pub const TERMINAL_CAPABILITY_ALLOWED_MASKS: [u8; 3] = [0xe0, 0xf8, 0xe8];
+
+pub const TERMINAL_CAPABILITY_BITS: [TerminalCapabilityBit; 12] = [
+    TerminalCapabilityBit::new(0, 0x80, "manual-key-entry"),
+    TerminalCapabilityBit::new(0, 0x40, "magnetic-stripe"),
+    TerminalCapabilityBit::new(0, 0x20, "icc-with-contacts"),
+    TerminalCapabilityBit::new(1, 0x80, "plaintext-pin-for-icc-verification"),
+    TerminalCapabilityBit::new(1, 0x40, "enciphered-pin-for-online-verification"),
+    TerminalCapabilityBit::new(1, 0x20, "signature-paper"),
+    TerminalCapabilityBit::new(1, 0x10, "enciphered-pin-for-offline-verification"),
+    TerminalCapabilityBit::new(1, 0x08, "no-cvm-required"),
+    TerminalCapabilityBit::new(2, 0x80, "sda-supported"),
+    TerminalCapabilityBit::new(2, 0x40, "dda-supported"),
+    TerminalCapabilityBit::new(2, 0x20, "card-capture-supported"),
+    TerminalCapabilityBit::new(2, 0x08, "cda-supported"),
+];
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalCapabilities {
+    raw: [u8; 3],
+}
+
+impl TerminalCapabilities {
+    pub fn parse(raw: &[u8]) -> KernelResult<Self> {
+        let raw: [u8; 3] = raw.try_into().map_err(|_| KernelError::ParseError)?;
+        Ok(Self { raw })
+    }
+
+    pub fn raw(self) -> [u8; 3] {
+        self.raw
+    }
+
+    pub fn has_rfu_bits(self) -> bool {
+        self.raw
+            .iter()
+            .zip(TERMINAL_CAPABILITY_ALLOWED_MASKS)
+            .any(|(byte, allowed)| byte & !allowed != 0)
+    }
+
+    pub fn bit_is_set(self, bit: TerminalCapabilityBit) -> bool {
+        self.raw
+            .get(bit.byte_index)
+            .is_some_and(|byte| byte & bit.mask != 0)
+    }
+
+    pub fn manual_key_entry(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[0])
+    }
+
+    pub fn magnetic_stripe(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[1])
+    }
+
+    pub fn icc_with_contacts(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[2])
+    }
+
+    pub fn plaintext_pin_for_icc_verification(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[3])
+    }
+
+    pub fn enciphered_pin_for_online_verification(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[4])
+    }
+
+    pub fn signature_paper(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[5])
+    }
+
+    pub fn enciphered_pin_for_offline_verification(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[6])
+    }
+
+    pub fn no_cvm_required(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[7])
+    }
+
+    pub fn sda_supported(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[8])
+    }
+
+    pub fn dda_supported(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[9])
+    }
+
+    pub fn card_capture_supported(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[10])
+    }
+
+    pub fn cda_supported(self) -> bool {
+        self.bit_is_set(TERMINAL_CAPABILITY_BITS[11])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +282,45 @@ mod tests {
         assert_eq!(
             terminal_type_online_capable(0x99).unwrap_err(),
             KernelError::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn parses_terminal_capabilities_and_names_standard_bits() {
+        let capabilities = TerminalCapabilities::parse(&[0xe0, 0xb0, 0xc8]).unwrap();
+
+        assert_eq!(capabilities.raw(), [0xe0, 0xb0, 0xc8]);
+        assert!(!capabilities.has_rfu_bits());
+        assert!(capabilities.manual_key_entry());
+        assert!(capabilities.magnetic_stripe());
+        assert!(capabilities.icc_with_contacts());
+        assert!(capabilities.plaintext_pin_for_icc_verification());
+        assert!(!capabilities.enciphered_pin_for_online_verification());
+        assert!(capabilities.signature_paper());
+        assert!(capabilities.enciphered_pin_for_offline_verification());
+        assert!(!capabilities.no_cvm_required());
+        assert!(capabilities.sda_supported());
+        assert!(capabilities.dda_supported());
+        assert!(!capabilities.card_capture_supported());
+        assert!(capabilities.cda_supported());
+        assert!(TERMINAL_CAPABILITY_BITS
+            .iter()
+            .any(|bit| bit.name() == "icc-with-contacts"));
+    }
+
+    #[test]
+    fn terminal_capabilities_flags_rfu_bits_without_rejecting_profile_review() {
+        let capabilities = TerminalCapabilities::parse(&[0x01, 0x00, 0x01]).unwrap();
+
+        assert!(capabilities.has_rfu_bits());
+        assert!(!capabilities.manual_key_entry());
+    }
+
+    #[test]
+    fn rejects_non_three_byte_terminal_capabilities() {
+        assert_eq!(
+            TerminalCapabilities::parse(&[0xe0, 0xb0]).unwrap_err(),
+            KernelError::ParseError
         );
     }
 }
