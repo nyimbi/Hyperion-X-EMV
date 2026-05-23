@@ -23,6 +23,7 @@ tool results, and approval artifacts prevail over this repository on conflict.
 - Clean-room open-source reference review: `docs/open_source.md`.
 - Tutorial learning path: `docs/tutorial/README.md`.
 - 100% coverage workflow: `docs/coverage.md` and `scripts/coverage_100.sh`.
+- Static/fuzz evidence plan: `docs/prelab_static_fuzz_plan.json`.
 - Pre-lab CI workflow: `.github/workflows/prelab.yml`.
 - Session progress log: `docs/progress_log.md`.
 

@@ -49,6 +49,9 @@ jobs:
       - name: No-crash smoke artifact drift
         run: cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -
 
+      - name: Static and fuzz plan drift
+        run: cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -
+
       - name: Whitespace
         run: git diff --check
 

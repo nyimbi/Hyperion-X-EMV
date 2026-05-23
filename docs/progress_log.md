@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T12:43:43Z
+
+- Increment completed: add a deterministic pre-lab static-analysis and fuzzing
+  evidence plan for `CERT-OPEN-010` without closing the external report
+  requirement.
+- Research note: public EMVCo material frames Level 2/contact-kernel approval
+  around kernel compliance evidence, while Rust fuzzing guidance points to
+  cargo-fuzz/libFuzzer as the Rust coverage-guided fuzzing path. The repository
+  plan records those public signals but still requires lab-accepted reports.
+- Code impact: `prelab_static_fuzz_plan_json()` now emits static gate commands,
+  fuzz target surfaces, corpus hygiene constraints, required report metadata,
+  and acceptance rules. CI now checks the generated artifact for drift.
+- Evidence updated: added `docs/prelab_static_fuzz_plan.json`, the
+  `krn_prelab_static_fuzz_plan` generator, lab manifest coverage, tutorial
+  guidance, conformance generated-from coverage, and build provenance inputs.
+- Remaining external blockers: `CERT-OPEN-010` remains open until accepted
+  static-analysis and fuzzing/no-crash reports with tool versions, corpus
+  hashes, run budgets, findings, and dispositions are attached.
+
 ## 2026-05-23T12:38:17Z
 
 - Increment completed: update the pre-lab workflow to Node 24-capable GitHub

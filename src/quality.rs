@@ -24,6 +24,25 @@ struct FreezeHashRequirement {
     evidence_source: &'static str,
 }
 
+struct StaticAnalysisGate {
+    id: &'static str,
+    command: &'static str,
+    evidence_required: &'static str,
+}
+
+struct FuzzSurface {
+    id: &'static str,
+    surface: &'static str,
+    target: &'static str,
+    seed_corpus: &'static str,
+    objective: &'static str,
+}
+
+struct ReportMetadataRequirement {
+    field: &'static str,
+    requirement: &'static str,
+}
+
 const QUALITY_GATES: &[QualityGate] = &[
     QualityGate {
         id: "PRELAB-CONFORMANCE",
@@ -51,8 +70,13 @@ const QUALITY_GATES: &[QualityGate] = &[
         purpose: "regenerate and compare the deterministic parser/APDU no-crash smoke artifact",
     },
     QualityGate {
+        id: "PRELAB-STATIC-FUZZ-PLAN",
+        command: "cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -",
+        purpose: "regenerate and compare the static-analysis and fuzzing evidence plan",
+    },
+    QualityGate {
         id: "PRELAB-BUILD-PROVENANCE",
-        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs",
+        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_emv_decode.rs",
         purpose: "emit canonical build provenance for source, controlled annexes, and evidence generators",
     },
     QualityGate {
@@ -122,6 +146,102 @@ const FREEZE_HASH_REQUIREMENTS: &[FreezeHashRequirement] = &[
     },
 ];
 
+const STATIC_ANALYSIS_GATES: &[StaticAnalysisGate] = &[
+    StaticAnalysisGate {
+        id: "STATIC-RUSTFMT",
+        command: "cargo fmt --check",
+        evidence_required: "rustfmt version, rustc version, command line, clean exit status",
+    },
+    StaticAnalysisGate {
+        id: "STATIC-CLIPPY-DENY-WARNINGS",
+        command: "cargo clippy --all-targets --all-features -- -D warnings",
+        evidence_required:
+            "clippy version, rustc version, target triple, feature set, clean exit status",
+    },
+    StaticAnalysisGate {
+        id: "STATIC-WHITESPACE",
+        command: "git diff --check",
+        evidence_required: "source commit, command line, clean exit status",
+    },
+];
+
+const FUZZ_SURFACES: &[FuzzSurface] = &[
+    FuzzSurface {
+        id: "FUZZ-TLV",
+        surface: "tlv::parse_many",
+        target: "fuzz_tlv_parse_many",
+        seed_corpus: "valid record template plus truncated high-tag, long-length, duplicate nested, and oversize samples",
+        objective: "no panic, bounded parse failure, and deterministic acceptance for valid BER-TLV inputs",
+    },
+    FuzzSurface {
+        id: "FUZZ-DOL",
+        surface: "dol::parse_dol",
+        target: "fuzz_dol_parse",
+        seed_corpus: "valid PDOL/CDOL/DDOL snippets plus truncated and zero-prefixed tag samples",
+        objective: "no panic and bounded handling of arbitrary tag-length lists",
+    },
+    FuzzSurface {
+        id: "FUZZ-APDU",
+        surface: "apdu command builders and trace::ReplayExchange::new",
+        target: "fuzz_apdu_boundaries",
+        seed_corpus: "SELECT, GPO, READ RECORD, GENERATE AC, GET RESPONSE, and malformed short APDU samples",
+        objective: "no panic, no length overflow, and no clear sensitive payload emission",
+    },
+    FuzzSurface {
+        id: "FUZZ-GAC",
+        surface: "gac::parse_generate_ac_response",
+        target: "fuzz_gac_response",
+        seed_corpus: "format 80, format 77, duplicate tag, missing mandatory tag, and status-only response bodies",
+        objective: "no panic and fail-closed parsing for malformed cryptogram responses",
+    },
+    FuzzSurface {
+        id: "FUZZ-ISSUER-HOST-RESPONSE",
+        surface: "issuer::parse_host_response",
+        target: "fuzz_issuer_host_response",
+        seed_corpus: "authorization response code, issuer authentication data, and issuer script template samples",
+        objective: "no panic and bounded script parsing without logging issuer script command data",
+    },
+    FuzzSurface {
+        id: "FUZZ-RECORD-TRACK2",
+        surface: "record::summarize_track2_equivalent_data",
+        target: "fuzz_track2_shape",
+        seed_corpus: "valid Track 2 equivalent shape plus missing separator, non-BCD, and overlong samples",
+        objective: "no panic and no raw PAN or Track 2 value exposure",
+    },
+];
+
+const STATIC_FUZZ_REPORT_METADATA: &[ReportMetadataRequirement] = &[
+    ReportMetadataRequirement {
+        field: "source_commit",
+        requirement: "exact git commit tested",
+    },
+    ReportMetadataRequirement {
+        field: "rust_toolchain",
+        requirement: "rustc, cargo, clippy, rustfmt, and target triple versions",
+    },
+    ReportMetadataRequirement {
+        field: "fuzz_engine",
+        requirement: "cargo-fuzz and libFuzzer versions or lab-accepted equivalent",
+    },
+    ReportMetadataRequirement {
+        field: "sanitizers",
+        requirement: "enabled sanitizer set and platform limitations",
+    },
+    ReportMetadataRequirement {
+        field: "corpus_hashes",
+        requirement: "seed corpus, generated corpus, and crash corpus digests",
+    },
+    ReportMetadataRequirement {
+        field: "run_budget",
+        requirement: "per-target duration, iterations, or coverage stopping rule",
+    },
+    ReportMetadataRequirement {
+        field: "findings",
+        requirement:
+            "all crashes, timeouts, leaks, sanitizer findings, fixes, and accepted residual risks",
+    },
+];
+
 pub fn prelab_quality_gates_json(abi_version: u32) -> String {
     let mut out = String::new();
     out.push('{');
@@ -177,6 +297,100 @@ pub fn prelab_quality_gates_json(abi_version: u32) -> String {
         out.push(',');
         push_json_str(&mut out, "status", "pending external certification freeze");
         out.push('}');
+    }
+    out.push_str("]}\n");
+    out
+}
+
+pub fn prelab_static_fuzz_plan_json() -> String {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(&mut out, "type", "prelab-static-fuzz-plan");
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "scope",
+        "repository-controlled static-analysis and fuzzing evidence plan only",
+    );
+    out.push_str(",\"does_not_close\":[");
+    push_json_string(&mut out, "CERT-OPEN-010");
+    out.push(']');
+    out.push_str(",\"research_basis\":[");
+    push_json_string(
+        &mut out,
+        "EMVCo public L1/L2 material frames L2 testing around kernel compliance with EMV specifications.",
+    );
+    out.push(',');
+    push_json_string(
+        &mut out,
+        "EMVCo contact kernel approval material frames approval as attestation of kernel compliance.",
+    );
+    out.push(',');
+    push_json_string(
+        &mut out,
+        "Rust fuzzing guidance identifies cargo-fuzz as the Rust wrapper for libFuzzer.",
+    );
+    out.push(',');
+    push_json_string(
+        &mut out,
+        "LLVM documents libFuzzer as an in-process coverage-guided fuzzing engine.",
+    );
+    out.push(']');
+    out.push_str(",\"static_analysis_gates\":[");
+    for (idx, gate) in STATIC_ANALYSIS_GATES.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", gate.id);
+        out.push(',');
+        push_json_str(&mut out, "command", gate.command);
+        out.push(',');
+        push_json_str(&mut out, "evidence_required", gate.evidence_required);
+        out.push('}');
+    }
+    out.push_str("],\"fuzz_surfaces\":[");
+    for (idx, surface) in FUZZ_SURFACES.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", surface.id);
+        out.push(',');
+        push_json_str(&mut out, "surface", surface.surface);
+        out.push(',');
+        push_json_str(&mut out, "target", surface.target);
+        out.push(',');
+        push_json_str(&mut out, "seed_corpus", surface.seed_corpus);
+        out.push(',');
+        push_json_str(&mut out, "objective", surface.objective);
+        out.push('}');
+    }
+    out.push_str("],\"report_metadata_required\":[");
+    for (idx, metadata) in STATIC_FUZZ_REPORT_METADATA.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "field", metadata.field);
+        out.push(',');
+        push_json_str(&mut out, "requirement", metadata.requirement);
+        out.push('}');
+    }
+    out.push_str("],\"acceptance_rules\":[");
+    for (idx, rule) in [
+        "repository smoke and plan artifacts are pre-lab evidence only",
+        "formal reports must attach tool versions, command lines, corpus hashes, and target runtime budgets",
+        "sensitive PAN, PIN, issuer script data, and private CAPK material must not appear in fuzz corpora or logs",
+        "every crash, timeout, sanitizer finding, or parser divergence must have a fixed reproducer or accepted residual-risk record",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_json_string(&mut out, rule);
     }
     out.push_str("]}\n");
     out

@@ -60,7 +60,9 @@ use hyperion_emv::oda::{
 };
 use hyperion_emv::perf::{parse_performance_profile, PerfAccumulator, PerfStage};
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
-use hyperion_emv::quality::{prelab_no_crash_smoke_json, prelab_quality_gates_json};
+use hyperion_emv::quality::{
+    prelab_no_crash_smoke_json, prelab_quality_gates_json, prelab_static_fuzz_plan_json,
+};
 use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
@@ -105,6 +107,7 @@ const STANDARDS_WATCH: &str = include_str!("../docs/standards_watch.md");
 const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
 const PRELAB_QUALITY_GATES: &str = include_str!("../docs/prelab_quality_gates.json");
 const PRELAB_NO_CRASH_SMOKE: &str = include_str!("../docs/prelab_no_crash_smoke.json");
+const PRELAB_STATIC_FUZZ_PLAN: &str = include_str!("../docs/prelab_static_fuzz_plan.json");
 const COVERAGE_WORKFLOW: &str = include_str!("../docs/coverage.md");
 const COVERAGE_SCRIPT: &str = include_str!("../scripts/coverage_100.sh");
 const PRELAB_CI_WORKFLOW: &str = include_str!("../.github/workflows/prelab.yml");
@@ -1536,6 +1539,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_quality_gates"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_no_crash_smoke.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_no_crash_smoke"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_static_fuzz_plan.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_static_fuzz_plan"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("certification-freeze hash checklist"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("kernel_binary_hash"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("config_bundle_hash"));
@@ -1555,7 +1560,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
     assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
     for required_hash in [
@@ -1588,6 +1593,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/prelab_apdu_trace_pack.jsonl".to_string(),
         "docs/prelab_no_crash_smoke.json".to_string(),
         "docs/prelab_quality_gates.json".to_string(),
+        "docs/prelab_static_fuzz_plan.json".to_string(),
         "docs/requirements-traceability-matrix.csv".to_string(),
         "docs/requirements_traceability.csv".to_string(),
         "docs/scheme_profiles.cert.json".to_string(),
@@ -1601,6 +1607,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_cabi_script_adapter.rs".to_string(),
         "examples/krn_emv_decode.rs".to_string(),
         "examples/krn_prelab_no_crash_smoke.rs".to_string(),
+        "examples/krn_prelab_static_fuzz_plan.rs".to_string(),
         "examples/krn_scheme_profile_dictionary.rs".to_string(),
         "examples/krn_prelab_quality_gates.rs".to_string(),
         "examples/krn_prelab_trace_pack.rs".to_string(),
@@ -1649,6 +1656,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/prelab_apdu_trace_pack.jsonl",
         "docs/prelab_no_crash_smoke.json",
         "docs/prelab_quality_gates.json",
+        "docs/prelab_static_fuzz_plan.json",
         "docs/requirements-traceability-matrix.csv",
         "docs/requirements_traceability.csv",
         "docs/scheme_profiles.cert.json",
@@ -1662,6 +1670,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_cabi_script_adapter.rs",
         "examples/krn_emv_decode.rs",
         "examples/krn_prelab_no_crash_smoke.rs",
+        "examples/krn_prelab_static_fuzz_plan.rs",
         "examples/krn_scheme_profile_dictionary.rs",
         "examples/krn_prelab_quality_gates.rs",
         "examples/krn_prelab_trace_pack.rs",
@@ -1721,6 +1730,7 @@ fn lab_manifest_leaves_unattached_external_reports_unchecked() {
         "Trace identity metadata",
         "Pre-lab APDU trace fixture",
         "Pre-lab quality gate manifest",
+        "Pre-lab static/fuzz evidence plan",
         "C ABI APDU script adapter",
     ] {
         assert!(
@@ -1931,6 +1941,7 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "docs/prelab_apdu_trace_pack.jsonl",
             "docs/prelab_quality_gates.json",
             "docs/prelab_no_crash_smoke.json",
+            "docs/prelab_static_fuzz_plan.json",
             "docs/scheme_profiles.cert.json",
             "EMV-B1",
             "EMV-B2",
@@ -6394,7 +6405,8 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -",
         "cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -",
         "cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -6468,6 +6480,8 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("cargo clippy --all-targets --all-features -- -D warnings"));
     assert!(PRELAB_CI_WORKFLOW.contains("scripts/coverage_100.sh"));
     assert!(PRELAB_CI_WORKFLOW.contains("KRN_COVERAGE_ENFORCE: \"0\""));
+    assert!(PRELAB_CI_WORKFLOW.contains("krn_prelab_static_fuzz_plan"));
+    assert!(PRELAB_CI_WORKFLOW.contains("docs/prelab_static_fuzz_plan.json"));
     assert!(PRELAB_CI_WORKFLOW.contains("taiki-e/install-action@cargo-llvm-cov"));
     assert!(PRELAB_CI_WORKFLOW.contains("actions/checkout@v6"));
     assert!(PRELAB_CI_WORKFLOW.contains("actions/upload-artifact@v7"));
@@ -6475,6 +6489,45 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(COVERAGE_WORKFLOW.contains(".github/workflows/prelab.yml"));
     assert!(COVERAGE_WORKFLOW.contains("pre-lab evidence"));
     assert!(PRELAB_QUALITY_GATES.contains(".github/workflows/prelab.yml"));
+}
+
+#[test]
+fn prelab_static_fuzz_plan_is_reproducible_and_scoped() {
+    let generated = prelab_static_fuzz_plan_json();
+
+    assert_eq!(PRELAB_STATIC_FUZZ_PLAN, generated);
+    assert!(PRELAB_STATIC_FUZZ_PLAN.contains("\"type\":\"prelab-static-fuzz-plan\""));
+    assert!(PRELAB_STATIC_FUZZ_PLAN.contains("\"does_not_close\":[\"CERT-OPEN-010\"]"));
+    assert!(PRELAB_STATIC_FUZZ_PLAN.contains("EMVCo public L1/L2 material"));
+    assert!(PRELAB_STATIC_FUZZ_PLAN.contains("cargo-fuzz"));
+    assert!(PRELAB_STATIC_FUZZ_PLAN.contains("libFuzzer"));
+    for required in [
+        "STATIC-RUSTFMT",
+        "STATIC-CLIPPY-DENY-WARNINGS",
+        "STATIC-WHITESPACE",
+        "FUZZ-TLV",
+        "FUZZ-DOL",
+        "FUZZ-APDU",
+        "FUZZ-GAC",
+        "FUZZ-ISSUER-HOST-RESPONSE",
+        "FUZZ-RECORD-TRACK2",
+        "source_commit",
+        "rust_toolchain",
+        "fuzz_engine",
+        "corpus_hashes",
+        "run_budget",
+        "sensitive PAN, PIN, issuer script data, and private CAPK material",
+    ] {
+        assert!(
+            PRELAB_STATIC_FUZZ_PLAN.contains(required),
+            "static/fuzz plan missing {required}"
+        );
+    }
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Pre-lab static/fuzz evidence plan"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains(
+        "formal coverage, integration, static-analysis, and fuzzing reports remain pending"
+    ));
+    assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-010"));
 }
 
 #[test]

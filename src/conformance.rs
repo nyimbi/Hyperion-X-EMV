@@ -80,6 +80,7 @@ const GENERATED_FROM: &[&str] = &[
     "docs/prelab_apdu_trace_pack.jsonl",
     "docs/prelab_quality_gates.json",
     "docs/prelab_no_crash_smoke.json",
+    "docs/prelab_static_fuzz_plan.json",
 ];
 
 const CERTIFICATION_CONDITIONS: &[&str] = &[

@@ -118,6 +118,7 @@ For evidence or release-facing changes:
 cargo test --examples
 cargo clippy --all-targets --all-features -- -D warnings
 cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -
+cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -
 ```
 
 Run additional generator diffs when your change affects the relevant artifact.
@@ -133,6 +134,8 @@ When contributing a trace or fixture:
 - Do not include private CAPKs.
 - State whether the fixture is structural, regression, fuzzing, or lab-derived.
 - State whether redistribution is allowed.
+- Keep fuzz corpora synthetic and hashable; do not commit generated crash
+  corpora without a reviewed reproducer and disposition.
 
 If redistribution is not allowed, do not commit it to the repository.
 
@@ -162,4 +165,3 @@ The community can help most by creating broad, reproducible tests:
 
 Every high-quality test makes the foundation stronger for new fintech teams and
 reduces repeated work across the ecosystem.
-
