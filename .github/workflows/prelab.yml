@@ -1,0 +1,78 @@
+name: Pre-Lab Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  rust-quality:
+    name: Rust quality and evidence drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Unit and integration tests
+        run: cargo test
+
+      - name: Example evidence generators
+        run: cargo test --examples
+
+      - name: Static analysis
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: ABI conformance statement drift
+        run: cargo run --quiet --example krn_abi_conformance_statement | diff -u docs/abi_conformance_statement.json -
+
+      - name: Pre-lab trace pack drift
+        run: cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -
+
+      - name: Scheme profile dictionary drift
+        run: cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -
+
+      - name: Pre-lab quality gate manifest drift
+        run: cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -
+
+      - name: No-crash smoke artifact drift
+        run: cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -
+
+      - name: Whitespace
+        run: git diff --check
+
+  rust-coverage:
+    name: 100% Rust coverage report preparation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate 100% coverage report
+        run: scripts/coverage_100.sh
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperion-coverage-html
+          path: target/coverage
+          if-no-files-found: error

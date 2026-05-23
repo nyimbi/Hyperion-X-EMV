@@ -53,6 +53,17 @@ A coverage report is certification-facing only when it:
 Passing `cargo test` is necessary but not sufficient. A green test suite proves
 that tests pass; it does not prove measured coverage.
 
+## Continuous Integration
+
+The pre-lab GitHub Actions workflow at `.github/workflows/prelab.yml` runs the
+normal Rust quality gates and a separate coverage job. The coverage job installs
+`cargo-llvm-cov`, runs `scripts/coverage_100.sh`, and uploads the staged
+`target/coverage` directory as a workflow artifact when the 100% gate passes.
+
+The CI artifact is still pre-lab evidence. It becomes certification-facing only
+after the submitted binary, profiles, CAPKs, vectors, traceability matrix, and
+reviewer acceptance are bound into the lab submission package.
+
 ## Contributor Use
 
 Contributors can use this workflow before submitting behavior changes:

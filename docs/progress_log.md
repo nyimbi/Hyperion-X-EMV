@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T12:12:55Z
+
+- Increment completed: add pre-lab CI automation for repository quality gates
+  and 100% Rust coverage report preparation.
+- Tooling impact: `.github/workflows/prelab.yml` now runs formatting, tests,
+  example evidence-generator tests, clippy, deterministic evidence drift
+  checks, whitespace checks, and a separate coverage job that installs
+  `cargo-llvm-cov`, runs `scripts/coverage_100.sh`, and uploads
+  `target/coverage` as a workflow artifact.
+- Evidence impact: the pre-lab build provenance command now hashes the CI
+  workflow alongside source, controlled annexes, coverage docs, and coverage
+  script; traceability tests lock the CI command set and pre-lab/non-approval
+  boundary.
+- Remaining external blockers: CI artifacts are preparation evidence only.
+  `CERT-OPEN-009` remains open until the 100% coverage report and full EMV
+  integration report are attached and accepted for the submitted binary,
+  profiles, CAPKs, vectors, and annex hashes.
+
 ## 2026-05-23T12:07:34Z
 
 - Increment completed: add a concrete 100% coverage report workflow for the

@@ -23,6 +23,7 @@ tool results, and approval artifacts prevail over this repository on conflict.
 - Clean-room open-source reference review: `docs/open_source.md`.
 - Tutorial learning path: `docs/tutorial/README.md`.
 - 100% coverage workflow: `docs/coverage.md` and `scripts/coverage_100.sh`.
+- Pre-lab CI workflow: `.github/workflows/prelab.yml`.
 - Session progress log: `docs/progress_log.md`.
 
 Repository-controlled evidence is intentionally separated from external
@@ -226,6 +227,8 @@ implemented by `scripts/coverage_100.sh`. It uses `cargo-llvm-cov` to fail
 unless line coverage reaches 100%, then stages an HTML report under
 `target/coverage/html`. That workflow prepares evidence for `CERT-OPEN-009`;
 it does not close the external coverage and integration report requirement.
+The same script runs in `.github/workflows/prelab.yml`, which uploads
+`target/coverage` as a pre-lab workflow artifact when the 100% gate passes.
 
 ## Evidence Generators
 
