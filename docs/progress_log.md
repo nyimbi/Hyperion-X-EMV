@@ -4,6 +4,16 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T12:38:17Z
+
+- Increment completed: update the pre-lab workflow to Node 24-capable GitHub
+  action majors after the passing CI run reported Node 20 deprecation
+  annotations.
+- Tooling impact: checkout now uses `actions/checkout@v6` and coverage artifact
+  upload now uses `actions/upload-artifact@v7`.
+- Evidence impact: traceability tests lock the action versions so future
+  workflow drift is visible in repository tests.
+
 ## 2026-05-23T12:33:35Z
 
 - Increment completed: correct the pre-lab coverage workflow after the first

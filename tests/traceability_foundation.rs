@@ -6469,7 +6469,8 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("scripts/coverage_100.sh"));
     assert!(PRELAB_CI_WORKFLOW.contains("KRN_COVERAGE_ENFORCE: \"0\""));
     assert!(PRELAB_CI_WORKFLOW.contains("taiki-e/install-action@cargo-llvm-cov"));
-    assert!(PRELAB_CI_WORKFLOW.contains("actions/upload-artifact@v4"));
+    assert!(PRELAB_CI_WORKFLOW.contains("actions/checkout@v6"));
+    assert!(PRELAB_CI_WORKFLOW.contains("actions/upload-artifact@v7"));
     assert!(PRELAB_CI_WORKFLOW.contains("target/coverage"));
     assert!(COVERAGE_WORKFLOW.contains(".github/workflows/prelab.yml"));
     assert!(COVERAGE_WORKFLOW.contains("pre-lab evidence"));
