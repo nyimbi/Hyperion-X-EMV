@@ -62,7 +62,7 @@ use hyperion_emv::perf::{parse_performance_profile, PerfAccumulator, PerfStage};
 use hyperion_emv::provenance::{build_provenance_manifest, sha256, to_hex, Artifact};
 use hyperion_emv::quality::{
     prelab_fuzz_seed_corpus_json, prelab_no_crash_smoke_json, prelab_quality_gates_json,
-    prelab_static_fuzz_plan_json,
+    prelab_static_fuzz_plan_json, public_standards_watch_json,
 };
 use hyperion_emv::record::parse_read_record_body;
 use hyperion_emv::restrictions::{
@@ -110,6 +110,7 @@ const PRELAB_QUALITY_GATES: &str = include_str!("../docs/prelab_quality_gates.js
 const PRELAB_NO_CRASH_SMOKE: &str = include_str!("../docs/prelab_no_crash_smoke.json");
 const PRELAB_STATIC_FUZZ_PLAN: &str = include_str!("../docs/prelab_static_fuzz_plan.json");
 const PRELAB_FUZZ_SEED_CORPUS: &str = include_str!("../docs/prelab_fuzz_seed_corpus.json");
+const PUBLIC_STANDARDS_WATCH: &str = include_str!("../docs/public_standards_watch.json");
 const COVERAGE_WORKFLOW: &str = include_str!("../docs/coverage.md");
 const COVERAGE_SCRIPT: &str = include_str!("../scripts/coverage_100.sh");
 const PRELAB_CI_WORKFLOW: &str = include_str!("../.github/workflows/prelab.yml");
@@ -1528,6 +1529,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification open-issues register"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Public standards watch"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("standards_watch.md"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("public_standards_watch.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_public_standards_watch"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("PCI PTS/PED evidence boundaries"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("licensed/lab reconciliation is still required"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Open-source reference review"));
@@ -1547,6 +1550,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_static_fuzz_plan"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("prelab_fuzz_seed_corpus.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_prelab_fuzz_seed_corpus"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("public standards-watch manifest"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("certification-freeze hash checklist"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("kernel_binary_hash"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("config_bundle_hash"));
@@ -1566,7 +1570,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("C ABI APDU script adapter"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_cabi_script_adapter"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
     assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
     for required_hash in [
@@ -1601,6 +1605,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/prelab_quality_gates.json".to_string(),
         "docs/prelab_static_fuzz_plan.json".to_string(),
         "docs/prelab_fuzz_seed_corpus.json".to_string(),
+        "docs/public_standards_watch.json".to_string(),
         "docs/requirements-traceability-matrix.csv".to_string(),
         "docs/requirements_traceability.csv".to_string(),
         "docs/scheme_profiles.cert.json".to_string(),
@@ -1616,6 +1621,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_prelab_no_crash_smoke.rs".to_string(),
         "examples/krn_prelab_static_fuzz_plan.rs".to_string(),
         "examples/krn_prelab_fuzz_seed_corpus.rs".to_string(),
+        "examples/krn_public_standards_watch.rs".to_string(),
         "examples/krn_scheme_profile_dictionary.rs".to_string(),
         "examples/krn_prelab_quality_gates.rs".to_string(),
         "examples/krn_prelab_trace_pack.rs".to_string(),
@@ -1666,6 +1672,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/prelab_quality_gates.json",
         "docs/prelab_static_fuzz_plan.json",
         "docs/prelab_fuzz_seed_corpus.json",
+        "docs/public_standards_watch.json",
         "docs/requirements-traceability-matrix.csv",
         "docs/requirements_traceability.csv",
         "docs/scheme_profiles.cert.json",
@@ -1681,6 +1688,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_prelab_no_crash_smoke.rs",
         "examples/krn_prelab_static_fuzz_plan.rs",
         "examples/krn_prelab_fuzz_seed_corpus.rs",
+        "examples/krn_public_standards_watch.rs",
         "examples/krn_scheme_profile_dictionary.rs",
         "examples/krn_prelab_quality_gates.rs",
         "examples/krn_prelab_trace_pack.rs",
@@ -2043,6 +2051,7 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "docs/prelab_no_crash_smoke.json",
             "docs/prelab_static_fuzz_plan.json",
             "docs/prelab_fuzz_seed_corpus.json",
+            "docs/public_standards_watch.json",
             "docs/scheme_profiles.cert.json",
             "EMV-B1",
             "EMV-B2",
@@ -6508,7 +6517,8 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -",
         "cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -",
         "cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -6586,6 +6596,8 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("docs/prelab_static_fuzz_plan.json"));
     assert!(PRELAB_CI_WORKFLOW.contains("krn_prelab_fuzz_seed_corpus"));
     assert!(PRELAB_CI_WORKFLOW.contains("docs/prelab_fuzz_seed_corpus.json"));
+    assert!(PRELAB_CI_WORKFLOW.contains("krn_public_standards_watch"));
+    assert!(PRELAB_CI_WORKFLOW.contains("docs/public_standards_watch.json"));
     assert!(PRELAB_CI_WORKFLOW.contains("taiki-e/install-action@cargo-llvm-cov"));
     assert!(PRELAB_CI_WORKFLOW.contains("actions/checkout@v6"));
     assert!(PRELAB_CI_WORKFLOW.contains("actions/upload-artifact@v7"));
@@ -6632,6 +6644,48 @@ fn prelab_static_fuzz_plan_is_reproducible_and_scoped() {
         "formal coverage, integration, static-analysis, and fuzzing reports remain pending"
     ));
     assert!(CERTIFICATION_OPEN_ISSUES.contains("CERT-OPEN-010"));
+}
+
+#[test]
+fn public_standards_watch_is_reproducible_and_scoped() {
+    let generated = public_standards_watch_json();
+
+    assert_eq!(PUBLIC_STANDARDS_WATCH, generated);
+    assert!(PUBLIC_STANDARDS_WATCH.contains("\"type\":\"public-standards-watch\""));
+    assert!(PUBLIC_STANDARDS_WATCH.contains("\"checked_on\":\"2026-05-23\""));
+    assert!(PUBLIC_STANDARDS_WATCH.contains(
+        "licensed standards, scheme profiles, lab instructions, and approval artifacts prevail"
+    ));
+    for required in [
+        "CERT-OPEN-001",
+        "CERT-OPEN-005",
+        "CERT-OPEN-006",
+        "CERT-OPEN-007",
+        "CERT-OPEN-011",
+        "EMVCO-SPECIFICATIONS",
+        "EMVCO-CONTACTLESS-PRODUCT-APPROVAL",
+        "EMVCO-CONTACT-KERNEL-APPROVAL",
+        "EMVCO-CONTACTLESS-KERNEL-TESTING",
+        "PCI-PTS-POI",
+        "PCI-APPROVED-PTS-DEVICES",
+        "C8-V1-1-SB325",
+        "CONTACTLESS-SUITE-MAY-2026",
+        "KERNEL-TESTING-LOA",
+        "PCI-APPROVED-DEVICE-LISTING",
+        "https://www.emvco.com/specifications/",
+        "https://www.pcisecuritystandards.org/standards/pts-point-of-interaction-poi/",
+        "public listings are watch inputs, not implementation authority",
+        "do not close contactless, device, PCI/PED, or signed-conformance open issues",
+    ] {
+        assert!(
+            PUBLIC_STANDARDS_WATCH.contains(required),
+            "public standards-watch artifact missing {required}"
+        );
+    }
+    assert!(STANDARDS_WATCH.contains("docs/public_standards_watch.json"));
+    assert!(STANDARDS_WATCH.contains("drift-control artifact only"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("public_standards_watch.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_public_standards_watch"));
 }
 
 #[test]

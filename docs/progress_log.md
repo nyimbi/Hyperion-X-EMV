@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-23T13:26:58Z
+
+- Increment completed: turn the public standards watch into a deterministic
+  generated evidence artifact for certification-drift control.
+- Research basis: rechecked primary public EMVCo and PCI SSC pages for current
+  C-8, contactless-suite, approval-process, contact-kernel, PCI PTS POI, and
+  approved-device-listing signals.
+- Evidence impact: added `docs/public_standards_watch.json` and
+  `krn_public_standards_watch`; CI, pre-lab quality gates, ABI conformance
+  generated-from coverage, lab manifest coverage, build provenance inputs, and
+  tutorial guidance now include the artifact.
+- Remaining external blockers: the artifact maps public signals to open issues
+  but does not close C-8, device/L1, PCI/PED, signed conformance, or approval
+  evidence requirements.
+
 ## 2026-05-23T13:13:53Z
 
 - Increment completed: expand the tutorial glossary into a broader EMV term

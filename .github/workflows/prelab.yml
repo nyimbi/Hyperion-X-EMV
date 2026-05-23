@@ -55,6 +55,9 @@ jobs:
       - name: Fuzz seed corpus drift
         run: cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -
 
+      - name: Public standards watch drift
+        run: cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
+
       - name: Whitespace
         run: git diff --check
 

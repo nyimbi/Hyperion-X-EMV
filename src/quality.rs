@@ -44,6 +44,23 @@ struct ReportMetadataRequirement {
     requirement: &'static str,
 }
 
+struct PublicStandardsSource {
+    id: &'static str,
+    authority: &'static str,
+    title: &'static str,
+    public_url: &'static str,
+    observation: &'static str,
+}
+
+struct PublicStandardsSignal {
+    id: &'static str,
+    area: &'static str,
+    open_issue: &'static str,
+    source_id: &'static str,
+    public_signal: &'static str,
+    repository_action: &'static str,
+}
+
 struct FuzzSeedCase {
     id: &'static str,
     target: &'static str,
@@ -91,8 +108,13 @@ const QUALITY_GATES: &[QualityGate] = &[
         purpose: "regenerate and compare the deterministic fuzz seed corpus manifest",
     },
     QualityGate {
+        id: "PRELAB-PUBLIC-STANDARDS-WATCH",
+        command: "cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -",
+        purpose: "regenerate and compare the public standards-watch evidence manifest",
+    },
+    QualityGate {
         id: "PRELAB-BUILD-PROVENANCE",
-        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_emv_decode.rs",
+        command: "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
         purpose: "emit canonical build provenance for source, controlled annexes, and evidence generators",
     },
     QualityGate {
@@ -255,6 +277,102 @@ const STATIC_FUZZ_REPORT_METADATA: &[ReportMetadataRequirement] = &[
         field: "findings",
         requirement:
             "all crashes, timeouts, leaks, sanitizer findings, fixes, and accepted residual risks",
+    },
+];
+
+const PUBLIC_STANDARDS_SOURCES: &[PublicStandardsSource] = &[
+    PublicStandardsSource {
+        id: "EMVCO-SPECIFICATIONS",
+        authority: "EMVCo",
+        title: "EMV Specifications and Associated Bulletins",
+        public_url: "https://www.emvco.com/specifications/",
+        observation: "public listing checked for Contactless Kernel C-8, Book A, Book B, Kernel 2 RRP, TRMD, C-4, and contact-feature bulletin signals",
+    },
+    PublicStandardsSource {
+        id: "EMVCO-CONTACTLESS-PRODUCT-APPROVAL",
+        authority: "EMVCo",
+        title: "Contactless Product Approval Process",
+        public_url: "https://www.emvco.com/processes/contactless-product-approval-process/",
+        observation: "public process material frames contactless product approval as conformance attestation for contactless acceptance devices or Contactless Kernel C-8",
+    },
+    PublicStandardsSource {
+        id: "EMVCO-CONTACT-KERNEL-APPROVAL",
+        authority: "EMVCo",
+        title: "Contact Kernel Approval Process",
+        public_url: "https://www.emvco.com/processes/contact-kernel-approval-process/",
+        observation: "public process material frames contact kernel approval as kernel compliance attestation against EMV specifications",
+    },
+    PublicStandardsSource {
+        id: "EMVCO-CONTACTLESS-KERNEL-TESTING",
+        authority: "EMVCo",
+        title: "Contactless Kernel Testing Process",
+        public_url: "https://www.emvco.com/news/emvco-launches-the-emv-contactless-kernel-testing-process/",
+        observation: "public announcement describes accredited laboratory testing with qualified tools and Letter of Approval issuance when requirements are met",
+    },
+    PublicStandardsSource {
+        id: "PCI-PTS-POI",
+        authority: "PCI SSC",
+        title: "PTS Point of Interaction Standard",
+        public_url: "https://www.pcisecuritystandards.org/standards/pts-point-of-interaction-poi/",
+        observation: "public PCI material frames PTS POI as requirements for devices that protect PINs, account data, and other sensitive payment data at the point of interaction",
+    },
+    PublicStandardsSource {
+        id: "PCI-APPROVED-PTS-DEVICES",
+        authority: "PCI SSC",
+        title: "Approved PTS Devices",
+        public_url: "https://www.pcisecuritystandards.org/assessors_and_solutions/pin_transaction_devices?agree=true",
+        observation: "public PCI listing material states PCI-recognized laboratories validate PTS device conformance and PCI SSC publishes approved-device listings",
+    },
+];
+
+const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
+    PublicStandardsSignal {
+        id: "C8-V1-1-SB325",
+        area: "contactless C-8",
+        open_issue: "CERT-OPEN-005",
+        source_id: "EMVCO-SPECIFICATIONS",
+        public_signal: "public listings include Book C-8 Kernel Specification v1.1 and SB 325 updates to Book C-8 v1.0",
+        repository_action: "retain C-8 v1.0 engineering target until licensed review, scheme profile data, lab package selection, and device evidence select the final C-8 version and bulletin set",
+    },
+    PublicStandardsSignal {
+        id: "CONTACTLESS-SUITE-MAY-2026",
+        area: "contactless common books and adjacent bulletins",
+        open_issue: "CERT-OPEN-005",
+        source_id: "EMVCO-SPECIFICATIONS",
+        public_signal: "public listings include May 2026 Book A, Book B, Kernel 2 RRP, TRMD, C-4, and contact-feature bulletin signals",
+        repository_action: "track as reconciliation inputs only; do not infer Book A, Book B, Kernel 2, TRMD, C-4, or contact-feature behavior into Hyperion without the licensed/lab package selecting it",
+    },
+    PublicStandardsSignal {
+        id: "CONTACTLESS-APPROVAL-PATH",
+        area: "approval process",
+        open_issue: "CERT-OPEN-001",
+        source_id: "EMVCO-CONTACTLESS-PRODUCT-APPROVAL",
+        public_signal: "public process material distinguishes contactless product or Contactless Kernel C-8 approval from repository engineering evidence",
+        repository_action: "require the submitted package to name the accepted approval path and attach lab reports plus approval artifacts",
+    },
+    PublicStandardsSignal {
+        id: "KERNEL-TESTING-LOA",
+        area: "lab execution",
+        open_issue: "CERT-OPEN-011",
+        source_id: "EMVCO-CONTACTLESS-KERNEL-TESTING",
+        public_signal: "public announcement describes accredited laboratory testing, qualified tools, test-plan execution, and Letter of Approval issuance",
+        repository_action: "keep ABI JSON and pre-lab traces scoped as internal evidence until the signed EMVCo/lab conformance template and LoA-equivalent artifact are attached",
+    },
+    PublicStandardsSignal {
+        id: "PCI-PTS-POI-V7",
+        area: "PED and device security",
+        open_issue: "CERT-OPEN-007",
+        source_id: "PCI-PTS-POI",
+        public_signal: "public PCI material frames PTS POI around protection of PINs, account data, and sensitive payment data at the point of interaction",
+        repository_action: "preserve the kernel boundary around opaque PED handles and no clear-PIN custody until target POI/PED integration evidence is attached",
+    },
+    PublicStandardsSignal {
+        id: "PCI-APPROVED-DEVICE-LISTING",
+        area: "device approval evidence",
+        open_issue: "CERT-OPEN-006",
+        source_id: "PCI-APPROVED-PTS-DEVICES",
+        public_signal: "public PCI listing material ties device conformance to PCI-recognized laboratory validation and published approved-device listings",
+        repository_action: "require target device and PED listing references to match the submitted binary and profile set before closing device or PCI/PED blockers",
     },
 ];
 
@@ -432,6 +550,89 @@ pub fn prelab_quality_gates_json(abi_version: u32) -> String {
         out.push(',');
         push_json_str(&mut out, "status", "pending external certification freeze");
         out.push('}');
+    }
+    out.push_str("]}\n");
+    out
+}
+
+pub fn public_standards_watch_json() -> String {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(&mut out, "type", "public-standards-watch");
+    out.push(',');
+    push_json_str(&mut out, "checked_on", "2026-05-23");
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "scope",
+        "public standards signals only; licensed standards, scheme profiles, lab instructions, and approval artifacts prevail",
+    );
+    out.push_str(",\"does_not_close\":[");
+    for (idx, open_issue) in [
+        "CERT-OPEN-001",
+        "CERT-OPEN-005",
+        "CERT-OPEN-006",
+        "CERT-OPEN-007",
+        "CERT-OPEN-011",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_json_string(&mut out, open_issue);
+    }
+    out.push_str("],\"public_sources\":[");
+    for (idx, source) in PUBLIC_STANDARDS_SOURCES.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", source.id);
+        out.push(',');
+        push_json_str(&mut out, "authority", source.authority);
+        out.push(',');
+        push_json_str(&mut out, "title", source.title);
+        out.push(',');
+        push_json_str(&mut out, "public_url", source.public_url);
+        out.push(',');
+        push_json_str(&mut out, "observation", source.observation);
+        out.push('}');
+    }
+    out.push_str("],\"tracked_signals\":[");
+    for (idx, signal) in PUBLIC_STANDARDS_SIGNALS.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", signal.id);
+        out.push(',');
+        push_json_str(&mut out, "area", signal.area);
+        out.push(',');
+        push_json_str(&mut out, "open_issue", signal.open_issue);
+        out.push(',');
+        push_json_str(&mut out, "source_id", signal.source_id);
+        out.push(',');
+        push_json_str(&mut out, "public_signal", signal.public_signal);
+        out.push(',');
+        push_json_str(&mut out, "repository_action", signal.repository_action);
+        out.push('}');
+    }
+    out.push_str("],\"gating_rules\":[");
+    for (idx, rule) in [
+        "public listings are watch inputs, not implementation authority",
+        "licensed EMVCo, scheme, acquirer, PCI, device, and laboratory documents prevail on conflict",
+        "do not close contactless, device, PCI/PED, or signed-conformance open issues from this artifact alone",
+        "every final certification claim must name the accepted specification version, bulletin set, test-tool package, profile bundle, device evidence, and approval artifact",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_json_string(&mut out, rule);
     }
     out.push_str("]}\n");
     out

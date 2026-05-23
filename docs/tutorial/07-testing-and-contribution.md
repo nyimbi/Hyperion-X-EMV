@@ -120,6 +120,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -
 cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -
 cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -
+cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
 ```
 
 Run additional generator diffs when your change affects the relevant artifact.

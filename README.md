@@ -19,7 +19,8 @@ tool results, and approval artifacts prevail over this repository on conflict.
 - Open external blockers: `docs/certification_open_issues.md`.
 - Requirement traceability: `docs/requirements_traceability.csv` and
   `docs/requirements-traceability-matrix.csv`.
-- Public standards drift watch: `docs/standards_watch.md`.
+- Public standards drift watch: `docs/standards_watch.md` and
+  `docs/public_standards_watch.json`.
 - Clean-room open-source reference review: `docs/open_source.md`.
 - Tutorial learning path: `docs/tutorial/README.md`.
 - 100% coverage workflow: `docs/coverage.md` and `scripts/coverage_100.sh`.
@@ -218,6 +219,9 @@ cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_tra
 cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -
 cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -
 cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -
+cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -
+cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -
+cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
 ```
 
 The generated quality manifest is `docs/prelab_quality_gates.json`. It records
@@ -245,6 +249,8 @@ controlled evidence:
 - `krn_prelab_no_crash_smoke`: emits parser/APDU no-crash smoke evidence.
 - `krn_prelab_static_fuzz_plan`: emits the static/fuzz evidence plan.
 - `krn_prelab_fuzz_seed_corpus`: emits the hash-only fuzz seed corpus
+  manifest.
+- `krn_public_standards_watch`: emits the public standards-watch signal
   manifest.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
@@ -279,6 +285,8 @@ The `docs/` directory is part of the executable baseline:
 - `prelab_no_crash_smoke.json`: no-crash parser/APDU smoke artifact.
 - `prelab_static_fuzz_plan.json`: static-analysis and fuzzing evidence plan.
 - `prelab_fuzz_seed_corpus.json`: hash-only deterministic fuzz seed corpus
+  manifest.
+- `public_standards_watch.json`: generated public standards-watch signal
   manifest.
 - `abi_conformance_statement.json`: generated ABI conformance statement.
 - `performance_profile.csv`: product timing buckets and targets.

@@ -5,6 +5,17 @@ pre-certification baseline. It is not a substitute for licensed EMVCo, scheme,
 PCI, acquirer, device, or laboratory documents. Licensed materials and lab
 instructions prevail on conflict.
 
+The machine-readable companion artifact is `docs/public_standards_watch.json`.
+Regenerate it with:
+
+```sh
+cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
+```
+
+That artifact records source URLs, public signals, mapped open issues, and
+repository actions. It is a drift-control artifact only; it does not close any
+external certification blocker.
+
 ## 2026-05-23 Public EMVCo Check
 
 - Public source checked: EMVCo specifications and contactless technology pages.

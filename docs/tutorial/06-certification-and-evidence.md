@@ -174,6 +174,19 @@ The final trace pack should:
 - Tie traces to the submitted build and profile hashes.
 - Be accepted by the lab or scheme reviewer.
 
+## Public Standards Watch
+
+Public EMVCo and PCI pages can signal standards drift before the licensed
+submission package is finalized. Hyperion records those signals in
+`docs/standards_watch.md` and the generated
+`docs/public_standards_watch.json` artifact. Regenerate the JSON artifact with
+`cargo run --example krn_public_standards_watch`.
+
+The watch artifact maps public signals to open issues such as C-8 reconciliation,
+device evidence, PCI/PED evidence, and signed conformance templates. It is a
+drift-control artifact, not implementation authority. Licensed standards,
+scheme profiles, lab instructions, and approval artifacts still prevail.
+
 ## Crowdsourced Certification Preparation
 
 Crowdsourcing can help before formal submission:
