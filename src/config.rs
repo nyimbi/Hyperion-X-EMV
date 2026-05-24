@@ -1267,7 +1267,7 @@ fn reject_unknown_fields(
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum JsonValue {
+pub(crate) enum JsonValue {
     Object(BTreeMap<String, JsonValue>),
     Array(Vec<JsonValue>),
     String(String),
@@ -1277,42 +1277,42 @@ enum JsonValue {
 }
 
 impl JsonValue {
-    fn as_object(&self) -> KernelResult<&BTreeMap<String, JsonValue>> {
+    pub(crate) fn as_object(&self) -> KernelResult<&BTreeMap<String, JsonValue>> {
         match self {
             Self::Object(object) => Ok(object),
             _ => Err(KernelError::ParseError),
         }
     }
 
-    fn as_array(&self) -> KernelResult<&[JsonValue]> {
+    pub(crate) fn as_array(&self) -> KernelResult<&[JsonValue]> {
         match self {
             Self::Array(array) => Ok(array),
             _ => Err(KernelError::ParseError),
         }
     }
 
-    fn as_string(&self) -> KernelResult<&str> {
+    pub(crate) fn as_string(&self) -> KernelResult<&str> {
         match self {
             Self::String(value) => Ok(value),
             _ => Err(KernelError::ParseError),
         }
     }
 
-    fn as_string_opt(&self) -> Option<&str> {
+    pub(crate) fn as_string_opt(&self) -> Option<&str> {
         match self {
             Self::String(value) => Some(value),
             _ => None,
         }
     }
 
-    fn as_u64(&self) -> KernelResult<u64> {
+    pub(crate) fn as_u64(&self) -> KernelResult<u64> {
         match self {
             Self::Number(value) => Ok(*value),
             _ => Err(KernelError::ParseError),
         }
     }
 
-    fn as_bool(&self) -> KernelResult<bool> {
+    pub(crate) fn as_bool(&self) -> KernelResult<bool> {
         match self {
             Self::Bool(value) => Ok(*value),
             _ => Err(KernelError::ParseError),
@@ -1320,14 +1320,14 @@ impl JsonValue {
     }
 }
 
-struct JsonParser<'a> {
+pub(crate) struct JsonParser<'a> {
     input: &'a [u8],
     offset: usize,
     nodes: usize,
 }
 
 impl<'a> JsonParser<'a> {
-    fn new(input: &'a [u8]) -> Self {
+    pub(crate) fn new(input: &'a [u8]) -> Self {
         Self {
             input,
             offset: 0,
@@ -1335,7 +1335,7 @@ impl<'a> JsonParser<'a> {
         }
     }
 
-    fn parse(mut self) -> KernelResult<JsonValue> {
+    pub(crate) fn parse(mut self) -> KernelResult<JsonValue> {
         let value = self.parse_value(0)?;
         self.skip_ws();
         if self.offset != self.input.len() {

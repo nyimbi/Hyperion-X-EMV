@@ -11,3 +11,11 @@ Operating commitments:
 - Preserve open certification blockers for evidence that requires external
   lab, scheme, device, CAPK, or official vector inputs.
 - Push regular commits when a git remote is configured.
+
+Current implementation focus:
+- Make certification data fully data-driven through validated bundle input data.
+- Provide secure bundle fingerprinting and trust-anchor verification so different
+  certification/testing targets can be provisioned by changing data, not Rust
+  source code.
+- Provide operator-friendly provisioning surfaces: deterministic CLI, terminal
+  TUI-style prompt flow, and static local GUI/workbench.

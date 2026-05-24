@@ -23,6 +23,10 @@ tool results, and approval artifacts prevail over this repository on conflict.
   `docs/public_standards_watch.json`.
 - Tooling completeness audit: `docs/tooling_completeness_audit.json` and
   `docs/tooling_completeness_audit.md`.
+- Data-driven certification bundle: `docs/certification_data_bundle.json`,
+  `docs/certification_data_bundle_trust_anchors.json`,
+  `docs/certification_data_bundle.md`, and
+  `docs/certification_data_bundle_workbench.html`.
 - Certification evidence checklist: `docs/certification_evidence_checklist.json`
   and `docs/certification_evidence_checklist.md`.
 - Clean-room open-source reference review: `docs/open_source.md`.
@@ -76,6 +80,39 @@ lab-artifact preparation, report shaping, trace analysis, corpus triage,
 fixture conversion, CI glue, and reviewer utilities. Python-generated outputs
 must be reproducible, checked, and treated as tooling evidence around the Rust
 kernel rather than as a substitute for reviewed kernel behavior.
+
+## Data-Driven Certification Bundles
+
+Certification variable data is provisioned through a bundle instead of Rust
+source edits. A bundle carries the scheme profile JSON, vector-bundle reference,
+terminal/device profile, runtime timeout policy, kernel registry, CVM extension
+rules, test-plan cases, artifact hashes, and a trust-anchor-bound signature
+envelope. The same binary can therefore be exercised against different
+certification or testing targets by changing `certification_bundle.json` and
+`trust_anchors.json`.
+
+Generate the static GUI/workbench and fixture bundle:
+
+```sh
+cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle
+```
+
+Validate a bundle without changing code:
+
+```sh
+cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+```
+
+Provision interactively from a terminal:
+
+```sh
+cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui
+```
+
+The bundled trust-anchor fixture is for local reproducibility. Production and
+certification submissions must protect trust-anchor material and attach the
+recognized lab, scheme, device, PCI/PED, CAPK, vector, and approval evidence
+tracked in `docs/certification_open_issues.md`.
 
 ## Scope
 

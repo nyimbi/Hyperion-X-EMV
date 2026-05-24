@@ -7,6 +7,9 @@ use crate::c8::{
     RelayResistanceDecision, RelayResistanceFailureOutcome, StartSignal,
     TerminalTransactionQualifiers, UiRequest, UiStatus,
 };
+use crate::cert_bundle::{
+    load_certification_bundle, parse_trust_anchors, BundleLoadPolicy, CallbackTimeoutProfile,
+};
 use crate::cid::CryptogramType;
 use crate::config::{
     load_profile_set, AidProfile, BuildMode, Capk, CdaAuthenticationData, CdaRequestEncoding,
@@ -229,6 +232,10 @@ pub struct KrnContext {
     profiles: Option<ProfileSet>,
     profile_sha256: Option<[u8; 32]>,
     profile_evaluation_date: Option<EmvDate>,
+    certification_bundle_sha256: Option<[u8; 32]>,
+    certification_bundle_payload_sha256: Option<[u8; 32]>,
+    certification_bundle_rollback_counter: u64,
+    callback_timeouts: CallbackTimeoutProfile,
     selected_application: Option<SelectedApplication>,
     selected_oda_method: Option<OdaMethod>,
     requested_cryptogram: Option<CryptogramRequest>,
@@ -266,6 +273,10 @@ impl KrnContext {
             profiles: None,
             profile_sha256: None,
             profile_evaluation_date: None,
+            certification_bundle_sha256: None,
+            certification_bundle_payload_sha256: None,
+            certification_bundle_rollback_counter: 0,
+            callback_timeouts: CallbackTimeoutProfile::defaults(),
             selected_application: None,
             selected_oda_method: None,
             requested_cryptogram: None,
@@ -447,13 +458,52 @@ pub unsafe extern "C" fn krn_get_callback_timeout_policy(
     if abi_version != KRN_ABI_VERSION || struct_size != mem::size_of::<KrnCallbackTimeoutPolicy>() {
         return KernelError::InvalidArgument.code();
     }
-    (*out).min_timeout_ms = KRN_CALLBACK_TIMEOUT_MIN_MS;
-    (*out).max_timeout_ms = KRN_CALLBACK_TIMEOUT_MAX_MS;
-    (*out).apdu_transport_timeout_ms = APDU_TRANSMIT_TIMEOUT_MS;
-    (*out).host_authorization_timeout_ms = HOST_AUTHORIZATION_TIMEOUT_MS;
-    (*out).pin_entry_timeout_ms = PIN_ENTRY_TIMEOUT_MS;
-    (*out).contactless_ui_timeout_ms = CONTACTLESS_UI_TIMEOUT_MS;
+    write_callback_timeout_policy(out, CallbackTimeoutProfile::defaults());
     KernelError::Ok.code()
+}
+
+/// Writes the active context callback timeout policy.
+///
+/// If a certification bundle has been loaded, this returns the bundle-defined
+/// policy. Otherwise it returns the ABI defaults for backward compatibility.
+///
+/// # Safety
+///
+/// `ctx` must be null or a valid context pointer. `out` must point to a
+/// writable [`KrnCallbackTimeoutPolicy`] with initialized ABI fields.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_context_callback_timeout_policy(
+    ctx: *const KrnContext,
+    out: *mut KrnCallbackTimeoutPolicy,
+) -> i32 {
+    if out.is_null() {
+        return KernelError::InvalidArgument.code();
+    }
+    let abi_version = ptr::addr_of!((*out).abi_version).read_unaligned();
+    let struct_size = ptr::addr_of!((*out).struct_size).read_unaligned() as usize;
+    if abi_version != KRN_ABI_VERSION || struct_size != mem::size_of::<KrnCallbackTimeoutPolicy>() {
+        return KernelError::InvalidArgument.code();
+    }
+    let timeouts = ctx
+        .as_ref()
+        .map(|ctx| ctx.callback_timeouts)
+        .unwrap_or_else(CallbackTimeoutProfile::defaults);
+    write_callback_timeout_policy(out, timeouts);
+    KernelError::Ok.code()
+}
+
+fn write_callback_timeout_policy(
+    out: *mut KrnCallbackTimeoutPolicy,
+    timeouts: CallbackTimeoutProfile,
+) {
+    unsafe {
+        (*out).min_timeout_ms = KRN_CALLBACK_TIMEOUT_MIN_MS;
+        (*out).max_timeout_ms = KRN_CALLBACK_TIMEOUT_MAX_MS;
+        (*out).apdu_transport_timeout_ms = timeouts.apdu_transport_timeout_ms;
+        (*out).host_authorization_timeout_ms = timeouts.host_authorization_timeout_ms;
+        (*out).pin_entry_timeout_ms = timeouts.pin_entry_timeout_ms;
+        (*out).contactless_ui_timeout_ms = timeouts.contactless_ui_timeout_ms;
+    }
 }
 
 /// Returns the current transaction FSM state code for diagnostics.
@@ -826,6 +876,98 @@ pub unsafe extern "C" fn krn_load_profiles_verified(
         Ok(0usize)
     });
     ctx.set_result(result)
+}
+
+/// Loads a data-driven certification bundle into an existing context.
+///
+/// The bundle contains the scheme profile JSON, runtime policy, vector bundle,
+/// artifact bindings, and signature envelope. `trust_anchor_json` supplies the
+/// local trust-anchor data used to verify the bundle without changing kernel
+/// code. On success, the embedded profile set and data-driven runtime policy
+/// become active for the context.
+///
+/// # Safety
+///
+/// `ctx` must be a valid, uniquely borrowed context pointer. `bundle_json` and
+/// `trust_anchor_json` must point to readable byte buffers for their lengths.
+#[no_mangle]
+pub unsafe extern "C" fn krn_load_certification_bundle_verified(
+    ctx: *mut KrnContext,
+    bundle_json: *const u8,
+    bundle_json_len: usize,
+    trust_anchor_json: *const u8,
+    trust_anchor_json_len: usize,
+    installed_rollback_counter: u64,
+    eval_year: u8,
+    eval_month: u8,
+    eval_day: u8,
+) -> i32 {
+    let Some(ctx) = ctx.as_mut() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if mark_reentrant_call(ctx) {
+        return KernelError::Busy.code();
+    }
+    let result = readable_slice(bundle_json, bundle_json_len).and_then(|bundle_bytes| {
+        let trust_bytes = readable_slice(trust_anchor_json, trust_anchor_json_len)?;
+        let trust_anchors = parse_trust_anchors(trust_bytes)?;
+        let evaluation_date = EmvDate {
+            year: eval_year,
+            month: eval_month,
+            day: eval_day,
+        };
+        let installed = installed_rollback_counter.max(ctx.certification_bundle_rollback_counter);
+        let loaded = load_certification_bundle(
+            bundle_bytes,
+            &BundleLoadPolicy {
+                mode: BuildMode::Certification,
+                installed_rollback_counter: installed,
+                evaluation_date,
+                trust_anchors,
+            },
+        )?;
+        ctx.profile_sha256 = Some(loaded.scheme_profile_sha256);
+        ctx.profiles = Some(loaded.profile_set);
+        ctx.profile_evaluation_date = Some(evaluation_date);
+        ctx.certification_bundle_sha256 = Some(loaded.bundle_sha256);
+        ctx.certification_bundle_payload_sha256 = Some(loaded.payload_sha256);
+        ctx.certification_bundle_rollback_counter = loaded.bundle.rollback_counter;
+        ctx.callback_timeouts = loaded.bundle.payload.runtime_policy.callback_timeouts;
+        Ok(0usize)
+    });
+    ctx.set_result(result)
+}
+
+/// Copies the active certification bundle SHA-256 digest for startup evidence.
+///
+/// # Safety
+///
+/// `ctx` must be a valid context pointer. `out` must point to at least 32 bytes
+/// and `out_len` must be writable. The digest is only present after
+/// [`krn_load_certification_bundle_verified`] succeeds.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_certification_bundle_sha256(
+    ctx: *const KrnContext,
+    out: *mut u8,
+    out_len: *mut usize,
+) -> i32 {
+    let Some(ctx) = ctx.as_ref() else {
+        return KernelError::InvalidArgument.code();
+    };
+    if out.is_null() || out_len.is_null() {
+        return KernelError::InvalidArgument.code();
+    }
+    if *out_len < KRN_PROFILE_SHA256_LEN {
+        *out_len = KRN_PROFILE_SHA256_LEN;
+        return KernelError::BufferTooSmall.code();
+    }
+    let digest = match ctx.certification_bundle_sha256 {
+        Some(digest) => digest,
+        None => return KernelError::InvalidProfile.code(),
+    };
+    ptr::copy_nonoverlapping(digest.as_ptr(), out, KRN_PROFILE_SHA256_LEN);
+    *out_len = KRN_PROFILE_SHA256_LEN;
+    KernelError::Ok.code()
 }
 
 /// Runs a transaction through the stable ABI entrypoint.
@@ -8228,5 +8370,73 @@ mod tests {
         assert_eq!(FOLLOWUP_TRANSMITTED_INS.load(Ordering::SeqCst), 0xc0);
         assert_eq!(FOLLOWUP_TRANSMITTED_LEN.load(Ordering::SeqCst), 5);
         SCRIPT_FOLLOWUP_MODE.store(0, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn certification_bundle_loader_sets_profile_hash_bundle_hash_and_timeout_policy() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        let bundle = include_bytes!("../docs/certification_data_bundle.json");
+        let trust = include_bytes!("../docs/certification_data_bundle_trust_anchors.json");
+
+        unsafe {
+            assert_eq!(
+                krn_load_certification_bundle_verified(
+                    &mut ctx,
+                    bundle.as_ptr(),
+                    bundle.len(),
+                    trust.as_ptr(),
+                    trust.len(),
+                    1,
+                    26,
+                    5,
+                    25,
+                ),
+                KernelError::Ok.code()
+            );
+
+            let mut bundle_digest = [0u8; KRN_PROFILE_SHA256_LEN];
+            let mut bundle_digest_len = bundle_digest.len();
+            assert_eq!(
+                krn_get_certification_bundle_sha256(
+                    &ctx,
+                    bundle_digest.as_mut_ptr(),
+                    &mut bundle_digest_len,
+                ),
+                KernelError::Ok.code()
+            );
+            assert_eq!(bundle_digest_len, KRN_PROFILE_SHA256_LEN);
+            assert_eq!(bundle_digest, sha256(bundle));
+
+            let mut profile_digest = [0u8; KRN_PROFILE_SHA256_LEN];
+            let mut profile_digest_len = profile_digest.len();
+            assert_eq!(
+                krn_get_profile_sha256(
+                    &mut ctx,
+                    profile_digest.as_mut_ptr(),
+                    &mut profile_digest_len,
+                ),
+                KernelError::Ok.code()
+            );
+            assert_eq!(profile_digest_len, KRN_PROFILE_SHA256_LEN);
+            assert_eq!(ctx.profiles.as_ref().unwrap().version, 2);
+
+            let mut policy = KrnCallbackTimeoutPolicy {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnCallbackTimeoutPolicy>() as u32,
+                min_timeout_ms: 0,
+                max_timeout_ms: 0,
+                apdu_transport_timeout_ms: 0,
+                host_authorization_timeout_ms: 0,
+                pin_entry_timeout_ms: 0,
+                contactless_ui_timeout_ms: 0,
+            };
+            assert_eq!(
+                krn_get_context_callback_timeout_policy(&ctx, &mut policy),
+                KernelError::Ok.code()
+            );
+            assert_eq!(policy.apdu_transport_timeout_ms, 500);
+            assert_eq!(policy.host_authorization_timeout_ms, 30_000);
+        }
     }
 }

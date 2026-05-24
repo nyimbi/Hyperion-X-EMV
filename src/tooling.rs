@@ -160,6 +160,30 @@ const MECHANISMS: &[VerificationMechanism] = &[
         status: "repo-controlled",
         external_closure_gate: "CERT-OPEN-002; CERT-OPEN-003",
     },
+
+    VerificationMechanism {
+        id: "TOOL-DATA-DRIVEN-BUNDLES",
+        area: "data-driven certification configuration",
+        purpose: "create, validate, fingerprint, and locally provision certification/testing data bundles so certification scope changes are represented as input data rather than Rust source edits",
+        repository_artifacts: &[
+            "src/cert_bundle.rs",
+            "docs/certification_data_bundle.json",
+            "docs/certification_data_bundle_trust_anchors.json",
+            "docs/certification_data_bundle.md",
+            "docs/certification_data_bundle_workbench.html",
+            "docs/certification_data_bundle_fingerprints.json",
+            "examples/krn_certification_bundle.rs",
+            "examples/krn_certification_bundle_tui.rs",
+        ],
+        commands: &[
+            "cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle",
+            "cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json",
+            "cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui",
+        ],
+        ci_gate: "Data-driven certification bundle tests and example compile",
+        status: "repo-controlled",
+        external_closure_gate: "CERT-OPEN-002; CERT-OPEN-003; CERT-OPEN-004; CERT-OPEN-005; CERT-OPEN-009; CERT-OPEN-012",
+    },
     VerificationMechanism {
         id: "TOOL-STANDARDS-DRIFT",
         area: "standards drift",

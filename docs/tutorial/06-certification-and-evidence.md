@@ -289,6 +289,38 @@ profile tampering, PIN custody, ODA material handling, issuer-script handling,
 and report-integrity review with repository evidence and the outside report
 attachments still required before closure.
 
+## Data-Driven Certification Bundles
+
+Hyperion certification data is provisioned as data, not Rust edits. A
+certification bundle contains the selected scheme profile JSON, vector bundle,
+terminal/device identity, runtime callback timeouts, kernel-profile registry,
+CVM extension rules, test-plan cases, and artifact hash bindings. Trust-anchor
+data verifies that the payload hash and signature envelope are expected for the
+submission.
+
+Generate the default local bundle and static GUI workbench:
+
+```sh
+cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle
+```
+
+Validate the checked-in fixture bundle:
+
+```sh
+cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+```
+
+Provision a new local bundle with terminal prompts:
+
+```sh
+cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui
+```
+
+A different certification target should change bundle input data: profile JSON,
+CAPK/profile authority metadata, vector package, terminal/device profile,
+standards/bulletin target, runtime policy, and evidence bindings. The compiled
+kernel should only change when the protocol algorithm itself changes.
+
 ## Crowdsourced Certification Preparation
 
 Crowdsourcing can help before formal submission:
@@ -313,6 +345,7 @@ Before a certification-facing submission, confirm:
 - `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` reproduces the current evidence checklist.
 - `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` produces the current report workbench.
 - `cargo run --quiet --example krn_tooling_completeness_audit -- --out docs` produces the repository-controlled tooling completeness audit.
+- `cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json` validates the active data-driven bundle fixture.
 - `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` produces the complete local report-production workspace.
 - `target/hyperion-cert-workspace/attachments/CERT-OPEN-*` is the generated staging layout for external evidence attachments.
 - `target/hyperion-cert-workspace/attachment_audit.html` is the generated local dashboard for slot status and attachment hashes.

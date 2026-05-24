@@ -8,6 +8,7 @@ pub mod afl;
 pub mod aip;
 pub mod apdu;
 pub mod c8;
+pub mod cert_bundle;
 pub mod cid;
 pub mod config;
 pub mod conformance;

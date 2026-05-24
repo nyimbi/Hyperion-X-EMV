@@ -116,6 +116,41 @@ const CONTROLLED_REPORT_FILES: &[ControlledReportFile] = &[
         contents: include_bytes!("../docs/scheme_profile_dictionary.md"),
     },
     ControlledReportFile {
+        id: "DATA-BUNDLE-JSON",
+        title: "Data-driven certification bundle fixture",
+        path: "docs/certification_data_bundle.json",
+        category: "configuration",
+        contents: include_bytes!("../docs/certification_data_bundle.json"),
+    },
+    ControlledReportFile {
+        id: "DATA-BUNDLE-TRUST",
+        title: "Data-driven bundle trust-anchor fixture",
+        path: "docs/certification_data_bundle_trust_anchors.json",
+        category: "configuration",
+        contents: include_bytes!("../docs/certification_data_bundle_trust_anchors.json"),
+    },
+    ControlledReportFile {
+        id: "DATA-BUNDLE-REPORT",
+        title: "Data-driven certification bundle report",
+        path: "docs/certification_data_bundle.md",
+        category: "configuration",
+        contents: include_bytes!("../docs/certification_data_bundle.md"),
+    },
+    ControlledReportFile {
+        id: "DATA-BUNDLE-WORKBENCH",
+        title: "Data-driven certification bundle workbench",
+        path: "docs/certification_data_bundle_workbench.html",
+        category: "workbench",
+        contents: include_bytes!("../docs/certification_data_bundle_workbench.html"),
+    },
+    ControlledReportFile {
+        id: "DATA-BUNDLE-FINGERPRINTS",
+        title: "Data-driven certification bundle fingerprints",
+        path: "docs/certification_data_bundle_fingerprints.json",
+        category: "configuration",
+        contents: include_bytes!("../docs/certification_data_bundle_fingerprints.json"),
+    },
+    ControlledReportFile {
         id: "ODA-VECTORS",
         title: "ODA structural vector annex",
         path: "docs/oda_test_vectors.json",
@@ -424,6 +459,16 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         status: "generated",
         boundary: "does not disclose raw CAPK modulus material",
     },
+
+    ReportArtifact {
+        id: "DATA-BUNDLE",
+        title: "Data-driven certification bundle",
+        path: "docs/certification_data_bundle.json; docs/certification_data_bundle_trust_anchors.json; docs/certification_data_bundle.md; docs/certification_data_bundle_workbench.html",
+        category: "configuration",
+        generator: "cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle",
+        status: "generated",
+        boundary: "hash-pinned local bundle fixture; external authority signatures and lab acceptance remain required",
+    },
     ReportArtifact {
         id: "TRACE-PACK",
         title: "Masked pre-lab APDU trace fixture",
@@ -715,6 +760,19 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Audit masked APDU trace pack",
         command: "cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl",
         output: "stdout JSON trace-pack audit",
+    },
+
+    ToolCommand {
+        id: "DATA-BUNDLE",
+        title: "Generate data-driven certification bundle and workbench",
+        command: "cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle",
+        output: "target/hyperion-cert-bundle/certification_bundle.json, trust_anchors.json, index.html, and bundle_fingerprints.json",
+    },
+    ToolCommand {
+        id: "DATA-BUNDLE-TUI",
+        title: "Interactive TUI provisioner for certification bundle data",
+        command: "cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui",
+        output: "target/hyperion-cert-bundle-tui/certification_bundle.json, trust_anchors.json, and index.html",
     },
     ToolCommand {
         id: "FREEZE",
