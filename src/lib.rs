@@ -21,6 +21,7 @@ pub mod freeze;
 pub mod fsm;
 pub mod gac;
 pub mod gpo;
+pub mod integration;
 pub mod issuer;
 pub mod numeric;
 pub mod oda;

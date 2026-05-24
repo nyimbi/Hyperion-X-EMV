@@ -318,6 +318,12 @@ The generated device evidence plan in
 `CERT-OPEN-006`, and `CERT-OPEN-007` to the external device, Level 1, PCI/PED,
 interface-scope, trace-identity, and report-package evidence that must be
 attached before those gates can close.
+The generated integration report plan in
+`docs/certification_integration_report_plan.json` and
+`docs/certification_integration_report_plan.md` maps `CERT-OPEN-009` and
+`CERT-OPEN-012` to the external full EMV integration report, Level 3/acquirer
+reconciliation, masked APDU trace pack, expected/actual outcome matrix,
+deviation disposition, and submitted-build hash binding.
 Each `CERT-OPEN-*` row must carry an authority, attachment, hash, date,
 submitted-build scope, disposition, supersession history, and acceptance gate
 before the corresponding open issue can close.

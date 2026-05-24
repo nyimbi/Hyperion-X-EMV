@@ -212,6 +212,7 @@ cargo run --quiet --example krn_certification_evidence_intake -- --out docs
 cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
 cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs
 cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs
+cargo run --quiet --example krn_certification_integration_report_plan -- --out docs
 ```
 
 The checklist JSON output is intended for tooling and the Markdown output is

@@ -188,6 +188,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "device/L1/PED plan only; external approvals remain required",
     },
     ReportArtifact {
+        id: "INTEGRATION-REPORT-PLAN",
+        title: "Certification integration report plan",
+        path: "docs/certification_integration_report_plan.json; docs/certification_integration_report_plan.md",
+        category: "integration",
+        generator: "cargo run --quiet --example krn_certification_integration_report_plan",
+        status: "generated",
+        boundary: "integration report plan only; full reports and trace packs remain external",
+    },
+    ReportArtifact {
         id: "REPORT-PACK",
         title: "Certification report pack",
         path: "docs/certification_report_pack.json; docs/certification_report_pack.md",
@@ -318,6 +327,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Emit certification device evidence plan",
         command: "cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs",
         output: "docs/certification_device_evidence_plan.json and .md",
+    },
+    ToolCommand {
+        id: "INTEGRATION",
+        title: "Emit certification integration report plan",
+        command: "cargo run --quiet --example krn_certification_integration_report_plan -- --out docs",
+        output: "docs/certification_integration_report_plan.json and .md",
     },
     ToolCommand {
         id: "POS",

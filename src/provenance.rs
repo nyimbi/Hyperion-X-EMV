@@ -1,7 +1,7 @@
 use crate::error::{KernelError, KernelResult};
 use core::fmt::Write;
 
-pub const MAX_PROVENANCE_ARTIFACTS: usize = 96;
+pub const MAX_PROVENANCE_ARTIFACTS: usize = 128;
 pub const MAX_PROVENANCE_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

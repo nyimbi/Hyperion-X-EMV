@@ -5318,3 +5318,33 @@ decision record, while this file tracks work toward certification readiness.
   `cargo fmt --check`, `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features -- -D warnings`, and
   `git diff --check` passed.
+
+## 2026-05-24T00:21:40Z
+
+- Increment completed: make full EMV integration-report and masked APDU
+  trace-pack evidence preparation auditable without claiming external report
+  attachments are complete.
+- Research note: current public EMVCo/PCI context was rechecked before this
+  slice. EMVCo public materials continue to surface contactless kernel approval,
+  Level 3 bulletin, and device/L1 process signals; PCI public materials
+  continue to frame PTS POI evidence as device-security authority. The
+  repository-controlled gap selected here is integration-report and trace-pack
+  binding, not external approval closure.
+- Code impact: adding a deterministic certification integration
+  report plan generator and JSON/Markdown artifacts that map accepted test
+  scope, L2 execution, Level 3/acquirer reconciliation, full masked APDU traces,
+  expected/actual outcome mapping, deviation disposition, and submitted-build
+  hash binding to `CERT-OPEN-009` and `CERT-OPEN-012`.
+- Evidence updated: the lab manifest, ABI conformance statement, pre-lab
+  quality gates, certification report pack/UI, README, spec, tutorials, and CI
+  drift checks now include the integration report plan. Build provenance
+  accepts the expanded controlled-artifact set while retaining bounded resource
+  checks.
+- Verification: targeted `cargo test` filters for integration report plan
+  generation, example output, lab manifest/provenance, provenance resource
+  limits, ABI conformance, pre-lab quality gates, certification report
+  workbench, and pre-lab CI coverage gates; generator drift checks for
+  integration plan JSON/Markdown, quality gates, ABI conformance, report pack
+  JSON/Markdown, and report UI HTML; `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D
+  warnings`, and `git diff --check` passed.
