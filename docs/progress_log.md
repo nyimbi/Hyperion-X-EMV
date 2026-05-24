@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T02:25:04Z
+
+- Increment completed: add a certification attachment audit tool for
+  crowdsourced evidence and lab package preparation.
+- Tooling impact: `krn_certification_attachment_audit` scans a local
+  attachment root, maps files under `CERT-OPEN-*` directories, records size and
+  SHA-256, reports missing slots, and flags unmapped files without treating any
+  attachment as accepted evidence.
+- Evidence impact: the report workbench, pre-lab quality manifest, CI gate,
+  lab manifest, README, specification, and certification tutorial now expose
+  the attachment audit workflow alongside the checklist, intake ledger, and
+  freeze manifest.
+- Verification: focused attachment-audit example tests, focused
+  traceability/report/workbench tests, audit CLI smoke, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, clippy with all targets/features and
+  warnings as failures, and `git diff --check` passed locally.
+- Remaining risk: this inventories files only; every attachment still needs
+  external authority review, submitted-build binding, and acceptance before any
+  `CERT-OPEN-*` item can close.
+
 ## 2026-05-24T02:04:56Z
 
 - Increment completed: fail closed when an active TRM profile enables random

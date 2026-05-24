@@ -209,6 +209,7 @@ Run the checklist generator whenever certification package contents change:
 ```sh
 cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_evidence_intake -- --out docs
+cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments
 cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
 cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs
 cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs
@@ -235,6 +236,12 @@ reviewer, artifact path, artifact SHA-256, artifact date, submitted-build
 scope, disposition, and supersession history. Community contributors can add
 better fixtures, trace replays, validation tests, and reports, but closure
 still requires the external authority named in the row.
+
+Use `krn_certification_attachment_audit` to scan a local attachment directory
+before review. Files placed under directories named after `CERT-OPEN-*` issues
+are hashed and listed against those slots; files outside known slots are
+reported as unmapped. This makes crowdsourced evidence packages auditable
+without treating a local file as accepted certification evidence.
 
 Treat the freeze manifest as the submitted-build binding surface. It records
 pending SHA-256 slots for the kernel binary, signed configuration, CAPK bundle,

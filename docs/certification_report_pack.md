@@ -224,6 +224,7 @@
 | REPORT-MD | Emit report-pack Markdown | `cargo run --quiet --example krn_certification_report_ui -- --markdown` | `stdout Markdown` |
 | EVIDENCE | Emit certification evidence checklist | `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` | `docs/certification_evidence_checklist.json and .md` |
 | INTAKE | Emit certification evidence intake ledger | `cargo run --quiet --example krn_certification_evidence_intake -- --out docs` | `docs/certification_evidence_intake.json and .md` |
+| ATTACHMENT-AUDIT | Audit local certification evidence attachments | `cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments` | `stdout JSON attachment hash inventory` |
 | FREEZE | Emit certification freeze manifest | `cargo run --quiet --example krn_certification_freeze_manifest -- --out docs` | `docs/certification_freeze_manifest.json and .md` |
 | SECURITY | Emit certification security assessment plan | `cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs` | `docs/certification_security_assessment_plan.json and .md` |
 | DEVICE | Emit certification device evidence plan | `cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs` | `docs/certification_device_evidence_plan.json and .md` |

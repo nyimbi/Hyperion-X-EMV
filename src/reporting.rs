@@ -328,6 +328,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         output: "docs/certification_evidence_intake.json and .md",
     },
     ToolCommand {
+        id: "ATTACHMENT-AUDIT",
+        title: "Audit local certification evidence attachments",
+        command: "cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments",
+        output: "stdout JSON attachment hash inventory",
+    },
+    ToolCommand {
         id: "FREEZE",
         title: "Emit certification freeze manifest",
         command: "cargo run --quiet --example krn_certification_freeze_manifest -- --out docs",

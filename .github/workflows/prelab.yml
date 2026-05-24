@@ -70,6 +70,9 @@ jobs:
       - name: Certification evidence intake Markdown drift
         run: cargo run --quiet --example krn_certification_evidence_intake -- --markdown | diff -u docs/certification_evidence_intake.md -
 
+      - name: Certification attachment audit smoke
+        run: cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments
+
       - name: Certification freeze manifest JSON drift
         run: cargo run --quiet --example krn_certification_freeze_manifest -- --json | diff -u docs/certification_freeze_manifest.json -
 
