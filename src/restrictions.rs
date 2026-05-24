@@ -46,8 +46,13 @@ pub enum ServiceType {
     Cash,
     Goods,
     Services,
-    Atm,
     Cashback,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerminalChannel {
+    Atm,
+    OtherThanAtm,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -124,32 +129,28 @@ impl ApplicationUsageControl {
         self.bytes[1] & 0x3f
     }
 
-    pub fn allows(self, region: TransactionRegion, service: ServiceType) -> bool {
-        let (channel_mask, service_mask) = match (region, service) {
-            (TransactionRegion::Domestic, ServiceType::Cash) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::DOMESTIC_CASH)
-            }
-            (TransactionRegion::International, ServiceType::Cash) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::INTERNATIONAL_CASH)
-            }
-            (TransactionRegion::Domestic, ServiceType::Goods) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::DOMESTIC_GOODS)
-            }
-            (TransactionRegion::International, ServiceType::Goods) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::INTERNATIONAL_GOODS)
-            }
-            (TransactionRegion::Domestic, ServiceType::Services) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::DOMESTIC_SERVICES)
-            }
+    pub fn allows(
+        self,
+        region: TransactionRegion,
+        service: ServiceType,
+        channel: TerminalChannel,
+    ) -> bool {
+        let channel_mask = match channel {
+            TerminalChannel::Atm => Self::VALID_AT_ATM,
+            TerminalChannel::OtherThanAtm => Self::VALID_OTHER_THAN_ATM,
+        };
+        let service_mask = match (region, service) {
+            (TransactionRegion::Domestic, ServiceType::Cash) => Self::DOMESTIC_CASH,
+            (TransactionRegion::International, ServiceType::Cash) => Self::INTERNATIONAL_CASH,
+            (TransactionRegion::Domestic, ServiceType::Goods) => Self::DOMESTIC_GOODS,
+            (TransactionRegion::International, ServiceType::Goods) => Self::INTERNATIONAL_GOODS,
+            (TransactionRegion::Domestic, ServiceType::Services) => Self::DOMESTIC_SERVICES,
             (TransactionRegion::International, ServiceType::Services) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::INTERNATIONAL_SERVICES)
+                Self::INTERNATIONAL_SERVICES
             }
-            (_, ServiceType::Atm) => (Self::VALID_AT_ATM, Self::VALID_AT_ATM),
-            (TransactionRegion::Domestic, ServiceType::Cashback) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::DOMESTIC_CASHBACK)
-            }
+            (TransactionRegion::Domestic, ServiceType::Cashback) => Self::DOMESTIC_CASHBACK,
             (TransactionRegion::International, ServiceType::Cashback) => {
-                (Self::VALID_OTHER_THAN_ATM, Self::INTERNATIONAL_CASHBACK)
+                Self::INTERNATIONAL_CASHBACK
             }
         };
         self.is_set(channel_mask) && self.is_set(service_mask)
@@ -170,6 +171,7 @@ pub struct RestrictionInput {
     pub auc: ApplicationUsageControl,
     pub region: TransactionRegion,
     pub service: ServiceType,
+    pub terminal_channel: TerminalChannel,
     pub new_card: bool,
 }
 
@@ -229,8 +231,10 @@ impl RestrictionCheck {
                 .filter(|effective_date| input.transaction_date < *effective_date)
                 .map(|_| Tvr::B2_APPLICATION_NOT_YET_EFFECTIVE),
             RestrictionCheck::ApplicationUsageControl => {
-                (!input.auc.allows(input.region, input.service))
-                    .then_some(Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED)
+                (!input
+                    .auc
+                    .allows(input.region, input.service, input.terminal_channel))
+                .then_some(Tvr::B2_REQUESTED_SERVICE_NOT_ALLOWED)
             }
             RestrictionCheck::NewCard => input.new_card.then_some(Tvr::B2_NEW_CARD),
         }
@@ -260,6 +264,7 @@ mod tests {
             auc: ApplicationUsageControl::new([0xff, 0x80]),
             region: TransactionRegion::Domestic,
             service: ServiceType::Goods,
+            terminal_channel: TerminalChannel::OtherThanAtm,
             new_card: false,
         }
     }
@@ -337,28 +342,93 @@ mod tests {
     #[test]
     fn auc_enforces_terminal_channel_and_region_specific_cashback_bits() {
         let domestic_goods_without_non_atm = ApplicationUsageControl::new([0x20, 0x00]);
-        assert!(
-            !domestic_goods_without_non_atm.allows(TransactionRegion::Domestic, ServiceType::Goods)
-        );
+        assert!(!domestic_goods_without_non_atm.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Goods,
+            TerminalChannel::OtherThanAtm
+        ));
 
         let domestic_goods = ApplicationUsageControl::new([0x21, 0x00]);
-        assert!(domestic_goods.allows(TransactionRegion::Domestic, ServiceType::Goods));
-        assert!(!domestic_goods.allows(TransactionRegion::International, ServiceType::Goods));
+        assert!(domestic_goods.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Goods,
+            TerminalChannel::OtherThanAtm
+        ));
+        assert!(!domestic_goods.allows(
+            TransactionRegion::International,
+            ServiceType::Goods,
+            TerminalChannel::OtherThanAtm
+        ));
 
-        let atm_only = ApplicationUsageControl::new([0x02, 0x00]);
-        assert!(atm_only.allows(TransactionRegion::Domestic, ServiceType::Atm));
-        assert!(!ApplicationUsageControl::new([0x01, 0x00])
-            .allows(TransactionRegion::Domestic, ServiceType::Atm));
+        let domestic_cash_at_atm = ApplicationUsageControl::new([0x82, 0x00]);
+        assert!(domestic_cash_at_atm.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Cash,
+            TerminalChannel::Atm
+        ));
+        assert!(!ApplicationUsageControl::new([0x01, 0x00]).allows(
+            TransactionRegion::Domestic,
+            ServiceType::Cash,
+            TerminalChannel::Atm
+        ));
 
         let domestic_cashback = ApplicationUsageControl::new([0x01, 0x80]);
-        assert!(domestic_cashback.allows(TransactionRegion::Domestic, ServiceType::Cashback));
-        assert!(!domestic_cashback.allows(TransactionRegion::International, ServiceType::Cashback));
+        assert!(domestic_cashback.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Cashback,
+            TerminalChannel::OtherThanAtm
+        ));
+        assert!(!domestic_cashback.allows(
+            TransactionRegion::International,
+            ServiceType::Cashback,
+            TerminalChannel::OtherThanAtm
+        ));
 
         let international_cashback = ApplicationUsageControl::new([0x01, 0x40]);
-        assert!(
-            international_cashback.allows(TransactionRegion::International, ServiceType::Cashback)
-        );
-        assert!(!international_cashback.allows(TransactionRegion::Domestic, ServiceType::Cashback));
+        assert!(international_cashback.allows(
+            TransactionRegion::International,
+            ServiceType::Cashback,
+            TerminalChannel::OtherThanAtm
+        ));
+        assert!(!international_cashback.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Cashback,
+            TerminalChannel::OtherThanAtm
+        ));
+    }
+
+    #[test]
+    fn cash_at_atm_requires_cash_and_atm_auc_bits() {
+        let domestic_cash_at_atm = ApplicationUsageControl::new([0x82, 0x00]);
+        assert!(domestic_cash_at_atm.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Cash,
+            TerminalChannel::Atm
+        ));
+        assert!(!domestic_cash_at_atm.allows(
+            TransactionRegion::International,
+            ServiceType::Cash,
+            TerminalChannel::Atm
+        ));
+        assert!(!domestic_cash_at_atm.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Goods,
+            TerminalChannel::Atm
+        ));
+
+        let cash_without_atm_channel = ApplicationUsageControl::new([0x80, 0x00]);
+        assert!(!cash_without_atm_channel.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Cash,
+            TerminalChannel::Atm
+        ));
+
+        let atm_without_cash_service = ApplicationUsageControl::new([0x02, 0x00]);
+        assert!(!atm_without_cash_service.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Cash,
+            TerminalChannel::Atm
+        ));
     }
 
     #[test]

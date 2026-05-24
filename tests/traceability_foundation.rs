@@ -84,7 +84,7 @@ use hyperion_emv::reporting::{
 };
 use hyperion_emv::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
-    ServiceType, TransactionRegion,
+    ServiceType, TerminalChannel, TransactionRegion,
 };
 use hyperion_emv::security::{
     certification_security_assessment_plan_json, certification_security_assessment_plan_markdown,
@@ -2339,6 +2339,7 @@ fn spec_contains_certified_cvm_code_table_and_ped_boundary() {
 
 #[test]
 fn corrected_spec_contains_processing_restriction_and_trm_requirements() {
+    let spec = include_str!("../docs/spec.md");
     for krn_id in [
         "KRN-REST-001",
         "KRN-REST-002",
@@ -2351,6 +2352,15 @@ fn corrected_spec_contains_processing_restriction_and_trm_requirements() {
             CORRECTED_SPEC.contains(krn_id),
             "corrected spec missing {krn_id}"
         );
+    }
+    for fragment in [
+        "Application Usage Control",
+        "terminal channel",
+        "transaction service",
+        "domestic cash transaction at an ATM requires both the domestic-cash bit and the",
+        "valid-at-ATM bit",
+    ] {
+        assert!(spec.contains(fragment), "spec missing {fragment}");
     }
 }
 
@@ -3582,6 +3592,9 @@ fn rtm_promotes_processing_restriction_evidence() {
         let non_standard = csv_row_for_requirement(csv, "KRN-REST-002").unwrap();
         assert!(non_standard
             .contains("auc_enforces_terminal_channel_and_region_specific_cashback_bits"));
+        assert!(non_standard.contains("cash_at_atm_requires_cash_and_atm_auc_bits"));
+        assert!(non_standard
+            .contains("processing_restriction_mapping_separates_service_from_terminal_channel"));
         assert!(non_standard.contains("parses_auc_and_exposes_named_usage_bits"));
         assert!(non_standard.contains(
             "krn_emv_decode::tests::auc_output_names_usage_control_bits_without_policy_override"
@@ -8737,6 +8750,7 @@ fn processing_restrictions_mutate_only_defined_tvr_bits() {
             auc: ApplicationUsageControl::new([0x00, 0x00]),
             region: TransactionRegion::Domestic,
             service: ServiceType::Goods,
+            terminal_channel: TerminalChannel::OtherThanAtm,
             new_card: true,
         },
         Tvr::cleared(),

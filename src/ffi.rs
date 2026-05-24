@@ -41,7 +41,7 @@ use crate::provenance::sha256;
 use crate::record::parse_read_record_body;
 use crate::restrictions::{
     evaluate as evaluate_restrictions, ApplicationUsageControl, EmvDate, RestrictionInput,
-    ServiceType, TransactionRegion,
+    ServiceType, TerminalChannel, TransactionRegion,
 };
 use crate::selection::{
     direct_profile_candidates, match_profile_candidates, parse_fci_candidate_aids,
@@ -2335,6 +2335,7 @@ fn run_processing_restrictions(
             TransactionRegion::International
         },
         service: service_type(params),
+        terminal_channel: terminal_channel(params),
         new_card: false,
     };
 
@@ -2382,8 +2383,15 @@ fn service_type(params: &StoredTxnParams) -> ServiceType {
     match TransactionType::from_value(params.transaction_type).runtime_service() {
         RuntimeService::Cash => ServiceType::Cash,
         RuntimeService::Cashback => ServiceType::Cashback,
-        _ if matches!(params.terminal_type, 0x14 | 0x24) => ServiceType::Atm,
         RuntimeService::GoodsOrServices => ServiceType::Goods,
+    }
+}
+
+fn terminal_channel(params: &StoredTxnParams) -> TerminalChannel {
+    if matches!(params.terminal_type, 0x14 | 0x24) {
+        TerminalChannel::Atm
+    } else {
+        TerminalChannel::OtherThanAtm
     }
 }
 
@@ -4119,6 +4127,34 @@ mod tests {
             unsafe { read_transaction_params(&oversized_merchant).unwrap_err() },
             KernelError::LengthOverflow
         );
+    }
+
+    #[test]
+    fn processing_restriction_mapping_separates_service_from_terminal_channel() {
+        let mut params = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x01,
+            terminal_type: 0x14,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: KRN_INTERFACE_CONTACT,
+            merchant_name_location: Vec::new(),
+        };
+
+        assert_eq!(service_type(&params), ServiceType::Cash);
+        assert_eq!(terminal_channel(&params), TerminalChannel::Atm);
+
+        params.terminal_type = 0x22;
+        assert_eq!(service_type(&params), ServiceType::Cash);
+        assert_eq!(terminal_channel(&params), TerminalChannel::OtherThanAtm);
+
+        params.transaction_type = 0x00;
+        params.terminal_type = 0x14;
+        assert_eq!(service_type(&params), ServiceType::Goods);
+        assert_eq!(terminal_channel(&params), TerminalChannel::Atm);
     }
 
     #[test]

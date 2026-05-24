@@ -80,6 +80,27 @@ These keys **SHALL** be present in every scheme profile (see Annex F). The kerne
 
 ---
 
+## 4A. Application Usage Control – Channel and Service Separation
+
+Application Usage Control (`9F07`) processing SHALL treat the terminal channel
+and transaction service as independent conditions. The ATM / other-than-ATM
+bits select the terminal channel; domestic/international cash, goods, services,
+and cashback bits select the transaction service. A transaction is allowed only
+when both the channel bit and the service bit required for the active region
+are present.
+
+The kernel SHALL NOT model "ATM" as a transaction service. For example, a
+domestic cash transaction at an ATM requires both the domestic-cash bit and the
+valid-at-ATM bit. A domestic cash transaction at a terminal other than an ATM
+requires the domestic-cash bit and the valid-other-than-ATM bit. Failure SHALL
+set only the standard requested-service-not-allowed TVR bit.
+
+> **KRN‑REST‑002**: Application Usage Control evaluation **SHALL** separate
+> terminal channel from transaction service and **SHALL NOT** create
+> non-standard TVR bits for channel, currency, or service mismatch.
+
+---
+
 ## 5. Offline Data Authentication (ODA) – CDA Details
 
 The kernel **SHALL** implement CDA as follows (complete specification):

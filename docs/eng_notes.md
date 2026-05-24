@@ -95,6 +95,9 @@ Build these immediately:
 * Logging and masking framework.
 * Test harness for scripted APDU replay.
 * Configuration loader and schema validation.
+* Application Usage Control evaluation that keeps terminal channel
+  (ATM / other-than-ATM) separate from transaction service
+  (cash / goods / services / cashback).
 
 ### Track 2: Implement behind feature flags pending validation
 

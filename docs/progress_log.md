@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T01:00:46Z
+
+- Increment completed: correct Application Usage Control processing so the
+  kernel treats ATM / other-than-ATM as a terminal-channel condition separate
+  from transaction service.
+- Code impact: `ApplicationUsageControl::allows` now requires both a service
+  bit and the active terminal-channel bit, and the FFI transaction mapping
+  keeps `transaction_type` service classification independent from terminal
+  type channel classification.
+- Evidence impact: processing-restriction RTM rows now cite focused coverage
+  for domestic cash at ATM, channel/service separation, and standard TVR-only
+  requested-service failure handling.
+- Verification: focused restriction, FFI mapping, RTM traceability, corrected
+  spec traceability, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, clippy with all targets/features and warnings as
+  failures, and `git diff --check` all passed locally.
+- Remaining risk: terminal-channel classification currently follows the
+  existing repository terminal-type mapping for ATM-shaped terminals; licensed
+  scheme/lab review still controls final terminal-type acceptance.
+
 ## 2026-05-24T00:45:52Z
 
 - Increment completed: add a one-command certification workspace generator for
