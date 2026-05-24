@@ -6854,6 +6854,10 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_security_assessment_plan.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_device_evidence_plan.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_integration_report_plan.json"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"requirements\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"id\":\"KRN-SCR-006\""));
+    assert!(CERTIFICATION_REPORT_PACK
+        .contains("critical_issuer_script_failure_before_final_sets_before_final_tvr_and_stops"));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"evidence_requirements\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("CERT-REPORT-COVERAGE"));
     assert!(CERTIFICATION_REPORT_PACK.contains("coverage metadata JSON"));
@@ -6862,8 +6866,11 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_certification_workspace"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_basic_pos"));
     assert!(CERTIFICATION_REPORT_UI.contains("Hyperion Certification Workbench"));
+    assert!(CERTIFICATION_REPORT_UI.contains("Requirement Traceability"));
+    assert!(CERTIFICATION_REPORT_UI.contains("requirement-body"));
     assert!(CERTIFICATION_REPORT_UI.contains("Evidence Attachment Checklist"));
     assert!(CERTIFICATION_REPORT_UI.contains("download-json"));
+    assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Requirement Traceability"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Required External Reports"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Evidence Attachment Checklist"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification report workbench"));

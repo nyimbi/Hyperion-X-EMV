@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T01:36:06Z
+
+- Increment completed: expose requirement traceability in the certification
+  report workbench and report-pack exports.
+- Tooling impact: `krn_certification_report_ui` now includes a generated
+  requirement trace model sourced from `docs/requirements_traceability.csv`,
+  and the static UI has a Requirements tab with requirement text, unit and
+  integration test IDs, EMVCo references, and evidence artifacts.
+- Evidence impact: `docs/certification_report_pack.json`,
+  `docs/certification_report_pack.md`, and
+  `docs/certification_report_ui.html` now include the KRN requirement
+  traceability rows alongside artifacts, required external reports, evidence
+  attachments, and tool commands.
+- Verification: focused reporting unit tests, the report-workbench
+  reproducibility traceability test, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, clippy with all targets/features and warnings as
+  failures, report UI JSON/Markdown/HTML drift checks, certification workspace
+  smoke, basic PoS smoke, and `git diff --check` all passed locally.
+- Remaining risk: the workbench indexes repository-controlled requirements and
+  evidence only; lab case mapping, signed reports, and external attachment
+  acceptance remain outside the repository.
+
 ## 2026-05-24T01:24:43Z
 
 - Increment completed: harden issuer script phase evidence for critical
