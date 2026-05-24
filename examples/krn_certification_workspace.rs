@@ -535,13 +535,19 @@ fn attachment_audit_html(abi_version: u32, audit: &CertificationAttachmentAudit)
         .map(|slot| slot.attachments.len())
         .sum::<usize>()
         + audit.unmapped_attachments.len();
+    let rejected_count = audit
+        .slots
+        .iter()
+        .map(|slot| slot.rejected_attachments.len())
+        .sum::<usize>()
+        + audit.rejected_unmapped_attachments.len();
 
     let mut out = String::new();
     out.push_str("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
     out.push_str("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
     out.push_str("<title>Hyperion Attachment Audit</title>");
     out.push_str("<style>");
-    out.push_str("*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:#1b1f24;background:#f7f8fa;line-height:1.45}header{background:#0f1720;color:#f8fafc;padding:20px 24px;border-bottom:4px solid #1f9d8a}main{max-width:1480px;margin:0 auto;padding:18px 24px 28px}.title{margin:0;font-size:26px;font-weight:720;letter-spacing:0}.meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#cbd5df;font-size:13px}.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.links a{display:inline-flex;align-items:center;height:34px;border:1px solid #ccd3dc;background:#fff;color:#1b1f24;text-decoration:none;padding:0 10px;border-radius:6px}.summary{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px;margin:18px 0}.metric{background:#fff;border:1px solid #d9dee6;border-radius:8px;padding:14px}.metric strong{display:block;font-size:24px}.metric span{color:#52606d;font-size:13px}.notice{background:#fff9e8;border:1px solid #f0d28a;border-radius:8px;padding:12px 14px;margin:16px 0}section{margin-top:18px}.table-wrap{overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:8px}table{border-collapse:collapse;width:100%;min-width:980px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #edf0f4;padding:10px 12px;font-size:13px}th{position:sticky;top:0;background:#edf3f7;color:#23313f;font-size:12px;text-transform:uppercase}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}.status{font-weight:700;color:#8a4b00}.ok{color:#0b6e4f}@media(max-width:780px){header,main{padding-left:14px;padding-right:14px}.title{font-size:22px}.summary{grid-template-columns:repeat(2,minmax(130px,1fr))}}");
+    out.push_str("*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:#1b1f24;background:#f7f8fa;line-height:1.45}header{background:#0f1720;color:#f8fafc;padding:20px 24px;border-bottom:4px solid #1f9d8a}main{max-width:1480px;margin:0 auto;padding:18px 24px 28px}.title{margin:0;font-size:26px;font-weight:720;letter-spacing:0}.meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#cbd5df;font-size:13px}.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.links a{display:inline-flex;align-items:center;height:34px;border:1px solid #ccd3dc;background:#fff;color:#1b1f24;text-decoration:none;padding:0 10px;border-radius:6px}.summary{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px;margin:18px 0}.metric{background:#fff;border:1px solid #d9dee6;border-radius:8px;padding:14px}.metric strong{display:block;font-size:24px}.metric span{color:#52606d;font-size:13px}.notice{background:#fff9e8;border:1px solid #f0d28a;border-radius:8px;padding:12px 14px;margin:16px 0}section{margin-top:18px}.table-wrap{overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:8px}table{border-collapse:collapse;width:100%;min-width:980px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #edf0f4;padding:10px 12px;font-size:13px}th{position:sticky;top:0;background:#edf3f7;color:#23313f;font-size:12px;text-transform:uppercase}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}.status{font-weight:700;color:#8a4b00}.ok{color:#0b6e4f}@media(max-width:780px){header,main{padding-left:14px;padding-right:14px}.title{font-size:22px}.summary{grid-template-columns:repeat(2,minmax(130px,1fr))}}");
     out.push_str("</style></head><body><header><h1 class=\"title\">Hyperion Attachment Audit</h1><div class=\"meta\"><span>Kernel ");
     push_html_text(&mut out, env!("CARGO_PKG_VERSION"));
     out.push_str("</span><span>ABI ");
@@ -557,8 +563,10 @@ fn attachment_audit_html(abi_version: u32, audit: &CertificationAttachmentAudit)
     let _ = write!(out, "{missing}");
     out.push_str("</strong><span>missing slots</span></div><div class=\"metric\"><strong>");
     let _ = write!(out, "{attachment_count}");
-    out.push_str("</strong><span>local files hashed</span></div></div>");
-    out.push_str("<div class=\"notice\">Hash inventory only. Files shown here are not accepted certification evidence until the relevant external authority, signer, reviewer, submitted-build scope, and disposition are recorded.</div>");
+    out.push_str("</strong><span>local files hashed</span></div><div class=\"metric\"><strong>");
+    let _ = write!(out, "{rejected_count}");
+    out.push_str("</strong><span>rejected entries</span></div></div>");
+    out.push_str("<div class=\"notice\">Hash inventory only. Files shown here are not accepted certification evidence until the relevant external authority, signer, reviewer, submitted-build scope, and disposition are recorded. Rejected entries, including symlinks, must be replaced by reviewable regular files before package assembly.</div>");
     out.push_str("<section><h2>Attachment Slots</h2><div class=\"table-wrap\"><table><thead><tr><th>Open Issue</th><th>Area</th><th>Status</th><th>Attachments</th><th>Required Metadata</th><th>Acceptance Gate</th></tr></thead><tbody>");
     for slot in &audit.slots {
         out.push_str("<tr><td class=\"mono\">");
@@ -568,13 +576,15 @@ fn attachment_audit_html(abi_version: u32, audit: &CertificationAttachmentAudit)
         out.push_str("</td><td class=\"status\">");
         push_html_text(&mut out, slot.status);
         out.push_str("</td><td>");
-        if slot.attachments.is_empty() {
+        if slot.attachments.is_empty() && slot.rejected_attachments.is_empty() {
             out.push_str("none");
         } else {
+            let mut wrote = false;
             for (idx, attachment) in slot.attachments.iter().enumerate() {
                 if idx > 0 {
                     out.push_str("<br>");
                 }
+                wrote = true;
                 out.push_str("<span class=\"mono\">");
                 push_html_text(&mut out, &attachment.path);
                 out.push_str("</span> ");
@@ -582,6 +592,17 @@ fn attachment_audit_html(abi_version: u32, audit: &CertificationAttachmentAudit)
                 out.push_str("<span class=\"mono\">");
                 push_html_text(&mut out, &attachment.sha256);
                 out.push_str("</span>)");
+            }
+            for rejection in &slot.rejected_attachments {
+                if wrote {
+                    out.push_str("<br>");
+                }
+                wrote = true;
+                out.push_str("rejected <span class=\"mono\">");
+                push_html_text(&mut out, &rejection.path);
+                out.push_str("</span> (");
+                push_html_text(&mut out, rejection.reason);
+                out.push(')');
             }
         }
         out.push_str("</td><td>");
@@ -600,6 +621,17 @@ fn attachment_audit_html(abi_version: u32, audit: &CertificationAttachmentAudit)
             let _ = write!(out, "{}", attachment.size_bytes);
             out.push_str("</td><td class=\"mono\">");
             push_html_text(&mut out, &attachment.sha256);
+            out.push_str("</td></tr>");
+        }
+        out.push_str("</tbody></table></div></section>");
+    }
+    if !audit.rejected_unmapped_attachments.is_empty() {
+        out.push_str("<section><h2>Rejected Unmapped Attachments</h2><div class=\"table-wrap\"><table><thead><tr><th>Path</th><th>Reason</th></tr></thead><tbody>");
+        for rejection in &audit.rejected_unmapped_attachments {
+            out.push_str("<tr><td class=\"mono\">");
+            push_html_text(&mut out, &rejection.path);
+            out.push_str("</td><td>");
+            push_html_text(&mut out, rejection.reason);
             out.push_str("</td></tr>");
         }
         out.push_str("</tbody></table></div></section>");
@@ -900,6 +932,8 @@ mod tests {
         assert!(audit_html.contains("Report Workbench"));
         assert!(audit_html.contains("present unreviewed"));
         assert!(audit_html.contains("Hash inventory only"));
+        assert!(audit_html.contains("rejected entries"));
+        assert!(audit_html.contains("symlinks"));
         assert!(inventory.contains("\"type\":\"certification-workspace-inventory\""));
         assert!(inventory.contains("\"path\":\"attachment_audit.html\""));
         assert!(inventory.contains("\"sha256\""));

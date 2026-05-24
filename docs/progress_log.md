@@ -5576,3 +5576,22 @@ decision record, while this file tracks work toward certification readiness.
   clippy --all-targets --all-features -- -D warnings`, quality-manifest and
   report-pack drift checks, workspace smoke with inventory readback,
   attachment audit smoke, basic PoS smoke, and `git diff --check`.
+
+## 2026-05-24T03:23:21Z
+
+- Increment completed: make certification attachment audits fail visibly for
+  unsupported evidence entries.
+- Code impact: attachment audits now report unsupported entries, including
+  symlinks, as rejected slot or unmapped entries instead of silently ignoring
+  them. Slot status distinguishes `rejected_unreviewed` and
+  `present_unreviewed_with_rejections` so report reviewers can see when a
+  package contains non-reviewable paths.
+- Evidence scope: rejected entries are not hashed evidence and cannot close
+  any `CERT-OPEN-*` gate. They must be replaced by reviewable regular files
+  before certification package assembly.
+- Verification: targeted attachment audit, symlink rejection, workspace, and
+  traceability tests passed. Full verification passed with `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features -- -D warnings`, quality-manifest and report-pack drift
+  checks, workspace smoke, attachment audit smoke, basic PoS smoke, and
+  `git diff --check`.

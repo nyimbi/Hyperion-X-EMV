@@ -159,6 +159,12 @@ pub struct CertificationAttachment {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertificationAttachmentRejection {
+    pub path: String,
+    pub reason: &'static str,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CertificationAttachmentSlotAudit {
     pub open_issue: &'static str,
     pub area: &'static str,
@@ -167,6 +173,7 @@ pub struct CertificationAttachmentSlotAudit {
     pub acceptance_gate: &'static str,
     pub status: &'static str,
     pub attachments: Vec<CertificationAttachment>,
+    pub rejected_attachments: Vec<CertificationAttachmentRejection>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -174,6 +181,7 @@ pub struct CertificationAttachmentAudit {
     pub root: String,
     pub slots: Vec<CertificationAttachmentSlotAudit>,
     pub unmapped_attachments: Vec<CertificationAttachment>,
+    pub rejected_unmapped_attachments: Vec<CertificationAttachmentRejection>,
 }
 
 pub fn audit_certification_attachments(root: &Path) -> io::Result<CertificationAttachmentAudit> {
@@ -183,6 +191,7 @@ pub fn audit_certification_attachments(root: &Path) -> io::Result<CertificationA
     }
 
     let mut unmapped_attachments = Vec::new();
+    let mut rejected_unmapped_attachments = Vec::new();
     if root.is_dir() {
         let known = certification_evidence_requirements()
             .iter()
@@ -195,19 +204,33 @@ pub fn audit_certification_attachments(root: &Path) -> io::Result<CertificationA
             if known.iter().any(|issue| *issue == name) {
                 continue;
             }
-            if entry.file_type()?.is_file() {
+            let file_type = entry.file_type()?;
+            if file_type.is_file() {
                 unmapped_attachments.push(read_certification_attachment(root, &entry.path())?);
-            } else if entry.file_type()?.is_dir() {
-                collect_certification_attachments(root, &entry.path(), &mut unmapped_attachments)?;
+            } else if file_type.is_dir() {
+                collect_certification_attachments(
+                    root,
+                    &entry.path(),
+                    &mut unmapped_attachments,
+                    &mut rejected_unmapped_attachments,
+                )?;
+            } else {
+                rejected_unmapped_attachments.push(reject_certification_attachment(
+                    root,
+                    &entry.path(),
+                    unsupported_attachment_reason(&file_type),
+                ));
             }
         }
         unmapped_attachments.sort_by(|left, right| left.path.cmp(&right.path));
+        rejected_unmapped_attachments.sort_by(|left, right| left.path.cmp(&right.path));
     }
 
     Ok(CertificationAttachmentAudit {
         root: root.display().to_string(),
         slots,
         unmapped_attachments,
+        rejected_unmapped_attachments,
     })
 }
 
@@ -246,6 +269,13 @@ pub fn certification_attachment_audit_json(
         }
         push_attachment_json(&mut out, attachment);
     }
+    out.push_str("],\"rejected_unmapped_attachments\":[");
+    for (idx, rejection) in audit.rejected_unmapped_attachments.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_attachment_rejection_json(&mut out, rejection);
+    }
     out.push_str("]}\n");
     out
 }
@@ -272,19 +302,25 @@ pub fn certification_attachment_audit_markdown(
     );
     let _ = writeln!(out, "| --- | --- | --- | --- | --- | --- |");
     for slot in &audit.slots {
-        let attachments = if slot.attachments.is_empty() {
+        let mut attachment_rows = slot
+            .attachments
+            .iter()
+            .map(|attachment| {
+                format!(
+                    "`{}` ({} bytes, `{}`)",
+                    attachment.path, attachment.size_bytes, attachment.sha256
+                )
+            })
+            .collect::<Vec<_>>();
+        attachment_rows.extend(
+            slot.rejected_attachments
+                .iter()
+                .map(|rejection| format!("rejected `{}` ({})", rejection.path, rejection.reason)),
+        );
+        let attachments = if attachment_rows.is_empty() {
             "none".to_string()
         } else {
-            slot.attachments
-                .iter()
-                .map(|attachment| {
-                    format!(
-                        "`{}` ({} bytes, `{}`)",
-                        attachment.path, attachment.size_bytes, attachment.sha256
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("<br>")
+            attachment_rows.join("<br>")
         };
         let _ = writeln!(
             out,
@@ -308,6 +344,13 @@ pub fn certification_attachment_audit_markdown(
             );
         }
     }
+    if !audit.rejected_unmapped_attachments.is_empty() {
+        let _ = writeln!(out);
+        let _ = writeln!(out, "## Rejected Unmapped Attachments");
+        for rejection in &audit.rejected_unmapped_attachments {
+            let _ = writeln!(out, "- `{}`: {}", rejection.path, rejection.reason);
+        }
+    }
     out
 }
 
@@ -317,14 +360,22 @@ fn audit_attachment_slot(
 ) -> io::Result<CertificationAttachmentSlotAudit> {
     let slot_dir = root.join(requirement.open_issue);
     let mut attachments = Vec::new();
+    let mut rejected_attachments = Vec::new();
     if slot_dir.is_dir() {
-        collect_certification_attachments(root, &slot_dir, &mut attachments)?;
+        collect_certification_attachments(
+            root,
+            &slot_dir,
+            &mut attachments,
+            &mut rejected_attachments,
+        )?;
         attachments.sort_by(|left, right| left.path.cmp(&right.path));
+        rejected_attachments.sort_by(|left, right| left.path.cmp(&right.path));
     }
-    let status = if attachments.is_empty() {
-        "missing"
-    } else {
-        "present_unreviewed"
+    let status = match (attachments.is_empty(), rejected_attachments.is_empty()) {
+        (true, true) => "missing",
+        (true, false) => "rejected_unreviewed",
+        (false, true) => "present_unreviewed",
+        (false, false) => "present_unreviewed_with_rejections",
     };
     Ok(CertificationAttachmentSlotAudit {
         open_issue: requirement.open_issue,
@@ -334,6 +385,7 @@ fn audit_attachment_slot(
         acceptance_gate: requirement.acceptance_gate,
         status,
         attachments,
+        rejected_attachments,
     })
 }
 
@@ -341,15 +393,22 @@ fn collect_certification_attachments(
     root: &Path,
     dir: &Path,
     out: &mut Vec<CertificationAttachment>,
+    rejected: &mut Vec<CertificationAttachmentRejection>,
 ) -> io::Result<()> {
     let mut entries = fs::read_dir(dir)?.collect::<Result<Vec<_>, _>>()?;
     entries.sort_by_key(|entry| entry.path());
     for entry in entries {
         let file_type = entry.file_type()?;
         if file_type.is_dir() {
-            collect_certification_attachments(root, &entry.path(), out)?;
+            collect_certification_attachments(root, &entry.path(), out, rejected)?;
         } else if file_type.is_file() {
             out.push(read_certification_attachment(root, &entry.path())?);
+        } else {
+            rejected.push(reject_certification_attachment(
+                root,
+                &entry.path(),
+                unsupported_attachment_reason(&file_type),
+            ));
         }
     }
     Ok(())
@@ -363,6 +422,26 @@ fn read_certification_attachment(root: &Path, path: &Path) -> io::Result<Certifi
         size_bytes: bytes.len() as u64,
         sha256: to_hex(&sha256(&bytes)),
     })
+}
+
+fn reject_certification_attachment(
+    root: &Path,
+    path: &Path,
+    reason: &'static str,
+) -> CertificationAttachmentRejection {
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    CertificationAttachmentRejection {
+        path: normalize_certification_attachment_path(relative),
+        reason,
+    }
+}
+
+fn unsupported_attachment_reason(file_type: &fs::FileType) -> &'static str {
+    if file_type.is_symlink() {
+        "symlink-not-accepted"
+    } else {
+        "unsupported-file-type"
+    }
 }
 
 fn normalize_certification_attachment_path(path: &Path) -> String {
@@ -696,6 +775,13 @@ fn push_attachment_slot_json(out: &mut String, slot: &CertificationAttachmentSlo
         }
         push_attachment_json(out, attachment);
     }
+    out.push_str("],\"rejected_attachments\":[");
+    for (idx, rejection) in slot.rejected_attachments.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_attachment_rejection_json(out, rejection);
+    }
     out.push_str("]}");
 }
 
@@ -706,6 +792,14 @@ fn push_attachment_json(out: &mut String, attachment: &CertificationAttachment) 
     push_json_number(out, "size_bytes", attachment.size_bytes);
     out.push(',');
     push_json_str(out, "sha256", &attachment.sha256);
+    out.push('}');
+}
+
+fn push_attachment_rejection_json(out: &mut String, rejection: &CertificationAttachmentRejection) {
+    out.push('{');
+    push_json_str(out, "path", &rejection.path);
+    out.push(',');
+    push_json_str(out, "reason", rejection.reason);
     out.push('}');
 }
 
@@ -827,6 +921,8 @@ mod tests {
         assert!(json.contains("\"status\":\"missing\""));
         assert!(json.contains(&to_hex(&sha256(b"lab approval"))));
         assert!(json.contains("unmapped/notes.txt"));
+        assert!(json.contains("\"rejected_attachments\":[]"));
+        assert!(json.contains("\"rejected_unmapped_attachments\":[]"));
         assert!(markdown.contains("# Hyperion Certification Attachment Audit"));
         assert!(markdown.contains("accepted external authority review is still required"));
 
@@ -849,5 +945,58 @@ mod tests {
         );
         assert!(audit.slots.iter().all(|slot| slot.status == "missing"));
         assert!(audit.unmapped_attachments.is_empty());
+        assert!(audit.rejected_unmapped_attachments.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn attachment_audit_reports_symlinks_as_rejected_entries() {
+        use std::os::unix::fs::symlink;
+
+        let root = env::temp_dir().join(format!(
+            "hyperion-attachment-audit-symlink-{}",
+            process::id()
+        ));
+        if root.exists() {
+            fs::remove_dir_all(&root).unwrap();
+        }
+        fs::create_dir_all(root.join("CERT-OPEN-009")).unwrap();
+        fs::write(root.join("real-report.txt"), b"coverage").unwrap();
+        symlink(
+            root.join("real-report.txt"),
+            root.join("CERT-OPEN-009/report-link.txt"),
+        )
+        .unwrap();
+        symlink(root.join("real-report.txt"), root.join("unmapped-link.txt")).unwrap();
+
+        let audit = audit_certification_attachments(&root).unwrap();
+        let slot = audit
+            .slots
+            .iter()
+            .find(|slot| slot.open_issue == "CERT-OPEN-009")
+            .unwrap();
+        let json = certification_attachment_audit_json(2, &audit);
+        let markdown = certification_attachment_audit_markdown(2, &audit);
+
+        assert_eq!(slot.status, "rejected_unreviewed");
+        assert!(slot.attachments.is_empty());
+        assert_eq!(slot.rejected_attachments.len(), 1);
+        assert_eq!(
+            slot.rejected_attachments[0].path,
+            "CERT-OPEN-009/report-link.txt"
+        );
+        assert_eq!(slot.rejected_attachments[0].reason, "symlink-not-accepted");
+        assert_eq!(audit.rejected_unmapped_attachments.len(), 1);
+        assert_eq!(
+            audit.rejected_unmapped_attachments[0].path,
+            "unmapped-link.txt"
+        );
+        assert!(json.contains("\"status\":\"rejected_unreviewed\""));
+        assert!(json.contains("\"rejected_attachments\":[{\"path\":\"CERT-OPEN-009/report-link.txt\",\"reason\":\"symlink-not-accepted\"}]"));
+        assert!(json.contains("\"rejected_unmapped_attachments\":[{\"path\":\"unmapped-link.txt\",\"reason\":\"symlink-not-accepted\"}]"));
+        assert!(markdown.contains("rejected `CERT-OPEN-009/report-link.txt`"));
+        assert!(markdown.contains("Rejected Unmapped Attachments"));
+
+        fs::remove_dir_all(&root).unwrap();
     }
 }

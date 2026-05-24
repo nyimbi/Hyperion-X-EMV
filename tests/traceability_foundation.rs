@@ -7040,8 +7040,12 @@ fn certification_attachment_audit_is_hash_inventory_only() {
     assert!(json.contains("\"status\":\"missing\""));
     assert!(json.contains("coverage.txt"));
     assert!(json.contains("hash inventory only"));
+    assert!(json.contains("\"rejected_attachments\":[]"));
+    assert!(json.contains("\"rejected_unmapped_attachments\":[]"));
     assert!(markdown.contains("# Hyperion Certification Attachment Audit"));
     assert!(markdown.contains("accepted external authority review is still required"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("symlinks as rejected"));
+    assert!(README.contains("flags unsupported entries such as symlinks as"));
     assert!(!json.contains("\"certified\":true"));
 
     fs::remove_dir_all(&root).unwrap();

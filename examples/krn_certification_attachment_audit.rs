@@ -100,6 +100,8 @@ mod tests {
         assert!(json.contains("\"status\":\"missing\""));
         assert!(json.contains(&to_hex(&sha256(b"lab approval"))));
         assert!(json.contains("unmapped/notes.txt"));
+        assert!(json.contains("\"rejected_attachments\":[]"));
+        assert!(json.contains("\"rejected_unmapped_attachments\":[]"));
         assert!(markdown.contains("# Hyperion Certification Attachment Audit"));
         assert!(markdown.contains("accepted external authority review is still required"));
 
@@ -122,5 +124,6 @@ mod tests {
         );
         assert!(audit.slots.iter().all(|slot| slot.status == "missing"));
         assert!(audit.unmapped_attachments.is_empty());
+        assert!(audit.rejected_unmapped_attachments.is_empty());
     }
 }

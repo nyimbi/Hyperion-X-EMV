@@ -240,8 +240,10 @@ still requires the external authority named in the row.
 Use `krn_certification_attachment_audit` to scan a local attachment directory
 before review. Files placed under directories named after `CERT-OPEN-*` issues
 are hashed and listed against those slots; files outside known slots are
-reported as unmapped. This makes crowdsourced evidence packages auditable
-without treating a local file as accepted certification evidence.
+reported as unmapped. Unsupported entries such as symlinks are reported as
+rejected instead of being silently skipped. This makes crowdsourced evidence
+packages auditable without treating a local file as accepted certification
+evidence.
 
 Use `krn_certification_workspace` to create the local report-production
 workspace. It creates empty `attachments/CERT-OPEN-*` directories, writes an

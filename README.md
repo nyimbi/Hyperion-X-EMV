@@ -268,8 +268,9 @@ controlled evidence:
   slots for crowdsourced testing, lab package assembly, hash capture,
   supersession history, and submission-scope review.
 - `krn_certification_attachment_audit`: scans a local evidence attachment
-  directory, hashes files under `CERT-OPEN-*` slots, and reports missing or
-  unmapped attachments without closing external evidence gates.
+  directory, hashes files under `CERT-OPEN-*` slots, reports missing or
+  unmapped attachments, and flags unsupported entries such as symlinks as
+  rejected without closing external evidence gates.
 - `krn_certification_freeze_manifest`: emits JSON and Markdown submitted-build
   hash slots for the kernel binary, signed configuration, CAPKs, profiles,
   vectors, RTM, reports, and approval package.
