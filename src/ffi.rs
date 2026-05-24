@@ -7217,6 +7217,78 @@ mod tests {
     }
 
     #[test]
+    fn critical_issuer_script_failure_before_final_sets_before_final_tvr_and_stops() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S13;
+        ctx.state = KernelState::IssuerScripts;
+        install_profile_selection(&mut ctx);
+        ctx.host_response = Some(HostResponse {
+            authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
+            issuer_authentication_data: None,
+            scripts: vec![crate::issuer::IssuerScript {
+                phase: crate::issuer::ScriptPhase::BeforeFinalGenerateAc,
+                identifier: Some(vec![0xde, 0xad, 0xbe, 0xef]),
+                commands: vec![
+                    vec![0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb],
+                    vec![0x80, 0xe2, 0x00, 0x00, 0x01, 0xcc],
+                ],
+            }],
+        });
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        TRANSMIT_COUNT.store(6, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        SCRIPT_SW1.store(0x69, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x85, Ordering::SeqCst);
+        assert_eq!(
+            run_issuer_scripts(&mut ctx, runtime),
+            Err(KernelError::ScriptFailed)
+        );
+        assert_eq!(TRANSMIT_COUNT.load(Ordering::SeqCst), 7);
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb]
+        );
+        assert_eq!(ctx.fsm_state, FsmState::Se);
+        assert_eq!(ctx.state, KernelState::Error);
+        assert_eq!(
+            ctx.issuer_script_results,
+            vec![ScriptCommandResult {
+                sw1: 0x69,
+                sw2: 0x85
+            }]
+        );
+        assert_eq!(
+            ctx.issuer_script_results[0].phase,
+            ScriptPhase::BeforeFinalGenerateAc
+        );
+        assert_eq!(ctx.issuer_script_results[0].script_index, 0);
+        assert_eq!(ctx.issuer_script_results[0].command_index, 0);
+        assert_eq!(
+            ctx.issuer_script_results[0].script_identifier,
+            Some([0xde, 0xad, 0xbe, 0xef])
+        );
+        assert!(ctx.tsi.is_set(Tsi::SCRIPT_PROCESSING_PERFORMED));
+        assert!(ctx
+            .tvr
+            .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC));
+        assert!(!ctx
+            .tvr
+            .is_set(Tvr::B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC));
+        assert_eq!(ctx.card_data.get(&[0x9b]), Some(&ctx.tsi.bytes()[..]));
+        assert_eq!(ctx.card_data.get(&[0x95]), Some(&ctx.tvr.bytes()[..]));
+        SCRIPT_SW1.store(0x90, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+    }
+
+    #[test]
     fn krn_gac2_004_final_generate_ac_skipped_without_cdol2_honors_host_arc() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
         let runtime = RuntimeCallbacks {

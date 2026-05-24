@@ -111,6 +111,36 @@ set only the standard requested-service-not-allowed TVR bit.
 
 ---
 
+## 4B. Issuer Script Phase Handling
+
+Issuer Script Template `71` commands SHALL execute before the final
+GENERATE AC phase. Issuer Script Template `72` commands SHALL execute after
+the final GENERATE AC phase. The kernel SHALL preserve phase, phase-local
+script index, command index, optional script identifier, and SW1/SW2 result
+metadata for Level 3/acquirer reporting without exposing issuer script command
+bytes through debug or crash output.
+
+When an issuer script command fails, the kernel SHALL set the phase-specific
+TVR bit: `B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC` for Template `71`, and
+`B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC` for Template `72`. If a command
+is configured as critical and returns a terminal failure status, the kernel
+SHALL record the failed command result, stop executing later commands in that
+script, enter the error state, and SHALL NOT substitute the opposite phase's
+TVR bit.
+
+> **KRN‑SCR‑002**: Issuer script commands **SHALL** execute in host-provided
+> order within their EMV phase.
+> **KRN‑SCR‑003**: The kernel **SHALL** capture SW1/SW2 for each attempted
+> script command.
+> **KRN‑SCR‑004**: Before-final-GAC issuer script failure **SHALL** set only
+> the before-final-GAC script failure TVR bit.
+> **KRN‑SCR‑005**: After-final-GAC issuer script failure **SHALL** set only
+> the after-final-GAC script failure TVR bit.
+> **KRN‑SCR‑006**: Script result reporting **SHALL** include phase, position,
+> optional identifier, and status words without exposing command bytes.
+
+---
+
 ## 5. Offline Data Authentication (ODA) – CDA Details
 
 The kernel **SHALL** implement CDA as follows (complete specification):

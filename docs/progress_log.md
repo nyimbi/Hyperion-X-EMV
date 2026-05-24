@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T01:24:43Z
+
+- Increment completed: harden issuer script phase evidence for critical
+  Template 71 failures before final GENERATE AC.
+- Code impact: runtime regression coverage now proves a critical before-final
+  issuer script command records its failed SW1/SW2 result, preserves phase,
+  phase-local position, and optional script identifier metadata, sets only the
+  before-final-GAC script failure TVR bit, stops later commands, and enters the
+  error state.
+- Evidence impact: issuer script execution, result-capture, before-final TVR,
+  and Level 3 reporting RTM rows now cite the critical before-final failure
+  coverage, and `docs/spec.md` now states the phase-specific script handling
+  contract.
+- Verification: focused runtime issuer-script, issuer-script RTM, and spec
+  traceability tests, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, clippy with all targets/features and warnings as
+  failures, and `git diff --check` all passed locally.
+- Remaining risk: repository tests prove deterministic L2 phase behavior and
+  result reporting only; final script acceptance still depends on
+  scheme/acquirer/lab trace review and host reconciliation evidence.
+
 ## 2026-05-24T01:15:29Z
 
 - Increment completed: harden CVM TVR evidence for online PIN capability

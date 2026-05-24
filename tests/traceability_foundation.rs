@@ -2302,6 +2302,7 @@ fn corrected_spec_contains_contactless_c8_outcome_requirements() {
 
 #[test]
 fn corrected_spec_contains_gac_online_and_script_requirements() {
+    let spec = include_str!("../docs/spec.md");
     for krn_id in [
         "KRN-GAC1-004",
         "KRN-ONL-001",
@@ -2324,6 +2325,18 @@ fn corrected_spec_contains_gac_online_and_script_requirements() {
             CORRECTED_SPEC.contains(krn_id),
             "corrected spec missing {krn_id}"
         );
+    }
+    for fragment in [
+        "Issuer Script Template `71` commands SHALL execute before the final",
+        "Issuer Script Template `72` commands SHALL execute after",
+        "phase-local",
+        "script index",
+        "B5_SCRIPT_PROCESSING_FAILED_BEFORE_FINAL_GAC",
+        "B5_SCRIPT_PROCESSING_FAILED_AFTER_FINAL_GAC",
+        "SHALL record the failed command result",
+        "SHALL NOT substitute the opposite phase",
+    ] {
+        assert!(spec.contains(fragment), "spec missing {fragment}");
     }
 }
 
@@ -8443,6 +8456,9 @@ fn rtm_promotes_issuer_script_evidence() {
         let execution = csv_row_for_requirement(csv, "KRN-SCR-002").unwrap();
         assert!(execution
             .contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final"));
+        assert!(execution.contains(
+            "critical_issuer_script_failure_before_final_sets_before_final_tvr_and_stops"
+        ));
         assert!(execution
             .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
         assert!(execution.contains("critical_issuer_script_warning_continues_and_reports_results"));
@@ -8453,6 +8469,9 @@ fn rtm_promotes_issuer_script_evidence() {
         assert!(
             results.contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final")
         );
+        assert!(results.contains(
+            "critical_issuer_script_failure_before_final_sets_before_final_tvr_and_stops"
+        ));
         assert!(
             results.contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes")
         );
@@ -8464,6 +8483,9 @@ fn rtm_promotes_issuer_script_evidence() {
         assert!(before_final_tvr.contains("script_results_set_phase_specific_tvr_bits_and_tsi"));
         assert!(before_final_tvr
             .contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final"));
+        assert!(before_final_tvr.contains(
+            "critical_issuer_script_failure_before_final_sets_before_final_tvr_and_stops"
+        ));
 
         let after_final_tvr = csv_row_for_requirement(csv, "KRN-SCR-005").unwrap();
         assert!(after_final_tvr.contains("script_results_set_phase_specific_tvr_bits_and_tsi"));
@@ -8480,6 +8502,9 @@ fn rtm_promotes_issuer_script_evidence() {
             .contains("ffi_init_validates_runtime_callbacks_and_reaches_online_after_first_gac"));
         assert!(reporting
             .contains("issuer_script_noncritical_failure_sets_phase_tvr_and_reaches_final"));
+        assert!(reporting.contains(
+            "critical_issuer_script_failure_before_final_sets_before_final_tvr_and_stops"
+        ));
         assert!(reporting
             .contains("post_final_issuer_script_failure_sets_after_final_tvr_and_completes"));
         assert!(reporting.contains("critical_issuer_script_warning_continues_and_reports_results"));
