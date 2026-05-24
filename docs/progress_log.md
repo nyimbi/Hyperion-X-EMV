@@ -4,6 +4,27 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T01:45:11Z
+
+- Increment completed: refresh the public standards-watch evidence for the
+  PCI PTS POI v7.0 device/PED security signal.
+- Research impact: the public watch now records the 2026-05-24 recheck of PCI
+  SSC's public v7.0 publication note, including the 59 requirement changes and
+  23 additional guidance items signal, without treating public pages as
+  implementation authority.
+- Evidence impact: `docs/public_standards_watch.json` and
+  `docs/standards_watch.md` now require the target POI/PED integration package
+  to reconcile the accepted PTS POI version, change set, device listing, and
+  residual controls before `CERT-OPEN-007` can close.
+- Verification: focused public standards-watch reproducibility and drift
+  checks, `cargo fmt --check`, `cargo test`, `cargo test --examples`, clippy
+  with all targets/features and warnings as failures, and `git diff --check`
+  all passed locally.
+- Remaining risk: this is a public drift-control update only; PCI/PED
+  acceptance still requires external device/PED approval evidence, integration
+  statements, and accepted security review for the submitted binary/profile
+  package.
+
 ## 2026-05-24T01:36:06Z
 
 - Increment completed: expose requirement traceability in the certification

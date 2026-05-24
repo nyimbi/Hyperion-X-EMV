@@ -421,7 +421,7 @@ const PUBLIC_STANDARDS_SOURCES: &[PublicStandardsSource] = &[
         authority: "PCI SSC",
         title: "PTS Point of Interaction Standard",
         public_url: "https://www.pcisecuritystandards.org/standards/pts-point-of-interaction-poi/",
-        observation: "public PCI material frames PTS POI as requirements for devices that protect PINs, account data, and other sensitive payment data at the point of interaction",
+        observation: "public PCI material frames PTS POI as requirements for devices that protect PINs, account data, and other sensitive payment data at the point of interaction; PCI's v7.0 publication note identifies 59 requirement changes and 23 additional guidance items",
     },
     PublicStandardsSource {
         id: "PCI-APPROVED-PTS-DEVICES",
@@ -478,8 +478,8 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         area: "PED and device security",
         open_issue: "CERT-OPEN-007",
         source_id: "PCI-PTS-POI",
-        public_signal: "public PCI material frames PTS POI around protection of PINs, account data, and sensitive payment data at the point of interaction",
-        repository_action: "preserve the kernel boundary around opaque PED handles and no clear-PIN custody until target POI/PED integration evidence is attached",
+        public_signal: "public PCI material frames PTS POI around protection of PINs, account data, and sensitive payment data at the point of interaction; the v7.0 publication note reports 59 requirement changes and 23 additional guidance items",
+        repository_action: "preserve the kernel boundary around opaque PED handles and no clear-PIN custody; require the target POI/PED integration report to reconcile the accepted PTS POI version, change set, device listing, and residual controls before closing CERT-OPEN-007",
     },
     PublicStandardsSignal {
         id: "PCI-APPROVED-DEVICE-LISTING",
@@ -675,7 +675,7 @@ pub fn public_standards_watch_json() -> String {
     out.push('{');
     push_json_str(&mut out, "type", "public-standards-watch");
     out.push(',');
-    push_json_str(&mut out, "checked_on", "2026-05-23");
+    push_json_str(&mut out, "checked_on", "2026-05-24");
     out.push(',');
     push_json_str(
         &mut out,

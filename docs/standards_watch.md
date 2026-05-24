@@ -16,6 +16,22 @@ That artifact records source URLs, public signals, mapped open issues, and
 repository actions. It is a drift-control artifact only; it does not close any
 external certification blocker.
 
+## 2026-05-24 Public PCI PTS v7.0 Recheck
+
+- Public source checked: PCI SSC PTS POI v7.0 publication note and public
+  document-library signal.
+- Result of recheck: PCI SSC's public v7.0 publication note reports 59
+  requirement changes and 23 additional guidance items. This is a current
+  public signal for `CERT-OPEN-007` and the device/PED evidence package, not a
+  direct kernel implementation change.
+- Repository action: keep Hyperion's runtime boundary unchanged around
+  PED-owned opaque handles, offline VERIFY status, online PIN no-custody
+  behavior, and no clear-PIN logging. Require the target POI/PED integration
+  package to name the accepted PCI PTS POI version, reconcile the v7.0 change
+  set where applicable, and tie the device/PED approval evidence to the
+  submitted binary, profile bundle, and residual-control disposition before
+  closing `CERT-OPEN-007`.
+
 ## 2026-05-23 Public EMVCo Check
 
 - Public source checked: EMVCo specifications and contactless technology pages.
@@ -128,6 +144,8 @@ Do not close `CERT-OPEN-007` or claim PCI PTS POI alignment until the lab or
 acquirer package includes:
 
 - the exact PCI PTS POI requirements version accepted for the target product;
+- a reconciliation note for the accepted PTS POI change set and guidance
+  items, including the public v7.0 signal where that version applies;
 - the target device or PED approval listing/reference;
 - the PED integration statement covering offline PIN VERIFY status, online PIN
   block custody, secure handles, and no clear-PIN kernel memory;

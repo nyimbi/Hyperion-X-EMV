@@ -7283,7 +7283,7 @@ fn public_standards_watch_is_reproducible_and_scoped() {
 
     assert_eq!(PUBLIC_STANDARDS_WATCH, generated);
     assert!(PUBLIC_STANDARDS_WATCH.contains("\"type\":\"public-standards-watch\""));
-    assert!(PUBLIC_STANDARDS_WATCH.contains("\"checked_on\":\"2026-05-23\""));
+    assert!(PUBLIC_STANDARDS_WATCH.contains("\"checked_on\":\"2026-05-24\""));
     assert!(PUBLIC_STANDARDS_WATCH.contains(
         "licensed standards, scheme profiles, lab instructions, and approval artifacts prevail"
     ));
@@ -7301,6 +7301,8 @@ fn public_standards_watch_is_reproducible_and_scoped() {
         "EMVCO-L3-BULLETINS",
         "EMVCO-CONTACTLESS-KERNEL-TESTING",
         "PCI-PTS-POI",
+        "59 requirement changes and 23 additional guidance items",
+        "accepted PTS POI version, change set, device listing, and residual controls",
         "PCI-APPROVED-PTS-DEVICES",
         "C8-V1-1-SB325",
         "CONTACTLESS-SUITE-MAY-2026",
@@ -7321,6 +7323,10 @@ fn public_standards_watch_is_reproducible_and_scoped() {
     }
     assert!(STANDARDS_WATCH.contains("docs/public_standards_watch.json"));
     assert!(STANDARDS_WATCH.contains("drift-control artifact only"));
+    assert!(STANDARDS_WATCH.contains("2026-05-24 Public PCI PTS v7.0 Recheck"));
+    assert!(STANDARDS_WATCH.contains("59"));
+    assert!(STANDARDS_WATCH.contains("23 additional guidance items"));
+    assert!(STANDARDS_WATCH.contains("reconciliation note for the accepted PTS POI change set"));
     assert!(STANDARDS_WATCH.contains("Level 3"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("public_standards_watch.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_public_standards_watch"));
