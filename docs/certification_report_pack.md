@@ -193,6 +193,57 @@
 | COVERAGE-WORKFLOW | 100% coverage workflow | quality | `docs/coverage.md; scripts/coverage_100.sh; target/coverage/coverage_audit.json` | prepared | `scripts/coverage_100.sh; cargo run --quiet --example krn_coverage_package_audit` | coverage package audit only; accepted submitted-build report remains external |
 | TUTORIALS | Tutorial and glossary learning path | education | `docs/tutorial/` | repository-controlled | `human-controlled docs` | education only; not approval evidence |
 
+## Artifact File Integrity
+| ID | Title | Category | Path | Size Bytes | SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| SPEC | Kernel specification | requirements | `docs/spec.md` | 25748 | `cc8cb6cb3ce698c8cca9a0d90ad9b174da4b5ad0917a543c1be8355da8de3583` |
+| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 16848 | `6573aa8cbab2eb1474cdb060fe2bcddc4309564b69e5f0ba243a503e54c78e69` |
+| RTM-PRIMARY | Primary requirements traceability matrix | requirements | `docs/requirements_traceability.csv` | 79708 | `4ffa3b3c39565e321f43369b25f276b6276d599d8f324f6a594942973b130e4b` |
+| RTM-COMPAT | Compatibility requirements traceability matrix | requirements | `docs/requirements-traceability-matrix.csv` | 82081 | `a0d0fa140fab88a11ee3cee269699200e09d43060bdbba09d6309786a7ce3da3` |
+| OPEN-ISSUES | Certification open issues register | submission | `docs/certification_open_issues.md` | 4529 | `c7fc37edf040a1fae97c91563c167b4e97a8610e81c2c78d1fd71b215a51d8b5` |
+| ABI | ABI conformance statement | conformance | `docs/abi_conformance_statement.json` | 6818 | `5f61ef9e6a81299b161de4dd9c98a79bca796bdc692bcf5961244e96bdd834c9` |
+| PROFILE-BUNDLE | Certification profile scaffold | configuration | `docs/scheme_profiles.cert.json` | 5424 | `8d67a1fc92061dfbfea39ebabc30ddd744998e7fe18789570c32a7b20b9d630f` |
+| PROFILE-DICTIONARY | Scheme profile dictionary | configuration | `docs/scheme_profile_dictionary.md` | 3532 | `641cf1551d6006d17ad2eb511dd34a255786ed6630f1adc0ec747cb74cdb2ca2` |
+| ODA-VECTORS | ODA structural vector annex | configuration | `docs/oda_test_vectors.json` | 3334 | `7156f876c0e7639768d15ed6e0522e13e750d8a0d96da0c899551c34af3ba22a` |
+| TLV-CATALOGUE | TLV catalogue | annex | `docs/tlv_catalogue.csv` | 8259 | `7f704a5dbf4110e32cfc9f52fa2162d1b2a0881e9aa767ce7988589a521f892c` |
+| STATE-MACHINE | State machine annex | annex | `docs/state_machine.csv` | 5339 | `f03438d66ed5a2c357ac718034a19ea24e6706456521aa54f0ab646d38bddcfd` |
+| BITMAP-CATALOGUE | Bitmap catalogue | annex | `docs/bitmap_catalogue.csv` | 5380 | `1145cf84256021c5163b7239d6e91457da70ae89021c51a51d0d82fc0bf2dddd` |
+| PERFORMANCE-PROFILE | Performance profile | annex | `docs/performance_profile.csv` | 356 | `5866091617b661297547a04075b6edaaf8c39ce8886b6634ae3140054220eb5c` |
+| TRACE-PACK | Masked pre-lab APDU trace fixture | trace | `docs/prelab_apdu_trace_pack.jsonl` | 12154 | `e63c080e01a400262adfd4e05f5bf2be65fb8dfb5fe5b8834f8edefbd1d0d438` |
+| TRACE-AUDIT-JSON | Trace-pack audit JSON | trace | `docs/prelab_trace_pack_audit.json` | 1902 | `02b1ea6edd16609dd8cb9e1d0e6ef1dfba94785e56a7f5819a1d8d0fcddff4e4` |
+| TRACE-AUDIT-MD | Trace-pack audit Markdown | trace | `docs/prelab_trace_pack_audit.md` | 1095 | `2c5da076ff45e91efe3f4a4bdda70ac797045dfd758bd365603890cb6e5febb2` |
+| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 12738 | `ff8e4a54b93002c9d163d7983b36fcab4670368d159878232d018a476a7c41a4` |
+| NO-CRASH | Parser/APDU no-crash smoke artifact | quality | `docs/prelab_no_crash_smoke.json` | 3116 | `1a319359ff4bbcd6dbfa52add672c793d8e97dfca8adebf2b15b9230f56ff18d` |
+| STATIC-FUZZ-PLAN | Static and fuzz evidence plan | quality | `docs/prelab_static_fuzz_plan.json` | 3852 | `5627b0771442d45d124d1931003b713030cc5e39738a4c8553ad485c1cfd2c0a` |
+| FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
+| PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 6596 | `0c292aebe3f486c11915fffcca5e4184b5f3ebc77582d93678379947e2834102` |
+| PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9119 | `4a01ac2216699ab214f1732dcd99d4aa4814feb724ce532fb40f163bf221f1a4` |
+| EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
+| EVIDENCE-CHECKLIST-MD | Certification evidence checklist Markdown | submission | `docs/certification_evidence_checklist.md` | 7575 | `197acd7da172825c1c363bcfad6a49875e753c0ba7bad50235f1880184ca2c91` |
+| EVIDENCE-INTAKE-JSON | Certification evidence intake JSON | submission | `docs/certification_evidence_intake.json` | 10601 | `8c87c282ac93157ba5d0a05812014061e775db04e6e1f9b6142a3201b532fca7` |
+| EVIDENCE-INTAKE-MD | Certification evidence intake Markdown | submission | `docs/certification_evidence_intake.md` | 8961 | `d8002dc0310927c13ea3909fa6296cac02b46319504c851480f96b651d6befc4` |
+| FREEZE-JSON | Certification freeze manifest JSON | submission | `docs/certification_freeze_manifest.json` | 5036 | `efd7717379239892a224b714eeea4b7200f49331c4ae7bf87c1f0f07c3f66baf` |
+| FREEZE-MD | Certification freeze manifest Markdown | submission | `docs/certification_freeze_manifest.md` | 3916 | `4d79e90d6a87b4ce9d11500d275929f932a6fc866d3ac271f4bbe178e5a10fcf` |
+| SECURITY-PLAN-JSON | Security assessment plan JSON | security | `docs/certification_security_assessment_plan.json` | 7350 | `c58cebd3e360f75b4522f937dc19d8684c7ad87e4dbd6d718d9cb9be11f203d2` |
+| SECURITY-PLAN-MD | Security assessment plan Markdown | security | `docs/certification_security_assessment_plan.md` | 6657 | `b84455c5c7cce9c17f093a1efb8177f71ba0263069fda9c30df3c3eaa9732e4c` |
+| DEVICE-PLAN-JSON | Device evidence plan JSON | device | `docs/certification_device_evidence_plan.json` | 7272 | `79d61e22d6985cbf7cab92346ea0c5bf30eeff3f56ff0b557d2c5b3fd22ad431` |
+| DEVICE-PLAN-MD | Device evidence plan Markdown | device | `docs/certification_device_evidence_plan.md` | 6318 | `9e778d9ca9e5e5ffa63945308c0bac9d4e9f6c41461a790669fe11a3fca5bfef` |
+| INTEGRATION-PLAN-JSON | Integration report plan JSON | integration | `docs/certification_integration_report_plan.json` | 6420 | `148e812eb41a37ed2fff33ee0f5e563d81f0915e64460db6ec668dcdc4cef4d1` |
+| INTEGRATION-PLAN-MD | Integration report plan Markdown | integration | `docs/certification_integration_report_plan.md` | 5568 | `163b1e87d4c7a47b4633ec4311d8323c69d8881ac79212300e944527272948af` |
+| OPEN-SOURCE-REVIEW | Open-source reference review | provenance | `docs/open_source.md` | 17628 | `10be8f215bc25e5b80b89060593996f3380ce60eb9fa535c8b2bcde74d2869f0` |
+| COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5042 | `e2756c72d630d11165b2a28c3d50957a9770a0123745f82713d81f7a22702362` |
+| COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 2397 | `d1b8d6f0da37f338a0329eaa5bbee97cb71f2f1bf39f6f8a01b65c2011abc3bb` |
+| TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3231 | `3a6c9b5bb5c01c1e2925644ec7c5126faf1421e10f2011143af5e57785c5219e` |
+| TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |
+
+### Artifact File Inventory Exclusions
+
+| ID | Path | Reason |
+| --- | --- | --- |
+| REPORT-PACK-JSON | `docs/certification_report_pack.json` | excluded from checked-in report file inventory to avoid self-referential hash churn |
+| REPORT-PACK-MD | `docs/certification_report_pack.md` | excluded from checked-in report file inventory to avoid self-referential hash churn |
+| REPORT-UI | `docs/certification_report_ui.html` | excluded from checked-in report file inventory to avoid self-referential hash churn |
+
 ## Required External Reports
 | ID | Title | Status | Required Evidence | Closure Gate |
 | --- | --- | --- | --- | --- |

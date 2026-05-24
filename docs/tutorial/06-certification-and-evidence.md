@@ -40,7 +40,8 @@ The repository can provide:
   repository support.
 - A generated security assessment plan that maps `CERT-OPEN-008` review
   surfaces to repository evidence and external assessor report requirements.
-- A static certification report workbench and JSON/Markdown report-pack exports.
+- A static certification report workbench and JSON/Markdown report-pack exports
+  with checked-in artifact file size and SHA-256 inventory.
 - Open issue tracking for missing external evidence.
 - A shared place for community review and test contributions.
 

@@ -299,7 +299,8 @@ controlled evidence:
   and `CERT-OPEN-012`.
 - `krn_certification_report_ui`: emits deterministic JSON, Markdown, and a
   static HTML workbench for report production, open certification gate review,
-  and certification artifact review.
+  checked-in artifact file size and SHA-256 inventory, and certification
+  artifact review.
 - `krn_certification_workspace`: emits a complete local report-production
   workspace with the static UI, report pack, evidence checklists, freeze
   manifest, security/device/integration plans, quality artifacts, ABI statement,
@@ -383,7 +384,8 @@ The `docs/` directory is part of the executable baseline:
 - `certification_integration_report_plan.md`: generated Markdown integration
   report plan for certification package review.
 - `certification_report_pack.json`: generated report-pack index for artifact
-  tracking, external-report tracking, and open certification gates.
+  tracking, checked-in artifact file size and SHA-256 inventory,
+  external-report tracking, and open certification gates.
 - `certification_report_pack.md`: generated Markdown report-pack export.
 - `certification_report_ui.html`: generated static report workbench UI with
   requirement, artifact, report, gate, evidence, and tool-command views.

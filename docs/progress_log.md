@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T04:52:39Z
+
+- Increment completed: add checked-in artifact file integrity to the
+  certification report pack and static workbench.
+- Tooling impact: `krn_certification_report_ui` now builds an artifact file
+  inventory with size and SHA-256 values for controlled report inputs while
+  excluding self-referential report-pack outputs.
+- Evidence impact: the report-pack JSON/Markdown and workbench now make
+  repository-controlled artifact hashes reviewable alongside artifacts, open
+  gates, external reports, evidence attachments, and commands.
+- Verification: focused reporting and traceability tests, report-pack
+  JSON/Markdown/HTML drift checks, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, certification workspace smoke, basic PoS smoke,
+  clippy with all targets/features and warnings as failures, and
+  `git diff --check` passed locally.
+- Remaining risk: this hashes checked-in engineering artifacts only; submitted
+  binary, external reports, CAPKs, profiles, vectors, trace packs, and approval
+  artifacts still require freeze-manifest binding and external acceptance.
+
 ## 2026-05-24T04:44:38Z
 
 - Increment completed: make open certification gates a first-class report-pack

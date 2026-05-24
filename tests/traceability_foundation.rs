@@ -6971,6 +6971,14 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_integration_report_plan.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/prelab_trace_pack_audit.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"requirements\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"artifact_files\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"docs/spec.md\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"docs/lab_submission_manifest.md\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"docs/standards_watch.md\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"scripts/coverage_100.sh\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"sha256\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"artifact_file_exclusions\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("self-referential hash churn"));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"id\":\"KRN-SCR-006\""));
     assert!(CERTIFICATION_REPORT_PACK
         .contains("critical_issuer_script_failure_before_final_sets_before_final_tvr_and_stops"));
@@ -6999,17 +7007,23 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_UI.contains("Hyperion Certification Workbench"));
     assert!(CERTIFICATION_REPORT_UI.contains("Requirement Traceability"));
     assert!(CERTIFICATION_REPORT_UI.contains("requirement-body"));
+    assert!(CERTIFICATION_REPORT_UI.contains("Artifact File Integrity"));
+    assert!(CERTIFICATION_REPORT_UI.contains("file-body"));
     assert!(CERTIFICATION_REPORT_UI.contains("Open Certification Gates"));
     assert!(CERTIFICATION_REPORT_UI.contains("gate-body"));
     assert!(CERTIFICATION_REPORT_UI.contains("Evidence Attachment Checklist"));
     assert!(CERTIFICATION_REPORT_UI.contains("download-json"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Requirement Traceability"));
+    assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Artifact File Integrity"));
+    assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Artifact File Inventory Exclusions"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Required External Reports"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Open Certification Gates"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Evidence Attachment Checklist"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification report workbench"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("evidence attachments"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("checked-in artifact file size and SHA-256 inventory"));
     assert!(README.contains("krn_certification_report_ui"));
+    assert!(README.contains("checked-in artifact file size and SHA-256 inventory"));
     assert!(README.contains("krn_certification_evidence_checklist"));
     assert!(README.contains("krn_certification_evidence_intake"));
     assert!(README.contains("krn_certification_attachment_audit"));

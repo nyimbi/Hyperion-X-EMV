@@ -5,6 +5,7 @@
 //! it does not close external lab, scheme, device, PCI, or approval gates.
 
 use crate::evidence::{certification_evidence_requirements, EvidenceRequirement};
+use crate::provenance::{sha256, to_hex};
 use core::fmt::Write;
 
 pub struct RequirementTrace {
@@ -41,7 +42,318 @@ pub struct ToolCommand {
     pub output: &'static str,
 }
 
+pub struct ControlledReportFile {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub path: &'static str,
+    pub category: &'static str,
+    pub contents: &'static [u8],
+}
+
+pub struct ReportFileExclusion {
+    pub id: &'static str,
+    pub path: &'static str,
+    pub reason: &'static str,
+}
+
 const REQUIREMENTS_TRACEABILITY: &str = include_str!("../docs/requirements_traceability.csv");
+
+const CONTROLLED_REPORT_FILES: &[ControlledReportFile] = &[
+    ControlledReportFile {
+        id: "SPEC",
+        title: "Kernel specification",
+        path: "docs/spec.md",
+        category: "requirements",
+        contents: include_bytes!("../docs/spec.md"),
+    },
+    ControlledReportFile {
+        id: "LAB-MANIFEST",
+        title: "Lab submission manifest",
+        path: "docs/lab_submission_manifest.md",
+        category: "submission",
+        contents: include_bytes!("../docs/lab_submission_manifest.md"),
+    },
+    ControlledReportFile {
+        id: "RTM-PRIMARY",
+        title: "Primary requirements traceability matrix",
+        path: "docs/requirements_traceability.csv",
+        category: "requirements",
+        contents: include_bytes!("../docs/requirements_traceability.csv"),
+    },
+    ControlledReportFile {
+        id: "RTM-COMPAT",
+        title: "Compatibility requirements traceability matrix",
+        path: "docs/requirements-traceability-matrix.csv",
+        category: "requirements",
+        contents: include_bytes!("../docs/requirements-traceability-matrix.csv"),
+    },
+    ControlledReportFile {
+        id: "OPEN-ISSUES",
+        title: "Certification open issues register",
+        path: "docs/certification_open_issues.md",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_open_issues.md"),
+    },
+    ControlledReportFile {
+        id: "ABI",
+        title: "ABI conformance statement",
+        path: "docs/abi_conformance_statement.json",
+        category: "conformance",
+        contents: include_bytes!("../docs/abi_conformance_statement.json"),
+    },
+    ControlledReportFile {
+        id: "PROFILE-BUNDLE",
+        title: "Certification profile scaffold",
+        path: "docs/scheme_profiles.cert.json",
+        category: "configuration",
+        contents: include_bytes!("../docs/scheme_profiles.cert.json"),
+    },
+    ControlledReportFile {
+        id: "PROFILE-DICTIONARY",
+        title: "Scheme profile dictionary",
+        path: "docs/scheme_profile_dictionary.md",
+        category: "configuration",
+        contents: include_bytes!("../docs/scheme_profile_dictionary.md"),
+    },
+    ControlledReportFile {
+        id: "ODA-VECTORS",
+        title: "ODA structural vector annex",
+        path: "docs/oda_test_vectors.json",
+        category: "configuration",
+        contents: include_bytes!("../docs/oda_test_vectors.json"),
+    },
+    ControlledReportFile {
+        id: "TLV-CATALOGUE",
+        title: "TLV catalogue",
+        path: "docs/tlv_catalogue.csv",
+        category: "annex",
+        contents: include_bytes!("../docs/tlv_catalogue.csv"),
+    },
+    ControlledReportFile {
+        id: "STATE-MACHINE",
+        title: "State machine annex",
+        path: "docs/state_machine.csv",
+        category: "annex",
+        contents: include_bytes!("../docs/state_machine.csv"),
+    },
+    ControlledReportFile {
+        id: "BITMAP-CATALOGUE",
+        title: "Bitmap catalogue",
+        path: "docs/bitmap_catalogue.csv",
+        category: "annex",
+        contents: include_bytes!("../docs/bitmap_catalogue.csv"),
+    },
+    ControlledReportFile {
+        id: "PERFORMANCE-PROFILE",
+        title: "Performance profile",
+        path: "docs/performance_profile.csv",
+        category: "annex",
+        contents: include_bytes!("../docs/performance_profile.csv"),
+    },
+    ControlledReportFile {
+        id: "TRACE-PACK",
+        title: "Masked pre-lab APDU trace fixture",
+        path: "docs/prelab_apdu_trace_pack.jsonl",
+        category: "trace",
+        contents: include_bytes!("../docs/prelab_apdu_trace_pack.jsonl"),
+    },
+    ControlledReportFile {
+        id: "TRACE-AUDIT-JSON",
+        title: "Trace-pack audit JSON",
+        path: "docs/prelab_trace_pack_audit.json",
+        category: "trace",
+        contents: include_bytes!("../docs/prelab_trace_pack_audit.json"),
+    },
+    ControlledReportFile {
+        id: "TRACE-AUDIT-MD",
+        title: "Trace-pack audit Markdown",
+        path: "docs/prelab_trace_pack_audit.md",
+        category: "trace",
+        contents: include_bytes!("../docs/prelab_trace_pack_audit.md"),
+    },
+    ControlledReportFile {
+        id: "QUALITY-GATES",
+        title: "Pre-lab quality gate manifest",
+        path: "docs/prelab_quality_gates.json",
+        category: "quality",
+        contents: include_bytes!("../docs/prelab_quality_gates.json"),
+    },
+    ControlledReportFile {
+        id: "NO-CRASH",
+        title: "Parser/APDU no-crash smoke artifact",
+        path: "docs/prelab_no_crash_smoke.json",
+        category: "quality",
+        contents: include_bytes!("../docs/prelab_no_crash_smoke.json"),
+    },
+    ControlledReportFile {
+        id: "STATIC-FUZZ-PLAN",
+        title: "Static and fuzz evidence plan",
+        path: "docs/prelab_static_fuzz_plan.json",
+        category: "quality",
+        contents: include_bytes!("../docs/prelab_static_fuzz_plan.json"),
+    },
+    ControlledReportFile {
+        id: "FUZZ-SEEDS",
+        title: "Fuzz seed corpus manifest",
+        path: "docs/prelab_fuzz_seed_corpus.json",
+        category: "quality",
+        contents: include_bytes!("../docs/prelab_fuzz_seed_corpus.json"),
+    },
+    ControlledReportFile {
+        id: "PUBLIC-STANDARDS-JSON",
+        title: "Public standards watch JSON",
+        path: "docs/public_standards_watch.json",
+        category: "drift",
+        contents: include_bytes!("../docs/public_standards_watch.json"),
+    },
+    ControlledReportFile {
+        id: "PUBLIC-STANDARDS-MD",
+        title: "Public standards watch Markdown",
+        path: "docs/standards_watch.md",
+        category: "drift",
+        contents: include_bytes!("../docs/standards_watch.md"),
+    },
+    ControlledReportFile {
+        id: "EVIDENCE-CHECKLIST-JSON",
+        title: "Certification evidence checklist JSON",
+        path: "docs/certification_evidence_checklist.json",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_evidence_checklist.json"),
+    },
+    ControlledReportFile {
+        id: "EVIDENCE-CHECKLIST-MD",
+        title: "Certification evidence checklist Markdown",
+        path: "docs/certification_evidence_checklist.md",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_evidence_checklist.md"),
+    },
+    ControlledReportFile {
+        id: "EVIDENCE-INTAKE-JSON",
+        title: "Certification evidence intake JSON",
+        path: "docs/certification_evidence_intake.json",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_evidence_intake.json"),
+    },
+    ControlledReportFile {
+        id: "EVIDENCE-INTAKE-MD",
+        title: "Certification evidence intake Markdown",
+        path: "docs/certification_evidence_intake.md",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_evidence_intake.md"),
+    },
+    ControlledReportFile {
+        id: "FREEZE-JSON",
+        title: "Certification freeze manifest JSON",
+        path: "docs/certification_freeze_manifest.json",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_freeze_manifest.json"),
+    },
+    ControlledReportFile {
+        id: "FREEZE-MD",
+        title: "Certification freeze manifest Markdown",
+        path: "docs/certification_freeze_manifest.md",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_freeze_manifest.md"),
+    },
+    ControlledReportFile {
+        id: "SECURITY-PLAN-JSON",
+        title: "Security assessment plan JSON",
+        path: "docs/certification_security_assessment_plan.json",
+        category: "security",
+        contents: include_bytes!("../docs/certification_security_assessment_plan.json"),
+    },
+    ControlledReportFile {
+        id: "SECURITY-PLAN-MD",
+        title: "Security assessment plan Markdown",
+        path: "docs/certification_security_assessment_plan.md",
+        category: "security",
+        contents: include_bytes!("../docs/certification_security_assessment_plan.md"),
+    },
+    ControlledReportFile {
+        id: "DEVICE-PLAN-JSON",
+        title: "Device evidence plan JSON",
+        path: "docs/certification_device_evidence_plan.json",
+        category: "device",
+        contents: include_bytes!("../docs/certification_device_evidence_plan.json"),
+    },
+    ControlledReportFile {
+        id: "DEVICE-PLAN-MD",
+        title: "Device evidence plan Markdown",
+        path: "docs/certification_device_evidence_plan.md",
+        category: "device",
+        contents: include_bytes!("../docs/certification_device_evidence_plan.md"),
+    },
+    ControlledReportFile {
+        id: "INTEGRATION-PLAN-JSON",
+        title: "Integration report plan JSON",
+        path: "docs/certification_integration_report_plan.json",
+        category: "integration",
+        contents: include_bytes!("../docs/certification_integration_report_plan.json"),
+    },
+    ControlledReportFile {
+        id: "INTEGRATION-PLAN-MD",
+        title: "Integration report plan Markdown",
+        path: "docs/certification_integration_report_plan.md",
+        category: "integration",
+        contents: include_bytes!("../docs/certification_integration_report_plan.md"),
+    },
+    ControlledReportFile {
+        id: "OPEN-SOURCE-REVIEW",
+        title: "Open-source reference review",
+        path: "docs/open_source.md",
+        category: "provenance",
+        contents: include_bytes!("../docs/open_source.md"),
+    },
+    ControlledReportFile {
+        id: "COVERAGE-DOCS",
+        title: "Coverage workflow documentation",
+        path: "docs/coverage.md",
+        category: "quality",
+        contents: include_bytes!("../docs/coverage.md"),
+    },
+    ControlledReportFile {
+        id: "COVERAGE-SCRIPT",
+        title: "Coverage workflow script",
+        path: "scripts/coverage_100.sh",
+        category: "quality",
+        contents: include_bytes!("../scripts/coverage_100.sh"),
+    },
+    ControlledReportFile {
+        id: "TUTORIAL-INDEX",
+        title: "Tutorial index",
+        path: "docs/tutorial/README.md",
+        category: "education",
+        contents: include_bytes!("../docs/tutorial/README.md"),
+    },
+    ControlledReportFile {
+        id: "TUTORIAL-GLOSSARY",
+        title: "Tutorial glossary",
+        path: "docs/tutorial/glossary.md",
+        category: "education",
+        contents: include_bytes!("../docs/tutorial/glossary.md"),
+    },
+];
+
+const REPORT_FILE_EXCLUSIONS: &[ReportFileExclusion] = &[
+    ReportFileExclusion {
+        id: "REPORT-PACK-JSON",
+        path: "docs/certification_report_pack.json",
+        reason:
+            "excluded from checked-in report file inventory to avoid self-referential hash churn",
+    },
+    ReportFileExclusion {
+        id: "REPORT-PACK-MD",
+        path: "docs/certification_report_pack.md",
+        reason:
+            "excluded from checked-in report file inventory to avoid self-referential hash churn",
+    },
+    ReportFileExclusion {
+        id: "REPORT-UI",
+        path: "docs/certification_report_ui.html",
+        reason:
+            "excluded from checked-in report file inventory to avoid self-referential hash churn",
+    },
+];
 
 const REPORT_ARTIFACTS: &[ReportArtifact] = &[
     ReportArtifact {
@@ -463,6 +775,20 @@ pub fn certification_report_pack_json(abi_version: u32) -> String {
         }
         push_report_artifact_json(&mut out, artifact);
     }
+    out.push_str("],\"artifact_files\":[");
+    for (idx, file) in CONTROLLED_REPORT_FILES.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_controlled_report_file_json(&mut out, file);
+    }
+    out.push_str("],\"artifact_file_exclusions\":[");
+    for (idx, exclusion) in REPORT_FILE_EXCLUSIONS.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_report_file_exclusion_json(&mut out, exclusion);
+    }
     out.push_str("],\"required_reports\":[");
     for (idx, report) in REQUIRED_REPORTS.iter().enumerate() {
         if idx > 0 {
@@ -545,6 +871,37 @@ pub fn certification_report_markdown(abi_version: u32) -> String {
         );
     }
     let _ = writeln!(out);
+    let _ = writeln!(out, "## Artifact File Integrity");
+    let _ = writeln!(
+        out,
+        "| ID | Title | Category | Path | Size Bytes | SHA-256 |"
+    );
+    let _ = writeln!(out, "| --- | --- | --- | --- | --- | --- |");
+    for file in CONTROLLED_REPORT_FILES {
+        let _ = writeln!(
+            out,
+            "| {} | {} | {} | `{}` | {} | `{}` |",
+            file.id,
+            file.title,
+            file.category,
+            file.path,
+            file.contents.len(),
+            to_hex(&sha256(file.contents))
+        );
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "### Artifact File Inventory Exclusions");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "| ID | Path | Reason |");
+    let _ = writeln!(out, "| --- | --- | --- |");
+    for exclusion in REPORT_FILE_EXCLUSIONS {
+        let _ = writeln!(
+            out,
+            "| {} | `{}` | {} |",
+            exclusion.id, exclusion.path, exclusion.reason
+        );
+    }
+    let _ = writeln!(out);
     let _ = writeln!(out, "## Required External Reports");
     let _ = writeln!(
         out,
@@ -621,9 +978,10 @@ pub fn certification_report_ui_html(abi_version: u32) -> String {
     out.push_str("<title>Hyperion Certification Workbench</title>");
     out.push_str("<style>");
     out.push_str("*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:#1b1f24;background:#f7f8fa;line-height:1.45}header{background:#0f1720;color:#f8fafc;padding:20px 24px;border-bottom:4px solid #1f9d8a}main{padding:18px 24px 28px;max-width:1480px;margin:0 auto}.topbar{display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}.title{margin:0;font-size:26px;font-weight:720;letter-spacing:0}.meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#cbd5df;font-size:13px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar button,.toolbar input{height:36px;border:1px solid #ccd3dc;background:#fff;color:#1b1f24;padding:0 10px;border-radius:6px;font:inherit}.toolbar button{cursor:pointer}.toolbar button[aria-pressed=\"true\"]{background:#1f9d8a;color:#fff;border-color:#1f9d8a}.toolbar input{min-width:260px}.summary{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:12px;margin:18px 0}.metric{background:#fff;border:1px solid #d9dee6;border-radius:8px;padding:14px}.metric strong{display:block;font-size:24px}.metric span{color:#52606d;font-size:13px}section{margin-top:18px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #d9dee6;padding-bottom:8px}h2{font-size:17px;margin:0}.table-wrap{overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:8px}table{border-collapse:collapse;width:100%;min-width:920px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #edf0f4;padding:10px 12px;font-size:13px}th{position:sticky;top:0;background:#edf3f7;color:#23313f;font-size:12px;text-transform:uppercase}tr:last-child td{border-bottom:0}.status{font-weight:700;color:#8a4b00}.ok{color:#0b6e4f}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}.hidden{display:none}@media(max-width:1180px){.summary{grid-template-columns:repeat(3,minmax(130px,1fr))}}@media(max-width:780px){header,main{padding-left:14px;padding-right:14px}.title{font-size:22px}.summary{grid-template-columns:repeat(2,minmax(130px,1fr))}.toolbar{width:100%}.toolbar input{min-width:0;width:100%}}");
-    out.push_str("</style></head><body><header><div class=\"topbar\"><div><h1 class=\"title\">Hyperion Certification Workbench</h1><div class=\"meta\"><span id=\"kernel\"></span><span id=\"abi\"></span><span id=\"scope\"></span></div></div><div class=\"toolbar\" role=\"toolbar\" aria-label=\"Workbench views\"><button data-view=\"requirements\" aria-pressed=\"true\">Requirements</button><button data-view=\"artifacts\" aria-pressed=\"false\">Artifacts</button><button data-view=\"reports\" aria-pressed=\"false\">Reports</button><button data-view=\"gates\" aria-pressed=\"false\">Gates</button><button data-view=\"evidence\" aria-pressed=\"false\">Evidence</button><button data-view=\"tools\" aria-pressed=\"false\">Tools</button><button id=\"download-json\">JSON</button><button id=\"download-md\">Markdown</button><input id=\"search\" type=\"search\" placeholder=\"Filter\" aria-label=\"Filter rows\"></div></div></header><main><div class=\"summary\"><div class=\"metric\"><strong id=\"requirement-count\">0</strong><span>kernel requirements</span></div><div class=\"metric\"><strong id=\"artifact-count\">0</strong><span>repository artifacts</span></div><div class=\"metric\"><strong id=\"report-count\">0</strong><span>required reports</span></div><div class=\"metric\"><strong id=\"evidence-count\">0</strong><span>evidence attachments</span></div><div class=\"metric\"><strong id=\"tool-count\">0</strong><span>tool commands</span></div><div class=\"metric\"><strong id=\"open-count\">0</strong><span>open external gates</span></div></div>");
+    out.push_str("</style></head><body><header><div class=\"topbar\"><div><h1 class=\"title\">Hyperion Certification Workbench</h1><div class=\"meta\"><span id=\"kernel\"></span><span id=\"abi\"></span><span id=\"scope\"></span></div></div><div class=\"toolbar\" role=\"toolbar\" aria-label=\"Workbench views\"><button data-view=\"requirements\" aria-pressed=\"true\">Requirements</button><button data-view=\"artifacts\" aria-pressed=\"false\">Artifacts</button><button data-view=\"files\" aria-pressed=\"false\">Files</button><button data-view=\"reports\" aria-pressed=\"false\">Reports</button><button data-view=\"gates\" aria-pressed=\"false\">Gates</button><button data-view=\"evidence\" aria-pressed=\"false\">Evidence</button><button data-view=\"tools\" aria-pressed=\"false\">Tools</button><button id=\"download-json\">JSON</button><button id=\"download-md\">Markdown</button><input id=\"search\" type=\"search\" placeholder=\"Filter\" aria-label=\"Filter rows\"></div></div></header><main><div class=\"summary\"><div class=\"metric\"><strong id=\"requirement-count\">0</strong><span>kernel requirements</span></div><div class=\"metric\"><strong id=\"artifact-count\">0</strong><span>repository artifacts</span></div><div class=\"metric\"><strong id=\"file-count\">0</strong><span>hashed files</span></div><div class=\"metric\"><strong id=\"report-count\">0</strong><span>required reports</span></div><div class=\"metric\"><strong id=\"evidence-count\">0</strong><span>evidence attachments</span></div><div class=\"metric\"><strong id=\"tool-count\">0</strong><span>tool commands</span></div><div class=\"metric\"><strong id=\"open-count\">0</strong><span>open external gates</span></div></div>");
     out.push_str("<section id=\"requirements\"><div class=\"section-head\"><h2>Requirement Traceability</h2></div><div class=\"table-wrap\"><table><thead><tr><th>Requirement</th><th>Text</th><th>Unit Test ID</th><th>Integration Test ID</th><th>EMVCo Ref</th><th>Evidence Artifact</th></tr></thead><tbody id=\"requirement-body\"></tbody></table></div></section>");
     out.push_str("<section id=\"artifacts\" class=\"hidden\"><div class=\"section-head\"><h2>Repository Artifacts</h2></div><div class=\"table-wrap\"><table><thead><tr><th>ID</th><th>Title</th><th>Category</th><th>Path</th><th>Status</th><th>Generator</th><th>Boundary</th></tr></thead><tbody id=\"artifact-body\"></tbody></table></div></section>");
+    out.push_str("<section id=\"files\" class=\"hidden\"><div class=\"section-head\"><h2>Artifact File Integrity</h2></div><div class=\"table-wrap\"><table><thead><tr><th>ID</th><th>Title</th><th>Category</th><th>Path</th><th>Size</th><th>SHA-256</th></tr></thead><tbody id=\"file-body\"></tbody></table></div></section>");
     out.push_str("<section id=\"reports\" class=\"hidden\"><div class=\"section-head\"><h2>Required External Reports</h2></div><div class=\"table-wrap\"><table><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Required Evidence</th><th>Closure Gate</th></tr></thead><tbody id=\"report-body\"></tbody></table></div></section>");
     out.push_str("<section id=\"gates\" class=\"hidden\"><div class=\"section-head\"><h2>Open Certification Gates</h2></div><div class=\"table-wrap\"><table><thead><tr><th>Gate</th><th>Area</th><th>Status</th><th>Required Attachment</th><th>Acceptance Gate</th><th>Repository Support</th></tr></thead><tbody id=\"gate-body\"></tbody></table></div></section>");
     out.push_str("<section id=\"evidence\" class=\"hidden\"><div class=\"section-head\"><h2>Evidence Attachment Checklist</h2></div><div class=\"table-wrap\"><table><thead><tr><th>Open Issue</th><th>Area</th><th>Authority</th><th>Required Attachment</th><th>Metadata</th><th>Acceptance Gate</th><th>Repository Support</th><th>Status</th></tr></thead><tbody id=\"evidence-body\"></tbody></table></div></section>");
@@ -633,7 +991,7 @@ pub fn certification_report_ui_html(abi_version: u32) -> String {
     out.push_str("</script><script id=\"report-markdown\" type=\"text/plain\">");
     push_html_text(&mut out, &markdown);
     out.push_str("</script><script>");
-    out.push_str("const data=JSON.parse(document.getElementById('report-data').textContent);const markdown=document.getElementById('report-markdown').textContent;const q=document.getElementById('search');const views=['requirements','artifacts','reports','gates','evidence','tools'];function esc(v){return String(v).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));}function cell(v,cls=''){return `<td class=\"${cls}\">${esc(v)}</td>`;}function render(){const term=q.value.toLowerCase();document.getElementById('kernel').textContent=`${data.kernel_name} ${data.kernel_version}`;document.getElementById('abi').textContent=`ABI ${data.abi_version}`;document.getElementById('scope').textContent=data.scope;document.getElementById('requirement-count').textContent=data.requirements.length;document.getElementById('artifact-count').textContent=data.artifacts.length;document.getElementById('report-count').textContent=data.required_reports.length;document.getElementById('evidence-count').textContent=data.evidence_requirements.length;document.getElementById('tool-count').textContent=data.tool_commands.length;document.getElementById('open-count').textContent=data.open_gates.length;const match=o=>JSON.stringify(o).toLowerCase().includes(term);document.getElementById('requirement-body').innerHTML=data.requirements.filter(match).map(r=>`<tr>${cell(r.id,'mono')}${cell(r.text)}${cell(r.unit_test_id,'mono')}${cell(r.integration_test_id,'mono')}${cell(r.emvco_ref,'mono')}${cell(r.evidence_artifact,'mono')}</tr>`).join('');document.getElementById('artifact-body').innerHTML=data.artifacts.filter(match).map(a=>`<tr>${cell(a.id,'mono')}${cell(a.title)}${cell(a.category)}${cell(a.path,'mono')}${cell(a.status,a.status==='generated'?'ok':'')}${cell(a.generator,'mono')}${cell(a.boundary)}</tr>`).join('');document.getElementById('report-body').innerHTML=data.required_reports.filter(match).map(r=>`<tr>${cell(r.id,'mono')}${cell(r.title)}${cell(r.status,'status')}${cell(r.required_evidence)}${cell(r.closure_gate,'mono')}</tr>`).join('');document.getElementById('gate-body').innerHTML=data.open_gates.filter(match).map(g=>`<tr>${cell(g.open_issue,'mono')}${cell(g.area)}${cell(g.status,'status')}${cell(g.required_attachment)}${cell(g.acceptance_gate)}${cell(g.repository_support,'mono')}</tr>`).join('');document.getElementById('evidence-body').innerHTML=data.evidence_requirements.filter(match).map(e=>`<tr>${cell(e.open_issue,'mono')}${cell(e.area)}${cell(e.authority)}${cell(e.required_attachment)}${cell(e.required_metadata)}${cell(e.acceptance_gate)}${cell(e.repository_support,'mono')}${cell(e.status,'status')}</tr>`).join('');document.getElementById('tool-body').innerHTML=data.tool_commands.filter(match).map(t=>`<tr>${cell(t.id,'mono')}${cell(t.title)}${cell(t.command,'mono')}${cell(t.output,'mono')}</tr>`).join('');}function show(view){views.forEach(v=>document.getElementById(v).classList.toggle('hidden',v!==view));document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));}function download(name,type,text){const blob=new Blob([text],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));document.getElementById('download-json').addEventListener('click',()=>download('hyperion-certification-report-pack.json','application/json',JSON.stringify(data,null,2)));document.getElementById('download-md').addEventListener('click',()=>download('hyperion-certification-report-pack.md','text/markdown',markdown));q.addEventListener('input',render);render();");
+    out.push_str("const data=JSON.parse(document.getElementById('report-data').textContent);const markdown=document.getElementById('report-markdown').textContent;const q=document.getElementById('search');const views=['requirements','artifacts','files','reports','gates','evidence','tools'];function esc(v){return String(v).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));}function cell(v,cls=''){return `<td class=\"${cls}\">${esc(v)}</td>`;}function render(){const term=q.value.toLowerCase();document.getElementById('kernel').textContent=`${data.kernel_name} ${data.kernel_version}`;document.getElementById('abi').textContent=`ABI ${data.abi_version}`;document.getElementById('scope').textContent=data.scope;document.getElementById('requirement-count').textContent=data.requirements.length;document.getElementById('artifact-count').textContent=data.artifacts.length;document.getElementById('file-count').textContent=data.artifact_files.length;document.getElementById('report-count').textContent=data.required_reports.length;document.getElementById('evidence-count').textContent=data.evidence_requirements.length;document.getElementById('tool-count').textContent=data.tool_commands.length;document.getElementById('open-count').textContent=data.open_gates.length;const match=o=>JSON.stringify(o).toLowerCase().includes(term);document.getElementById('requirement-body').innerHTML=data.requirements.filter(match).map(r=>`<tr>${cell(r.id,'mono')}${cell(r.text)}${cell(r.unit_test_id,'mono')}${cell(r.integration_test_id,'mono')}${cell(r.emvco_ref,'mono')}${cell(r.evidence_artifact,'mono')}</tr>`).join('');document.getElementById('artifact-body').innerHTML=data.artifacts.filter(match).map(a=>`<tr>${cell(a.id,'mono')}${cell(a.title)}${cell(a.category)}${cell(a.path,'mono')}${cell(a.status,a.status==='generated'?'ok':'')}${cell(a.generator,'mono')}${cell(a.boundary)}</tr>`).join('');document.getElementById('file-body').innerHTML=data.artifact_files.filter(match).map(f=>`<tr>${cell(f.id,'mono')}${cell(f.title)}${cell(f.category)}${cell(f.path,'mono')}${cell(f.size_bytes)}${cell(f.sha256,'mono')}</tr>`).join('');document.getElementById('report-body').innerHTML=data.required_reports.filter(match).map(r=>`<tr>${cell(r.id,'mono')}${cell(r.title)}${cell(r.status,'status')}${cell(r.required_evidence)}${cell(r.closure_gate,'mono')}</tr>`).join('');document.getElementById('gate-body').innerHTML=data.open_gates.filter(match).map(g=>`<tr>${cell(g.open_issue,'mono')}${cell(g.area)}${cell(g.status,'status')}${cell(g.required_attachment)}${cell(g.acceptance_gate)}${cell(g.repository_support,'mono')}</tr>`).join('');document.getElementById('evidence-body').innerHTML=data.evidence_requirements.filter(match).map(e=>`<tr>${cell(e.open_issue,'mono')}${cell(e.area)}${cell(e.authority)}${cell(e.required_attachment)}${cell(e.required_metadata)}${cell(e.acceptance_gate)}${cell(e.repository_support,'mono')}${cell(e.status,'status')}</tr>`).join('');document.getElementById('tool-body').innerHTML=data.tool_commands.filter(match).map(t=>`<tr>${cell(t.id,'mono')}${cell(t.title)}${cell(t.command,'mono')}${cell(t.output,'mono')}</tr>`).join('');}function show(view){views.forEach(v=>document.getElementById(v).classList.toggle('hidden',v!==view));document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));}function download(name,type,text){const blob=new Blob([text],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));document.getElementById('download-json').addEventListener('click',()=>download('hyperion-certification-report-pack.json','application/json',JSON.stringify(data,null,2)));document.getElementById('download-md').addEventListener('click',()=>download('hyperion-certification-report-pack.md','text/markdown',markdown));q.addEventListener('input',render);render();");
     out.push_str("</script></body></html>\n");
     out
 }
@@ -717,6 +1075,32 @@ fn push_report_artifact_json(out: &mut String, artifact: &ReportArtifact) {
     push_json_str(out, "status", artifact.status);
     out.push(',');
     push_json_str(out, "boundary", artifact.boundary);
+    out.push('}');
+}
+
+fn push_controlled_report_file_json(out: &mut String, file: &ControlledReportFile) {
+    out.push('{');
+    push_json_str(out, "id", file.id);
+    out.push(',');
+    push_json_str(out, "title", file.title);
+    out.push(',');
+    push_json_str(out, "path", file.path);
+    out.push(',');
+    push_json_str(out, "category", file.category);
+    out.push(',');
+    push_json_number(out, "size_bytes", file.contents.len() as u64);
+    out.push(',');
+    push_json_str(out, "sha256", &to_hex(&sha256(file.contents)));
+    out.push('}');
+}
+
+fn push_report_file_exclusion_json(out: &mut String, exclusion: &ReportFileExclusion) {
+    out.push('{');
+    push_json_str(out, "id", exclusion.id);
+    out.push(',');
+    push_json_str(out, "path", exclusion.path);
+    out.push(',');
+    push_json_str(out, "reason", exclusion.reason);
     out.push('}');
 }
 
@@ -837,6 +1221,12 @@ mod tests {
         ));
         assert!(json.contains("docs/prelab_quality_gates.json"));
         assert!(json.contains("CERT-REPORT-COVERAGE"));
+        assert!(json.contains("\"artifact_files\""));
+        assert!(json.contains("\"id\":\"SPEC\""));
+        assert!(json.contains("\"path\":\"docs/spec.md\""));
+        assert!(json.contains("\"sha256\""));
+        assert!(json.contains("\"artifact_file_exclusions\""));
+        assert!(json.contains("self-referential hash churn"));
         assert!(json.contains("\"open_gates\""));
         assert!(json.contains("\"open_issue\":\"CERT-OPEN-009\""));
         assert!(json.contains("krn_certification_report_ui"));
@@ -855,6 +1245,8 @@ mod tests {
         assert!(html.contains("download-json"));
         assert!(html.contains("report-data"));
         assert!(html.contains("Repository Artifacts"));
+        assert!(html.contains("Artifact File Integrity"));
+        assert!(html.contains("file-body"));
         assert!(html.contains("Required External Reports"));
         assert!(html.contains("Open Certification Gates"));
         assert!(html.contains("gate-body"));
@@ -868,12 +1260,15 @@ mod tests {
 
         assert!(markdown.contains("# Hyperion Certification Report Pack"));
         assert!(markdown.contains("## Requirement Traceability"));
+        assert!(markdown.contains("## Artifact File Integrity"));
+        assert!(markdown.contains("### Artifact File Inventory Exclusions"));
         assert!(markdown.contains("## Open Certification Gates"));
         assert!(
             markdown.contains(
                 "| Requirement | Text | Unit Test ID | Integration Test ID | EMVCo Ref | Evidence Artifact |"
             )
         );
+        assert!(markdown.contains("| ID | Title | Category | Path | Size Bytes | SHA-256 |"));
         assert!(markdown.contains(
             "| Gate | Area | Status | Required Attachment | Acceptance Gate | Repository Support |"
         ));
