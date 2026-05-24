@@ -5,7 +5,7 @@
 - Rollback counter: `2`
 - Verification status: `trust-anchor-verified`
 - Payload SHA-256: `5d0e03b2dc65006c22a88bfefa1a1d16d65713650dabc92445d397b4be911ebd`
-- Bundle SHA-256: `e07e62a9a62e21b34e12df559421f193a5398ffc2af68da9d280ba4278613f9d`
+- Bundle SHA-256: `c13ea7cb3a99d11b0228fad4af0855ce8b29359e3614de99761a399899ed9e2b`
 - Scheme profile SHA-256: `8d67a1fc92061dfbfea39ebabc30ddd744998e7fe18789570c32a7b20b9d630f`
 - Vector bundle SHA-256: `17e599c785c424433baf0e01fe13bb633cbb426217a474181d0083a1d6bd0515`
 

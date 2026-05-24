@@ -5840,3 +5840,10 @@ decision record, while this file tracks work toward certification readiness.
   bundle validation, checked-in bundle lint, certification workspace smoke,
   basic PoS smoke, variable-data boundary audit, static workbench script/HTML
   smoke, and `git diff --check` passed.
+## 2026-05-25T09:00:00Z
+
+- Increment in progress: close repository-controlled certification-readiness gaps from the full-codebase review.
+- Code impact so far: certification bundle trust anchors now carry Ed25519 public verification keys instead of signing secrets, bundle signatures are real Ed25519 signatures over a domain-separated payload hash, browser workbench state no longer persists trust anchors, runtime APDU callbacks use the active data-bundle timeout policy, and fixture/pending ODA vector bundles are reported as external-required rather than covered.
+- Tooling impact so far: CI now regenerates and diffs checked-in data-bundle artifacts, validates and lints the checked-in bundle, and runs the coverage gate in enforced mode. Generated bundle, lint, fingerprint, report-pack, report UI, and tooling audit artifacts were regenerated.
+- Evidence scope: repository-controlled trust, timeout, drift, and coverage-gate wiring gaps are improved here; external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, and approval evidence remain explicit certification blockers until accepted by the relevant authority.
+- Verification: `cargo fmt --check`, `cargo test`, `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D warnings`, checked-in bundle validation, checked-in bundle lint, deterministic bundle drift checks, and `git diff --check` passed. `scripts/coverage_100.sh` now runs locally after installing `cargo-llvm-cov` and `llvm-tools-preview`, but correctly fails the 100% line threshold at 93.04% total line coverage; closing that remaining 6.96% line gap is the next work item.

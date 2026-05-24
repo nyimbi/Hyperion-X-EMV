@@ -70,6 +70,23 @@ jobs:
       - name: Tooling completeness audit Markdown drift
         run: cargo run --quiet --example krn_tooling_completeness_audit -- --markdown | diff -u docs/tooling_completeness_audit.md -
 
+      - name: Data-driven certification bundle artifact drift
+        run: |
+          cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle
+          diff -u docs/certification_data_bundle.json target/hyperion-cert-bundle/certification_bundle.json
+          diff -u docs/certification_data_bundle_trust_anchors.json target/hyperion-cert-bundle/trust_anchors.json
+          diff -u docs/certification_data_bundle.md target/hyperion-cert-bundle/certification_bundle_report.md
+          diff -u docs/certification_data_bundle_workbench.html target/hyperion-cert-bundle/index.html
+          diff -u docs/certification_data_bundle_fingerprints.json target/hyperion-cert-bundle/bundle_fingerprints.json
+          diff -u docs/certification_data_bundle_lint.json target/hyperion-cert-bundle/certification_bundle_lint.json
+          diff -u docs/certification_data_bundle_lint.md target/hyperion-cert-bundle/certification_bundle_lint.md
+
+      - name: Checked-in certification bundle validation
+        run: cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+
+      - name: Checked-in certification bundle lint
+        run: cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+
 
       - name: Certification evidence checklist JSON drift
         run: cargo run --quiet --example krn_certification_evidence_checklist -- --json | diff -u docs/certification_evidence_checklist.json -
@@ -135,7 +152,7 @@ jobs:
         run: git diff --check
 
   rust-coverage:
-    name: Rust coverage report preparation
+    name: Rust enforced 100% coverage report
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -152,7 +169,7 @@ jobs:
       - name: Generate coverage measurement artifact
         run: scripts/coverage_100.sh
         env:
-          KRN_COVERAGE_ENFORCE: "0"
+          KRN_COVERAGE_ENFORCE: "1"
 
       - name: Audit coverage package
         run: cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage --require-package > target/coverage/coverage_audit.json

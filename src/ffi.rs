@@ -2102,7 +2102,7 @@ fn read_application_records(
         let response = transmit_apdu_with_followups(
             runtime,
             &command,
-            APDU_TRANSMIT_TIMEOUT_MS,
+            apdu_timeout(ctx),
             ApduContext::ReadRecord,
         )?;
         if response.len() < 2 {
@@ -2198,15 +2198,16 @@ fn run_offline_data_authentication(
         }
         OdaSelection::Perform(method) => {
             ctx.selected_oda_method = Some(method);
-            oda_outcome_for_method(
-                method,
+            let evaluation = OdaEvaluationContext {
                 profiles,
-                &scheme.rid,
+                rid: &scheme.rid,
                 evaluation_date,
-                &ctx.card_data,
-                &ctx.offline_auth_records,
+                card_data: &ctx.card_data,
+                offline_auth_records: &ctx.offline_auth_records,
                 runtime,
-            )
+                apdu_timeout_ms: apdu_timeout(ctx),
+            };
+            oda_outcome_for_method(method, evaluation)
         }
     };
     let failed = matches!(
@@ -2228,15 +2229,26 @@ fn run_offline_data_authentication(
     Ok(())
 }
 
-fn oda_outcome_for_method(
-    method: OdaMethod,
-    profiles: &ProfileSet,
-    rid: &[u8; 5],
+struct OdaEvaluationContext<'a> {
+    profiles: &'a ProfileSet,
+    rid: &'a [u8; 5],
     evaluation_date: EmvDate,
-    card_data: &DataStore,
-    offline_auth_records: &[StaticAuthenticationRecord],
+    card_data: &'a DataStore,
+    offline_auth_records: &'a [StaticAuthenticationRecord],
     runtime: Option<RuntimeCallbacks>,
-) -> OdaOutcome {
+    apdu_timeout_ms: i32,
+}
+
+fn oda_outcome_for_method(method: OdaMethod, evaluation: OdaEvaluationContext<'_>) -> OdaOutcome {
+    let OdaEvaluationContext {
+        profiles,
+        rid,
+        evaluation_date,
+        card_data,
+        offline_auth_records,
+        runtime,
+        apdu_timeout_ms,
+    } = evaluation;
     let Some(key_index) = card_data
         .get(&[0x8f])
         .and_then(|value| value.first())
@@ -2305,7 +2317,14 @@ fn oda_outcome_for_method(
                     failure: OdaFailure::DynamicSignature,
                 };
             };
-            if perform_dynamic_data_authentication(runtime, &icc_public_key, card_data).is_err() {
+            if perform_dynamic_data_authentication(
+                runtime,
+                &icc_public_key,
+                card_data,
+                apdu_timeout_ms,
+            )
+            .is_err()
+            {
                 return OdaOutcome::Failed {
                     method,
                     failure: OdaFailure::DynamicSignature,
@@ -2366,6 +2385,7 @@ fn perform_dynamic_data_authentication(
     runtime: RuntimeCallbacks,
     icc_public_key: &RecoveredPublicKeyCertificate,
     card_data: &DataStore,
+    apdu_timeout_ms: i32,
 ) -> Result<(), KernelError> {
     let ddol = match card_data.get(&[0x9f, 0x49]) {
         Some(value) => parse_dol(value)?,
@@ -2377,7 +2397,7 @@ fn perform_dynamic_data_authentication(
     let response = transmit_apdu_with_followups(
         runtime,
         &command,
-        APDU_TRANSMIT_TIMEOUT_MS,
+        apdu_timeout_ms,
         ApduContext::InternalAuthenticate,
     )?;
     if response.len() < 2 {
@@ -2966,7 +2986,7 @@ fn run_first_generate_ac(
     let response = transmit_apdu_with_followups(
         runtime,
         &command,
-        APDU_TRANSMIT_TIMEOUT_MS,
+        apdu_timeout(ctx),
         ApduContext::GenerateAc,
     )?;
     if response.len() < 2 {
@@ -3132,7 +3152,7 @@ fn run_issuer_authentication(
     let response = transmit_apdu_with_followups(
         runtime,
         &command,
-        APDU_TRANSMIT_TIMEOUT_MS,
+        apdu_timeout(ctx),
         ApduContext::ExternalAuthenticate,
     )?;
     if response.len() < 2 {
@@ -3219,12 +3239,8 @@ fn run_issuer_scripts_for_phase(
                 u16::try_from(command_index).map_err(|_| KernelError::LengthOverflow)?;
             let critical = issuer_script_command_is_critical(ctx, command)?;
             let script_context = ApduContext::IssuerScript { critical };
-            let response = transmit_apdu_with_followups(
-                runtime,
-                command,
-                APDU_TRANSMIT_TIMEOUT_MS,
-                script_context,
-            )?;
+            let response =
+                transmit_apdu_with_followups(runtime, command, apdu_timeout(ctx), script_context)?;
             if response.len() < 2 {
                 return Err(KernelError::ParseError);
             }
@@ -3396,7 +3412,7 @@ fn run_final_generate_ac(
     let response = transmit_apdu_with_followups(
         runtime,
         &command,
-        APDU_TRANSMIT_TIMEOUT_MS,
+        apdu_timeout(ctx),
         ApduContext::GenerateAc,
     )?;
     if response.len() < 2 {
@@ -3513,7 +3529,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
     let response = match transmit_apdu_with_followups(
         runtime,
         &select,
-        APDU_TRANSMIT_TIMEOUT_MS,
+        apdu_timeout(ctx),
         ApduContext::SelectPse,
     ) {
         Ok(response) => response,
@@ -3608,7 +3624,7 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         let select_response = match transmit_apdu_with_followups(
             runtime,
             &select_aid,
-            APDU_TRANSMIT_TIMEOUT_MS,
+            apdu_timeout(ctx),
             ApduContext::SelectAid,
         ) {
             Ok(response) => response,
@@ -3748,20 +3764,16 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
             return KrnOutcome::Error;
         }
     };
-    let gpo_response = match transmit_apdu_with_followups(
-        runtime,
-        &gpo,
-        APDU_TRANSMIT_TIMEOUT_MS,
-        ApduContext::Gpo,
-    ) {
-        Ok(response) => response,
-        Err(err) => {
-            ctx.last_error = err;
-            ctx.state = KernelState::Error;
-            ctx.fsm_state = FsmState::Se;
-            return KrnOutcome::Error;
-        }
-    };
+    let gpo_response =
+        match transmit_apdu_with_followups(runtime, &gpo, apdu_timeout(ctx), ApduContext::Gpo) {
+            Ok(response) => response,
+            Err(err) => {
+                ctx.last_error = err;
+                ctx.state = KernelState::Error;
+                ctx.fsm_state = FsmState::Se;
+                return KrnOutcome::Error;
+            }
+        };
     if gpo_response.len() < 2 {
         ctx.last_error = KernelError::ParseError;
         ctx.state = KernelState::Error;
@@ -3975,6 +3987,10 @@ fn validate_callback_timeout(timeout_ms: i32) -> Result<(), KernelError> {
     } else {
         Err(KernelError::InvalidArgument)
     }
+}
+
+fn apdu_timeout(ctx: &KrnContext) -> i32 {
+    ctx.callback_timeouts.apdu_transport_timeout_ms
 }
 
 fn transmit_apdu_with_followups(
@@ -4272,6 +4288,13 @@ mod tests {
             validate_callback_timeout(KRN_CALLBACK_TIMEOUT_MAX_MS + 1),
             Err(KernelError::InvalidArgument)
         );
+    }
+
+    #[test]
+    fn apdu_transport_timeout_comes_from_active_context_policy() {
+        let mut ctx = KrnContext::new();
+        ctx.callback_timeouts.apdu_transport_timeout_ms = 1_237;
+        assert_eq!(apdu_timeout(&ctx), 1_237);
     }
 
     #[test]

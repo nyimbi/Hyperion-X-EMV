@@ -2,7 +2,7 @@
 
 - Status: `warn`
 - Mode: `certification`
-- Bundle SHA-256: `e07e62a9a62e21b34e12df559421f193a5398ffc2af68da9d280ba4278613f9d`
+- Bundle SHA-256: `c13ea7cb3a99d11b0228fad4af0855ce8b29359e3614de99761a399899ed9e2b`
 - Payload SHA-256: `5d0e03b2dc65006c22a88bfefa1a1d16d65713650dabc92445d397b4be911ebd`
 - Verification status: `trust-anchor-verified`
 
@@ -14,7 +14,8 @@
 - `warning` `terminal_profile.pci_pts_reference`: External evidence placeholder remains Suggestion: Attach the lab, scheme, L1, device, PCI/PED, or acquirer evidence and update this field with the accepted reference.
 - `warning` `submission_scope.authorities[1]`: External evidence placeholder remains Suggestion: Attach the lab, scheme, L1, device, PCI/PED, or acquirer evidence and update this field with the accepted reference.
 - `warning` `submission_scope.authorities[2]`: External evidence placeholder remains Suggestion: Attach the lab, scheme, L1, device, PCI/PED, or acquirer evidence and update this field with the accepted reference.
-- `warning` `trust_anchors[0].verification_secret_hex`: Fixture signing secret is still present Suggestion: Generate and custody a submission-specific trust anchor outside the repository fixture.
+- `warning` `payload.vector_bundle_json`: Certification vector bundle is still fixture or empty data Suggestion: Replace the vector bundle with authority/lab supplied CERTIFICATION data containing non-empty SDA, DDA, and CDA cases before final submission.
+- `warning` `trust_anchors[0].verification_public_key_hex`: Fixture verification key is still present Suggestion: Generate and custody a submission-specific signing key outside the repository fixture and provision only its public verification key here.
 - `info` `bundle`: Bundle compiled and authenticated Suggestion: Keep the bundle, trust anchors, fingerprints, reports, and submitted binary hash together in the certification pack.
 
 ## EMV Capability Coverage
@@ -25,7 +26,7 @@
 | contact_l2 | Contact EMV L2 | covered | `payload.submission_scope.interfaces + scheme_profile_set_json` | Binds contact interface, contact kernel type, TAC/IAC, DOL, CVM, TRM, and scripts to profile data. |
 | contactless_c8 | Contactless Kernel C-8 | covered | `payload.kernel_registry + scheme_profile_set_json` | Binds contactless scope to C-8 package data, TTQ/CVM limits, relay resistance, and masked traces. |
 | capk_authority | CAPK authority data | covered | `payload.scheme_profile_set_json.schemes[].capks` | Supplies RID/index public keys, expiry, checksums, and provenance for ODA validation. |
-| oda_vectors | SDA/DDA/CDA and ODA vectors | covered | `payload.vector_bundle_json + payload.artifact_hashes` | Binds cryptographic vector evidence and CDA request behavior to bundle hashes. |
+| oda_vectors | SDA/DDA/CDA and ODA vectors | external_required | `payload.vector_bundle_json + payload.artifact_hashes` | Binds cryptographic vector evidence and CDA request behavior to bundle hashes. |
 | cvm_pin | CVM and PIN integration | covered | `payload.cvm_extensions + scheme_profile_set_json.aids` | Controls CVM limits, CDCVM support, extension codes, and PED-owned offline PIN behavior. |
 | trm | Terminal risk management | covered | `payload.scheme_profile_set_json.aids[].trm` | Drives floor limits, random selection, transaction type limits, and offline counters from profile data. |
 | taa | Terminal action analysis | covered | `payload.scheme_profile_set_json.schemes[].taa` | Keeps TAC/IAC policy in signed profile data rather than compiled constants. |

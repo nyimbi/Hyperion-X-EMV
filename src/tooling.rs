@@ -183,7 +183,7 @@ const MECHANISMS: &[VerificationMechanism] = &[
             "cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json",
             "cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui",
         ],
-        ci_gate: "Data-driven certification bundle tests and example compile",
+        ci_gate: "Data-driven certification bundle artifact drift; checked-in bundle validation; checked-in bundle lint; example compile",
         status: "repo-controlled",
         external_closure_gate: "CERT-OPEN-002; CERT-OPEN-003; CERT-OPEN-004; CERT-OPEN-005; CERT-OPEN-009; CERT-OPEN-012",
     },

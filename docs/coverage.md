@@ -89,20 +89,21 @@ that tests pass; it does not prove measured coverage.
 ## Continuous Integration
 
 The pre-lab GitHub Actions workflow at `.github/workflows/prelab.yml` runs the
-normal Rust quality gates and a separate coverage job. The coverage job installs
-`cargo-llvm-cov`, runs `KRN_COVERAGE_ENFORCE=0 scripts/coverage_100.sh`, and
-audits the staged package with `krn_coverage_package_audit --require-package`
+normal Rust quality gates and a separate enforced coverage job. The coverage job
+installs `cargo-llvm-cov`, runs `KRN_COVERAGE_ENFORCE=1 scripts/coverage_100.sh`,
+and audits the staged package with `krn_coverage_package_audit --require-package`
 before uploading `target/coverage`, including `coverage_audit.json`, as a
-workflow artifact. This is a measurement artifact while `CERT-OPEN-009` remains
-open, not a claim that the 100% coverage requirement has been met.
+workflow artifact. This proves the repository 100% line-coverage gate for that
+commit, while `CERT-OPEN-009` still requires submitted-binary/profile binding
+and external acceptance before final certification closure.
 
-The CI artifact is still pre-lab evidence. It becomes certification-facing only
-after the submitted binary, profiles, CAPKs, vectors, traceability matrix, and
-reviewer acceptance are bound into the lab submission package.
+The CI artifact remains repository evidence until the submitted binary, profiles,
+CAPKs, vectors, traceability matrix, and reviewer acceptance are bound into the
+lab submission package.
 
 The uploaded `target/coverage` directory must contain both the HTML report and
 `metadata.json`. The metadata file is intended for report production and
-submission review; it is not proof of 100% coverage unless the enforcing mode
+submission review; it is not certification closure unless the enforcing mode
 was used and the report is accepted for the submitted artifact set.
 
 ## Contributor Use

@@ -301,10 +301,10 @@ to fail unless line coverage reaches 100%, then stages an HTML report under
 Use `krn_coverage_package_audit` to inspect the staged package and distinguish
 measurement-only evidence from an enforced 100% candidate that still awaits
 submitted-build and external reviewer acceptance.
-The CI workflow runs the same script with
-`KRN_COVERAGE_ENFORCE=0` to upload a measurement artifact while
-`CERT-OPEN-009` remains open. A final enforced run is required before the
-coverage report can be submitted as certification evidence.
+The CI workflow runs the same script with `KRN_COVERAGE_ENFORCE=1`, so protected
+pre-lab gates fail below 100% line coverage. `CERT-OPEN-009` remains open until
+the enforced report is tied to the submitted binary/profile set and accepted as
+certification evidence.
 
 ## Evidence Generators
 
@@ -342,7 +342,7 @@ controlled evidence:
   rejected without closing external evidence gates.
 - `krn_coverage_package_audit`: inspects `target/coverage` for coverage
   metadata, the staging README, and the HTML report entry point, separating
-  measurement-only packages from enforced 100% candidates without closing
+  pre-lab measurement packages from enforced 100% candidates without closing
   `CERT-OPEN-009`.
 - `krn_certification_freeze_manifest`: emits JSON and Markdown submitted-build
   hash slots for the kernel binary, signed configuration, CAPKs, profiles,

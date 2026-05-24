@@ -13,12 +13,30 @@ Operating commitments:
 - Push regular commits when a git remote is configured.
 
 Current implementation focus:
-- Make certification data fully data-driven through validated bundle input data.
-- Provide secure bundle fingerprinting and trust-anchor verification so different
-  certification/testing targets can be provisioned by changing data, not Rust
-  source code.
-- Provide operator-friendly provisioning surfaces: deterministic CLI, terminal
-  TUI-style prompt flow, and static local GUI/workbench.
-- Make bundle authoring easy to understand and hard to misuse by explaining
-  each field, linting and compile-checking bundle inputs, surfacing suggestions,
-  and mapping bundle data to EMV capability coverage.
+- Close the code-review gaps identified on main at c8cb049.
+- Replace secret-bearing certification bundle trust anchors with protected
+  public verification material and keep private signing material out of browser
+  storage and checked-in trust-anchor data.
+- Make runtime policy truly data-driven by ensuring loaded callback timeout
+  values are used by APDU transports and are verified by tests.
+- Make capability coverage truthful: fixture/pending/empty vector data must not
+  report as certification coverage.
+- Enforce repository-controlled quality gates for 100% coverage candidates and
+  deterministic data-bundle artifacts.
+- Keep documentation aligned with the implemented stack and remaining external
+  certification dependencies.
+
+Progress log for this run:
+- 2026-05-25: Started certification-gap closure run. Initial review findings:
+  trust anchors ship signing secrets, runtime APDU timeouts ignore loaded bundle
+  values, ODA vector coverage can overstate fixture status, CI coverage is
+  measurement-only, bundle artifacts are not fully drift-gated, and docs/tooling
+  need alignment.
+
+Current verification status:
+- Passing: formatting, full unit/traceability/doc tests, example tests, clippy with warnings denied, bundle validation/lint, deterministic bundle drift checks, and whitespace diff checks.
+- Failing by design until coverage closure is completed: `scripts/coverage_100.sh` executes but reports 93.04% total line coverage against the enforced 100% threshold.
+
+Next coverage-closure focus:
+- Add meaningful tests for the uncovered production lines reported by `cargo llvm-cov report --summary-only`, prioritizing `cert_bundle.rs`, `ffi.rs`, `trace_audit.rs`, `terminal.rs`, `error.rs`, `coverage.rs`, and generated tooling/reporting modules.
+- Do not weaken the threshold or hide production code from coverage; use targeted tests or remove unreachable/dead code where appropriate.

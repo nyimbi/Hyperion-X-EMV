@@ -207,13 +207,13 @@
 | ABI | ABI conformance statement | conformance | `docs/abi_conformance_statement.json` | 6894 | `86781a385da1e59022c0b1ef306a35c1d636134d69cd61dcef319334a604f505` |
 | PROFILE-BUNDLE | Certification profile scaffold | configuration | `docs/scheme_profiles.cert.json` | 5424 | `8d67a1fc92061dfbfea39ebabc30ddd744998e7fe18789570c32a7b20b9d630f` |
 | PROFILE-DICTIONARY | Scheme profile dictionary | configuration | `docs/scheme_profile_dictionary.md` | 3532 | `641cf1551d6006d17ad2eb511dd34a255786ed6630f1adc0ec747cb74cdb2ca2` |
-| DATA-BUNDLE-JSON | Data-driven certification bundle fixture | configuration | `docs/certification_data_bundle.json` | 9143 | `e07e62a9a62e21b34e12df559421f193a5398ffc2af68da9d280ba4278613f9d` |
-| DATA-BUNDLE-TRUST | Data-driven bundle trust-anchor fixture | configuration | `docs/certification_data_bundle_trust_anchors.json` | 431 | `3be6f7f77b56c858a760c7f227b999e72210ddedda24f69a14133086c2a33092` |
-| DATA-BUNDLE-REPORT | Data-driven certification bundle report | configuration | `docs/certification_data_bundle.md` | 1050 | `32b5c9d58fa9a1ea94ffbd1d16f9766fe829961753103ee9c90711cfbd2b7c18` |
-| DATA-BUNDLE-WORKBENCH | Data-driven certification bundle workbench | workbench | `docs/certification_data_bundle_workbench.html` | 46244 | `f1b2b5899957b2a09e23f9f6921b8fda1fa44de272d6c9c779ceccc53b97dddf` |
-| DATA-BUNDLE-FINGERPRINTS | Data-driven certification bundle fingerprints | configuration | `docs/certification_data_bundle_fingerprints.json` | 402 | `35941435a2250adbf07d98c6f76fba5e405f40a09a410e8481431d8406c84803` |
-| DATA-BUNDLE-LINT-JSON | Data-driven certification bundle lint report | quality | `docs/certification_data_bundle_lint.json` | 9156 | `3318f4c269e57d4f47b4cad80eddbad11b66bfa0c5b597d1236cea7e737b30de` |
-| DATA-BUNDLE-LINT-MD | Data-driven certification bundle lint report Markdown | quality | `docs/certification_data_bundle_lint.md` | 5556 | `0d6b2f4bf3af538748e03d6f5183b88423c57c9ca1d3fed9cf6daba9fc465bc1` |
+| DATA-BUNDLE-JSON | Data-driven certification bundle fixture | configuration | `docs/certification_data_bundle.json` | 9211 | `c13ea7cb3a99d11b0228fad4af0855ce8b29359e3614de99761a399899ed9e2b` |
+| DATA-BUNDLE-TRUST | Data-driven bundle trust-anchor fixture | configuration | `docs/certification_data_bundle_trust_anchors.json` | 435 | `d667481889a5f02cdf9904314d67aec2956eb016c59b3e6a86264d73da334c3a` |
+| DATA-BUNDLE-REPORT | Data-driven certification bundle report | configuration | `docs/certification_data_bundle.md` | 1050 | `7768b68e363b719a47381617430aa383ef40535bcd2d821ed70e8c812bf5b1c1` |
+| DATA-BUNDLE-WORKBENCH | Data-driven certification bundle workbench | workbench | `docs/certification_data_bundle_workbench.html` | 46379 | `779ac16cc51642f26514bf4dbfe3210f69fb5ce960e4453cd6b68ade683d1792` |
+| DATA-BUNDLE-FINGERPRINTS | Data-driven certification bundle fingerprints | configuration | `docs/certification_data_bundle_fingerprints.json` | 402 | `6123811e204acf8d7063334e92769e5892919c482fbf169550c051b728ae73a4` |
+| DATA-BUNDLE-LINT-JSON | Data-driven certification bundle lint report | quality | `docs/certification_data_bundle_lint.json` | 9747 | `340d2c7506317fc3b7ddd8655b9a585c43703a954956742bddc8c7bffe531e96` |
+| DATA-BUNDLE-LINT-MD | Data-driven certification bundle lint report Markdown | quality | `docs/certification_data_bundle_lint.md` | 5879 | `34a73216862b0c66f0019679f82914ab442c17beaea740a6752e13b865a2b69f` |
 | ODA-VECTORS | ODA structural vector annex | configuration | `docs/oda_test_vectors.json` | 3334 | `7156f876c0e7639768d15ed6e0522e13e750d8a0d96da0c899551c34af3ba22a` |
 | TLV-CATALOGUE | TLV catalogue | annex | `docs/tlv_catalogue.csv` | 8259 | `7f704a5dbf4110e32cfc9f52fa2162d1b2a0881e9aa767ce7988589a521f892c` |
 | STATE-MACHINE | State machine annex | annex | `docs/state_machine.csv` | 5339 | `f03438d66ed5a2c357ac718034a19ea24e6706456521aa54f0ab646d38bddcfd` |
@@ -228,8 +228,8 @@
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
 | PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 8198 | `9ab2e21422d09cc1e53418b98f205ec48c81b436b94d4496352822bbbdb09979` |
 | PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9948 | `d0b8a57e905dbea44bd17b066c2765f9b339bbea122b2843a251d08a870d12e3` |
-| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 23933 | `5e630fde438a92bec1dc59821638adf8834da41e390c59843e2baba95bdf0d5d` |
-| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 19595 | `697967fc4b2131a0973b6b681875373b4d2d754781ce59e8b25b5c5405410ac2` |
+| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 23993 | `e5c964c98a14b73007963145b16275fe0d8910a20b70f903f9888ca5fa0ef66d` |
+| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 19655 | `11224d4c35d986be96b245ce68793eb2f5802f2145e2eff1ec83435d508b7d3b` |
 | EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
 | EVIDENCE-CHECKLIST-MD | Certification evidence checklist Markdown | submission | `docs/certification_evidence_checklist.md` | 7575 | `197acd7da172825c1c363bcfad6a49875e753c0ba7bad50235f1880184ca2c91` |
 | EVIDENCE-INTAKE-JSON | Certification evidence intake JSON | submission | `docs/certification_evidence_intake.json` | 10601 | `8c87c282ac93157ba5d0a05812014061e775db04e6e1f9b6142a3201b532fca7` |
@@ -243,7 +243,7 @@
 | INTEGRATION-PLAN-JSON | Integration report plan JSON | integration | `docs/certification_integration_report_plan.json` | 6420 | `148e812eb41a37ed2fff33ee0f5e563d81f0915e64460db6ec668dcdc4cef4d1` |
 | INTEGRATION-PLAN-MD | Integration report plan Markdown | integration | `docs/certification_integration_report_plan.md` | 5568 | `163b1e87d4c7a47b4633ec4311d8323c69d8881ac79212300e944527272948af` |
 | OPEN-SOURCE-REVIEW | Open-source reference review | provenance | `docs/open_source.md` | 17628 | `10be8f215bc25e5b80b89060593996f3380ce60eb9fa535c8b2bcde74d2869f0` |
-| COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5042 | `e2756c72d630d11165b2a28c3d50957a9770a0123745f82713d81f7a22702362` |
+| COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5084 | `4f869bca41c804649c29d4c9b5178ebf0f8837eb2c1a410888df9c76011583ca` |
 | COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 2397 | `d1b8d6f0da37f338a0329eaa5bbee97cb71f2f1bf39f6f8a01b65c2011abc3bb` |
 | TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3231 | `3a6c9b5bb5c01c1e2925644ec7c5126faf1421e10f2011143af5e57785c5219e` |
 | TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |

@@ -13,13 +13,16 @@ use crate::error::{KernelError, KernelResult};
 use crate::provenance::{sha256, to_hex};
 use crate::restrictions::EmvDate;
 use core::fmt::Write;
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use std::collections::BTreeMap;
 
 pub const CERTIFICATION_BUNDLE_SCHEMA_VERSION: &str = "hyperion-certification-bundle-1.0";
-pub const CERTIFICATION_BUNDLE_SIGNATURE_ALGORITHM: &str = "hyperion-sha256-mac-v1";
+pub const CERTIFICATION_BUNDLE_SIGNATURE_ALGORITHM: &str = "hyperion-ed25519-sha256-v1";
 pub const CERTIFICATION_BUNDLE_TEST_ALGORITHM: &str = "hyperion-sha256-test-attestation-v1";
 pub const CERTIFICATION_BUNDLE_SIGNATURE_DOMAIN: &[u8] =
-    b"Hyperion certification bundle signature v1";
+    b"Hyperion certification bundle Ed25519 signature v1";
+const DEFAULT_FIXTURE_SIGNING_PRIVATE_KEY_HEX: &str =
+    "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 pub const MAX_CERTIFICATION_BUNDLE_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_EMBEDDED_PROFILE_BYTES: usize = 1024 * 1024;
 pub const MAX_BUNDLE_STRING_BYTES: usize = 4096;
@@ -52,7 +55,7 @@ pub struct BundleLoadPolicy {
 pub struct BundleTrustAnchor {
     pub signer_id: String,
     pub signing_key_fingerprint: String,
-    pub verification_secret_hex: String,
+    pub verification_public_key_hex: String,
     pub allowed_payload_sha256: String,
     pub not_after: Option<EmvDate>,
 }
@@ -590,8 +593,8 @@ pub fn trust_anchors_json(anchors: &[BundleTrustAnchor]) -> String {
         out.push(',');
         push_json_str(
             &mut out,
-            "verification_secret_hex",
-            &anchor.verification_secret_hex,
+            "verification_public_key_hex",
+            &anchor.verification_public_key_hex,
         );
         out.push(',');
         push_json_str(
@@ -640,8 +643,8 @@ pub fn create_bundle_from_inputs(
         .unwrap_or_else(CallbackTimeoutProfile::defaults);
     validate_callback_timeouts(callback_timeouts)?;
     let secret = input
-        .verification_secret_hex
-        .unwrap_or("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff");
+        .signing_private_key_hex
+        .unwrap_or(DEFAULT_FIXTURE_SIGNING_PRIVATE_KEY_HEX);
     validate_hex_len(secret, 32)?;
     let payload = CertificationBundlePayload {
         submission_scope: SubmissionScope {
@@ -712,13 +715,17 @@ pub fn create_bundle_from_inputs(
     validate_payload(&payload)?;
     let payload_json = payload_canonical_json(&payload);
     let payload_hash = sha256(payload_json.as_bytes());
-    let signing_key_fingerprint = to_hex(&sha256(secret.as_bytes()));
-    let signature_hex = signature_mac_hex(
+    let signing_key = signing_key_from_hex(secret)?;
+    let verification_public_key = signing_key.verifying_key().to_bytes();
+    let verification_public_key_hex = to_hex(&verification_public_key);
+    let signing_key_fingerprint = to_hex(&sha256(&verification_public_key));
+    let signature_hex = signature_ed25519_hex(
+        &signing_key,
         input.signer_id,
         &signing_key_fingerprint,
         &payload_hash,
-        secret,
-    )?;
+    );
+    let signature_artifact_sha256 = to_hex(&sha256(signature_hex.as_bytes()));
     let bundle = CertificationBundle {
         schema_version: CERTIFICATION_BUNDLE_SCHEMA_VERSION.to_string(),
         bundle_id: input.bundle_id.to_string(),
@@ -733,15 +740,13 @@ pub fn create_bundle_from_inputs(
             signing_key_fingerprint: signing_key_fingerprint.clone(),
             payload_sha256: to_hex(&payload_hash),
             signature_hex,
-            signature_artifact_sha256: to_hex(&sha256(
-                b"external-detached-signature-artifact-pending",
-            )),
+            signature_artifact_sha256,
         },
     };
     let anchor = BundleTrustAnchor {
         signer_id: input.signer_id.to_string(),
         signing_key_fingerprint,
-        verification_secret_hex: secret.to_string(),
+        verification_public_key_hex,
         allowed_payload_sha256: to_hex(&payload_hash),
         not_after: input.trust_not_after,
     };
@@ -778,7 +783,7 @@ pub struct BundleProvisioningInput<'a> {
     pub scheme_scope: &'a str,
     pub vector_class: &'a str,
     pub signer_id: &'a str,
-    pub verification_secret_hex: Option<&'a str>,
+    pub signing_private_key_hex: Option<&'a str>,
     pub trust_not_after: Option<EmvDate>,
     pub callback_timeouts: Option<CallbackTimeoutProfile>,
     pub scheme_profile_set_json: &'a str,
@@ -880,7 +885,7 @@ const help = [
  {field:'interfaces',role:'Claimed interface scope',impact:'Determines whether contact and contactless capabilities must be present in profiles and kernel registry.',used:'Selection, contact L2, C-8, reports',security:'Do not claim interfaces without matching device and L1 evidence.'},
  {field:'scheme_profile_set_json',role:'Variable EMV profile data',impact:'Carries AIDs, TAC/IAC, CAPKs, CVM/TRM settings, CDA behavior, scripts, and relay resistance.',used:'Selection, ODA, CVM, TRM, TAA, issuer scripts',security:'Must be signed or hash-pinned and authority approved.'},
  {field:'vector_bundle_json',role:'Certification vector binding',impact:'Links expected ODA and APDU test behavior to the profile and submitted build.',used:'Lab replay, trace pack, ODA reports',security:'Fixture vectors must be replaced by accepted certification vectors.'},
- {field:'trust_anchors',role:'Authentication root',impact:'Maps signer and fingerprint to an allowed payload hash.',used:'Bundle signature verification',security:'Protect secrets outside checked-in fixtures and rotate expired anchors.'},
+ {field:'trust_anchors',role:'Authentication root',impact:'Maps signer and fingerprint to an allowed payload hash.',used:'Bundle signature verification',security:'Provision public verification keys here; keep private signing keys outside generated workbench files.'},
  {field:'callback_timeouts',role:'Runtime callback bounds',impact:'Controls APDU transport, host, PIN, and contactless UI waiting behavior.',used:'C ABI and runtime policy',security:'Keep bounded to avoid denial-of-service and inconsistent certification traces.'},
  {field:'artifact_hashes',role:'Evidence freeze binding',impact:'Pins profiles, vectors, traces, reports, and external attachments by SHA-256.',used:'Certification report pack',security:'Every accepted artifact should be immutable and hash-bound.'},
  {field:'terminal_profile',role:'Device and PED scope',impact:'Names terminal type, model, firmware, L1, and PCI/PED evidence references.',used:'Submission manifest and external gates',security:'Must match submitted hardware and firmware.'}
@@ -890,14 +895,14 @@ const capabilityDefinitions = [
  {id:'contact_l2',area:'Contact EMV L2',source:'interfaces + contact_kernel_type + contact AIDs',role:'Contact kernel behavior, TAC/IAC, DOL, CVM, TRM, and scripts come from profile data.',check:s=>s.interfaces.includes('contact')&&hasAidInterface(s.profile,'contact')&&s.profile.schemes.some(x=>x.contact_kernel_type),suggestion:'Add contact scope, contact AID profiles, and contact_kernel_type.'},
  {id:'contactless_c8',area:'Contactless Kernel C-8',source:'kernel_registry + contactless AIDs',role:'C-8 package, TTQ, CDCVM, relay resistance, and contactless limits are configured as data.',check:s=>s.interfaces.includes('contactless')&&s.registry.some(x=>x.interface==='contactless')&&hasAidInterface(s.profile,'contactless'),suggestion:'Add a contactless kernel registry entry and contactless AID profiles.'},
  {id:'capk_authority',area:'CAPK authority',source:'scheme_profile_set_json.schemes[].capks',role:'RID/index public keys, expiry, checksum, and provenance for ODA.',check:s=>s.profile.schemes.some(x=>(x.capks||[]).length>0),suggestion:'Attach authority-approved CAPKs and bind their hashes.'},
- {id:'oda_vectors',area:'SDA/DDA/CDA vectors',source:'vector_bundle_json + artifact_hashes',role:'Binds ODA expected outputs, CDA behavior, and trace replay evidence.',check:s=>Boolean(s.vector.schema_version)&&hasArtifact(s.bundle,'vector_bundle_json'),suggestion:'Replace fixture vectors with lab/scheme vectors and bind the hash.'},
+ {id:'oda_vectors',area:'SDA/DDA/CDA vectors',source:'vector_bundle_json + artifact_hashes',role:'Binds ODA expected outputs, CDA behavior, and trace replay evidence.',check:s=>s.vector.vector_class==='CERTIFICATION'&&(s.vector.cases||s.vector.test_vectors||[]).length>0&&!JSON.stringify(s.vector).toLowerCase().match(/fixture|pending|placeholder/),suggestion:'Replace fixture vectors with lab/scheme CERTIFICATION vectors containing non-empty SDA, DDA, and CDA cases.'},
  {id:'cvm_pin',area:'CVM and PIN',source:'cvm_extensions + aid CVM limits',role:'Controls online PIN, offline PIN, signature, CDCVM, and certified extension codes.',check:s=>s.cvm.length>0||allAids(s.profile).some(a=>a.cvm_limit_contact||a.contactless_cvm_limit||a.cdcvm_supported),suggestion:'Add CVM limits, extension rules, and PED-owned PIN evidence.'},
  {id:'trm',area:'Terminal risk management',source:'aid floor/random/offline limits',role:'Defines floor limits, random selection, transaction type limits, and offline counters.',check:s=>allAids(s.profile).some(a=>a.floor_limit||a.random_selection_percent||a.lower_consecutive_offline_limit||a.upper_consecutive_offline_limit||(a.transaction_type_floor_limits||[]).length),suggestion:'Add TRM limits for the target schemes and transaction types.'},
  {id:'taa',area:'Terminal action analysis',source:'scheme_profile_set_json.schemes[].taa',role:'Keeps TAC/IAC behavior outside compiled code.',check:s=>s.profile.schemes.some(x=>x.taa),suggestion:'Attach scheme-approved TAC/IAC profile material.'},
  {id:'issuer_scripts',area:'Issuer scripts',source:'critical_issuer_script_ins',role:'Defines critical issuer script INS values for post-authorization processing.',check:s=>allAids(s.profile).some(a=>(a.critical_issuer_script_ins||[]).length),suggestion:'Add script policy where schemes require it.'},
  {id:'relay_resistance',area:'Relay resistance',source:'aid relay_resistance',role:'Controls contactless relay resistance when required by profile.',check:s=>allAids(s.profile).some(a=>a.relay_resistance),suggestion:'Add relay resistance data for applicable contactless profiles.'},
  {id:'runtime_abi',area:'Runtime ABI and timeouts',source:'runtime_policy.callback_timeouts',role:'Sets bounded callback behavior for APDU, host, PIN, and UI operations.',check:s=>Object.values(s.timeouts).every(v=>Number.isInteger(v)&&v>=1&&v<=60000),suggestion:'Keep every timeout in the 1..60000 ms range.'},
- {id:'security_trust',area:'Signature and trust',source:'signature + trust_anchors',role:'Authenticates payload hash and signer identity before loading.',check:s=>s.trust.trust_anchors&&s.trust.trust_anchors.length>0&&s.bundle.signature&&s.bundle.signature.payload_sha256,suggestion:'Provision protected authority trust anchors and allowed payload hashes.'},
+ {id:'security_trust',area:'Signature and trust',source:'signature + trust_anchors',role:'Authenticates payload hash and signer identity before loading.',check:s=>s.trust.trust_anchors&&s.trust.trust_anchors.length>0&&s.bundle.signature&&s.bundle.signature.payload_sha256,suggestion:'Provision protected authority public verification keys and allowed payload hashes.'},
  {id:'device_l1',area:'Device and L1 evidence',source:'terminal_profile.l1_approval_reference',role:'Binds device/reader evidence to the submitted scope.',check:s=>externalStatus(s.bundle.payload?.terminal_profile?.l1_approval_reference)==='covered',status:s=>externalStatus(s.bundle.payload?.terminal_profile?.l1_approval_reference),suggestion:'Replace pre-lab placeholders with accepted L1/device references.'},
  {id:'pci_ped',area:'PCI/PED evidence',source:'terminal_profile.pci_pts_reference',role:'Binds PED-owned PIN and PCI PTS evidence to the target.',check:s=>externalStatus(s.bundle.payload?.terminal_profile?.pci_pts_reference)==='covered',status:s=>externalStatus(s.bundle.payload?.terminal_profile?.pci_pts_reference),suggestion:'Replace pre-lab placeholders with PCI/PED references.'},
  {id:'standards_bulletins',area:'Standards and bulletins',source:'standards_target',role:'Captures contact/contactless target versions and bulletin reconciliation.',check:s=>(s.bundle.payload?.standards_target?.bulletins_included||[]).length>0,suggestion:'Add the accepted standards-watch or bulletin set.'},
@@ -919,7 +924,7 @@ function applyGuidedToBundle(){const findings=[];const bundle=parseJson('bundle'
 function val(id){return document.getElementById(id).value}function set(id,v){document.getElementById(id).value=v??''}
 function required(findings,obj,path,title,suggestion){const parts=path.split('.');let cur=obj;for(const part of parts){cur=cur?.[part]}if(cur===undefined||cur===null||cur===''||(Array.isArray(cur)&&cur.length===0)){findings.push({severity:'error',field_path:path,title,impact:'Required bundle data is missing, so the runtime or certification report cannot use it.',suggestion})}}
 function lintState(s,findings){const b=s.bundle;required(findings,b,'schema_version','Missing schema version','Use hyperion-certification-bundle-1.0.');required(findings,b,'bundle_id','Missing bundle ID','Assign a stable identifier.');required(findings,b,'payload','Missing payload','Create a payload with scope, profiles, vectors, runtime policy, tests, and hashes.');required(findings,b,'signature','Missing signature','Sign the canonical payload and bind it to a trust anchor.');if(b.bundle_class==='TESTING')findings.push({severity:'warning',field_path:'bundle_class',title:'Testing bundle selected',impact:'Certification and production loaders reject testing bundles.',suggestion:'Use CERTIFICATION for submission bundles.'});if(Number(b.rollback_counter)<=1)findings.push({severity:'warning',field_path:'rollback_counter',title:'Rollback counter is low',impact:'A deployed terminal rejects counters not greater than the installed value.',suggestion:'Increase monotonically for every replacement bundle.'});for(const [path,value] of [['certification_target',b.payload?.submission_scope?.certification_target],['l1_approval_reference',b.payload?.terminal_profile?.l1_approval_reference],['pci_pts_reference',b.payload?.terminal_profile?.pci_pts_reference]]){if(classifyText(value))findings.push({severity:'warning',field_path:path,title:'External evidence reference remains pending',impact:'The bundle may compile for pre-lab use, but certification closure requires accepted evidence.',suggestion:'Attach accepted authority evidence and update this reference.'})}if(!s.trust.trust_anchors||!s.trust.trust_anchors.length)findings.push({severity:'error',field_path:'trust_anchors',title:'No trust anchors',impact:'The runtime cannot authenticate the payload.',suggestion:'Provision protected signer trust anchors.'});for(const [k,v] of Object.entries(s.timeouts)){if(!Number.isInteger(v)||v<1||v>60000)findings.push({severity:'error',field_path:'runtime_policy.callback_timeouts.'+k,title:'Timeout outside allowed range',impact:'The Rust loader rejects callback timeouts outside 1..60000 ms.',suggestion:'Choose a bounded timeout in milliseconds.'})}if((b.payload?.runtime_policy?.trace_masking_policy||'').toLowerCase().indexOf('mask')<0)findings.push({severity:'error',field_path:'runtime_policy.trace_masking_policy',title:'Trace masking is not explicit',impact:'Reports and trace packs can leak sensitive card data.',suggestion:'Declare masking for PAN, track-equivalent data, cryptograms, PIN material, and sensitive TLVs.'})}
-async function compileBundle(applyGuided=true){if(applyGuided)applyGuidedToBundle();const findings=[];const s=readState(findings);lintState(s,findings);const coverage=capabilityDefinitions.map(def=>{let status='incomplete';try{status=def.status?def.status(s):(def.check(s)?'covered':'incomplete')}catch(e){status='incomplete'}return {...def,status}});for(const c of coverage){if(c.status==='incomplete')findings.push({severity:'error',field_path:c.source,title:c.area+' is incomplete',impact:c.role,suggestion:c.suggestion})}const bundleText=document.getElementById('bundle').value;let hash='unavailable';try{hash=await sha256Hex(bundleText)}catch(e){}const report={type:'hyperion-browser-bundle-compile-report',status:findings.some(f=>f.severity==='error')?'fail':(findings.some(f=>f.severity==='warning')||coverage.some(c=>c.status==='external_required')?'warn':'pass'),bundle_sha256:hash,findings,capability_coverage:coverage,browser_advisory:true,rust_authority:'cargo run --quiet --example krn_certification_bundle -- --lint --bundle <bundle> --trust-anchors <trust>'};render(report);localStorage.setItem('hyperion_bundle_workbench_bundle',bundleText);localStorage.setItem('hyperion_bundle_workbench_trust',document.getElementById('trust').value)}
+async function compileBundle(applyGuided=true){if(applyGuided)applyGuidedToBundle();const findings=[];const s=readState(findings);lintState(s,findings);const coverage=capabilityDefinitions.map(def=>{let status='incomplete';try{status=def.status?def.status(s):(def.check(s)?'covered':'incomplete')}catch(e){status='incomplete'}return {...def,status}});for(const c of coverage){if(c.status==='incomplete')findings.push({severity:'error',field_path:c.source,title:c.area+' is incomplete',impact:c.role,suggestion:c.suggestion})}const bundleText=document.getElementById('bundle').value;let hash='unavailable';try{hash=await sha256Hex(bundleText)}catch(e){}const report={type:'hyperion-browser-bundle-compile-report',status:findings.some(f=>f.severity==='error')?'fail':(findings.some(f=>f.severity==='warning')||coverage.some(c=>c.status==='external_required')?'warn':'pass'),bundle_sha256:hash,findings,capability_coverage:coverage,browser_advisory:true,rust_authority:'cargo run --quiet --example krn_certification_bundle -- --lint --bundle <bundle> --trust-anchors <trust>'};render(report);localStorage.setItem('hyperion_bundle_workbench_bundle',bundleText);localStorage.removeItem('hyperion_bundle_workbench_trust')}
 function render(report){document.getElementById('compiled_bundle').value=document.getElementById('bundle').value;document.getElementById('compiled_report').value=JSON.stringify(report,null,2);const pill=document.getElementById('status-pill');pill.textContent='Status: '+report.status;pill.className='status-pill status-'+report.status;document.getElementById('finding-count').textContent=String(report.findings.length);document.getElementById('coverage-count').textContent=String(report.capability_coverage.length);document.getElementById('hash-prefix').textContent=report.bundle_sha256.slice(0,12);document.getElementById('external-count').textContent=String(report.capability_coverage.filter(c=>c.status==='external_required').length);document.getElementById('findings').innerHTML=report.findings.length?report.findings.map(f=>`<div class="finding"><div class="top"><strong>${esc(f.title)}</strong><span class="severity sev-${esc(f.severity)}">${esc(f.severity)}</span></div><div><code>${esc(f.field_path)}</code></div><p>${esc(f.impact)}</p><p><b>Suggestion:</b> ${esc(f.suggestion)}</p></div>`).join(''):'<p>No findings.</p>';document.getElementById('coverage-body').innerHTML=report.capability_coverage.map(c=>`<tr><td><code>${esc(c.id)}</code></td><td>${esc(c.area)}</td><td><span class="tag ${esc(c.status)}">${esc(c.status)}</span></td><td><code>${esc(c.source)}</code></td><td>${esc(c.role)}</td><td>${esc(c.suggestion)}</td></tr>`).join('')}
 function esc(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 function resetFixture(){document.getElementById('bundle').value=initialBundleText;document.getElementById('trust').value=initialTrustText;syncFromJson()}
@@ -927,7 +932,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>
 document.getElementById('field-help').innerHTML=help.map(h=>`<div class="help"><b>${esc(h.field)}</b><dl><dt>Role</dt><dd>${esc(h.role)}</dd><dt>Impact</dt><dd>${esc(h.impact)}</dd><dt>Used by</dt><dd>${esc(h.used)}</dd><dt>Security</dt><dd>${esc(h.security)}</dd></dl></div>`).join('');
 for(const id of ['bundle','trust'])document.getElementById(id).addEventListener('input',()=>compileBundle(false));
 for(const id of ['scheme_profile','vector_bundle','bundle_id','bundle_class','rollback_counter','product_name','product_version','certification_target','interfaces','authorities','bulletins_included','apdu_timeout','host_timeout','pin_timeout','ui_timeout','l1_ref','pci_ref'])document.getElementById(id).addEventListener('input',()=>compileBundle(true));
-const savedBundle=localStorage.getItem('hyperion_bundle_workbench_bundle');const savedTrust=localStorage.getItem('hyperion_bundle_workbench_trust');if(savedBundle)document.getElementById('bundle').value=savedBundle;if(savedTrust)document.getElementById('trust').value=savedTrust;syncFromJson();
+const savedBundle=localStorage.getItem('hyperion_bundle_workbench_bundle');localStorage.removeItem('hyperion_bundle_workbench_trust');if(savedBundle)document.getElementById('bundle').value=savedBundle;syncFromJson();
 </script></body></html>
 "#);
     out
@@ -1074,6 +1079,25 @@ fn lint_parsed_bundle(
             "Add hash bindings for every certification artifact before freezing the submission.",
         );
     }
+    match certification_vector_bundle_status(&bundle.payload.vector_bundle_json) {
+        "covered" => {}
+        "external_required" => push_finding(
+            report,
+            BundleLintSeverity::Warning,
+            "payload.vector_bundle_json",
+            "Certification vector bundle is still fixture or empty data",
+            "The bundle can be linted for pre-lab flow, but fixture, pending, structural, or empty vector data cannot close ODA certification coverage.",
+            "Replace the vector bundle with authority/lab supplied CERTIFICATION data containing non-empty SDA, DDA, and CDA cases before final submission.",
+        ),
+        _ => push_finding(
+            report,
+            BundleLintSeverity::Error,
+            "payload.vector_bundle_json",
+            "Vector bundle is malformed or incomplete",
+            "ODA coverage cannot be assessed because the vector bundle does not have a supported schema shape.",
+            "Provide a JSON object with vector_class and non-empty cases or test_vectors arrays.",
+        ),
+    }
 }
 
 fn lint_pending_text(report: &mut BundleCompileReport, field_path: &str, value: &str) {
@@ -1106,16 +1130,14 @@ fn lint_trust_anchors(
         );
     }
     for (idx, anchor) in anchors.iter().enumerate() {
-        if anchor.verification_secret_hex
-            == "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
-        {
+        if anchor.verification_public_key_hex == default_fixture_public_key_hex().as_str() {
             push_finding(
                 report,
                 BundleLintSeverity::Warning,
-                &format!("trust_anchors[{idx}].verification_secret_hex"),
-                "Fixture signing secret is still present",
-                "The checked-in fixture key is deterministic and must never protect production or certification submissions.",
-                "Generate and custody a submission-specific trust anchor outside the repository fixture.",
+                &format!("trust_anchors[{idx}].verification_public_key_hex"),
+                "Fixture verification key is still present",
+                "The checked-in fixture public key identifies a deterministic local signing key and must not be used for production or final certification submissions.",
+                "Generate and custody a submission-specific signing key outside the repository fixture and provision only its public verification key here.",
             );
         }
         if let Some(not_after) = anchor.not_after {
@@ -1193,6 +1215,8 @@ fn emv_capability_coverage(loaded: &LoadedCertificationBundle) -> Vec<EmvCapabil
         .artifact_hashes
         .iter()
         .any(|artifact| artifact.artifact_id == "vector_bundle_json");
+    let vector_bundle_status =
+        certification_vector_bundle_status(&bundle.payload.vector_bundle_json);
     let has_profile_binding = bundle
         .payload
         .artifact_hashes
@@ -1207,7 +1231,7 @@ fn emv_capability_coverage(loaded: &LoadedCertificationBundle) -> Vec<EmvCapabil
         coverage_item("contact_l2", "Contact EMV L2", "Binds contact interface, contact kernel type, TAC/IAC, DOL, CVM, TRM, and scripts to profile data.", "payload.submission_scope.interfaces + scheme_profile_set_json", has_contact_scope && has_contact_aid && has_contact_kernel, "Add contact to the claimed interfaces and include contact AID/profile material with contact_kernel_type."),
         coverage_item("contactless_c8", "Contactless Kernel C-8", "Binds contactless scope to C-8 package data, TTQ/CVM limits, relay resistance, and masked traces.", "payload.kernel_registry + scheme_profile_set_json", has_contactless_scope && has_contactless_aid && has_contactless_kernel, "Add a contactless kernel registry entry and contactless AID profile data for every claimed scheme."),
         coverage_item("capk_authority", "CAPK authority data", "Supplies RID/index public keys, expiry, checksums, and provenance for ODA validation.", "payload.scheme_profile_set_json.schemes[].capks", has_capk, "Attach accepted CAPK material with checksums and authority provenance."),
-        coverage_item("oda_vectors", "SDA/DDA/CDA and ODA vectors", "Binds cryptographic vector evidence and CDA request behavior to bundle hashes.", "payload.vector_bundle_json + payload.artifact_hashes", has_cda && has_vector_binding, "Attach lab or scheme ODA vectors and bind their hash in artifact_hashes."),
+        coverage_status_item("oda_vectors", "SDA/DDA/CDA and ODA vectors", "Binds cryptographic vector evidence and CDA request behavior to bundle hashes.", "payload.vector_bundle_json + payload.artifact_hashes", if has_cda && has_vector_binding { vector_bundle_status } else { "incomplete" }, "Attach lab or scheme ODA vectors with non-empty SDA, DDA, and CDA cases and bind their hash in artifact_hashes."),
         coverage_item("cvm_pin", "CVM and PIN integration", "Controls CVM limits, CDCVM support, extension codes, and PED-owned offline PIN behavior.", "payload.cvm_extensions + scheme_profile_set_json.aids", has_cvm, "Add CVM limits, certified CVM code handling, and PED integration evidence."),
         coverage_item("trm", "Terminal risk management", "Drives floor limits, random selection, transaction type limits, and offline counters from profile data.", "payload.scheme_profile_set_json.aids[].trm", has_trm, "Add floor limits, random selection settings, and offline counter bounds for the target schemes."),
         coverage_item("taa", "Terminal action analysis", "Keeps TAC/IAC policy in signed profile data rather than compiled constants.", "payload.scheme_profile_set_json.schemes[].taa", !profile.schemes.is_empty(), "Attach scheme-approved TAC/IAC profile material."),
@@ -1221,6 +1245,45 @@ fn emv_capability_coverage(loaded: &LoadedCertificationBundle) -> Vec<EmvCapabil
         coverage_item("evidence_freeze", "Evidence freeze and reports", "Binds test plan, artifact hashes, fingerprints, and report pack outputs for reproducible submissions.", "payload.test_plan + payload.artifact_hashes", !bundle.payload.test_plan.is_empty() && has_profile_binding && has_vector_binding, "Bind every external report, trace pack, vector set, profile, and submitted binary by hash."),
         coverage_item("trace_privacy", "Trace privacy", "Requires masked APDU traces and prevents sensitive data from becoming report content.", "payload.runtime_policy.trace_masking_policy", bundle.payload.runtime_policy.trace_masking_policy.to_ascii_lowercase().contains("mask"), "Use the repository masking policy and audit trace packs before submission."),
     ]
+}
+
+fn certification_vector_bundle_status(vector_json: &str) -> &'static str {
+    let Ok(root) = JsonParser::new(vector_json.as_bytes()).parse() else {
+        return "incomplete";
+    };
+    let Ok(object) = root.as_object() else {
+        return "incomplete";
+    };
+    let Ok(vector_class) = required_string(object, "vector_class") else {
+        return "incomplete";
+    };
+    let lower = vector_json.to_ascii_lowercase();
+    if vector_class != "CERTIFICATION"
+        || lower.contains("fixture")
+        || lower.contains("pending")
+        || lower.contains("placeholder")
+    {
+        return "external_required";
+    }
+    let case_count = object
+        .get("cases")
+        .and_then(|value| value.as_array().ok())
+        .map_or(0, |items| items.len());
+    let test_vector_count = object
+        .get("test_vectors")
+        .and_then(|value| value.as_array().ok())
+        .map_or(0, |items| items.len());
+    if case_count == 0 && test_vector_count == 0 {
+        return "external_required";
+    }
+    let sda = lower.contains("sda");
+    let dda = lower.contains("dda");
+    let cda = lower.contains("cda");
+    if sda && dda && cda {
+        "covered"
+    } else {
+        "external_required"
+    }
 }
 
 fn payload_capability_coverage(bundle: &CertificationBundle) -> Vec<EmvCapabilityCoverage> {
@@ -1505,15 +1568,20 @@ fn verify_bundle_signature(
     if anchor.allowed_payload_sha256 != to_hex(payload_sha256) {
         return Err(KernelError::InvalidProfile);
     }
-    let expected = signature_mac_hex(
+    let verification_key = verifying_key_from_hex(&anchor.verification_public_key_hex)?;
+    let public_key_bytes = verification_key.to_bytes();
+    if to_hex(&sha256(&public_key_bytes)) != bundle.signature.signing_key_fingerprint {
+        return Err(KernelError::InvalidProfile);
+    }
+    let signature = signature_from_hex(&bundle.signature.signature_hex)?;
+    let message = bundle_signature_message(
         &bundle.signature.signer_id,
         &bundle.signature.signing_key_fingerprint,
         payload_sha256,
-        &anchor.verification_secret_hex,
-    )?;
-    if expected != bundle.signature.signature_hex {
-        return Err(KernelError::InvalidProfile);
-    }
+    );
+    verification_key
+        .verify(&message, &signature)
+        .map_err(|_| KernelError::InvalidProfile)?;
     Ok("trust-anchor-verified")
 }
 
@@ -1746,12 +1814,18 @@ fn parse_signature(value: &JsonValue) -> KernelResult<BundleSignature> {
     )?;
     let payload_sha256 = required_clean_string(object, "payload_sha256")?.to_string();
     validate_hex_len(&payload_sha256, 32)?;
+    let algorithm = required_clean_string(object, "algorithm")?.to_string();
     let signature_hex = required_clean_string(object, "signature_hex")?.to_string();
-    validate_hex_len(&signature_hex, 32)?;
+    let signature_len = if algorithm == CERTIFICATION_BUNDLE_SIGNATURE_ALGORITHM {
+        64
+    } else {
+        32
+    };
+    validate_hex_len(&signature_hex, signature_len)?;
     let artifact_sha = required_clean_string(object, "signature_artifact_sha256")?.to_string();
     validate_hex_len(&artifact_sha, 32)?;
     Ok(BundleSignature {
-        algorithm: required_clean_string(object, "algorithm")?.to_string(),
+        algorithm,
         signer_id: required_clean_string(object, "signer_id")?.to_string(),
         signing_key_fingerprint: required_clean_string(object, "signing_key_fingerprint")?
             .to_string(),
@@ -1768,20 +1842,20 @@ fn parse_trust_anchor(value: &JsonValue) -> KernelResult<BundleTrustAnchor> {
         &[
             "signer_id",
             "signing_key_fingerprint",
-            "verification_secret_hex",
+            "verification_public_key_hex",
             "allowed_payload_sha256",
             "not_after",
         ],
     )?;
-    let secret = required_clean_string(object, "verification_secret_hex")?.to_string();
-    validate_hex_len(&secret, 32)?;
+    let public_key = required_clean_string(object, "verification_public_key_hex")?.to_string();
+    validate_hex_len(&public_key, 32)?;
     let allowed = required_clean_string(object, "allowed_payload_sha256")?.to_string();
     validate_hex_len(&allowed, 32)?;
     Ok(BundleTrustAnchor {
         signer_id: required_clean_string(object, "signer_id")?.to_string(),
         signing_key_fingerprint: required_clean_string(object, "signing_key_fingerprint")?
             .to_string(),
-        verification_secret_hex: secret,
+        verification_public_key_hex: public_key,
         allowed_payload_sha256: allowed,
         not_after: object
             .get("not_after")
@@ -1998,23 +2072,44 @@ fn push_signature_json(out: &mut String, signature: &BundleSignature) {
     out.push('}');
 }
 
-fn signature_mac_hex(
+fn signing_key_from_hex(secret_hex: &str) -> KernelResult<SigningKey> {
+    let secret = decode_hex(secret_hex)?;
+    let bytes: [u8; 32] = secret
+        .as_slice()
+        .try_into()
+        .map_err(|_| KernelError::InvalidProfile)?;
+    Ok(SigningKey::from_bytes(&bytes))
+}
+
+fn verifying_key_from_hex(public_key_hex: &str) -> KernelResult<VerifyingKey> {
+    let public_key = decode_hex(public_key_hex)?;
+    let bytes: [u8; 32] = public_key
+        .as_slice()
+        .try_into()
+        .map_err(|_| KernelError::InvalidProfile)?;
+    VerifyingKey::from_bytes(&bytes).map_err(|_| KernelError::InvalidProfile)
+}
+
+fn signature_from_hex(signature_hex: &str) -> KernelResult<Signature> {
+    let signature = decode_hex(signature_hex)?;
+    let bytes: [u8; 64] = signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| KernelError::InvalidProfile)?;
+    Ok(Signature::from_bytes(&bytes))
+}
+
+fn bundle_signature_message(
     signer_id: &str,
     fingerprint: &str,
     payload_sha256: &[u8; 32],
-    secret_hex: &str,
-) -> KernelResult<String> {
-    let secret = decode_hex(secret_hex)?;
-    if secret.len() != 32 {
-        return Err(KernelError::InvalidProfile);
-    }
+) -> Vec<u8> {
     let mut material = Vec::with_capacity(
         CERTIFICATION_BUNDLE_SIGNATURE_DOMAIN.len()
             + signer_id.len()
             + fingerprint.len()
             + payload_sha256.len()
-            + secret.len()
-            + 8,
+            + 6,
     );
     material.extend_from_slice(CERTIFICATION_BUNDLE_SIGNATURE_DOMAIN);
     material.push(0);
@@ -2023,9 +2118,23 @@ fn signature_mac_hex(
     material.extend_from_slice(fingerprint.as_bytes());
     material.push(0);
     material.extend_from_slice(payload_sha256);
-    material.push(0);
-    material.extend_from_slice(&secret);
-    Ok(to_hex(&sha256(&material)))
+    material
+}
+
+fn signature_ed25519_hex(
+    signing_key: &SigningKey,
+    signer_id: &str,
+    fingerprint: &str,
+    payload_sha256: &[u8; 32],
+) -> String {
+    let message = bundle_signature_message(signer_id, fingerprint, payload_sha256);
+    to_hex(&signing_key.sign(&message).to_bytes())
+}
+
+fn default_fixture_public_key_hex() -> String {
+    signing_key_from_hex(DEFAULT_FIXTURE_SIGNING_PRIVATE_KEY_HEX)
+        .map(|key| to_hex(&key.verifying_key().to_bytes()))
+        .unwrap_or_default()
 }
 
 fn parse_bundle_class(input: &str) -> KernelResult<BundleClass> {
@@ -2395,7 +2504,7 @@ mod tests {
             scheme_scope: "Test Scheme",
             vector_class: "TESTING",
             signer_id: "hyperion-local-test-authority",
-            verification_secret_hex: Some("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"),
+            signing_private_key_hex: Some(DEFAULT_FIXTURE_SIGNING_PRIVATE_KEY_HEX),
             trust_not_after: Some(EmvDate { year: 28, month: 1, day: 1 }),
             callback_timeouts: None,
             scheme_profile_set_json: PROFILE,

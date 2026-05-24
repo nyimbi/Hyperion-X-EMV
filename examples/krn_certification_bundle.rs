@@ -16,7 +16,8 @@ use std::process;
 
 const DEFAULT_PROFILE: &str = include_str!("../docs/scheme_profiles.cert.json");
 const DEFAULT_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
-const DEFAULT_SECRET_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+const DEFAULT_SIGNING_PRIVATE_KEY_HEX: &str =
+    "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
@@ -133,7 +134,7 @@ fn default_bundle_pair() -> io::Result<(String, String)> {
         scheme_scope: "Visa,Mastercard",
         vector_class: "PRELAB_FIXTURE_PENDING_CERTIFICATION_VECTORS",
         signer_id: "hyperion-local-bundle-authority",
-        verification_secret_hex: Some(DEFAULT_SECRET_HEX),
+        signing_private_key_hex: Some(DEFAULT_SIGNING_PRIVATE_KEY_HEX),
         trust_not_after: Some(EmvDate {
             year: 28,
             month: 1,

@@ -7546,8 +7546,8 @@ fn coverage_report_workflow_requires_100_percent_without_closing_cert_open_009()
     assert!(COVERAGE_SCRIPT.contains("coverage_tool_version"));
     assert!(COVERAGE_SCRIPT.contains("\"line_coverage_threshold\":100"));
     assert!(COVERAGE_SCRIPT.contains("\"does_not_close\":\"CERT-OPEN-009\""));
-    assert!(COVERAGE_WORKFLOW.contains("KRN_COVERAGE_ENFORCE=0"));
-    assert!(COVERAGE_WORKFLOW.contains("measurement_only_unreviewed"));
+    assert!(COVERAGE_WORKFLOW.contains("KRN_COVERAGE_ENFORCE=1"));
+    assert!(COVERAGE_WORKFLOW.contains("certification_candidate_unreviewed"));
     assert!(COVERAGE_WORKFLOW.contains("certification_candidate_unreviewed"));
     assert!(COVERAGE_WORKFLOW.contains("metadata.json"));
     assert!(COVERAGE_WORKFLOW.contains("coverage_audit.json"));
@@ -7607,7 +7607,7 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("cargo test --examples"));
     assert!(PRELAB_CI_WORKFLOW.contains("cargo clippy --all-targets --all-features -- -D warnings"));
     assert!(PRELAB_CI_WORKFLOW.contains("scripts/coverage_100.sh"));
-    assert!(PRELAB_CI_WORKFLOW.contains("KRN_COVERAGE_ENFORCE: \"0\""));
+    assert!(PRELAB_CI_WORKFLOW.contains("KRN_COVERAGE_ENFORCE: \"1\""));
     assert!(PRELAB_CI_WORKFLOW.contains("Audit coverage package"));
     assert!(PRELAB_CI_WORKFLOW.contains("krn_coverage_package_audit"));
     assert!(PRELAB_CI_WORKFLOW.contains("--require-package"));
@@ -7656,7 +7656,7 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("actions/upload-artifact@v7"));
     assert!(PRELAB_CI_WORKFLOW.contains("target/coverage"));
     assert!(COVERAGE_WORKFLOW.contains(".github/workflows/prelab.yml"));
-    assert!(COVERAGE_WORKFLOW.contains("pre-lab evidence"));
+    assert!(COVERAGE_WORKFLOW.contains("repository evidence"));
     assert!(PRELAB_QUALITY_GATES.contains(".github/workflows/prelab.yml"));
 }
 

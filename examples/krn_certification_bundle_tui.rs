@@ -11,7 +11,8 @@ use std::process;
 
 const DEFAULT_PROFILE: &str = include_str!("../docs/scheme_profiles.cert.json");
 const DEFAULT_VECTORS: &str = include_str!("../docs/oda_test_vectors.json");
-const DEFAULT_SECRET_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+const DEFAULT_SIGNING_PRIVATE_KEY_HEX: &str =
+    "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
 fn default_vector_bundle() -> String {
     format!(
@@ -54,7 +55,8 @@ fn run_tui(out_dir: &Path) -> io::Result<()> {
     )?;
     let firmware_version = prompt("Firmware version", "submitted-firmware-version-pending")?;
     let signer_id = prompt("Signer ID", "hyperion-local-bundle-authority")?;
-    let verification_secret_hex = prompt("Verification secret hex", DEFAULT_SECRET_HEX)?;
+    let signing_private_key_hex =
+        prompt("Signing private key hex", DEFAULT_SIGNING_PRIVATE_KEY_HEX)?;
     let vector_bundle = default_vector_bundle();
 
     let (bundle, anchors) = create_bundle_from_inputs(BundleProvisioningInput {
@@ -88,7 +90,7 @@ fn run_tui(out_dir: &Path) -> io::Result<()> {
         scheme_scope: "Visa,Mastercard",
         vector_class: "PRELAB_FIXTURE_PENDING_CERTIFICATION_VECTORS",
         signer_id: &signer_id,
-        verification_secret_hex: Some(&verification_secret_hex),
+        signing_private_key_hex: Some(&signing_private_key_hex),
         trust_not_after: Some(EmvDate {
             year: 28,
             month: 1,
