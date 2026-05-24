@@ -1651,6 +1651,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("attachments/CERT-OPEN-*"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("attachment_slot_guide.md"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("attachment_audit.html"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("workspace_inventory.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Basic PoS integration example"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_basic_pos"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("public standards-watch manifest"));
@@ -6898,6 +6899,8 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("ATTACHMENT-SLOTS"));
     assert!(CERTIFICATION_REPORT_PACK.contains("attachment_audit.html"));
     assert!(CERTIFICATION_REPORT_PACK.contains("certification_attachment_audit.json"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("WORKSPACE-INVENTORY"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("workspace_inventory.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_certification_attachment_audit"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_basic_pos"));
     assert!(CERTIFICATION_REPORT_UI.contains("Hyperion Certification Workbench"));
@@ -6921,6 +6924,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(README.contains("krn_certification_workspace"));
     assert!(README.contains("audit dashboard"));
     assert!(README.contains("attachment-slot guide"));
+    assert!(README.contains("workspace file hash inventory"));
     assert!(README.contains("krn_basic_pos"));
     assert!(!CERTIFICATION_REPORT_PACK.contains("certified\":true"));
 }

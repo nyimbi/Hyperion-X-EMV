@@ -247,9 +247,11 @@ Use `krn_certification_workspace` to create the local report-production
 workspace. It creates empty `attachments/CERT-OPEN-*` directories, writes an
 attachment-slot guide, emits `attachment_audit.html`, and emits
 `certification_attachment_audit.json` and `certification_attachment_audit.md`
-against that staging area. Empty slots remain `missing`; files staged there
-become `present_unreviewed` until an accepted authority or reviewer closes the
-matching external gate.
+against that staging area. It also emits `workspace_inventory.json` and
+`workspace_inventory.md` so reviewers can check file size and SHA-256 values
+for generated workspace artifacts before packaging. Empty slots remain
+`missing`; files staged there become `present_unreviewed` until an accepted
+authority or reviewer closes the matching external gate.
 
 Treat the freeze manifest as the submitted-build binding surface. It records
 pending SHA-256 slots for the kernel binary, signed configuration, CAPK bundle,
@@ -289,6 +291,7 @@ Before a certification-facing submission, confirm:
 - `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` produces the complete local report-production workspace.
 - `target/hyperion-cert-workspace/attachments/CERT-OPEN-*` is the generated staging layout for external evidence attachments.
 - `target/hyperion-cert-workspace/attachment_audit.html` is the generated local dashboard for slot status and attachment hashes.
+- `target/hyperion-cert-workspace/workspace_inventory.json` and `.md` are the generated size/SHA-256 inventory for local workspace files.
 - `cargo run --quiet --example krn_basic_pos` completes the basic scripted PoS integration.
 - `cargo fmt --check` passes.
 - `cargo clippy --all-targets --all-features -- -D warnings` passes.

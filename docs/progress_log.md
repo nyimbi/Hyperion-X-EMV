@@ -5557,3 +5557,22 @@ decision record, while this file tracks work toward certification readiness.
   and report-pack drift checks, workspace smoke with `attachment_audit.html`
   existence/readback, attachment audit smoke, basic PoS smoke, and
   `git diff --check`.
+
+## 2026-05-24T03:09:00Z
+
+- Increment completed: add a generated workspace file inventory for the
+  certification report-production bundle.
+- Tooling impact: `krn_certification_workspace` now emits
+  `workspace_inventory.json` and `workspace_inventory.md` with expected
+  workspace paths, categories, file/directory status, file sizes, and SHA-256
+  hashes. The inventory explicitly excludes its own files and
+  `workspace_manifest.json` to avoid self-referential hash closure.
+- Evidence scope: this is a local workspace hash inventory only. External lab,
+  scheme, device, PCI/PED, assessor, submitted-build, and approval gates remain
+  open until accepted external artifacts are attached and reviewed.
+- Verification: targeted workspace and traceability tests passed after
+  regenerating report pack JSON/Markdown/UI artifacts. Full verification passed
+  with `cargo fmt --check`, `cargo test`, `cargo test --examples`, `cargo
+  clippy --all-targets --all-features -- -D warnings`, quality-manifest and
+  report-pack drift checks, workspace smoke with inventory readback,
+  attachment audit smoke, basic PoS smoke, and `git diff --check`.

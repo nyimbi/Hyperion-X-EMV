@@ -190,6 +190,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "UI and hash inventory only; accepted external evidence remains required",
     },
     ReportArtifact {
+        id: "WORKSPACE-INVENTORY",
+        title: "Certification workspace file inventory",
+        path: "target/hyperion-cert-workspace/workspace_inventory.json; target/hyperion-cert-workspace/workspace_inventory.md",
+        category: "reporting",
+        generator: "cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace",
+        status: "workspace-generated",
+        boundary: "hash inventory for generated local workspace files only; external evidence acceptance remains required",
+    },
+    ReportArtifact {
         id: "FREEZE-MANIFEST",
         title: "Certification freeze manifest",
         path: "docs/certification_freeze_manifest.json; docs/certification_freeze_manifest.md",
@@ -319,7 +328,7 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         id: "WORKSPACE",
         title: "Generate complete certification workspace",
         command: "cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace",
-        output: "target/hyperion-cert-workspace/index.html and workspace_manifest.json",
+        output: "target/hyperion-cert-workspace/index.html, workspace_inventory.json, and workspace_manifest.json",
     },
     ToolCommand {
         id: "REPORT-JSON",

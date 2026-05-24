@@ -16,6 +16,7 @@ use hyperion_emv::freeze::{
 use hyperion_emv::integration::{
     certification_integration_report_plan_json, certification_integration_report_plan_markdown,
 };
+use hyperion_emv::provenance::{sha256, to_hex};
 use hyperion_emv::quality::{
     prelab_fuzz_seed_corpus_json, prelab_no_crash_smoke_json, prelab_quality_gates_json,
     prelab_static_fuzz_plan_json, public_standards_watch_json,
@@ -40,6 +41,23 @@ struct WorkspaceFile {
     category: &'static str,
     description: &'static str,
 }
+
+struct WorkspaceInventoryEntry {
+    id: &'static str,
+    path: &'static str,
+    category: &'static str,
+    description: &'static str,
+    kind: &'static str,
+    status: &'static str,
+    size_bytes: u64,
+    sha256: String,
+}
+
+const WORKSPACE_INVENTORY_EXCLUDED_PATHS: &[&str] = &[
+    "workspace_inventory.json",
+    "workspace_inventory.md",
+    "workspace_manifest.json",
+];
 
 const WORKSPACE_FILES: &[WorkspaceFile] = &[
     WorkspaceFile {
@@ -204,6 +222,18 @@ const WORKSPACE_FILES: &[WorkspaceFile] = &[
         path: "certification_integration_report_plan.md",
         category: "integration",
         description: "integration report and trace-pack control plan Markdown",
+    },
+    WorkspaceFile {
+        id: "WORKSPACE-INVENTORY-JSON",
+        path: "workspace_inventory.json",
+        category: "workbench",
+        description: "machine-readable hash inventory for generated workspace files",
+    },
+    WorkspaceFile {
+        id: "WORKSPACE-INVENTORY-MD",
+        path: "workspace_inventory.md",
+        category: "workbench",
+        description: "Markdown hash inventory for generated workspace files",
     },
     WorkspaceFile {
         id: "WORKSPACE-MANIFEST",
@@ -371,6 +401,17 @@ fn write_workspace(dir: &Path, abi_version: u32) -> io::Result<&Path> {
         "certification_integration_report_plan.md",
         &certification_integration_report_plan_markdown(abi_version),
     )?;
+    let inventory_entries = workspace_inventory_entries(dir)?;
+    write_file(
+        dir,
+        "workspace_inventory.json",
+        &certification_workspace_inventory_json(abi_version, &inventory_entries),
+    )?;
+    write_file(
+        dir,
+        "workspace_inventory.md",
+        &certification_workspace_inventory_markdown(abi_version, &inventory_entries),
+    )?;
     write_file(
         dir,
         "workspace_manifest.json",
@@ -381,6 +422,48 @@ fn write_workspace(dir: &Path, abi_version: u32) -> io::Result<&Path> {
 
 fn write_file(dir: &Path, name: &str, contents: &str) -> io::Result<()> {
     fs::write(dir.join(name), contents)
+}
+
+fn workspace_inventory_entries(dir: &Path) -> io::Result<Vec<WorkspaceInventoryEntry>> {
+    let mut entries = Vec::new();
+    for file in WORKSPACE_FILES {
+        if workspace_inventory_excludes(file.path) {
+            continue;
+        }
+
+        let path = dir.join(file.path);
+        let metadata = fs::metadata(&path)?;
+        if metadata.is_dir() {
+            entries.push(WorkspaceInventoryEntry {
+                id: file.id,
+                path: file.path,
+                category: file.category,
+                description: file.description,
+                kind: "directory",
+                status: "present",
+                size_bytes: 0,
+                sha256: "not-applicable".to_string(),
+            });
+            continue;
+        }
+
+        let bytes = fs::read(&path)?;
+        entries.push(WorkspaceInventoryEntry {
+            id: file.id,
+            path: file.path,
+            category: file.category,
+            description: file.description,
+            kind: "file",
+            status: "present",
+            size_bytes: bytes.len() as u64,
+            sha256: to_hex(&sha256(&bytes)),
+        });
+    }
+    Ok(entries)
+}
+
+fn workspace_inventory_excludes(path: &str) -> bool {
+    WORKSPACE_INVENTORY_EXCLUDED_PATHS.contains(&path)
 }
 
 fn kernel_result(value: KernelResult<String>) -> io::Result<String> {
@@ -431,7 +514,7 @@ fn attachment_slot_guide() -> String {
 }
 
 fn workspace_readme() -> String {
-    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nOpen attachment_audit.html to inspect staged evidence slot status and hashes.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nStage external artifacts under attachments/CERT-OPEN-* only after checking the\nartifact scope and sensitivity policy. Then regenerate or rerun the attachment\naudit so SHA-256 values are captured before review.\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
+    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nOpen attachment_audit.html to inspect staged evidence slot status and hashes.\nRead workspace_inventory.json or workspace_inventory.md for the generated\nworkspace file-size and SHA-256 inventory.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nStage external artifacts under attachments/CERT-OPEN-* only after checking the\nartifact scope and sensitivity policy. Then regenerate or rerun the attachment\naudit so SHA-256 values are captured before review.\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
         .to_string()
 }
 
@@ -522,6 +605,132 @@ fn attachment_audit_html(abi_version: u32, audit: &CertificationAttachmentAudit)
         out.push_str("</tbody></table></div></section>");
     }
     out.push_str("</main></body></html>\n");
+    out
+}
+
+fn certification_workspace_inventory_json(
+    abi_version: u32,
+    entries: &[WorkspaceInventoryEntry],
+) -> String {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(&mut out, "type", "certification-workspace-inventory");
+    out.push(',');
+    push_json_str(&mut out, "kernel_name", "Hyperion EMV Kernel");
+    out.push(',');
+    push_json_str(&mut out, "kernel_version", env!("CARGO_PKG_VERSION"));
+    out.push(',');
+    push_json_number(&mut out, "abi_version", abi_version as u64);
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "scope",
+        "file-size and SHA-256 inventory for generated local workspace artifacts",
+    );
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "boundary",
+        "workspace hash inventory only; external certification gates remain open",
+    );
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "exclusion_policy",
+        "self-referential inventory files and workspace_manifest.json are listed as exclusions",
+    );
+    out.push_str(",\"excluded_paths\":[");
+    for (idx, path) in WORKSPACE_INVENTORY_EXCLUDED_PATHS.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "path", path);
+        out.push(',');
+        push_json_str(
+            &mut out,
+            "reason",
+            "excluded to avoid self-referential or manifest-after-inventory hashing",
+        );
+        out.push('}');
+    }
+    out.push_str("],\"files\":[");
+    for (idx, entry) in entries.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        push_json_str(&mut out, "id", entry.id);
+        out.push(',');
+        push_json_str(&mut out, "path", entry.path);
+        out.push(',');
+        push_json_str(&mut out, "category", entry.category);
+        out.push(',');
+        push_json_str(&mut out, "kind", entry.kind);
+        out.push(',');
+        push_json_str(&mut out, "status", entry.status);
+        out.push(',');
+        push_json_number(&mut out, "size_bytes", entry.size_bytes);
+        out.push(',');
+        push_json_str(&mut out, "sha256", &entry.sha256);
+        out.push(',');
+        push_json_str(&mut out, "description", entry.description);
+        out.push('}');
+    }
+    out.push_str("]}\n");
+    out
+}
+
+fn certification_workspace_inventory_markdown(
+    abi_version: u32,
+    entries: &[WorkspaceInventoryEntry],
+) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "# Hyperion Certification Workspace Inventory");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "- Kernel version: {}", env!("CARGO_PKG_VERSION"));
+    let _ = writeln!(out, "- ABI version: {abi_version}");
+    let _ = writeln!(
+        out,
+        "- Scope: file-size and SHA-256 inventory for generated local workspace artifacts"
+    );
+    let _ = writeln!(
+        out,
+        "- Boundary: workspace hash inventory only; external certification gates remain open"
+    );
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Excluded Paths");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "| Path | Reason |");
+    let _ = writeln!(out, "| --- | --- |");
+    for path in WORKSPACE_INVENTORY_EXCLUDED_PATHS {
+        let _ = writeln!(
+            out,
+            "| `{path}` | excluded to avoid self-referential or manifest-after-inventory hashing |"
+        );
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Inventory");
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "| ID | Path | Category | Kind | Status | Size Bytes | SHA-256 | Description |"
+    );
+    let _ = writeln!(out, "| --- | --- | --- | --- | --- | --- | --- | --- |");
+    for entry in entries {
+        let _ = writeln!(
+            out,
+            "| {} | `{}` | {} | {} | {} | {} | `{}` | {} |",
+            entry.id,
+            entry.path,
+            entry.category,
+            entry.kind,
+            entry.status,
+            entry.size_bytes,
+            entry.sha256,
+            entry.description
+        );
+    }
     out
 }
 
@@ -670,22 +879,35 @@ mod tests {
         let manifest = fs::read_to_string(dir.join("workspace_manifest.json")).unwrap();
         let index = fs::read_to_string(dir.join("index.html")).unwrap();
         let audit_html = fs::read_to_string(dir.join("attachment_audit.html")).unwrap();
+        let inventory = fs::read_to_string(dir.join("workspace_inventory.json")).unwrap();
+        let inventory_markdown = fs::read_to_string(dir.join("workspace_inventory.md")).unwrap();
         let report = fs::read_to_string(dir.join("report_pack.json")).unwrap();
         assert!(manifest.contains("\"type\":\"certification-workspace-manifest\""));
         assert!(manifest.contains("\"entrypoint\":\"index.html\""));
         assert!(manifest.contains("\"CERT-OPEN-009\""));
         assert!(manifest.contains("certification_attachment_audit.json"));
         assert!(manifest.contains("attachment_audit.html"));
+        assert!(manifest.contains("workspace_inventory.json"));
         assert!(dir.join("attachments/CERT-OPEN-001").is_dir());
         assert!(dir.join("attachments/CERT-OPEN-012").is_dir());
         assert!(dir.join("attachment_slot_guide.md").exists());
         assert!(dir.join("certification_attachment_audit.json").exists());
         assert!(dir.join("attachment_audit.html").exists());
+        assert!(dir.join("workspace_inventory.json").exists());
+        assert!(dir.join("workspace_inventory.md").exists());
         assert!(index.contains("Hyperion Certification Workbench"));
         assert!(audit_html.contains("Hyperion Attachment Audit"));
         assert!(audit_html.contains("Report Workbench"));
         assert!(audit_html.contains("present unreviewed"));
         assert!(audit_html.contains("Hash inventory only"));
+        assert!(inventory.contains("\"type\":\"certification-workspace-inventory\""));
+        assert!(inventory.contains("\"path\":\"attachment_audit.html\""));
+        assert!(inventory.contains("\"sha256\""));
+        assert!(inventory.contains("\"path\":\"workspace_manifest.json\""));
+        assert!(inventory.contains("self-referential"));
+        assert!(inventory_markdown.contains("Hyperion Certification Workspace Inventory"));
+        assert!(inventory_markdown.contains("workspace_manifest.json"));
+        assert!(!inventory.contains("certified\":true"));
         assert!(report.contains("\"type\":\"certification-report-pack\""));
 
         fs::remove_dir_all(&dir).unwrap();

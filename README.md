@@ -32,7 +32,8 @@ tool results, and approval artifacts prevail over this repository on conflict.
   `docs/certification_report_pack.json`, and
   `docs/certification_report_pack.md`.
 - One-command local certification workspace:
-  `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace`.
+  `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace`
+  with a workspace manifest and generated file hash inventory.
 - Pre-lab CI workflow: `.github/workflows/prelab.yml`.
 - Session progress log: `docs/progress_log.md`.
 
@@ -287,7 +288,8 @@ controlled evidence:
   workspace with the static UI, report pack, evidence checklists, freeze
   manifest, security/device/integration plans, quality artifacts, ABI statement,
   empty `CERT-OPEN-*` attachment directories, attachment-slot guide, attachment
-  audit dashboard, audit exports, and workspace manifest.
+  audit dashboard, audit exports, workspace file hash inventory, and workspace
+  manifest.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
 - `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks

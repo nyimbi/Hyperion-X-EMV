@@ -173,12 +173,13 @@ controls for `CERT-OPEN-009` and `CERT-OPEN-012`.
 exports that index repository artifacts, pending external reports, evidence
 attachments, and the commands needed to regenerate evidence.
 `krn_certification_workspace` emits a complete local workspace with
-`index.html`, `workspace_manifest.json`, report-pack exports, evidence
-checklists, intake/freeze ledgers, security/device/integration plans, quality
-artifacts, the ABI statement, empty `attachments/CERT-OPEN-*` staging
-directories, an attachment-slot guide, `attachment_audit.html`, and attachment
-audit JSON/Markdown. Treat it as a review bundle; attach only accepted,
-hash-bound artifacts to a certification submission.
+`index.html`, `workspace_manifest.json`, `workspace_inventory.json`,
+`workspace_inventory.md`, report-pack exports, evidence checklists,
+intake/freeze ledgers, security/device/integration plans, quality artifacts,
+the ABI statement, empty `attachments/CERT-OPEN-*` staging directories, an
+attachment-slot guide, `attachment_audit.html`, and attachment audit
+JSON/Markdown. Treat it as a review bundle; attach only accepted, hash-bound
+artifacts to a certification submission.
 
 ## Trace Usage
 
