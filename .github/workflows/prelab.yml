@@ -76,6 +76,12 @@ jobs:
       - name: Certification freeze manifest Markdown drift
         run: cargo run --quiet --example krn_certification_freeze_manifest -- --markdown | diff -u docs/certification_freeze_manifest.md -
 
+      - name: Certification security assessment plan JSON drift
+        run: cargo run --quiet --example krn_certification_security_assessment_plan -- --json | diff -u docs/certification_security_assessment_plan.json -
+
+      - name: Certification security assessment plan Markdown drift
+        run: cargo run --quiet --example krn_certification_security_assessment_plan -- --markdown | diff -u docs/certification_security_assessment_plan.md -
+
       - name: Certification report UI drift
         run: cargo run --quiet --example krn_certification_report_ui -- --html | diff -u docs/certification_report_ui.html -
 

@@ -5273,3 +5273,24 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features -- -D warnings`, and
   `git diff --check` passed.
+
+## 2026-05-23T23:49:33Z
+
+- Increment completed: make `CERT-OPEN-008` assessor preparation auditable
+  without claiming the external security assessment is complete.
+- Code impact: adding a deterministic certification security assessment plan
+  generator and JSON/Markdown artifacts that map APDU injection,
+  state-machine bypass, trace leakage, profile tampering, PIN custody, ODA
+  material handling, issuer-script handling, and report-integrity review to
+  repository evidence and external assessor evidence requirements.
+- Evidence scope: the plan is a control checklist only. It preserves
+  `CERT-OPEN-008` and still requires an accepted third-party report with
+  finding disposition and retest evidence.
+- Verification: `cargo fmt`, targeted `cargo test` filters for security
+  assessment generation, lab manifest/provenance, ABI conformance, pre-lab
+  quality gates, certification report workbench, and pre-lab CI coverage gates;
+  generator drift checks for security assessment JSON/Markdown, quality gates,
+  ABI conformance, report pack JSON/Markdown, and report UI HTML;
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `git diff --check` passed.

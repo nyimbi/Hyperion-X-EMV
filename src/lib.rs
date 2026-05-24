@@ -29,6 +29,7 @@ pub mod quality;
 pub mod record;
 pub mod reporting;
 pub mod restrictions;
+pub mod security;
 pub mod selection;
 mod sha1;
 pub mod state;

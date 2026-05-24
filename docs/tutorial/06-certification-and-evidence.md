@@ -37,6 +37,8 @@ The repository can provide:
 - A generated certification evidence checklist that maps each open external
   blocker to required authorities, attachments, metadata, acceptance gates, and
   repository support.
+- A generated security assessment plan that maps `CERT-OPEN-008` review
+  surfaces to repository evidence and external assessor report requirements.
 - A static certification report workbench and JSON/Markdown report-pack exports.
 - Open issue tracking for missing external evidence.
 - A shared place for community review and test contributions.
@@ -208,6 +210,7 @@ Run the checklist generator whenever certification package contents change:
 cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_evidence_intake -- --out docs
 cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
+cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs
 ```
 
 The checklist JSON output is intended for tooling and the Markdown output is
@@ -236,6 +239,12 @@ pending SHA-256 slots for the kernel binary, signed configuration, CAPK bundle,
 scheme profile bundle, lab vector bundle, RTM/lab crosswalk, accepted quality
 reports, and signed approval package so a reviewer can tell exactly which
 artifact set was submitted.
+
+Treat the security assessment plan as the external-assessor control surface for
+`CERT-OPEN-008`. It groups APDU injection, state-machine bypass, trace leakage,
+profile tampering, PIN custody, ODA material handling, issuer-script handling,
+and report-integrity review with repository evidence and the outside report
+attachments still required before closure.
 
 ## Crowdsourced Certification Preparation
 

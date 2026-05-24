@@ -170,6 +170,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "submitted-build hash slots only; external acceptance remains required",
     },
     ReportArtifact {
+        id: "SECURITY-ASSESSMENT",
+        title: "Certification security assessment plan",
+        path: "docs/certification_security_assessment_plan.json; docs/certification_security_assessment_plan.md",
+        category: "security",
+        generator: "cargo run --quiet --example krn_certification_security_assessment_plan",
+        status: "generated",
+        boundary: "assessment plan only; external assessor report remains required",
+    },
+    ReportArtifact {
         id: "REPORT-PACK",
         title: "Certification report pack",
         path: "docs/certification_report_pack.json; docs/certification_report_pack.md",
@@ -290,6 +299,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         output: "docs/certification_freeze_manifest.json and .md",
     },
     ToolCommand {
+        id: "SECURITY",
+        title: "Emit certification security assessment plan",
+        command: "cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs",
+        output: "docs/certification_security_assessment_plan.json and .md",
+    },
+    ToolCommand {
         id: "POS",
         title: "Run basic scripted PoS integration",
         command: "cargo run --quiet --example krn_basic_pos",
@@ -319,6 +334,7 @@ pub fn certification_report_pack_json(abi_version: u32) -> String {
         "CERT-OPEN-005",
         "CERT-OPEN-006",
         "CERT-OPEN-007",
+        "CERT-OPEN-008",
         "CERT-OPEN-009",
         "CERT-OPEN-010",
         "CERT-OPEN-011",

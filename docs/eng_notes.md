@@ -308,9 +308,13 @@ and `docs/certification_evidence_intake.md` is the attachment-control surface
 for crowdsourced testing and lab package assembly. The generated freeze
 manifest in `docs/certification_freeze_manifest.json` and
 `docs/certification_freeze_manifest.md` is the submitted-build hash binding
-surface. Each `CERT-OPEN-*` row must carry an authority, attachment, hash,
-date, submitted-build scope, disposition, supersession history, and acceptance
-gate before the corresponding open issue can close.
+surface. The generated security assessment plan in
+`docs/certification_security_assessment_plan.json` and
+`docs/certification_security_assessment_plan.md` maps `CERT-OPEN-008` review
+surfaces to repository evidence and third-party assessor evidence requirements.
+Each `CERT-OPEN-*` row must carry an authority, attachment, hash, date,
+submitted-build scope, disposition, supersession history, and acceptance gate
+before the corresponding open issue can close.
 
 ---
 
