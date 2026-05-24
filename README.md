@@ -21,6 +21,8 @@ tool results, and approval artifacts prevail over this repository on conflict.
   `docs/requirements-traceability-matrix.csv`.
 - Public standards drift watch: `docs/standards_watch.md` and
   `docs/public_standards_watch.json`.
+- Tooling completeness audit: `docs/tooling_completeness_audit.json` and
+  `docs/tooling_completeness_audit.md`.
 - Certification evidence checklist: `docs/certification_evidence_checklist.json`
   and `docs/certification_evidence_checklist.md`.
 - Clean-room open-source reference review: `docs/open_source.md`.
@@ -232,6 +234,8 @@ cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_c
 cargo run --quiet --example krn_prelab_static_fuzz_plan | diff -u docs/prelab_static_fuzz_plan.json -
 cargo run --quiet --example krn_prelab_fuzz_seed_corpus | diff -u docs/prelab_fuzz_seed_corpus.json -
 cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
+cargo run --quiet --example krn_tooling_completeness_audit -- --json | diff -u docs/tooling_completeness_audit.json -
+cargo run --quiet --example krn_tooling_completeness_audit -- --markdown | diff -u docs/tooling_completeness_audit.md -
 ```
 
 The generated quality manifest is `docs/prelab_quality_gates.json`. It records
@@ -271,6 +275,9 @@ controlled evidence:
   manifest.
 - `krn_public_standards_watch`: emits the public standards-watch signal
   manifest.
+- `krn_tooling_completeness_audit`: emits JSON and Markdown audits showing
+  which repository-controlled tooling and verification mechanisms are present,
+  and which `CERT-OPEN-*` gates still require external evidence.
 - `krn_certification_evidence_checklist`: emits JSON and Markdown attachment
   checklists that map every `CERT-OPEN-*` blocker to the required external
   authority, artifact, metadata, acceptance gate, and repository support.
@@ -364,6 +371,10 @@ The `docs/` directory is part of the executable baseline:
   manifest.
 - `public_standards_watch.json`: generated public standards-watch signal
   manifest.
+- `tooling_completeness_audit.json`: generated repository-controlled tooling
+  completeness audit.
+- `tooling_completeness_audit.md`: generated Markdown tooling completeness
+  audit for pre-lab review.
 - `krn_variable_data_boundary_audit`: source audit utility that keeps
   scheme/profile/CAPK/TAC/IAC fixture literals out of production Rust code.
 - `certification_evidence_checklist.json`: generated external evidence

@@ -167,6 +167,8 @@ const GENERATED_FROM: &[&str] = &[
     "docs/prelab_static_fuzz_plan.json",
     "docs/prelab_fuzz_seed_corpus.json",
     "docs/public_standards_watch.json",
+    "docs/tooling_completeness_audit.json",
+    "docs/tooling_completeness_audit.md",
     "docs/certification_evidence_checklist.json",
     "docs/certification_evidence_checklist.md",
     "docs/certification_evidence_intake.json",

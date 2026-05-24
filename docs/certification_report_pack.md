@@ -180,6 +180,7 @@
 | STATIC-FUZZ-PLAN | Static and fuzz evidence plan | quality | `docs/prelab_static_fuzz_plan.json` | generated | `cargo run --quiet --example krn_prelab_static_fuzz_plan` | plan only; accepted reports remain external |
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | generated | `cargo run --quiet --example krn_prelab_fuzz_seed_corpus` | hash-only synthetic seed evidence |
 | STANDARDS-WATCH | Public standards watch | drift | `docs/public_standards_watch.json` | generated | `cargo run --quiet --example krn_public_standards_watch` | public drift signal only |
+| TOOLING-COMPLETENESS | Tooling completeness audit | quality | `docs/tooling_completeness_audit.json; docs/tooling_completeness_audit.md` | generated | `cargo run --quiet --example krn_tooling_completeness_audit` | repository-controlled tooling audit only; external certification evidence remains required |
 | EVIDENCE-CHECKLIST | Certification evidence attachment checklist | submission | `docs/certification_evidence_checklist.json; docs/certification_evidence_checklist.md` | generated | `cargo run --quiet --example krn_certification_evidence_checklist` | attachment checklist only; does not close external gates |
 | EVIDENCE-INTAKE | Certification evidence intake ledger | submission | `docs/certification_evidence_intake.json; docs/certification_evidence_intake.md` | generated | `cargo run --quiet --example krn_certification_evidence_intake` | attachment slots only; accepted external evidence remains required |
 | ATTACHMENT-SLOTS | Certification attachment slot workspace | submission | `target/hyperion-cert-workspace/attachments/CERT-OPEN-*; target/hyperion-cert-workspace/attachment_slot_guide.md` | workspace-generated | `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` | empty slots and operator guide only; attached files still require external review |
@@ -198,11 +199,11 @@
 | ID | Title | Category | Path | Size Bytes | SHA-256 |
 | --- | --- | --- | --- | --- | --- |
 | SPEC | Kernel specification | requirements | `docs/spec.md` | 26556 | `b2eb8c6da7327387270f34a131f49465f3b5410bf411c9fe9938e575c31bd238` |
-| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 17544 | `8f9788aa488484c5f225230374345803eb06586d3b64e56508e4ccb2446ef3e4` |
+| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 17621 | `23c942480088694c1bd165042fabd5b27355a5db4764e4719cde09395da80fe5` |
 | RTM-PRIMARY | Primary requirements traceability matrix | requirements | `docs/requirements_traceability.csv` | 80442 | `a40082389323c3b8774c804d25f78f1f6e72842f5f23e41f73c02cf4b119ef7c` |
 | RTM-COMPAT | Compatibility requirements traceability matrix | requirements | `docs/requirements-traceability-matrix.csv` | 82829 | `c9462424a1438d56ee5a97bbe4ab795b1ef93d77ccfe774607293298fa45b627` |
 | OPEN-ISSUES | Certification open issues register | submission | `docs/certification_open_issues.md` | 4529 | `c7fc37edf040a1fae97c91563c167b4e97a8610e81c2c78d1fd71b215a51d8b5` |
-| ABI | ABI conformance statement | conformance | `docs/abi_conformance_statement.json` | 6818 | `5f61ef9e6a81299b161de4dd9c98a79bca796bdc692bcf5961244e96bdd834c9` |
+| ABI | ABI conformance statement | conformance | `docs/abi_conformance_statement.json` | 6894 | `86781a385da1e59022c0b1ef306a35c1d636134d69cd61dcef319334a604f505` |
 | PROFILE-BUNDLE | Certification profile scaffold | configuration | `docs/scheme_profiles.cert.json` | 5424 | `8d67a1fc92061dfbfea39ebabc30ddd744998e7fe18789570c32a7b20b9d630f` |
 | PROFILE-DICTIONARY | Scheme profile dictionary | configuration | `docs/scheme_profile_dictionary.md` | 3532 | `641cf1551d6006d17ad2eb511dd34a255786ed6630f1adc0ec747cb74cdb2ca2` |
 | ODA-VECTORS | ODA structural vector annex | configuration | `docs/oda_test_vectors.json` | 3334 | `7156f876c0e7639768d15ed6e0522e13e750d8a0d96da0c899551c34af3ba22a` |
@@ -213,12 +214,14 @@
 | TRACE-PACK | Masked pre-lab APDU trace fixture | trace | `docs/prelab_apdu_trace_pack.jsonl` | 12154 | `e63c080e01a400262adfd4e05f5bf2be65fb8dfb5fe5b8834f8edefbd1d0d438` |
 | TRACE-AUDIT-JSON | Trace-pack audit JSON | trace | `docs/prelab_trace_pack_audit.json` | 1902 | `02b1ea6edd16609dd8cb9e1d0e6ef1dfba94785e56a7f5819a1d8d0fcddff4e4` |
 | TRACE-AUDIT-MD | Trace-pack audit Markdown | trace | `docs/prelab_trace_pack_audit.md` | 1095 | `2c5da076ff45e91efe3f4a4bdda70ac797045dfd758bd365603890cb6e5febb2` |
-| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 13232 | `58677172fc01a9c6549c97667d62c2cde5f16f8750694c1a5519cdffd7afd419` |
+| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 13896 | `4b237f54b53789a4a7d12425d82e3f589d5eff4984276ae81044c3c82b131fa6` |
 | NO-CRASH | Parser/APDU no-crash smoke artifact | quality | `docs/prelab_no_crash_smoke.json` | 3116 | `1a319359ff4bbcd6dbfa52add672c793d8e97dfca8adebf2b15b9230f56ff18d` |
 | STATIC-FUZZ-PLAN | Static and fuzz evidence plan | quality | `docs/prelab_static_fuzz_plan.json` | 3852 | `5627b0771442d45d124d1931003b713030cc5e39738a4c8553ad485c1cfd2c0a` |
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
 | PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 8198 | `9ab2e21422d09cc1e53418b98f205ec48c81b436b94d4496352822bbbdb09979` |
 | PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9948 | `d0b8a57e905dbea44bd17b066c2765f9b339bbea122b2843a251d08a870d12e3` |
+| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 22448 | `c5756c64be4d152ef762c3337cc9578ba7f423ee2d3fafa180397a21112650ae` |
+| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 18221 | `58349591bf16f5ef112140d51b853a13e98a9a35ed55c0f03458bebf1878ee8b` |
 | EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
 | EVIDENCE-CHECKLIST-MD | Certification evidence checklist Markdown | submission | `docs/certification_evidence_checklist.md` | 7575 | `197acd7da172825c1c363bcfad6a49875e753c0ba7bad50235f1880184ca2c91` |
 | EVIDENCE-INTAKE-JSON | Certification evidence intake JSON | submission | `docs/certification_evidence_intake.json` | 10601 | `8c87c282ac93157ba5d0a05812014061e775db04e6e1f9b6142a3201b532fca7` |
@@ -306,3 +309,4 @@
 | POS | Run basic scripted PoS integration | `cargo run --quiet --example krn_basic_pos` | `stdout JSON transaction summary` |
 | TIMEOUT-POLICY | Emit ABI callback timeout policy | `cargo run --quiet --example krn_callback_timeout_policy` | `stdout JSON timeout policy` |
 | VARIABLE-DATA-BOUNDARY | Audit production source variable-data boundary | `cargo run --quiet --example krn_variable_data_boundary_audit -- src` | `stdout JSON boundary audit` |
+| TOOLING-COMPLETENESS | Emit tooling completeness audit | `cargo run --quiet --example krn_tooling_completeness_audit -- --out docs` | `docs/tooling_completeness_audit.json and .md` |

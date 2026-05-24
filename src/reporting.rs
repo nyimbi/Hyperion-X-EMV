@@ -214,6 +214,20 @@ const CONTROLLED_REPORT_FILES: &[ControlledReportFile] = &[
         contents: include_bytes!("../docs/standards_watch.md"),
     },
     ControlledReportFile {
+        id: "TOOLING-COMPLETENESS-JSON",
+        title: "Tooling completeness audit JSON",
+        path: "docs/tooling_completeness_audit.json",
+        category: "quality",
+        contents: include_bytes!("../docs/tooling_completeness_audit.json"),
+    },
+    ControlledReportFile {
+        id: "TOOLING-COMPLETENESS-MD",
+        title: "Tooling completeness audit Markdown",
+        path: "docs/tooling_completeness_audit.md",
+        category: "quality",
+        contents: include_bytes!("../docs/tooling_completeness_audit.md"),
+    },
+    ControlledReportFile {
         id: "EVIDENCE-CHECKLIST-JSON",
         title: "Certification evidence checklist JSON",
         path: "docs/certification_evidence_checklist.json",
@@ -472,6 +486,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         generator: "cargo run --quiet --example krn_public_standards_watch",
         status: "generated",
         boundary: "public drift signal only",
+    },
+    ReportArtifact {
+        id: "TOOLING-COMPLETENESS",
+        title: "Tooling completeness audit",
+        path: "docs/tooling_completeness_audit.json; docs/tooling_completeness_audit.md",
+        category: "quality",
+        generator: "cargo run --quiet --example krn_tooling_completeness_audit",
+        status: "generated",
+        boundary: "repository-controlled tooling audit only; external certification evidence remains required",
     },
     ReportArtifact {
         id: "EVIDENCE-CHECKLIST",
@@ -734,6 +757,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Audit production source variable-data boundary",
         command: "cargo run --quiet --example krn_variable_data_boundary_audit -- src",
         output: "stdout JSON boundary audit",
+    },
+    ToolCommand {
+        id: "TOOLING-COMPLETENESS",
+        title: "Emit tooling completeness audit",
+        command: "cargo run --quiet --example krn_tooling_completeness_audit -- --out docs",
+        output: "docs/tooling_completeness_audit.json and .md",
     },
 ];
 

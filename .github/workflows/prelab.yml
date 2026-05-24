@@ -64,6 +64,13 @@ jobs:
       - name: Public standards watch drift
         run: cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
 
+      - name: Tooling completeness audit JSON drift
+        run: cargo run --quiet --example krn_tooling_completeness_audit -- --json | diff -u docs/tooling_completeness_audit.json -
+
+      - name: Tooling completeness audit Markdown drift
+        run: cargo run --quiet --example krn_tooling_completeness_audit -- --markdown | diff -u docs/tooling_completeness_audit.md -
+
+
       - name: Certification evidence checklist JSON drift
         run: cargo run --quiet --example krn_certification_evidence_checklist -- --json | diff -u docs/certification_evidence_checklist.json -
 

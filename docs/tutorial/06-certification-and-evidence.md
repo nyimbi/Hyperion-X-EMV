@@ -312,6 +312,7 @@ Before a certification-facing submission, confirm:
 - `cargo test --examples` passes.
 - `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` reproduces the current evidence checklist.
 - `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` produces the current report workbench.
+- `cargo run --quiet --example krn_tooling_completeness_audit -- --out docs` produces the repository-controlled tooling completeness audit.
 - `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` produces the complete local report-production workspace.
 - `target/hyperion-cert-workspace/attachments/CERT-OPEN-*` is the generated staging layout for external evidence attachments.
 - `target/hyperion-cert-workspace/attachment_audit.html` is the generated local dashboard for slot status and attachment hashes.

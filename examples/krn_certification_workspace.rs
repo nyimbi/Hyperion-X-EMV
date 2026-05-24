@@ -27,6 +27,7 @@ use hyperion_emv::reporting::{
 use hyperion_emv::security::{
     certification_security_assessment_plan_json, certification_security_assessment_plan_markdown,
 };
+use hyperion_emv::tooling::{tooling_completeness_audit_json, tooling_completeness_audit_markdown};
 use hyperion_emv::KernelResult;
 use std::env;
 use std::fmt::Write;
@@ -141,6 +142,18 @@ const WORKSPACE_FILES: &[WorkspaceFile] = &[
         path: "public_standards_watch.json",
         category: "drift",
         description: "public standards drift signal manifest",
+    },
+    WorkspaceFile {
+        id: "TOOLING-COMPLETENESS-JSON",
+        path: "tooling_completeness_audit.json",
+        category: "quality",
+        description: "machine-readable repository-controlled tooling completeness audit",
+    },
+    WorkspaceFile {
+        id: "TOOLING-COMPLETENESS-MD",
+        path: "tooling_completeness_audit.md",
+        category: "quality",
+        description: "reviewable repository-controlled tooling completeness audit",
     },
     WorkspaceFile {
         id: "EVIDENCE-CHECKLIST-JSON",
@@ -354,6 +367,16 @@ fn write_workspace(dir: &Path, abi_version: u32) -> io::Result<&Path> {
         dir,
         "public_standards_watch.json",
         &public_standards_watch_json(),
+    )?;
+    write_file(
+        dir,
+        "tooling_completeness_audit.json",
+        &tooling_completeness_audit_json(abi_version),
+    )?;
+    write_file(
+        dir,
+        "tooling_completeness_audit.md",
+        &tooling_completeness_audit_markdown(abi_version),
     )?;
     write_file(
         dir,
