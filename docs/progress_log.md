@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T04:44:38Z
+
+- Increment completed: make open certification gates a first-class report-pack
+  and workbench surface.
+- Tooling impact: `krn_certification_report_ui` now emits `open_gates` in the
+  JSON report pack, an Open Certification Gates section in the Markdown export,
+  and a Gates tab in the static HTML UI so report producers can review
+  blockers directly instead of inferring them from attachment rows.
+- Evidence impact: README and the Hyperion usage tutorial now describe the
+  gate-review view, while generated report-pack artifacts preserve the explicit
+  non-approval boundary for all `CERT-OPEN-*` rows.
+- Verification: focused reporting and traceability tests, report-pack
+  JSON/Markdown/HTML drift checks, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, certification workspace smoke, basic PoS smoke,
+  clippy with all targets/features and warnings as failures, and
+  `git diff --check` passed locally.
+- Remaining risk: this is report-production tooling only; every gate still
+  requires accepted external evidence before closure.
+
 ## 2026-05-24T02:25:04Z
 
 - Increment completed: add a certification attachment audit tool for

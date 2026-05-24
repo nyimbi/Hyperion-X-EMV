@@ -179,7 +179,8 @@ integration-report, Level 3/acquirer reconciliation, and masked trace-pack
 controls for `CERT-OPEN-009` and `CERT-OPEN-012`.
 `krn_certification_report_ui` emits a static workbench and JSON/Markdown
 exports that index repository artifacts, pending external reports, evidence
-attachments, and the commands needed to regenerate evidence.
+attachments, open certification gates, and the commands needed to regenerate
+evidence.
 `krn_certification_workspace` emits a complete local workspace with
 `index.html`, `workspace_manifest.json`, `workspace_inventory.json`,
 `workspace_inventory.md`, report-pack exports, evidence checklists,

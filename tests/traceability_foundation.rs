@@ -6977,6 +6977,11 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("\"evidence_requirements\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("CERT-REPORT-COVERAGE"));
     assert!(CERTIFICATION_REPORT_PACK.contains("coverage metadata JSON"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"open_gates\""));
+    assert!(CERTIFICATION_REPORT_PACK.contains("\"open_issue\":\"CERT-OPEN-009\""));
+    assert!(
+        CERTIFICATION_REPORT_PACK.contains("100% unit coverage report plus coverage metadata JSON")
+    );
     assert!(CERTIFICATION_REPORT_PACK.contains("CERT-OPEN-012"));
     assert!(CERTIFICATION_REPORT_PACK.contains("pending external attachment"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_certification_workspace"));
@@ -6994,10 +6999,13 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_UI.contains("Hyperion Certification Workbench"));
     assert!(CERTIFICATION_REPORT_UI.contains("Requirement Traceability"));
     assert!(CERTIFICATION_REPORT_UI.contains("requirement-body"));
+    assert!(CERTIFICATION_REPORT_UI.contains("Open Certification Gates"));
+    assert!(CERTIFICATION_REPORT_UI.contains("gate-body"));
     assert!(CERTIFICATION_REPORT_UI.contains("Evidence Attachment Checklist"));
     assert!(CERTIFICATION_REPORT_UI.contains("download-json"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Requirement Traceability"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Required External Reports"));
+    assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Open Certification Gates"));
     assert!(CERTIFICATION_REPORT_MARKDOWN.contains("Evidence Attachment Checklist"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification report workbench"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("evidence attachments"));
