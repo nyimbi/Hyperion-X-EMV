@@ -312,6 +312,12 @@ surface. The generated security assessment plan in
 `docs/certification_security_assessment_plan.json` and
 `docs/certification_security_assessment_plan.md` maps `CERT-OPEN-008` review
 surfaces to repository evidence and third-party assessor evidence requirements.
+The generated device evidence plan in
+`docs/certification_device_evidence_plan.json` and
+`docs/certification_device_evidence_plan.md` maps `CERT-OPEN-005`,
+`CERT-OPEN-006`, and `CERT-OPEN-007` to the external device, Level 1, PCI/PED,
+interface-scope, trace-identity, and report-package evidence that must be
+attached before those gates can close.
 Each `CERT-OPEN-*` row must carry an authority, attachment, hash, date,
 submitted-build scope, disposition, supersession history, and acceptance gate
 before the corresponding open issue can close.

@@ -12,6 +12,7 @@ pub mod cid;
 pub mod config;
 pub mod conformance;
 pub mod cvm;
+pub mod device;
 pub mod dol;
 pub mod error;
 pub mod evidence;

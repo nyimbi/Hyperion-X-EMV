@@ -82,6 +82,12 @@ jobs:
       - name: Certification security assessment plan Markdown drift
         run: cargo run --quiet --example krn_certification_security_assessment_plan -- --markdown | diff -u docs/certification_security_assessment_plan.md -
 
+      - name: Certification device evidence plan JSON drift
+        run: cargo run --quiet --example krn_certification_device_evidence_plan -- --json | diff -u docs/certification_device_evidence_plan.json -
+
+      - name: Certification device evidence plan Markdown drift
+        run: cargo run --quiet --example krn_certification_device_evidence_plan -- --markdown | diff -u docs/certification_device_evidence_plan.md -
+
       - name: Certification report UI drift
         run: cargo run --quiet --example krn_certification_report_ui -- --html | diff -u docs/certification_report_ui.html -
 

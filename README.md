@@ -270,6 +270,9 @@ controlled evidence:
 - `krn_certification_security_assessment_plan`: emits JSON and Markdown
   assessment controls for the external `CERT-OPEN-008` penetration test and
   architecture review.
+- `krn_certification_device_evidence_plan`: emits JSON and Markdown device,
+  Level 1, and PCI/PED evidence controls for `CERT-OPEN-005`,
+  `CERT-OPEN-006`, and `CERT-OPEN-007`.
 - `krn_certification_report_ui`: emits deterministic JSON, Markdown, and a
   static HTML workbench for report production and certification artifact review.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
@@ -292,6 +295,7 @@ cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_evidence_intake -- --out docs
 cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
 cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs
+cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs
 cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
 cargo run --quiet --example krn_basic_pos
 ```
@@ -333,6 +337,10 @@ The `docs/` directory is part of the executable baseline:
   security assessment control plan for `CERT-OPEN-008`.
 - `certification_security_assessment_plan.md`: generated Markdown security
   assessment plan for external assessor review.
+- `certification_device_evidence_plan.json`: generated device, Level 1, and
+  PCI/PED evidence control plan.
+- `certification_device_evidence_plan.md`: generated Markdown device evidence
+  plan for certification package review.
 - `certification_report_pack.json`: generated report-pack index for artifact
   and external-report tracking.
 - `certification_report_pack.md`: generated Markdown report-pack export.

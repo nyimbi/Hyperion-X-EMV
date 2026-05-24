@@ -179,6 +179,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "assessment plan only; external assessor report remains required",
     },
     ReportArtifact {
+        id: "DEVICE-EVIDENCE",
+        title: "Certification device evidence plan",
+        path: "docs/certification_device_evidence_plan.json; docs/certification_device_evidence_plan.md",
+        category: "device",
+        generator: "cargo run --quiet --example krn_certification_device_evidence_plan",
+        status: "generated",
+        boundary: "device/L1/PED plan only; external approvals remain required",
+    },
+    ReportArtifact {
         id: "REPORT-PACK",
         title: "Certification report pack",
         path: "docs/certification_report_pack.json; docs/certification_report_pack.md",
@@ -303,6 +312,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Emit certification security assessment plan",
         command: "cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs",
         output: "docs/certification_security_assessment_plan.json and .md",
+    },
+    ToolCommand {
+        id: "DEVICE",
+        title: "Emit certification device evidence plan",
+        command: "cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs",
+        output: "docs/certification_device_evidence_plan.json and .md",
     },
     ToolCommand {
         id: "POS",

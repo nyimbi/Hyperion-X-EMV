@@ -5294,3 +5294,27 @@ decision record, while this file tracks work toward certification readiness.
   `cargo fmt --check`, `cargo test`, `cargo test --examples`,
   `cargo clippy --all-targets --all-features -- -D warnings`, and
   `git diff --check` passed.
+
+## 2026-05-24T00:07:23Z
+
+- Increment completed: make device, Level 1, and PCI/PED evidence
+  preparation auditable without claiming external device, L1, or PCI approval
+  closure.
+- Code impact: adding a deterministic certification device
+  evidence plan generator and JSON/Markdown artifacts that map target device,
+  firmware, contact/contactless L1, C-8 contactless device scope, PCI
+  PTS/PED, opaque PIN custody, interface scope, trace identity, and
+  freeze-manifest report binding to `CERT-OPEN-005`, `CERT-OPEN-006`, and
+  `CERT-OPEN-007`.
+- Evidence updated: the lab manifest, ABI conformance statement, pre-lab
+  quality gates, certification report pack/UI, README, tutorials, and CI drift
+  checks now include the device evidence plan while keeping the external
+  approval gates open.
+- Verification: `cargo fmt`, targeted `cargo test` filters for device evidence
+  generation, example output, lab manifest/provenance, ABI conformance,
+  pre-lab quality gates, certification report workbench, and pre-lab CI
+  coverage gates; generator drift checks for device JSON/Markdown, quality
+  gates, ABI conformance, report pack JSON/Markdown, and report UI HTML;
+  `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `git diff --check` passed.

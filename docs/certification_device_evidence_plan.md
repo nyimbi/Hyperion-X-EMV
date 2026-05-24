@@ -1,0 +1,31 @@
+# Hyperion Device, L1, and PED Evidence Plan
+
+- Kernel version: 0.1.0
+- ABI version: 2
+- Checked on: 2026-05-24
+- Scope: device, Level 1, and PED evidence plan for certification package assembly
+- Boundary: this plan does not close `CERT-OPEN-005`, `CERT-OPEN-006`, or `CERT-OPEN-007`; pending external device, L1, and PCI/PED evidence is still required.
+
+## Required Metadata
+| Field | Requirement |
+| --- | --- |
+| submitted_binary_hash | SHA-256 of the exact kernel binary installed on the device |
+| profile_bundle_hash | SHA-256 of the signed profile, CAPK, and configuration bundle |
+| device_model | terminal model, hardware revision, serial scope, OS image, and deployment configuration |
+| firmware_version | terminal firmware, reader firmware, OS image, and PED firmware versions in the submitted scope |
+| l1_approval_reference | contact and contactless Level 1 approval or accepted vendor/lab evidence reference |
+| pts_listing_or_assessment | PCI PTS POI listing, PCI-recognized assessment reference, or assessor-accepted equivalent |
+| interface_scope | claimed contact, contactless, fallback, and excluded interfaces with reason codes |
+| trace_identity | ABI version, profile version, profile SHA-256, trace-pack hash, device scope, and submitted build scope |
+
+## Evidence Requirements
+| ID | Area | Open Issues | Authority | Required Attachment | Required Metadata | Repository Support | Acceptance Gate |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| DEVICE-TARGET-SCOPE | target terminal identity | CERT-OPEN-006 | device vendor, integrator, acquirer, and laboratory | target terminal bill of materials, firmware inventory, OS image, and deployment configuration statement | device_model, submitted_binary_hash, profile_bundle_hash, firmware_version, configuration_version | docs/certification_freeze_manifest.json, examples/krn_build_manifest.rs, krn_get_profile_sha256 | device identity and firmware scope must match the submitted binary, profile bundle, and lab manifest |
+| DEVICE-CONTACT-L1 | contact interface Level 1 evidence | CERT-OPEN-006 | EMVCo Level 1 laboratory, device vendor, and integrator | contact reader L1 approval or accepted vendor/lab evidence tied to firmware and hardware revision | device_model, l1_approval_reference, firmware_version, validity_dates | apdu::tests::builds_exact_contact_pse_and_contactless_ppse_selects, ffi::tests::runtime_core_flow_resolves_gpo_record_and_gac_followups, examples/krn_cabi_script_adapter.rs | contact reader evidence must name the same device, firmware, binary, and contact interface scope as the submission |
+| DEVICE-CONTACTLESS-L1 | contactless reader and C-8 device evidence | CERT-OPEN-005, CERT-OPEN-006 | EMVCo contactless approval path, Level 1 laboratory, device vendor, and scheme/acquirer as applicable | contactless reader/L1 approval, selected C-8 contactless approval package, NFC firmware, and bulletin reconciliation | device_model, l1_approval_reference, c8_package_version, bulletin_set, firmware_version | src/c8.rs, docs/public_standards_watch.json, docs/prelab_apdu_trace_pack.jsonl | contactless evidence must match the selected C-8 package, device firmware, reader scope, and masked outcome traces |
+| DEVICE-PED-PTS | PCI PTS/PED approval evidence | CERT-OPEN-007 | PCI SSC, PCI-recognized laboratory, PED vendor, and security assessor | PCI PTS POI listing or accepted assessment evidence plus PED firmware and integration statement | device_model, pts_listing_or_assessment, firmware_version, pin_entry_mode | cvm::tests::offline_pin_requires_ped_owned_opaque_handle, trace::tests::replay_rejects_pin_verify_payload_custody, docs/certification_security_assessment_plan.json | PED evidence must prove PIN capture and PIN-block custody remain inside the approved PED boundary |
+| DEVICE-PIN-CUSTODY | opaque PIN handle integration | CERT-OPEN-007 | PED vendor, PCI assessor, and product security reviewer | integration review showing offline VERIFY status and online PIN handoff use opaque handles only | device_model, pin_handle_policy, verify_status_path, online_pin_boundary, trace_redaction_policy | src/cvm.rs, src/ffi.rs, cvm::tests::offline_pin_debug_redacts_ped_handle_values, traceability_foundation::krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles | kernel APIs and traces may expose only opaque handles, VERIFY status words, and CVM results, never clear PIN data |
+| DEVICE-INTERFACE-SCOPE | interface and fallback scope | CERT-OPEN-005, CERT-OPEN-006 | laboratory, scheme/acquirer, and integrator | claimed interface matrix naming contact, contactless, alternate-interface, fallback, and excluded paths | interface_scope, aid_set, kernel_mapping, alternate_interface_policy, excluded_interface_reason | config::tests::rejects_invalid_interface_kernel_mapping_and_duplicate_interfaces, ffi::tests::selected_kernel_mapping_is_interface_specific, c8::tests::outcome_model_bounds_records_and_alternate_interface_instruction | claimed interfaces must match signed profile mappings and no excluded interface may be reachable at runtime |
+| DEVICE-BUILD-BINDING | device-bound trace identity | CERT-OPEN-006, CERT-OPEN-012 | laboratory, acquirer, and submission owner | masked trace pack metadata tying device, firmware, ABI version, profile hash, and submitted binary hash together | device_model, submitted_binary_hash, profile_bundle_hash, trace_identity, firmware_version | docs/prelab_apdu_trace_pack.jsonl, trace::tests::replay_trace_identity_records_profile_version_and_hash_without_unmasking_data, ffi::tests::ffi_reports_loaded_profile_version_and_hash_for_log_identity | lab traces must be replayable, masked, and bound to the same submitted binary, profile, device, and firmware scope |
+| DEVICE-REPORT-PACKAGE | device evidence report package | CERT-OPEN-006, CERT-OPEN-007 | laboratory, acquirer, device vendor, PED vendor, and submission owner | accepted device, L1, PCI/PED, and integration reports tied to the certification freeze manifest | device_model, firmware_version, submitted_binary_hash, profile_bundle_hash, trace_identity | docs/certification_report_pack.json, docs/certification_freeze_manifest.json, docs/lab_submission_manifest.md | report package must agree with freeze-manifest hashes and leave no unresolved device, L1, or PED evidence mismatch |
