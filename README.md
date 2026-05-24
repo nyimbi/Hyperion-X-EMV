@@ -287,7 +287,8 @@ controlled evidence:
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
 - `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks
-  through host approval, issuer authentication, and final GENERATE AC.
+  through TRM random-selection sample registration, host approval, issuer
+  authentication, and final GENERATE AC.
 - `krn_emv_decode`: decodes lab-triage inputs while suppressing sensitive
   payload values by default.
 

@@ -1,7 +1,7 @@
 use hyperion_emv::ffi::{
     krn_context_free, krn_get_fsm_state, krn_get_last_error, krn_init, krn_load_profiles_verified,
-    krn_run_transaction, krn_set_transaction_params, KrnContext, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION,
+    krn_run_transaction, krn_set_transaction_params, krn_set_trm_random_selection_sample,
+    KrnContext, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
 };
 use hyperion_emv::KernelError;
 use std::ffi::c_void;
@@ -147,6 +147,10 @@ fn run_contact_online_script(adapter: &mut ScriptedApduAdapter) -> Result<Script
         require_ok(
             krn_set_transaction_params(guard.0, &params),
             "krn_set_transaction_params",
+        )?;
+        require_ok(
+            krn_set_trm_random_selection_sample(guard.0, 9_999),
+            "krn_set_trm_random_selection_sample",
         )?;
 
         let outcome = krn_run_transaction(guard.0);

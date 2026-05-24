@@ -139,6 +139,24 @@ TVR bit.
 > **KRN‑SCR‑006**: Script result reporting **SHALL** include phase, position,
 > optional identifier, and status words without exposing command bytes.
 
+## 4C. Terminal Risk Management Random Selection
+
+Terminal risk management random transaction selection SHALL be driven by the
+active signed scheme/AID profile. When that profile enables random selection,
+Level 3 SHALL provide an explicit certified-profile sample in basis points
+(`0..=9999`) for the transaction. The kernel SHALL reject a missing or
+out-of-range sample rather than silently treating the transaction as not
+selected.
+
+The kernel SHALL NOT generate its own uncertified random-selection sample
+inside the L2 boundary. If the sampling process, percentage, or seeding
+requirements vary by scheme, those details SHALL be captured in the accepted
+profile, integration evidence, and lab trace package.
+
+> **KRN‑TRM‑002**: Random transaction selection **SHALL** execute only from
+> profile-defined parameters and a bounded certified-profile sample supplied by
+> the integration layer.
+
 ---
 
 ## 5. Offline Data Authentication (ODA) – CDA Details

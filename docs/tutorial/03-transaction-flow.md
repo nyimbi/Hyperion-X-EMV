@@ -125,6 +125,12 @@ push the transaction online:
 - Velocity checking.
 - Merchant or exception conditions.
 
+When the active profile enables random transaction selection, Hyperion expects
+Level 3 to provide a bounded certified-profile sample for the transaction. A
+missing sample is treated as a profile/integration error, not as "not selected,"
+because silently bypassing random selection would make the certified TRM
+parameters unenforceable.
+
 These decisions set TSI and TVR state that later participates in terminal
 action analysis.
 

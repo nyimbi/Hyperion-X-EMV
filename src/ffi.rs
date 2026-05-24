@@ -3999,6 +3999,13 @@ mod tests {
         });
     }
 
+    unsafe fn set_test_trm_random_selection_sample(ctx: *mut KrnContext) {
+        assert_eq!(
+            krn_set_trm_random_selection_sample(ctx, 9_999),
+            KernelError::Ok.code()
+        );
+    }
+
     #[test]
     fn first_gac_cda_request_control_is_profile_defined() {
         let mut ctx = KrnContext::new();
@@ -4723,6 +4730,39 @@ mod tests {
         assert_eq!(run_terminal_action_analysis(&mut ctx, &profiles), Ok(()));
         assert_eq!(ctx.fsm_state, FsmState::S10);
         assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Arqc));
+    }
+
+    #[test]
+    fn trm_random_selection_requires_sample_when_profile_enables_it() {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.fsm_state = FsmState::S8;
+        ctx.state = KernelState::TerminalRiskManagement;
+        ctx.txn_params = Some(StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        });
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].floor_limit = 9_999;
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].random_selection_percent = 5;
+
+        let profiles = ctx.profiles.clone().unwrap();
+        let params = ctx.txn_params.clone().unwrap();
+        assert_eq!(
+            run_terminal_risk_management(&mut ctx, &profiles, &params).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert!(!ctx
+            .tvr
+            .is_set(Tvr::B4_RANDOM_TRANSACTION_SELECTION_PERFORMED));
+        assert!(!ctx.tsi.is_set(Tsi::TERMINAL_RISK_MANAGEMENT_PERFORMED));
     }
 
     #[test]
@@ -6491,6 +6531,7 @@ mod tests {
                 krn_set_transaction_params(ctx, &params),
                 KernelError::Ok.code()
             );
+            set_test_trm_random_selection_sample(ctx);
             TRANSMIT_COUNT.store(0, Ordering::SeqCst);
             assert_eq!(
                 krn_run_transaction(ctx),
@@ -6571,6 +6612,7 @@ mod tests {
                     krn_set_transaction_params(ctx, &params),
                     KernelError::Ok.code()
                 );
+                set_test_trm_random_selection_sample(ctx);
 
                 assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired.code());
                 assert_eq!(krn_get_last_error(ctx), KernelError::Ok.code());
@@ -6643,6 +6685,7 @@ mod tests {
                 krn_set_transaction_params(ctx, &params),
                 KernelError::Ok.code()
             );
+            set_test_trm_random_selection_sample(ctx);
 
             assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired.code());
             let ctx_ref = ctx.as_ref().unwrap();
@@ -6706,6 +6749,7 @@ mod tests {
                 krn_set_transaction_params(ctx, &params),
                 KernelError::Ok.code()
             );
+            set_test_trm_random_selection_sample(ctx);
 
             assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired.code());
             assert_eq!(krn_get_last_error(ctx), KernelError::Ok.code());
@@ -6840,6 +6884,7 @@ mod tests {
                 krn_set_transaction_params(ctx, &params),
                 KernelError::Ok.code()
             );
+            set_test_trm_random_selection_sample(ctx);
             TRANSMIT_COUNT.store(0, Ordering::SeqCst);
             assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired.code());
             assert_eq!(TRANSMITTED_INS.load(Ordering::SeqCst), 0xae);

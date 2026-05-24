@@ -133,6 +133,12 @@ sets sale parameters, routes APDUs through a scripted reader, sends ARQC data
 to a stub host, applies the host response, performs issuer authentication, and
 finishes with second GENERATE AC.
 
+If the active profile enables TRM random transaction selection, Level 3 must
+call `krn_set_trm_random_selection_sample` after
+`krn_set_transaction_params` for that transaction. The basic PoS example uses
+an explicit out-of-selection sample so the scripted sale demonstrates the
+integration contract without relying on hidden kernel randomness.
+
 ## Profile Usage
 
 Do not treat bundled example or fixture profiles as production authority.

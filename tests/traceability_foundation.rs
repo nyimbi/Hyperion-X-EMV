@@ -41,10 +41,11 @@ use hyperion_emv::ffi::{
     krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
     krn_set_additional_terminal_capabilities, krn_set_cvm_capabilities,
     krn_set_nonvolatile_offline_counter, krn_set_offline_pin_handle, krn_set_terminal_capabilities,
-    krn_set_terminal_transaction_qualifiers, krn_set_transaction_params, KrnConfigBlob, KrnOutcome,
-    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN,
-    KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN,
-    KRN_SCRIPT_PHASE_AFTER_FINAL_GAC, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
+    krn_set_terminal_transaction_qualifiers, krn_set_transaction_params,
+    krn_set_trm_random_selection_sample, KrnConfigBlob, KrnOutcome, KrnRuntime, KrnTxnParams,
+    KRN_ABI_VERSION, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
+    KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
+    KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
 };
 use hyperion_emv::freeze::{
     certification_freeze_manifest_json, certification_freeze_manifest_markdown,
@@ -127,6 +128,13 @@ const LAB_SUBMISSION_MANIFEST: &str = include_str!("../docs/lab_submission_manif
 const CERTIFICATION_OPEN_ISSUES: &str = include_str!("../docs/certification_open_issues.md");
 const STANDARDS_WATCH: &str = include_str!("../docs/standards_watch.md");
 const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
+
+unsafe fn set_traceability_trm_random_selection_sample(ctx: *mut hyperion_emv::ffi::KrnContext) {
+    assert_eq!(
+        krn_set_trm_random_selection_sample(ctx, 9_999),
+        hyperion_emv::KernelError::Ok.code()
+    );
+}
 const PRELAB_QUALITY_GATES: &str = include_str!("../docs/prelab_quality_gates.json");
 const PRELAB_NO_CRASH_SMOKE: &str = include_str!("../docs/prelab_no_crash_smoke.json");
 const PRELAB_STATIC_FUZZ_PLAN: &str = include_str!("../docs/prelab_static_fuzz_plan.json");
@@ -3541,8 +3549,12 @@ fn rtm_promotes_trm_floor_random_and_tsi_evidence() {
         assert!(random.contains("random_selection_is_deterministic_from_external_sample"));
         assert!(random.contains("rejects_invalid_profile_percent"));
         assert!(random.contains("rejects_out_of_range_random_selection_sample"));
+        assert!(
+            random.contains("random_selection_requires_external_sample_when_profile_enables_it")
+        );
         assert!(random.contains("krn_set_trm_random_selection_sample"));
         assert!(random.contains("trm_random_selection_sample_drives_online_handoff"));
+        assert!(random.contains("trm_random_selection_requires_sample_when_profile_enables_it"));
 
         let tsi = csv_row_for_requirement(csv, "KRN-TRM-004").unwrap();
         assert!(tsi.contains("evaluates_floor_exception_velocity_random_and_merchant_bits"));
@@ -4914,6 +4926,7 @@ fn krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks()
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
         assert_eq!(krn_get_fsm_state(ctx), FsmState::S1.code());
 
         assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
@@ -5184,6 +5197,7 @@ fn krn_api_007_err_002_preserves_callback_error_codes_fail_closed() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
 
         assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error as i32);
         assert_eq!(
@@ -5300,6 +5314,7 @@ fn krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
         assert_eq!(
             krn_set_offline_pin_handle(ctx, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, 42),
             hyperion_emv::KernelError::Ok.code()
@@ -5442,6 +5457,7 @@ unsafe fn run_cvm_capability_transaction(
         krn_set_transaction_params(ctx, &params),
         hyperion_emv::KernelError::Ok.code()
     );
+    set_traceability_trm_random_selection_sample(ctx);
     assert_eq!(
         krn_set_cvm_capabilities(ctx, 2, 0, 0),
         hyperion_emv::KernelError::InvalidArgument.code()
@@ -5561,6 +5577,7 @@ fn krn_termcap_001_supplies_9f33_to_pdol_and_online_handoff() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
         assert_eq!(
             krn_set_terminal_capabilities(ctx, 0xe0, 0xb0, 0xc8),
             hyperion_emv::KernelError::Ok.code()
@@ -5655,6 +5672,7 @@ fn krn_addtermcap_001_supplies_9f40_to_pdol_and_online_handoff() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
         assert_eq!(
             krn_set_additional_terminal_capabilities(ctx, 0x70, 0x80, 0xf0, 0xf0, 0xff),
             hyperion_emv::KernelError::Ok.code()
@@ -5749,6 +5767,7 @@ fn krn_ttq_001_supplies_9f66_to_contactless_pdol_and_online_handoff() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
         assert_eq!(
             krn_set_terminal_transaction_qualifiers(ctx, 0x36, 0x00, 0x40, 0x00),
             hyperion_emv::KernelError::Ok.code()
@@ -5868,6 +5887,7 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
         assert_eq!(krn_run_transaction(ctx), KrnOutcome::OnlineRequired as i32);
         assert_eq!(script.counter.load(Ordering::SeqCst), 5);
         {
@@ -6099,6 +6119,7 @@ fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
             krn_set_transaction_params(ctx, &params),
             hyperion_emv::KernelError::Ok.code()
         );
+        set_traceability_trm_random_selection_sample(ctx);
     }
 
     unsafe {

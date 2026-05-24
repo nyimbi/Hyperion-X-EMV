@@ -4,6 +4,25 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T02:04:56Z
+
+- Increment completed: fail closed when an active TRM profile enables random
+  transaction selection but Level 3 has not supplied the bounded
+  certified-profile sample.
+- Code impact: TRM evaluation now treats a missing sample as an invalid
+  profile/integration condition instead of silently bypassing random
+  selection, while still accepting explicit `0..=9999` basis-point samples.
+- Evidence impact: unit/runtime coverage, RTM rows, the specification, and
+  tutorials now document that random-selection samples are explicit
+  integration inputs controlled by the accepted profile and lab evidence.
+- Verification: focused TRM and traceability tests, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, clippy with all targets/features and
+  warnings as failures, basic PoS runtime smoke, and `git diff --check` passed
+  locally.
+- Remaining risk: the repository enforces the missing-sample boundary only;
+  final acceptance still depends on scheme/lab approval of the submitted
+  sampling process, profile parameters, and transaction traces.
+
 ## 2026-05-24T01:45:11Z
 
 - Increment completed: refresh the public standards-watch evidence for the

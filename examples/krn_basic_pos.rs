@@ -3,8 +3,8 @@ use hyperion_emv::ffi::{
     krn_get_last_error, krn_get_online_authorization_data, krn_get_profile_sha256,
     krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_process_final_generate_ac,
     krn_process_issuer_authentication, krn_process_issuer_scripts, krn_run_transaction,
-    krn_set_transaction_params, KrnContext, KrnRuntime, KrnTxnParams, KRN_ABI_VERSION,
-    KRN_PROFILE_SHA256_LEN,
+    krn_set_transaction_params, krn_set_trm_random_selection_sample, KrnContext, KrnRuntime,
+    KrnTxnParams, KRN_ABI_VERSION, KRN_PROFILE_SHA256_LEN,
 };
 use hyperion_emv::provenance::to_hex;
 use hyperion_emv::KernelError;
@@ -196,6 +196,10 @@ fn run_sale(
         require_ok(
             krn_set_transaction_params(guard.0, &params),
             "krn_set_transaction_params",
+        )?;
+        require_ok(
+            krn_set_trm_random_selection_sample(guard.0, 9_999),
+            "krn_set_trm_random_selection_sample",
         )?;
 
         let initial_outcome = krn_run_transaction(guard.0);

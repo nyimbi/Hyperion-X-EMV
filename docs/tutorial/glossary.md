@@ -435,7 +435,9 @@ restrictions, and contactless behavior.
 ## Terminal Risk Management
 
 Kernel stage that evaluates floor limits, random transaction selection,
-velocity checks, and other terminal-side risk inputs.
+velocity checks, and other terminal-side risk inputs. In Hyperion, a profile
+that enables random transaction selection must receive an explicit bounded
+sample from the integration layer; otherwise the kernel fails closed.
 
 ## TLV
 

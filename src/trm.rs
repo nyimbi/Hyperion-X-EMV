@@ -210,9 +210,7 @@ fn random_selection_triggered(percent: u8, sample_basis_points: Option<u16>) -> 
     if percent == 0 {
         return Ok(false);
     }
-    let Some(sample) = sample_basis_points else {
-        return Ok(false);
-    };
+    let sample = sample_basis_points.ok_or(KernelError::InvalidProfile)?;
     let threshold = (percent as u16) * 100;
     Ok(sample < threshold)
 }
@@ -338,6 +336,28 @@ mod tests {
                     merchant_forced_online: false,
                     offline_counter: None,
                     random_sample_basis_points: Some(10_000),
+                    profile,
+                },
+                Tvr::cleared(),
+                Tsi::cleared(),
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn random_selection_requires_external_sample_when_profile_enables_it() {
+        let profile = TrmProfile::new(10_000, 5, None, None).unwrap();
+        assert_eq!(
+            evaluate(
+                TrmInput {
+                    amount_authorized: 1,
+                    transaction_type: 0x00,
+                    exception_file_match: false,
+                    merchant_forced_online: false,
+                    offline_counter: None,
+                    random_sample_basis_points: None,
                     profile,
                 },
                 Tvr::cleared(),
