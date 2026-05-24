@@ -60,6 +60,16 @@ The kernel **SHALL** implement CVM processing as defined in EMV Book 3, using 
 
 **CDCVM (Consumer Device CVM)** is **not** a universal EMV Book 3 CVM code. It is indicated through **contactless transaction qualifiers (CTQ) and card capabilities**. The kernel **SHALL** evaluate CDCVM availability from the active contactless profile and well-formed contactless kernel data (e.g., CTQ bit 5) and **SHALL NOT** rely on a fixed CVM code `0x05`.
 
+PIN-required CVM methods **SHALL** preserve the specific TVR reason when the
+terminal cannot provide the requested PIN path. If online PIN is requested but
+the terminal does not support online PIN entry, the kernel **SHALL** set
+`B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING`, **SHALL NOT** set
+`B3_ONLINE_PIN_ENTERED`, and **SHALL NOT** collapse the condition to only the
+generic cardholder-verification-not-successful bit. If a failed PIN CVM has the
+"continue on failure" bit set and a later CVM succeeds, the specific PIN TVR
+bit remains set in the transaction TVR while CVM Results records the successful
+later method.
+
 > **KRN‑CVM‑003**: The kernel **SHALL** use the above CVM code table as normative. CDCVM handling **SHALL** be contactless‑profile specific.
 
 ---

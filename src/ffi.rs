@@ -4545,6 +4545,50 @@ mod tests {
     }
 
     #[test]
+    fn cvm_processing_sets_pin_pad_tvr_when_online_pin_unavailable() {
+        let mut ctx = KrnContext::new();
+        ctx.fsm_state = FsmState::S7;
+        ctx.state = KernelState::Cvm;
+        ctx.card_data
+            .put(&[0x8e], &[0, 0, 0, 0, 0, 0, 0, 0, 0x02, 0x00])
+            .unwrap();
+        ctx.cvm_capabilities = RuntimeCvmCapabilities {
+            offline_pin_supported: false,
+            online_pin_supported: false,
+            signature_supported: false,
+            cdcvm_performed: false,
+        };
+        let params = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x00,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: 1,
+            merchant_name_location: Vec::new(),
+        };
+
+        assert_eq!(run_cvm_processing(&mut ctx, &params), Ok(()));
+        assert_eq!(ctx.fsm_state, FsmState::S8);
+        assert!(ctx.tvr.is_set(Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING));
+        assert!(!ctx.tvr.is_set(Tvr::B3_ONLINE_PIN_ENTERED));
+        assert!(!ctx
+            .tvr
+            .is_set(Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL));
+        assert_eq!(
+            ctx.card_data.get(&[0x9f, 0x34]),
+            Some(&[0x02, 0x00, 0x01][..])
+        );
+        assert_eq!(
+            ctx.card_data.get(&[0x95]),
+            Some(&[0x00, 0x00, 0x10, 0x00, 0x00][..])
+        );
+    }
+
+    #[test]
     fn offline_taa_and_first_gac_results_finish_with_real_outcomes() {
         let mut ctx = KrnContext::new();
         ctx.requested_cryptogram = Some(CryptogramRequest::Tc);

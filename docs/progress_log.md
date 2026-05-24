@@ -4,6 +4,26 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T01:15:29Z
+
+- Increment completed: harden CVM TVR evidence for online PIN capability
+  failures so PIN-required CVM methods preserve the specific PIN-pad
+  unavailability reason instead of collapsing to a generic CVM failure.
+- Code impact: CVM evaluation now maps an unsupported online PIN method to
+  `B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING`; runtime CVM processing records that
+  bit in `95`, records failed online PIN CVM Results in `9F34`, and does not
+  set `B3_ONLINE_PIN_ENTERED` when the terminal cannot support online PIN.
+- Evidence impact: CVM outcome, CVM capability, and online PIN custody RTM rows
+  now cite focused unit, runtime, and traceability coverage for the online PIN
+  unavailable path.
+- Verification: focused CVM unit, runtime FFI, CVM RTM, and CVM spec
+  traceability tests, `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, clippy with all targets/features and warnings as
+  failures, and `git diff --check` all passed locally.
+- Remaining risk: the kernel still depends on the certified device/PED and
+  Level 3 integration evidence for real online PIN block custody; repository
+  tests only prove L2 state/TVR behavior and no clear-PIN ownership.
+
 ## 2026-05-24T01:00:46Z
 
 - Increment completed: correct Application Usage Control processing so the

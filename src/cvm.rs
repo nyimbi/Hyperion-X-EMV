@@ -486,6 +486,9 @@ fn cvm_unavailable_bit(
 ) -> Option<(usize, u8)> {
     match method {
         CvmMethod::Unknown(_) => Some(Tvr::B3_UNRECOGNIZED_CVM),
+        CvmMethod::OnlinePin if !context.online_pin_supported => {
+            Some(Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING)
+        }
         CvmMethod::OfflinePlaintextPin | CvmMethod::OfflinePlaintextPinAndSignature => {
             pin_cvm_unavailable_bit(context.offline_pin_supported, pin_handles.offline_plaintext)
         }
@@ -942,6 +945,32 @@ mod tests {
             CvmOutcome::Failed {
                 cvm_results: [0x01, 0x00, 0x01],
                 tvr_bit: Tvr::B3_PIN_NOT_ENTERED
+            }
+        );
+    }
+
+    #[test]
+    fn online_pin_unavailable_sets_pin_pad_tvr_bit() {
+        let online_pin_only = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x02, 0x00]).unwrap();
+        let mut no_online_pin = context();
+        no_online_pin.online_pin_supported = false;
+
+        assert_eq!(
+            evaluate(&online_pin_only, no_online_pin, CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x02, 0x00, 0x01],
+                tvr_bit: Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING
+            }
+        );
+
+        let continue_to_signature =
+            parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x42, 0x00, 0x06, 0x00]).unwrap();
+        assert_eq!(
+            evaluate(&continue_to_signature, no_online_pin, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::Signature,
+                cvm_results: [0x06, 0x00, 0x02],
+                tvr_bit: Some(Tvr::B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING)
             }
         );
     }

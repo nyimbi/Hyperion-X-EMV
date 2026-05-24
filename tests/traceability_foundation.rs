@@ -1322,6 +1322,8 @@ fn rtm_promotes_cvm_outcome_evidence() {
         assert!(outcome.contains("cvm_processing_persists_unrecognized_tvr_on_later_success"));
         assert!(outcome.contains("cvm_processing_persists_missing_pin_pad_tvr_on_later_success"));
         assert!(outcome.contains("cvm_processing_persists_pin_not_entered_tvr_when_handle_missing"));
+        assert!(outcome.contains("online_pin_unavailable_sets_pin_pad_tvr_bit"));
+        assert!(outcome.contains("cvm_processing_sets_pin_pad_tvr_when_online_pin_unavailable"));
         assert!(outcome.contains("krn_cvm_001_002_003_and_sec_004_use_cvm_table_without_clear_pin"));
         assert!(outcome.contains("rtm_promotes_cvm_outcome_evidence"));
     }
@@ -1339,6 +1341,7 @@ fn rtm_promotes_cvm_pin_capability_evidence() {
         assert!(
             capabilities.contains("terminal_support_condition_matches_candidate_cvm_capability")
         );
+        assert!(capabilities.contains("online_pin_unavailable_sets_pin_pad_tvr_bit"));
         assert!(capabilities.contains("offline_pin_capability_is_separate_from_ped_handle"));
         assert!(capabilities.contains("continue_on_failure_skips_to_next_matching_cvm_rule"));
         assert!(capabilities.contains("rtm_promotes_cvm_pin_capability_evidence"));
@@ -1402,6 +1405,7 @@ fn rtm_promotes_cvm_pin_capability_evidence() {
         assert!(online_pin.contains("replay_rejects_pin_verify_payload_custody"));
         assert!(online_pin
             .contains("krn_pin_001_002_003_pinapi_001_002_cvmres_001_use_ped_owned_handles"));
+        assert!(online_pin.contains("cvm_processing_sets_pin_pad_tvr_when_online_pin_unavailable"));
         assert!(online_pin.contains("rtm_promotes_cvm_pin_capability_evidence"));
     }
 }
@@ -2332,6 +2336,8 @@ fn spec_contains_certified_cvm_code_table_and_ped_boundary() {
         "`0x1E` | Fail CVM processing",
         "`0x1F` | No CVM required",
         "CDCVM handling **SHALL** be contactless",
+        "If online PIN is requested but",
+        "B3_PIN_PAD_NOT_PRESENT_OR_NOT_WORKING",
     ] {
         assert!(spec.contains(fragment), "spec missing {fragment}");
     }
