@@ -103,6 +103,9 @@ jobs:
       - name: Certification report Markdown drift
         run: cargo run --quiet --example krn_certification_report_ui -- --markdown | diff -u docs/certification_report_pack.md -
 
+      - name: Certification workspace smoke
+        run: cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace
+
       - name: Basic PoS integration smoke
         run: cargo run --quiet --example krn_basic_pos
 

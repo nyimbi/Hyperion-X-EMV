@@ -271,6 +271,7 @@ Before a certification-facing submission, confirm:
 - `cargo test --examples` passes.
 - `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` reproduces the current evidence checklist.
 - `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` produces the current report workbench.
+- `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` produces the complete local report-production workspace.
 - `cargo run --quiet --example krn_basic_pos` completes the basic scripted PoS integration.
 - `cargo fmt --check` passes.
 - `cargo clippy --all-targets --all-features -- -D warnings` passes.

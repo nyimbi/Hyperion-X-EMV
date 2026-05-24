@@ -60,6 +60,7 @@
 | ID | Title | Command | Output |
 | --- | --- | --- | --- |
 | UI | Generate certification workbench UI | `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` | `target/hyperion-cert-ui/index.html` |
+| WORKSPACE | Generate complete certification workspace | `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` | `target/hyperion-cert-workspace/index.html and workspace_manifest.json` |
 | REPORT-JSON | Emit report-pack JSON | `cargo run --quiet --example krn_certification_report_ui -- --json` | `stdout JSON` |
 | REPORT-MD | Emit report-pack Markdown | `cargo run --quiet --example krn_certification_report_ui -- --markdown` | `stdout Markdown` |
 | EVIDENCE | Emit certification evidence checklist | `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` | `docs/certification_evidence_checklist.json and .md` |

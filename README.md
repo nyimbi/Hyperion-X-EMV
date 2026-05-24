@@ -31,6 +31,8 @@ tool results, and approval artifacts prevail over this repository on conflict.
 - Certification report workbench: `docs/certification_report_ui.html`,
   `docs/certification_report_pack.json`, and
   `docs/certification_report_pack.md`.
+- One-command local certification workspace:
+  `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace`.
 - Pre-lab CI workflow: `.github/workflows/prelab.yml`.
 - Session progress log: `docs/progress_log.md`.
 
@@ -278,6 +280,10 @@ controlled evidence:
   and `CERT-OPEN-012`.
 - `krn_certification_report_ui`: emits deterministic JSON, Markdown, and a
   static HTML workbench for report production and certification artifact review.
+- `krn_certification_workspace`: emits a complete local report-production
+  workspace with the static UI, report pack, evidence checklists, freeze
+  manifest, security/device/integration plans, quality artifacts, ABI statement,
+  and workspace manifest.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
 - `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks
@@ -301,6 +307,7 @@ cargo run --quiet --example krn_certification_security_assessment_plan -- --out 
 cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs
 cargo run --quiet --example krn_certification_integration_report_plan -- --out docs
 cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
+cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace
 cargo run --quiet --example krn_basic_pos
 ```
 

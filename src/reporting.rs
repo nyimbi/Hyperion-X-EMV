@@ -287,6 +287,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         output: "target/hyperion-cert-ui/index.html",
     },
     ToolCommand {
+        id: "WORKSPACE",
+        title: "Generate complete certification workspace",
+        command: "cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace",
+        output: "target/hyperion-cert-workspace/index.html and workspace_manifest.json",
+    },
+    ToolCommand {
         id: "REPORT-JSON",
         title: "Emit report-pack JSON",
         command: "cargo run --quiet --example krn_certification_report_ui -- --json",

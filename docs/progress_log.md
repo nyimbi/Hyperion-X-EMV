@@ -4,6 +4,28 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T00:45:52Z
+
+- Increment completed: add a one-command certification workspace generator for
+  local report production and artifact review.
+- Tooling impact: `krn_certification_workspace` now writes a complete local
+  workspace under `target/hyperion-cert-workspace` with `index.html`,
+  `workspace_manifest.json`, report-pack exports, evidence checklists, intake
+  and freeze ledgers, security/device/integration plans, quality artifacts,
+  the ABI conformance statement, and a local README.
+- UI/CI impact: the certification report pack now lists the workspace command,
+  the pre-lab quality manifest and GitHub Actions workflow smoke-test the
+  workspace generator, and traceability tests lock the command into provenance
+  inputs and documentation.
+- Verification: focused workspace, report-workbench, quality-gate, provenance,
+  and CI traceability checks, generated-artifact drift checks for report and
+  quality outputs, `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `git diff --check` all passed locally.
+- Remaining external blockers: the workspace is packaging and review tooling
+  only. It does not close external coverage, integration, lab trace, device,
+  PCI/PED, scheme, acquirer, security-assessment, or approval evidence gates.
+
 ## 2026-05-23T23:17:28Z
 
 - Increment completed: add a deterministic certification evidence intake
