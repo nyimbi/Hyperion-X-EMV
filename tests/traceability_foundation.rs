@@ -7279,7 +7279,8 @@ fn coverage_report_workflow_requires_100_percent_without_closing_cert_open_009()
     assert!(COVERAGE_SCRIPT.contains("--fail-under-lines 100"));
     assert!(COVERAGE_SCRIPT.contains("--all-targets"));
     assert!(COVERAGE_SCRIPT.contains("--all-features"));
-    assert!(COVERAGE_SCRIPT.contains("--output-dir target/coverage/html"));
+    assert!(COVERAGE_SCRIPT.contains("--output-dir target/coverage"));
+    assert!(COVERAGE_SCRIPT.contains("target/coverage/html"));
     assert!(COVERAGE_SCRIPT.contains("target/coverage/metadata.json"));
     assert!(COVERAGE_SCRIPT.contains("hyperion-coverage-report-metadata"));
     assert!(COVERAGE_SCRIPT.contains("source_commit"));

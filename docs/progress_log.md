@@ -5639,3 +5639,14 @@ decision record, while this file tracks work toward certification readiness.
   not have `cargo-llvm-cov` installed, so `scripts/coverage_100.sh` itself was
   not executed locally; CI remains the enforcement surface for the generated
   coverage package.
+
+## 2026-05-24T04:02:28Z
+
+- Increment completed: repair the coverage report output directory after the
+  first CI run of the package audit.
+- Tooling impact: `scripts/coverage_100.sh` now documents that
+  `cargo-llvm-cov --html` creates an `html/` child under `--output-dir`, so the
+  script stages the report with `--output-dir target/coverage` while the audit
+  continues to require `target/coverage/html/index.html`.
+- Evidence scope: this is a CI packaging fix only. It does not change the
+  external acceptance boundary for `CERT-OPEN-009`.
