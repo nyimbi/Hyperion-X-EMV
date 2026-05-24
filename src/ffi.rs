@@ -45,7 +45,7 @@ use crate::restrictions::{
 };
 use crate::selection::{
     direct_profile_candidates, match_profile_candidates, parse_fci_candidate_aids,
-    SelectionCandidate,
+    validate_selected_adf_name, SelectionCandidate,
 };
 use crate::state::{KernelState, Tsi, Tvr};
 use crate::sw::{classify, ApduContext, StatusAction, StatusWord};
@@ -3490,6 +3490,12 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         match classify(ApduContext::SelectAid, select_sw) {
             StatusAction::Success => {
                 let select_fci = select_response[..select_response.len() - 2].to_vec();
+                if let Err(err) = validate_selected_adf_name(&select_fci, &candidate) {
+                    ctx.last_error = err;
+                    ctx.state = KernelState::Error;
+                    ctx.fsm_state = FsmState::Se;
+                    return KrnOutcome::Error;
+                }
                 let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidSelected) {
                     Ok(transition) => transition,
                     Err(err) => {
@@ -5934,6 +5940,11 @@ mod tests {
                 7 => first_gac_arqc_response(),
                 _ => vec![0x6a, 0x80],
             },
+            4 => match count {
+                0 => pse_directory_response(),
+                1 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x04, 0x10, 0x10]),
+                _ => vec![0x6a, 0x80],
+            },
             _ => vec![0x6a, 0x80],
         };
         let capacity = *resp_len;
@@ -6815,6 +6826,69 @@ mod tests {
             );
 
             let commands = script.commands.lock().unwrap();
+            assert_eq!(
+                commands[1],
+                vec![0x00, 0xa4, 0x04, 0x00, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0x00]
+            );
+            drop(commands);
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn runtime_rejects_final_select_fci_with_mismatched_adf_name() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        unsafe {
+            let script = SelectionStatusPolicyScript {
+                counter: AtomicUsize::new(0),
+                mode: 4,
+                commands: Mutex::new(Vec::new()),
+            };
+            let mut ctx = ptr::null_mut();
+            let runtime = KrnRuntime {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnRuntime>() as u32,
+                transmit_apdu: Some(capture_selection_status_policy_apdu),
+                get_unpredictable_number: Some(fill_unpredictable_number),
+                contactless_outcome: None,
+                user_data: &script as *const SelectionStatusPolicyScript as *mut c_void,
+            };
+            assert_eq!(
+                krn_init(ptr::null(), &runtime, &mut ctx),
+                KernelError::Ok.code()
+            );
+            let profiles = include_bytes!("../docs/scheme_profiles.cert.json");
+            assert_eq!(
+                krn_load_profiles_verified(ctx, profiles.as_ptr(), profiles.len(), 1, 2, 26, 5, 21),
+                KernelError::Ok.code()
+            );
+            let params = KrnTxnParams {
+                struct_size: mem::size_of::<KrnTxnParams>() as u32,
+                amount_authorised_minor: 2_000,
+                amount_other_minor: 0,
+                currency_code: 840,
+                currency_exponent: 2,
+                terminal_country_code: 840,
+                transaction_type: 0,
+                terminal_type: 0x22,
+                merchant_category_code: [0x53, 0x11],
+                interface_preference: 1,
+                merchant_name_location: ptr::null(),
+                merchant_name_location_len: 0,
+            };
+            assert_eq!(
+                krn_set_transaction_params(ctx, &params),
+                KernelError::Ok.code()
+            );
+            set_test_trm_random_selection_sample(ctx);
+
+            assert_eq!(krn_run_transaction(ctx), KrnOutcome::Error.code());
+            assert_eq!(krn_get_last_error(ctx), KernelError::NoCommonAid.code());
+            assert_eq!(krn_get_fsm_state(ctx), FsmState::Se.code());
+            assert!(ctx.as_ref().unwrap().selected_application.is_none());
+
+            let commands = script.commands.lock().unwrap();
+            assert_eq!(commands.len(), 2);
             assert_eq!(
                 commands[1],
                 vec![0x00, 0xa4, 0x04, 0x00, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0x00]

@@ -41,6 +41,12 @@ The selection phase answers:
 Hyperion keeps candidate parsing and signed-profile matching separate so card
 claims do not silently override configured terminal support.
 
+When the final application SELECT succeeds, Hyperion also validates the selected
+application FCI before moving to GPO. Tag `84` must name the exact ADF selected
+by the terminal and must still match the signed profile rules. If the card
+returns a different ADF name, omits `84`, or shortens a partial-selection match,
+the kernel fails closed rather than continuing with an ambiguous profile.
+
 ## Phase 3: Get Processing Options
 
 After selecting an application, the kernel builds a GPO command. The command is

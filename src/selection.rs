@@ -49,6 +49,33 @@ pub fn parse_fci_candidate_aids(fci: &[u8]) -> KernelResult<Vec<Vec<u8>>> {
     Ok(candidates)
 }
 
+pub fn selected_adf_name(fci: &[u8]) -> KernelResult<Vec<u8>> {
+    let parsed = tlv::parse_many(fci)?;
+    if parsed.len() != 1 || parsed[0].tag != [0x6f] || !parsed[0].constructed {
+        return Err(KernelError::MissingMandatoryTag);
+    }
+    let adf_name = tlv::find_unique_direct(&parsed[0].children, &[0x84])?
+        .ok_or(KernelError::MissingMandatoryTag)?;
+    if !(MIN_AID_LEN..=MAX_AID_LEN).contains(&adf_name.len()) {
+        return Err(KernelError::InvalidProfile);
+    }
+    Ok(adf_name.to_vec())
+}
+
+pub fn validate_selected_adf_name(
+    selected_fci: &[u8],
+    candidate: &SelectionCandidate,
+) -> KernelResult<()> {
+    let selected_name = selected_adf_name(selected_fci)?;
+    if selected_name != candidate.select_aid {
+        return Err(KernelError::NoCommonAid);
+    }
+    if !aid_matches(&selected_name, &candidate.aid, candidate.partial_selection) {
+        return Err(KernelError::NoCommonAid);
+    }
+    Ok(())
+}
+
 pub fn direct_profile_candidates(
     profiles: &ProfileSet,
     interface: Interface,
@@ -242,6 +269,63 @@ mod tests {
                 vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10],
                 vec![0xa0, 0x00, 0x00, 0x00, 0x04, 0x10, 0x10],
             ]
+        );
+    }
+
+    #[test]
+    fn validates_selected_adf_name_against_candidate_and_profile() {
+        let profiles = profiles();
+        let candidate = match_profile_candidates(
+            &profiles,
+            Interface::Contact,
+            &[vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]],
+        )
+        .unwrap()
+        .remove(0);
+        let selected = [
+            0x6f, 0x0b, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x00,
+        ];
+
+        validate_selected_adf_name(&selected, &candidate).unwrap();
+
+        let wrong_name = [
+            0x6f, 0x0b, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x04, 0x10, 0x10, 0xa5, 0x00,
+        ];
+        assert_eq!(
+            validate_selected_adf_name(&wrong_name, &candidate).unwrap_err(),
+            KernelError::NoCommonAid
+        );
+        let missing = [0x6f, 0x02, 0xa5, 0x00];
+        assert_eq!(
+            validate_selected_adf_name(&missing, &candidate).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+    }
+
+    #[test]
+    fn partial_selection_requires_final_fci_to_name_card_adf() {
+        let mut profiles = profiles();
+        profiles.schemes[0].aids[0].aid = vec![0xa0, 0x00, 0x00, 0x00, 0x03];
+        profiles.schemes[0].aids[0].partial_selection = true;
+        let candidate = match_profile_candidates(
+            &profiles,
+            Interface::Contact,
+            &[vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]],
+        )
+        .unwrap()
+        .remove(0);
+
+        let selected = [
+            0x6f, 0x0b, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x00,
+        ];
+        validate_selected_adf_name(&selected, &candidate).unwrap();
+
+        let shortened = [
+            0x6f, 0x09, 0x84, 0x05, 0xa0, 0x00, 0x00, 0x00, 0x03, 0xa5, 0x00,
+        ];
+        assert_eq!(
+            validate_selected_adf_name(&shortened, &candidate).unwrap_err(),
+            KernelError::NoCommonAid
         );
     }
 

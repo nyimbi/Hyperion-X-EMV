@@ -99,7 +99,9 @@ use hyperion_emv::restrictions::{
 use hyperion_emv::security::{
     certification_security_assessment_plan_json, certification_security_assessment_plan_markdown,
 };
-use hyperion_emv::selection::{match_profile_candidates, parse_fci_candidate_aids};
+use hyperion_emv::selection::{
+    match_profile_candidates, parse_fci_candidate_aids, validate_selected_adf_name,
+};
 use hyperion_emv::state::{Tsi, Tvr};
 use hyperion_emv::sw::{classify, ApduContext, StatusAction, StatusWord};
 use hyperion_emv::taa::{decide, ActionCodes, TaaInput, TaaProfile, TerminalAction};
@@ -4832,6 +4834,12 @@ fn krn_sel_001_002_003_parses_candidates_and_matches_signed_profiles() {
         .unwrap()
         .remove(0);
     assert_eq!(selected.aid, hex("A0000000031010"));
+    validate_selected_adf_name(&hex("6F118407A0000000031010A5069F38039F3704"), &selected).unwrap();
+    assert_eq!(
+        validate_selected_adf_name(&hex("6F118407A0000000041010A5069F38039F3704"), &selected)
+            .unwrap_err(),
+        hyperion_emv::KernelError::NoCommonAid
+    );
 
     let mut partial_profiles = profiles.clone();
     partial_profiles.schemes[0].aids[0].aid = hex("A000000003");
@@ -8039,7 +8047,18 @@ fn rtm_promotes_interface_kernel_mapping_evidence() {
         assert!(csv_row_for_requirement(csv, "KRN-INT-004")
             .unwrap()
             .contains("transaction_params_require_explicit_supported_interface"));
+        let profile_mapping = csv_row_for_requirement(csv, "KRN-INT-004").unwrap();
+        assert!(
+            profile_mapping.contains("validates_selected_adf_name_against_candidate_and_profile")
+        );
+        assert!(profile_mapping.contains("partial_selection_requires_final_fci_to_name_card_adf"));
+        assert!(
+            profile_mapping.contains("runtime_rejects_final_select_fci_with_mismatched_adf_name")
+        );
     }
+    let spec = include_str!("../docs/spec.md");
+    assert!(spec.contains("selected application FCI"));
+    assert!(spec.contains("`84`"));
 }
 
 #[test]

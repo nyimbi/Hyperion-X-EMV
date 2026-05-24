@@ -50,6 +50,7 @@ Good tests explain the risk:
 - `rejects_duplicate_record_data_without_partial_store`
 - `production_suppresses_transaction_cryptograms`
 - `runtime_selection_uses_status_policy_for_get_response_and_invalidated_aids`
+- `runtime_rejects_final_select_fci_with_mismatched_adf_name`
 - `krn_ttq_001_supplies_9f66_to_contactless_pdol_and_online_handoff`
 
 Avoid names that only describe mechanics:

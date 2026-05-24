@@ -348,6 +348,12 @@ AID, scheme profile, and certified kernel mapping do not match the explicit
 interface. This prevents implicit contact fallback from weakening the
 contact/contactless evidence boundary.
 
+After a final SELECT success, the selected application FCI SHALL contain a
+single DF Name/ADF Name (`84`) that exactly matches the ADF sent in the SELECT
+command and remains within the signed profile match, including partial-selection
+profiles. A mismatch or missing `84` SHALL fail closed before GPO and no
+transaction outcome shall be produced.
+
 > **KRN-INT-004**: The kernel **SHALL** reject a transaction if no certified
 > kernel/profile mapping exists for the selected AID and explicit interface.
 

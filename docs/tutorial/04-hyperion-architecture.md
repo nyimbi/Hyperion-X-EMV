@@ -59,7 +59,8 @@ The Rust crate is split by protocol responsibility:
 - `src/dol.rs`: DOL parsing, data store, padding policy, and DOL output.
 - `src/apdu.rs`: APDU command construction.
 - `src/sw.rs`: context-specific status word handling.
-- `src/selection.rs`: PSE, PPSE, direct AID, and signed-profile matching.
+- `src/selection.rs`: PSE, PPSE, direct AID, signed-profile matching, and final
+  selected-ADF identity validation.
 - `src/gpo.rs`: GPO response parsing and PDOL extraction.
 - `src/afl.rs`: AFL parsing and READ RECORD planning.
 - `src/record.rs`: card record parsing and overwrite policy.
@@ -156,4 +157,3 @@ The repository does not provide final certification inputs:
 
 The architecture is built to receive and preserve those inputs when they become
 available.
-

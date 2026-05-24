@@ -4,6 +4,23 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T05:45:04Z
+
+- Increment completed: close the final SELECT identity gap by validating that
+  selected application FCI tag `84` names the same ADF selected by the terminal
+  and still matches the signed profile, including partial-selection profiles.
+- Code impact: selection now exposes selected-ADF validation and runtime
+  transaction selection fails closed with `NoCommonAid` before GPO when a card
+  acknowledges one candidate but returns a different selected application name.
+- Evidence impact: KRN-INT-004 traceability now cites unit tests for exact and
+  partial-selection selected-FCI validation plus a public ABI runtime test for a
+  mismatched final SELECT response.
+- Verification: focused selection/runtime/RTM tests, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, clippy with all targets/features and
+  warnings as failures, report-pack JSON/Markdown/HTML drift checks, variable
+  data boundary audit, certification workspace smoke, basic PoS smoke, and
+  `git diff --check`.
+
 ## 2026-05-24T05:29:30Z
 
 - Increment completed: add a pre-lab variable-data boundary audit for
