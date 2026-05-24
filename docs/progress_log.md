@@ -5678,7 +5678,8 @@ decision record, while this file tracks work toward certification readiness.
 - Tooling impact: `krn_certification_workspace` now packages the masked
   pre-lab trace fixture plus the trace-pack audit JSON and Markdown alongside
   the report UI, evidence checklists, attachment slots, and workspace
-  inventory.
+  inventory. The workspace requirement in `docs/spec.md` now names these trace
+  review artifacts explicitly.
 - Evidence scope: the packaged trace fixture remains repository-controlled
   pre-lab evidence only. The workspace still requires accepted lab/test-tool
   traces before `CERT-OPEN-012` can close.

@@ -2675,6 +2675,8 @@ fn spec_delegates_lab_manifest_state_to_executable_manifest() {
     assert!(spec.contains("docs/lab_submission_manifest.md"));
     assert!(spec.contains("authoritative manifest for"));
     assert!(spec.contains("artifact attachment state"));
+    assert!(spec.contains("pre-lab APDU trace fixture plus trace-pack audit JSON/Markdown"));
+    assert!(spec.contains("CERT-OPEN-012"));
     assert!(spec.contains("SHALL NOT mark an item complete while its row still says"));
     assert!(spec.contains("Bundled ODA vectors remain structural fixtures"));
     assert!(spec.contains("vector_class = \"CERTIFICATION\""));
