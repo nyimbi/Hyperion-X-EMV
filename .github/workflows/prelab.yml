@@ -135,6 +135,9 @@ jobs:
         env:
           KRN_COVERAGE_ENFORCE: "0"
 
+      - name: Audit coverage package
+        run: cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage --require-package > target/coverage/coverage_audit.json
+
       - name: Upload coverage report
         uses: actions/upload-artifact@v7
         with:

@@ -33,7 +33,7 @@ case "${KRN_COVERAGE_ENFORCE:-1}" in
             --all-features \
             --fail-under-lines 100 \
             --html \
-            --output-dir target/coverage
+            --output-dir target/coverage/html
         enforcement_note="100% line coverage was enforced for this run."
         ;;
     0)
@@ -43,7 +43,7 @@ case "${KRN_COVERAGE_ENFORCE:-1}" in
             --all-targets \
             --all-features \
             --html \
-            --output-dir target/coverage
+            --output-dir target/coverage/html
         enforcement_note="100% line coverage was measured but not enforced for this run."
         ;;
     *)

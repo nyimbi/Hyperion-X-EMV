@@ -11,6 +11,7 @@ pub mod c8;
 pub mod cid;
 pub mod config;
 pub mod conformance;
+pub mod coverage;
 pub mod cvm;
 pub mod device;
 pub mod dol;

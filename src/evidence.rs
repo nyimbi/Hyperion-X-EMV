@@ -112,7 +112,7 @@ pub const EVIDENCE_REQUIREMENTS: &[EvidenceRequirement] = &[
         required_attachment: "100% unit coverage report plus coverage metadata JSON and full EMV test-plan integration report for the submitted build",
         required_metadata: "source commit, Cargo version, Rust compiler version, target triple, feature set, cargo-llvm-cov version, threshold, enforcement mode, profile hash, CAPK hash, test-tool version, report hash, and deviations",
         acceptance_gate: "coverage and integration reports match the submitted binary, profiles, CAPKs, vectors, and annex hashes",
-        repository_support: "scripts/coverage_100.sh, docs/coverage.md, .github/workflows/prelab.yml",
+        repository_support: "scripts/coverage_100.sh, docs/coverage.md, krn_coverage_package_audit, .github/workflows/prelab.yml",
         status: "pending external attachment",
     },
     EvidenceRequirement {

@@ -5616,3 +5616,26 @@ decision record, while this file tracks work toward certification readiness.
   ABI conformance, quality-gate, and certification report-pack/UI drift checks,
   workspace smoke, attachment audit smoke, basic PoS smoke, and
   `git diff --check`.
+
+## 2026-05-24T03:46:08Z
+
+- Increment completed: add a first-class coverage package audit for
+  `CERT-OPEN-009`.
+- Tooling impact: added `krn_coverage_package_audit` and a Rust coverage audit
+  module that inspects `target/coverage/metadata.json`, `README.txt`, and
+  `html/index.html`, hashes present files, validates the 100% threshold and
+  non-closure metadata, and distinguishes measurement-only packages from
+  enforced 100% candidates.
+- Evidence scope: the audit strengthens report-production review but does not
+  close the unit coverage or integration-report blocker. Final closure still
+  requires submitted-build binding, accepted 100% coverage evidence, and the
+  full EMV integration report.
+- Verification: targeted coverage audit, example, traceability, quality-gate,
+  report-pack, CI-workflow, and provenance tests passed. Full verification
+  passed with `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, deterministic
+  artifact drift checks, coverage audit smoke, workspace smoke, attachment
+  audit smoke, basic PoS smoke, and `git diff --check`. The local machine does
+  not have `cargo-llvm-cov` installed, so `scripts/coverage_100.sh` itself was
+  not executed locally; CI remains the enforcement surface for the generated
+  coverage package.

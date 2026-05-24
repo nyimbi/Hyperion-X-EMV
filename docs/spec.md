@@ -403,6 +403,11 @@ The attachment audit SHALL inventory local files against those slots by path,
 size, and SHA-256 before review. These are attachment-control artifacts only.
 They SHALL NOT mark an open issue closed without the independently accepted
 external evidence named by that row.
+The coverage package audit SHALL inspect the staged `target/coverage` package
+for `metadata.json`, `README.txt`, and `html/index.html`, SHALL validate the
+100% threshold and `CERT-OPEN-009` non-closure metadata, and SHALL distinguish
+measurement-only coverage artifacts from enforced 100% candidates awaiting
+submitted-build binding and external report acceptance.
 The freeze manifest SHALL bind the submitted kernel binary, signed
 configuration, CAPKs, profiles, vectors, RTM, accepted reports, and approval
 package through pending SHA-256 slots before certification-facing review.

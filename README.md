@@ -240,6 +240,9 @@ The repository coverage workflow is documented in `docs/coverage.md` and
 implemented by `scripts/coverage_100.sh`. By default it uses `cargo-llvm-cov`
 to fail unless line coverage reaches 100%, then stages an HTML report under
 `target/coverage/html` plus run metadata under `target/coverage/metadata.json`.
+Use `krn_coverage_package_audit` to inspect the staged package and distinguish
+measurement-only evidence from an enforced 100% candidate that still awaits
+submitted-build and external reviewer acceptance.
 The CI workflow runs the same script with
 `KRN_COVERAGE_ENFORCE=0` to upload a measurement artifact while
 `CERT-OPEN-009` remains open. A final enforced run is required before the
@@ -273,6 +276,10 @@ controlled evidence:
   directory, hashes files under `CERT-OPEN-*` slots, reports missing or
   unmapped attachments, and flags unsupported entries such as symlinks as
   rejected without closing external evidence gates.
+- `krn_coverage_package_audit`: inspects `target/coverage` for coverage
+  metadata, the staging README, and the HTML report entry point, separating
+  measurement-only packages from enforced 100% candidates without closing
+  `CERT-OPEN-009`.
 - `krn_certification_freeze_manifest`: emits JSON and Markdown submitted-build
   hash slots for the kernel binary, signed configuration, CAPKs, profiles,
   vectors, RTM, reports, and approval package.
@@ -313,6 +320,7 @@ cargo run --quiet --example krn_emv_decode -- sw generate-ac 9000
 cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_evidence_intake -- --out docs
 cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments
+cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage
 cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
 cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs
 cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs

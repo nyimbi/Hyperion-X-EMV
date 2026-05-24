@@ -40,6 +40,23 @@ The script:
   `cargo-llvm-cov` version, target/feature scope, threshold, enforcement mode,
   and the `CERT-OPEN-009` non-closure marker.
 
+After a run, audit the staged package:
+
+```sh
+cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage
+```
+
+The audit checks `metadata.json`, `README.txt`, and `html/index.html`, hashes
+present files, validates the expected metadata fields, and reports one of these
+states:
+
+- `measurement_only_unreviewed`: a structurally reviewable package generated
+  without 100% enforcement, suitable for trend visibility and CI artifacts.
+- `certification_candidate_unreviewed`: a structurally reviewable package whose
+  metadata says 100% line coverage was enforced; submitted-build binding and
+  external acceptance are still required.
+- `missing_or_malformed` or `incomplete`: the package is not ready for review.
+
 The strict 100% gate is the default. For pre-lab measurement without closing
 the certification blocker, set `KRN_COVERAGE_ENFORCE=0`:
 
@@ -74,9 +91,10 @@ that tests pass; it does not prove measured coverage.
 The pre-lab GitHub Actions workflow at `.github/workflows/prelab.yml` runs the
 normal Rust quality gates and a separate coverage job. The coverage job installs
 `cargo-llvm-cov`, runs `KRN_COVERAGE_ENFORCE=0 scripts/coverage_100.sh`, and
-uploads the staged `target/coverage` directory as a workflow artifact. This is
-a measurement artifact while `CERT-OPEN-009` remains open, not a claim that the
-100% coverage requirement has been met.
+audits the staged package with `krn_coverage_package_audit --require-package`
+before uploading `target/coverage`, including `coverage_audit.json`, as a
+workflow artifact. This is a measurement artifact while `CERT-OPEN-009` remains
+open, not a claim that the 100% coverage requirement has been met.
 
 The CI artifact is still pre-lab evidence. It becomes certification-facing only
 after the submitted binary, profiles, CAPKs, vectors, traceability matrix, and

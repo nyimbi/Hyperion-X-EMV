@@ -255,11 +255,11 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
     ReportArtifact {
         id: "COVERAGE-WORKFLOW",
         title: "100% coverage workflow",
-        path: "docs/coverage.md; scripts/coverage_100.sh",
+        path: "docs/coverage.md; scripts/coverage_100.sh; target/coverage/coverage_audit.json",
         category: "quality",
-        generator: "scripts/coverage_100.sh",
+        generator: "scripts/coverage_100.sh; cargo run --quiet --example krn_coverage_package_audit",
         status: "prepared",
-        boundary: "accepted submitted-build report remains external",
+        boundary: "coverage package audit only; accepted submitted-build report remains external",
     },
     ReportArtifact {
         id: "TUTORIALS",
@@ -359,6 +359,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Audit local certification evidence attachments",
         command: "cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments",
         output: "stdout JSON attachment hash inventory",
+    },
+    ToolCommand {
+        id: "COVERAGE-AUDIT",
+        title: "Audit staged coverage report package",
+        command: "cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage",
+        output: "stdout JSON coverage package audit",
     },
     ToolCommand {
         id: "FREEZE",

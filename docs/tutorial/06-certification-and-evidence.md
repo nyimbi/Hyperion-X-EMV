@@ -211,6 +211,7 @@ Run the checklist generator whenever certification package contents change:
 cargo run --quiet --example krn_certification_evidence_checklist -- --out docs
 cargo run --quiet --example krn_certification_evidence_intake -- --out docs
 cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments
+cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage
 cargo run --quiet --example krn_certification_freeze_manifest -- --out docs
 cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs
 cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs
@@ -245,6 +246,12 @@ reported as unmapped. Unsupported entries such as symlinks are reported as
 rejected instead of being silently skipped. This makes crowdsourced evidence
 packages auditable without treating a local file as accepted certification
 evidence.
+
+Use `krn_coverage_package_audit` after `scripts/coverage_100.sh` to inspect the
+staged coverage package. The audit checks for `metadata.json`, `README.txt`,
+and `html/index.html`, validates the expected 100% threshold and non-closure
+metadata, and reports whether the package is measurement-only or an enforced
+candidate still awaiting submitted-build binding and external review.
 
 Use `krn_certification_workspace` to create the local report-production
 workspace. It creates empty `attachments/CERT-OPEN-*` directories, writes an
