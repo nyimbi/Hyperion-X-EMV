@@ -59,6 +59,10 @@ const WORKSPACE_INVENTORY_EXCLUDED_PATHS: &[&str] = &[
     "workspace_manifest.json",
 ];
 
+const PRELAB_APDU_TRACE_PACK: &str = include_str!("../docs/prelab_apdu_trace_pack.jsonl");
+const PRELAB_TRACE_PACK_AUDIT_JSON: &str = include_str!("../docs/prelab_trace_pack_audit.json");
+const PRELAB_TRACE_PACK_AUDIT_MARKDOWN: &str = include_str!("../docs/prelab_trace_pack_audit.md");
+
 const WORKSPACE_FILES: &[WorkspaceFile] = &[
     WorkspaceFile {
         id: "README",
@@ -95,6 +99,24 @@ const WORKSPACE_FILES: &[WorkspaceFile] = &[
         path: "prelab_quality_gates.json",
         category: "quality",
         description: "local pre-lab quality gate manifest",
+    },
+    WorkspaceFile {
+        id: "TRACE-PACK",
+        path: "prelab_apdu_trace_pack.jsonl",
+        category: "trace",
+        description: "masked repository pre-lab APDU trace fixture",
+    },
+    WorkspaceFile {
+        id: "TRACE-PACK-AUDIT-JSON",
+        path: "prelab_trace_pack_audit.json",
+        category: "trace",
+        description: "machine-readable audit of the masked pre-lab APDU trace fixture",
+    },
+    WorkspaceFile {
+        id: "TRACE-PACK-AUDIT-MD",
+        path: "prelab_trace_pack_audit.md",
+        category: "trace",
+        description: "reviewable Markdown audit of the masked pre-lab APDU trace fixture",
     },
     WorkspaceFile {
         id: "NO-CRASH",
@@ -301,6 +323,17 @@ fn write_workspace(dir: &Path, abi_version: u32) -> io::Result<&Path> {
         dir,
         "prelab_quality_gates.json",
         &prelab_quality_gates_json(abi_version),
+    )?;
+    write_file(dir, "prelab_apdu_trace_pack.jsonl", PRELAB_APDU_TRACE_PACK)?;
+    write_file(
+        dir,
+        "prelab_trace_pack_audit.json",
+        PRELAB_TRACE_PACK_AUDIT_JSON,
+    )?;
+    write_file(
+        dir,
+        "prelab_trace_pack_audit.md",
+        PRELAB_TRACE_PACK_AUDIT_MARKDOWN,
     )?;
     write_file(
         dir,
@@ -514,7 +547,7 @@ fn attachment_slot_guide() -> String {
 }
 
 fn workspace_readme() -> String {
-    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nOpen attachment_audit.html to inspect staged evidence slot status and hashes.\nRead workspace_inventory.json or workspace_inventory.md for the generated\nworkspace file-size and SHA-256 inventory.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nStage external artifacts under attachments/CERT-OPEN-* only after checking the\nartifact scope and sensitivity policy. Then regenerate or rerun the attachment\naudit so SHA-256 values are captured before review.\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
+    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nOpen attachment_audit.html to inspect staged evidence slot status and hashes.\nRead prelab_apdu_trace_pack.jsonl with prelab_trace_pack_audit.json or .md to\nreview the repository-controlled masked trace fixture before replacing it with\naccepted lab/test-tool traces.\nRead workspace_inventory.json or workspace_inventory.md for the generated\nworkspace file-size and SHA-256 inventory.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nStage external artifacts under attachments/CERT-OPEN-* only after checking the\nartifact scope and sensitivity policy. Then regenerate or rerun the attachment\naudit so SHA-256 values are captured before review.\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
         .to_string()
 }
 
@@ -918,12 +951,17 @@ mod tests {
         assert!(manifest.contains("\"entrypoint\":\"index.html\""));
         assert!(manifest.contains("\"CERT-OPEN-009\""));
         assert!(manifest.contains("certification_attachment_audit.json"));
+        assert!(manifest.contains("prelab_apdu_trace_pack.jsonl"));
+        assert!(manifest.contains("prelab_trace_pack_audit.json"));
         assert!(manifest.contains("attachment_audit.html"));
         assert!(manifest.contains("workspace_inventory.json"));
         assert!(dir.join("attachments/CERT-OPEN-001").is_dir());
         assert!(dir.join("attachments/CERT-OPEN-012").is_dir());
         assert!(dir.join("attachment_slot_guide.md").exists());
         assert!(dir.join("certification_attachment_audit.json").exists());
+        assert!(dir.join("prelab_apdu_trace_pack.jsonl").exists());
+        assert!(dir.join("prelab_trace_pack_audit.json").exists());
+        assert!(dir.join("prelab_trace_pack_audit.md").exists());
         assert!(dir.join("attachment_audit.html").exists());
         assert!(dir.join("workspace_inventory.json").exists());
         assert!(dir.join("workspace_inventory.md").exists());
@@ -935,11 +973,14 @@ mod tests {
         assert!(audit_html.contains("rejected entries"));
         assert!(audit_html.contains("symlinks"));
         assert!(inventory.contains("\"type\":\"certification-workspace-inventory\""));
+        assert!(inventory.contains("\"path\":\"prelab_apdu_trace_pack.jsonl\""));
+        assert!(inventory.contains("\"path\":\"prelab_trace_pack_audit.json\""));
         assert!(inventory.contains("\"path\":\"attachment_audit.html\""));
         assert!(inventory.contains("\"sha256\""));
         assert!(inventory.contains("\"path\":\"workspace_manifest.json\""));
         assert!(inventory.contains("self-referential"));
         assert!(inventory_markdown.contains("Hyperion Certification Workspace Inventory"));
+        assert!(inventory_markdown.contains("prelab_trace_pack_audit.md"));
         assert!(inventory_markdown.contains("workspace_manifest.json"));
         assert!(!inventory.contains("certified\":true"));
         assert!(report.contains("\"type\":\"certification-report-pack\""));

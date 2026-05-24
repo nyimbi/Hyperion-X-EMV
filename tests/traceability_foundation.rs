@@ -1663,6 +1663,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification workspace generator"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_certification_workspace"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("attachments/CERT-OPEN-*"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("masked trace fixture"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("trace-pack audit JSON/Markdown"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("attachment_slot_guide.md"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("attachment_audit.html"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("workspace_inventory.json"));
@@ -7008,6 +7010,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(README.contains("krn_certification_device_evidence_plan"));
     assert!(README.contains("krn_certification_integration_report_plan"));
     assert!(README.contains("krn_certification_workspace"));
+    assert!(README.contains("masked pre-lab trace fixture and trace-pack audit"));
     assert!(README.contains("audit dashboard"));
     assert!(README.contains("attachment-slot guide"));
     assert!(README.contains("workspace file hash inventory"));

@@ -302,9 +302,9 @@ controlled evidence:
 - `krn_certification_workspace`: emits a complete local report-production
   workspace with the static UI, report pack, evidence checklists, freeze
   manifest, security/device/integration plans, quality artifacts, ABI statement,
-  empty `CERT-OPEN-*` attachment directories, attachment-slot guide, attachment
-  audit dashboard, audit exports, workspace file hash inventory, and workspace
-  manifest.
+  masked pre-lab trace fixture and trace-pack audit, empty `CERT-OPEN-*`
+  attachment directories, attachment-slot guide, attachment audit dashboard,
+  audit exports, workspace file hash inventory, and workspace manifest.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
 - `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks

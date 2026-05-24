@@ -5670,3 +5670,20 @@ decision record, while this file tracks work toward certification readiness.
   -- -D warnings`, deterministic trace-audit/evidence/report drift checks,
   trace audit smoke, certification workspace smoke, attachment audit smoke,
   coverage audit smoke, basic PoS smoke, and `git diff --check`.
+
+## 2026-05-24T04:29:19Z
+
+- Increment completed: make the generated certification workspace
+  self-contained for pre-lab APDU trace review.
+- Tooling impact: `krn_certification_workspace` now packages the masked
+  pre-lab trace fixture plus the trace-pack audit JSON and Markdown alongside
+  the report UI, evidence checklists, attachment slots, and workspace
+  inventory.
+- Evidence scope: the packaged trace fixture remains repository-controlled
+  pre-lab evidence only. The workspace still requires accepted lab/test-tool
+  traces before `CERT-OPEN-012` can close.
+- Verification: targeted certification workspace, lab-manifest/provenance, and
+  report-workbench tests passed. Full verification passed with `cargo fmt
+  --check`, `cargo test`, `cargo test --examples`, `cargo clippy
+  --all-targets --all-features -- -D warnings`, workspace generation smoke,
+  workspace trace file/inventory readback, and `git diff --check`.
