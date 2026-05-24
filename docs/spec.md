@@ -408,6 +408,12 @@ for `metadata.json`, `README.txt`, and `html/index.html`, SHALL validate the
 100% threshold and `CERT-OPEN-009` non-closure metadata, and SHALL distinguish
 measurement-only coverage artifacts from enforced 100% candidates awaiting
 submitted-build binding and external report acceptance.
+The pre-lab trace-pack audit SHALL inspect `docs/prelab_apdu_trace_pack.jsonl`
+or an explicitly supplied JSONL trace-pack path for case metadata, scenario
+rows, production trace identity, expected command/response counts, expected
+TLV-stream counts, sensitive tag suppression, and `CERT-OPEN-012` non-closure
+metadata before report-production use. It SHALL NOT treat the repository
+fixture as an accepted full lab/test-tool trace pack.
 The freeze manifest SHALL bind the submitted kernel binary, signed
 configuration, CAPKs, profiles, vectors, RTM, accepted reports, and approval
 package through pending SHA-256 slots before certification-facing review.

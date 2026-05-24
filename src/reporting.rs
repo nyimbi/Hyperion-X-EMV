@@ -108,6 +108,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "full lab trace pack remains external",
     },
     ReportArtifact {
+        id: "TRACE-PACK-AUDIT",
+        title: "Masked pre-lab APDU trace-pack audit",
+        path: "docs/prelab_trace_pack_audit.json; docs/prelab_trace_pack_audit.md",
+        category: "trace",
+        generator: "cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl",
+        status: "generated",
+        boundary: "fixture completeness and masking audit only; full lab trace-pack acceptance remains external",
+    },
+    ReportArtifact {
         id: "QUALITY-GATES",
         title: "Pre-lab quality gate manifest",
         path: "docs/prelab_quality_gates.json",
@@ -365,6 +374,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Audit staged coverage report package",
         command: "cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage",
         output: "stdout JSON coverage package audit",
+    },
+    ToolCommand {
+        id: "TRACE-AUDIT",
+        title: "Audit masked APDU trace pack",
+        command: "cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl",
+        output: "stdout JSON trace-pack audit",
     },
     ToolCommand {
         id: "FREEZE",

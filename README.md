@@ -224,6 +224,8 @@ cargo test --examples
 cargo clippy --all-targets --all-features -- -D warnings
 cargo run --quiet --example krn_abi_conformance_statement | diff -u docs/abi_conformance_statement.json -
 cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -
+cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl --require-prelab-fixture | diff -u docs/prelab_trace_pack_audit.json -
+cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl --markdown | diff -u docs/prelab_trace_pack_audit.md -
 cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -
 cargo run --quiet --example krn_prelab_quality_gates | diff -u docs/prelab_quality_gates.json -
 cargo run --quiet --example krn_prelab_no_crash_smoke | diff -u docs/prelab_no_crash_smoke.json -
@@ -257,6 +259,9 @@ controlled evidence:
   capability-readiness records for implemented behavior that remains
   standard-validation pending.
 - `krn_prelab_trace_pack`: emits masked pre-lab APDU trace JSONL fixtures.
+- `krn_trace_pack_audit`: audits masked APDU trace JSONL for case metadata,
+  production trace identity, command/response counts, TLV-stream counts,
+  sensitive tag suppression, and `CERT-OPEN-012` non-closure boundaries.
 - `krn_scheme_profile_dictionary`: emits a review-focused profile dictionary
   without raw CAPK modulus disclosure.
 - `krn_prelab_quality_gates`: emits the local quality gate manifest.
@@ -343,6 +348,7 @@ The `docs/` directory is part of the executable baseline:
 - `oda_test_vectors.json`: structural ODA fixture annex unless replaced with
   `vector_class = "CERTIFICATION"` and complete lab-supplied vectors.
 - `prelab_apdu_trace_pack.jsonl`: masked local trace fixture.
+- `prelab_trace_pack_audit.json` / `.md`: generated trace fixture audit.
 - `prelab_quality_gates.json`: local gate manifest.
 - `prelab_no_crash_smoke.json`: no-crash parser/APDU smoke artifact.
 - `prelab_static_fuzz_plan.json`: static-analysis and fuzzing evidence plan.

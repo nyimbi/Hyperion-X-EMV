@@ -40,6 +40,12 @@ jobs:
       - name: Pre-lab trace pack drift
         run: cargo run --quiet --example krn_prelab_trace_pack | diff -u docs/prelab_apdu_trace_pack.jsonl -
 
+      - name: Pre-lab trace pack audit drift
+        run: cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl --require-prelab-fixture | diff -u docs/prelab_trace_pack_audit.json -
+
+      - name: Pre-lab trace pack audit markdown drift
+        run: cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl --markdown | diff -u docs/prelab_trace_pack_audit.md -
+
       - name: Scheme profile dictionary drift
         run: cargo run --quiet --example krn_scheme_profile_dictionary | diff -u docs/scheme_profile_dictionary.md -
 

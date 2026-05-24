@@ -142,7 +142,7 @@ pub const EVIDENCE_REQUIREMENTS: &[EvidenceRequirement] = &[
         required_attachment: "full masked APDU traces for every applicable lab/test-tool case",
         required_metadata: "case IDs, ordering, SW1/SW2, expected and actual outcomes, trace identity, profile SHA-256, ABI version, and masking policy",
         acceptance_gate: "trace pack is replayable, masked, complete for the claimed test plan, and tied to the submitted binary/profile set",
-        repository_support: "docs/prelab_apdu_trace_pack.jsonl, src/trace.rs, examples/krn_prelab_trace_pack.rs",
+        repository_support: "docs/prelab_apdu_trace_pack.jsonl, docs/prelab_trace_pack_audit.json, src/trace.rs, examples/krn_prelab_trace_pack.rs, krn_trace_pack_audit",
         status: "pending external attachment",
     },
 ];

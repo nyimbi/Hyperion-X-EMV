@@ -5650,3 +5650,23 @@ decision record, while this file tracks work toward certification readiness.
   continues to require `target/coverage/html/index.html`.
 - Evidence scope: this is a CI packaging fix only. It does not change the
   external acceptance boundary for `CERT-OPEN-009`.
+
+## 2026-05-24T04:19:19Z
+
+- Increment completed: add a pre-lab APDU trace-pack audit for
+  `CERT-OPEN-012`.
+- Tooling impact: added `krn_trace_pack_audit` and a Rust trace audit module
+  that validates JSONL case metadata, scenario rows, production trace identity,
+  command/response counts, TLV-stream counts, sensitive tag suppression, file
+  hash, and non-closure boundaries. CI now diff-checks the generated JSON and
+  Markdown audit artifacts before report-pack production can rely on them.
+- Evidence scope: this hardens repository trace fixtures and report-production
+  review only. Full lab/test-tool trace pack acceptance remains required before
+  `CERT-OPEN-012` can close.
+- Verification: targeted trace-audit, quality-gate, lab-manifest/provenance,
+  report-workbench, evidence-checklist, APDU trace-pack, and pre-lab CI-shape
+  tests passed. Full verification passed with `cargo fmt --check`, `cargo
+  test`, `cargo test --examples`, `cargo clippy --all-targets --all-features
+  -- -D warnings`, deterministic trace-audit/evidence/report drift checks,
+  trace audit smoke, certification workspace smoke, attachment audit smoke,
+  coverage audit smoke, basic PoS smoke, and `git diff --check`.

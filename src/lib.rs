@@ -41,6 +41,7 @@ pub mod taa;
 pub mod terminal;
 pub mod tlv;
 pub mod trace;
+pub mod trace_audit;
 pub mod transaction;
 pub mod trm;
 

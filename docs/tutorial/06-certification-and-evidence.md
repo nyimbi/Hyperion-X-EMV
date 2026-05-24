@@ -190,6 +190,19 @@ The final trace pack should:
   the ABI.
 - Be accepted by the lab or scheme reviewer.
 
+Before using the pre-lab fixture in report production, audit it:
+
+```sh
+cargo run --example krn_trace_pack_audit -- \
+  --path docs/prelab_apdu_trace_pack.jsonl \
+  --require-prelab-fixture
+```
+
+The audit verifies case metadata, scenario rows, production trace identity,
+expected command/response counts, expected TLV-stream counts, sensitive tag
+suppression, and the `CERT-OPEN-012` non-closure marker. It does not replace
+the full accepted lab/test-tool trace pack.
+
 ## Public Standards Watch
 
 Public EMVCo and PCI pages can signal standards drift before the licensed
