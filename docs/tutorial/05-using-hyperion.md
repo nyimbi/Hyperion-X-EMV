@@ -69,6 +69,14 @@ cargo run --quiet --example krn_basic_pos
 If a generator output changes, the code or annex that caused the change should
 be reviewed and committed with the regenerated artifact.
 
+The ABI conformance statement includes capability-readiness records for
+implemented engines such as CVM/PIN, TRM/TAA, ODA/CDA, issuer scripts, and
+Contactless C-8 behavior. These records mean the repository has executable
+implementation and tests, but the capability remains
+`implemented-standard-validation-pending` until licensed standards review,
+scheme/acquirer profile reconciliation, device/L1 evidence, trace packages, and
+lab approval are attached.
+
 ## Build Provenance
 
 The build manifest generator emits canonical hashes for source modules,

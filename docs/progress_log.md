@@ -5595,3 +5595,24 @@ decision record, while this file tracks work toward certification readiness.
   --all-features -- -D warnings`, quality-manifest and report-pack drift
   checks, workspace smoke, attachment audit smoke, basic PoS smoke, and
   `git diff --check`.
+
+## 2026-05-24T03:30:50Z
+
+- Increment completed: expose capability-readiness records in the ABI
+  conformance statement for implemented behavior that still requires external
+  standards validation.
+- Code impact: the conformance model now emits CVM/PIN, TRM/TAA, ODA/CDA,
+  issuer authentication/scripts, and Contactless C-8 readiness records with
+  linked open issues and repository evidence. The statement also adds an
+  explicit certification condition that readiness records are executable
+  repository behavior, not final certification approval.
+- Evidence scope: these records avoid overclaiming. They make implemented
+  engines visible to reviewers while preserving the open licensed-standards,
+  scheme/acquirer profile, device/L1, trace-package, PCI/PED, lab, and approval
+  gates.
+- Verification: targeted conformance and traceability tests passed. Full
+  verification passed with `cargo fmt --check`, `cargo test`, `cargo test
+  --examples`, `cargo clippy --all-targets --all-features -- -D warnings`,
+  ABI conformance, quality-gate, and certification report-pack/UI drift checks,
+  workspace smoke, attachment audit smoke, basic PoS smoke, and
+  `git diff --check`.

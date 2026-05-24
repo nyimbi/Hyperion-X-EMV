@@ -2238,6 +2238,14 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
             "PCI-PTS-POI",
             "SIGNED-SCHEME-PROFILES",
             "LAB-TEST-PLANS",
+            "\"capability_readiness\"",
+            "implemented-standard-validation-pending",
+            "CAP-CVM-PIN",
+            "CAP-TRM-TAA",
+            "CAP-ODA-CDA",
+            "CAP-ISSUER-SCRIPTS",
+            "CAP-C8-CONTACTLESS",
+            "Capability readiness entries marked implemented-standard-validation-pending are executable repository behavior, not final certification approval",
             "Licensed external standards prevail",
             "docs/oda_test_vectors.json is a structural fixture annex unless vector_class is CERTIFICATION",
             "docs/certification_open_issues.md remains the controlling register for external blockers",
@@ -2251,6 +2259,8 @@ fn krn_ref_001_conformance_statement_declares_normative_hierarchy() {
         }
     }
     assert!(CERTIFICATION_OPEN_ISSUES.contains("repository ABI JSON statement does not close"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("capability-readiness"));
+    assert!(README.contains("capability-readiness"));
 }
 
 #[test]

@@ -250,7 +250,9 @@ coverage report can be submitted as certification evidence.
 The repository includes deterministic examples that generate or inspect
 controlled evidence:
 
-- `krn_abi_conformance_statement`: emits ABI conformance JSON.
+- `krn_abi_conformance_statement`: emits ABI conformance JSON with
+  capability-readiness records for implemented behavior that remains
+  standard-validation pending.
 - `krn_prelab_trace_pack`: emits masked pre-lab APDU trace JSONL fixtures.
 - `krn_scheme_profile_dictionary`: emits a review-focused profile dictionary
   without raw CAPK modulus disclosure.

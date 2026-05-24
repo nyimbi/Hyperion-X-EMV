@@ -27,7 +27,8 @@ The repository can provide:
 - Source code and documentation under MIT license.
 - Rust tests and traceability guards.
 - Controlled annexes.
-- Generated ABI conformance JSON.
+- Generated ABI conformance JSON, including capability-readiness records for
+  implemented engines that remain standard-validation pending.
 - Masked pre-lab APDU trace fixtures.
 - Quality-gate manifest.
 - No-crash smoke artifact.
