@@ -5818,3 +5818,25 @@ decision record, while this file tracks work toward certification readiness.
 - Tooling impact: added `krn_certification_bundle` for deterministic bundle generation/validation and `krn_certification_bundle_tui` for terminal-guided provisioning; generated checked-in bundle, trust-anchor, fingerprint, report, and static GUI workbench artifacts under `docs/`.
 - Evidence scope: this makes certification target changes data-driven for repository-controlled profile/vector/runtime/reporting inputs. External lab, scheme, acquirer, CAPK, device, PCI/PED, and approval evidence remains required before certification closure.
 - Verification so far: targeted `cargo test cert_bundle --lib`, `cargo test --example krn_certification_bundle`, `cargo test --example krn_certification_bundle_tui`, and deterministic bundle/report/tooling generation passed. Full verification passed with `cargo fmt --check`, `cargo test`, `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D warnings`, checked-in bundle validation, certification workspace smoke, basic PoS smoke, variable-data boundary audit, and `git diff --check`.
+
+## 2026-05-25T03:00:00Z
+
+- Increment in progress: make certification data-bundle authoring guided,
+  self-checking, and capability-aware.
+- Code impact: added Rust bundle compile/lint report types that parse,
+  authenticate, load, fingerprint, and score bundles against a data-driven EMV
+  capability coverage map. The report distinguishes loader failures from
+  warnings for fixture trust material and external evidence still required.
+- Tooling impact: extended `krn_certification_bundle` with `--lint`, generated
+  JSON and Markdown lint reports, and replaced the static bundle editor with a
+  local workbench that explains each major field, previews hashes, compiles
+  normalized JSON, shows suggestions, and maps profile/vector/runtime/evidence
+  data to EMV capability areas.
+- Evidence scope: this improves authoring and repository-controlled validation
+  for data-driven certification bundles. It does not close authority-dependent
+  lab, scheme, device, L1, PCI/PED, CAPK, vector, trace, or acquirer evidence.
+- Verification: `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, checked-in
+  bundle validation, checked-in bundle lint, certification workspace smoke,
+  basic PoS smoke, variable-data boundary audit, static workbench script/HTML
+  smoke, and `git diff --check` passed.

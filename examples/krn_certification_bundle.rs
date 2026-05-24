@@ -1,7 +1,9 @@
 use hyperion_emv::cert_bundle::{
-    certification_bundle_report_markdown, certification_bundle_workbench_html,
-    create_bundle_from_inputs, load_certification_bundle, parse_trust_anchors, BundleClass,
-    BundleLoadPolicy, BundleProvisioningInput, CallbackTimeoutProfile,
+    certification_bundle_compile_report, certification_bundle_compile_report_json,
+    certification_bundle_compile_report_markdown, certification_bundle_report_markdown,
+    certification_bundle_workbench_html, create_bundle_from_inputs, load_certification_bundle,
+    parse_trust_anchors, BundleClass, BundleLoadPolicy, BundleProvisioningInput,
+    CallbackTimeoutProfile,
 };
 use hyperion_emv::config::BuildMode;
 use hyperion_emv::provenance::to_hex;
@@ -50,8 +52,25 @@ fn main() {
         {
             validate_bundle(Path::new(bundle), Path::new(trust), parse_mode(mode))
         }
+        [flag, bundle_flag, bundle, trust_flag, trust]
+            if flag == "--lint" && bundle_flag == "--bundle" && trust_flag == "--trust-anchors" =>
+        {
+            lint_bundle(
+                Path::new(bundle),
+                Path::new(trust),
+                BuildMode::Certification,
+            )
+        }
+        [flag, bundle_flag, bundle, trust_flag, trust, mode_flag, mode]
+            if flag == "--lint"
+                && bundle_flag == "--bundle"
+                && trust_flag == "--trust-anchors"
+                && mode_flag == "--mode" =>
+        {
+            lint_bundle(Path::new(bundle), Path::new(trust), parse_mode(mode))
+        }
         _ => {
-            eprintln!("usage: cargo run --example krn_certification_bundle -- [--out <dir>|--json-template|--trust-template|--validate --bundle <file> --trust-anchors <file> [--mode test|certification|production]]");
+            eprintln!("usage: cargo run --example krn_certification_bundle -- [--out <dir>|--json-template|--trust-template|--validate --bundle <file> --trust-anchors <file> [--mode test|certification|production]|--lint --bundle <file> --trust-anchors <file> [--mode test|certification|production]]");
             process::exit(2);
         }
     };
@@ -132,10 +151,33 @@ fn write_default_bundle(dir: &Path) -> io::Result<PathBuf> {
     let (bundle, anchors) = default_bundle_pair()?;
     let loaded = load_pair(&bundle, &anchors, BuildMode::Certification)?;
     let markdown = certification_bundle_report_markdown(&loaded);
+    let lint_report = certification_bundle_compile_report(
+        bundle.as_bytes(),
+        anchors.as_bytes(),
+        &BundleLoadPolicy {
+            mode: BuildMode::Certification,
+            installed_rollback_counter: 1,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 25,
+            },
+            trust_anchors: parse_trust_anchors(anchors.as_bytes())
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?,
+        },
+    );
     let html = certification_bundle_workbench_html(&bundle, &anchors);
     fs::write(dir.join("certification_bundle.json"), &bundle)?;
     fs::write(dir.join("trust_anchors.json"), &anchors)?;
     fs::write(dir.join("certification_bundle_report.md"), markdown)?;
+    fs::write(
+        dir.join("certification_bundle_lint.json"),
+        certification_bundle_compile_report_json(&lint_report),
+    )?;
+    fs::write(
+        dir.join("certification_bundle_lint.md"),
+        certification_bundle_compile_report_markdown(&lint_report),
+    )?;
     fs::write(dir.join("index.html"), html)?;
     fs::write(
         dir.join("bundle_fingerprints.json"),
@@ -166,6 +208,34 @@ fn validate_bundle(bundle_path: &Path, trust_path: &Path, mode: BuildMode) -> io
         "vector_bundle_sha256={}",
         to_hex(&loaded.vector_bundle_sha256)
     );
+    Ok(())
+}
+
+fn lint_bundle(bundle_path: &Path, trust_path: &Path, mode: BuildMode) -> io::Result<()> {
+    let bundle = fs::read(bundle_path)?;
+    let trust = fs::read(trust_path)?;
+    let anchors = parse_trust_anchors(&trust).unwrap_or_default();
+    let report = certification_bundle_compile_report(
+        &bundle,
+        &trust,
+        &BundleLoadPolicy {
+            mode,
+            installed_rollback_counter: 1,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 25,
+            },
+            trust_anchors: anchors,
+        },
+    );
+    print!("{}", certification_bundle_compile_report_json(&report));
+    if report.status == "fail" {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "certification bundle lint failed",
+        ));
+    }
     Ok(())
 }
 
@@ -227,6 +297,11 @@ mod tests {
         assert!(fs::read_to_string(dir.join("bundle_fingerprints.json"))
             .unwrap()
             .contains(&to_hex(&sha256(bundle.as_bytes()))));
+        assert!(
+            fs::read_to_string(dir.join("certification_bundle_lint.json"))
+                .unwrap()
+                .contains("capability_coverage")
+        );
         fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -192,6 +192,270 @@ pub struct LoadedCertificationBundle {
     pub verification_status: &'static str,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BundleLintSeverity {
+    Info,
+    Warning,
+    Error,
+}
+
+impl BundleLintSeverity {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BundleLintFinding {
+    pub severity: BundleLintSeverity,
+    pub field_path: String,
+    pub title: String,
+    pub impact: String,
+    pub suggestion: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmvCapabilityCoverage {
+    pub id: &'static str,
+    pub area: &'static str,
+    pub role: &'static str,
+    pub bundle_source: &'static str,
+    pub status: &'static str,
+    pub suggestion: &'static str,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BundleCompileReport {
+    pub status: &'static str,
+    pub mode: BuildMode,
+    pub findings: Vec<BundleLintFinding>,
+    pub coverage: Vec<EmvCapabilityCoverage>,
+    pub bundle_sha256: Option<String>,
+    pub payload_sha256: Option<String>,
+    pub scheme_profile_sha256: Option<String>,
+    pub vector_bundle_sha256: Option<String>,
+    pub verification_status: Option<&'static str>,
+}
+
+pub fn certification_bundle_compile_report(
+    bundle_json: &[u8],
+    trust_anchors_json: &[u8],
+    policy: &BundleLoadPolicy,
+) -> BundleCompileReport {
+    let mut report = BundleCompileReport {
+        status: "pass",
+        mode: policy.mode,
+        findings: Vec::new(),
+        coverage: Vec::new(),
+        bundle_sha256: None,
+        payload_sha256: None,
+        scheme_profile_sha256: None,
+        vector_bundle_sha256: None,
+        verification_status: None,
+    };
+
+    if bundle_json.is_empty() {
+        push_finding(
+            &mut report,
+            BundleLintSeverity::Error,
+            "bundle_json",
+            "Bundle JSON is empty",
+            "The kernel cannot parse, authenticate, or load an empty bundle.",
+            "Export a populated certification bundle before compiling.",
+        );
+    }
+    if trust_anchors_json.is_empty() {
+        push_finding(
+            &mut report,
+            BundleLintSeverity::Error,
+            "trust_anchors_json",
+            "Trust-anchor JSON is empty",
+            "Certification and production modes require trusted signer metadata before bundle authentication.",
+            "Provision at least one signer trust anchor with an allowed payload hash.",
+        );
+    }
+
+    let parsed_bundle = match parse_certification_bundle(bundle_json) {
+        Ok(bundle) => {
+            lint_parsed_bundle(&mut report, &bundle, policy);
+            Some(bundle)
+        }
+        Err(err) => {
+            push_finding(
+                &mut report,
+                BundleLintSeverity::Error,
+                "bundle_json",
+                "Bundle schema validation failed",
+                "The compiled runtime will reject this bundle before any EMV transaction can use it.",
+                &format!("Fix the JSON shape, required fields, identifiers, hashes, and bounds reported by the parser: {err}"),
+            );
+            None
+        }
+    };
+
+    let parsed_anchors = match parse_trust_anchors(trust_anchors_json) {
+        Ok(anchors) => {
+            lint_trust_anchors(&mut report, &anchors, policy);
+            Some(anchors)
+        }
+        Err(err) => {
+            push_finding(
+                &mut report,
+                BundleLintSeverity::Error,
+                "trust_anchors_json",
+                "Trust-anchor validation failed",
+                "The compiled runtime cannot authenticate a certification or production bundle without valid trust anchors.",
+                &format!("Fix the trust-anchor schema, signer IDs, fingerprints, secret length, dates, and allowed payload hashes: {err}"),
+            );
+            None
+        }
+    };
+
+    if let (Some(_bundle), Some(anchors)) = (parsed_bundle.as_ref(), parsed_anchors) {
+        let mut load_policy = policy.clone();
+        load_policy.trust_anchors = anchors;
+        match load_certification_bundle(bundle_json, &load_policy) {
+            Ok(loaded) => {
+                report.bundle_sha256 = Some(to_hex(&loaded.bundle_sha256));
+                report.payload_sha256 = Some(to_hex(&loaded.payload_sha256));
+                report.scheme_profile_sha256 = Some(to_hex(&loaded.scheme_profile_sha256));
+                report.vector_bundle_sha256 = Some(to_hex(&loaded.vector_bundle_sha256));
+                report.verification_status = Some(loaded.verification_status);
+                push_finding(
+                    &mut report,
+                    BundleLintSeverity::Info,
+                    "bundle",
+                    "Bundle compiled and authenticated",
+                    "The same kernel binary can load this data bundle under the selected policy.",
+                    "Keep the bundle, trust anchors, fingerprints, reports, and submitted binary hash together in the certification pack.",
+                );
+                report.coverage = emv_capability_coverage(&loaded);
+            }
+            Err(err) => {
+                push_finding(
+                    &mut report,
+                    BundleLintSeverity::Error,
+                    "bundle",
+                    "Bundle compile/authentication failed",
+                    "The runtime loader will reject this bundle under the selected mode, rollback, date, or trust policy.",
+                    &format!("Reconcile payload hash, signer trust anchor, rollback counter, bundle class, profile signatures, and evaluation date: {err}"),
+                );
+                if let Some(bundle) = parsed_bundle.as_ref() {
+                    report.coverage = payload_capability_coverage(bundle);
+                }
+            }
+        }
+    } else if let Some(bundle) = parsed_bundle.as_ref() {
+        report.coverage = payload_capability_coverage(bundle);
+    }
+
+    finalize_compile_status(&mut report);
+    report
+}
+
+pub fn certification_bundle_compile_report_json(report: &BundleCompileReport) -> String {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(
+        &mut out,
+        "type",
+        "hyperion-certification-bundle-compile-report",
+    );
+    out.push(',');
+    push_json_str(&mut out, "status", report.status);
+    out.push(',');
+    push_json_str(&mut out, "mode", build_mode_as_str(report.mode));
+    if let Some(value) = &report.bundle_sha256 {
+        out.push(',');
+        push_json_str(&mut out, "bundle_sha256", value);
+    }
+    if let Some(value) = &report.payload_sha256 {
+        out.push(',');
+        push_json_str(&mut out, "payload_sha256", value);
+    }
+    if let Some(value) = &report.scheme_profile_sha256 {
+        out.push(',');
+        push_json_str(&mut out, "scheme_profile_sha256", value);
+    }
+    if let Some(value) = &report.vector_bundle_sha256 {
+        out.push(',');
+        push_json_str(&mut out, "vector_bundle_sha256", value);
+    }
+    if let Some(value) = report.verification_status {
+        out.push(',');
+        push_json_str(&mut out, "verification_status", value);
+    }
+    out.push_str(",\"findings\":[");
+    for (idx, finding) in report.findings.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_lint_finding_json(&mut out, finding);
+    }
+    out.push_str("],\"capability_coverage\":[");
+    for (idx, coverage) in report.coverage.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_capability_coverage_json(&mut out, coverage);
+    }
+    out.push_str("]}\n");
+    out
+}
+
+pub fn certification_bundle_compile_report_markdown(report: &BundleCompileReport) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "# Hyperion Certification Bundle Compile Report");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "- Status: `{}`", report.status);
+    let _ = writeln!(out, "- Mode: `{}`", build_mode_as_str(report.mode));
+    if let Some(value) = &report.bundle_sha256 {
+        let _ = writeln!(out, "- Bundle SHA-256: `{value}`");
+    }
+    if let Some(value) = &report.payload_sha256 {
+        let _ = writeln!(out, "- Payload SHA-256: `{value}`");
+    }
+    if let Some(value) = report.verification_status {
+        let _ = writeln!(out, "- Verification status: `{value}`");
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Findings");
+    let _ = writeln!(out);
+    if report.findings.is_empty() {
+        let _ = writeln!(out, "No findings.");
+    } else {
+        for finding in &report.findings {
+            let _ = writeln!(
+                out,
+                "- `{}` `{}`: {} Suggestion: {}",
+                finding.severity.as_str(),
+                finding.field_path,
+                finding.title,
+                finding.suggestion
+            );
+        }
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## EMV Capability Coverage");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "| ID | Area | Status | Bundle Source | Role |");
+    let _ = writeln!(out, "| --- | --- | --- | --- | --- |");
+    for item in &report.coverage {
+        let _ = writeln!(
+            out,
+            "| {} | {} | {} | `{}` | {} |",
+            item.id, item.area, item.status, item.bundle_source, item.role
+        );
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(out, "Boundary: this report proves repository loader compatibility and data coverage. It does not replace external EMVCo, scheme, laboratory, device, L1, PCI/PED, or acquirer evidence.");
+    out
+}
+
 pub fn load_certification_bundle(
     bundle_json: &[u8],
     policy: &BundleLoadPolicy,
@@ -598,21 +862,532 @@ pub fn certification_bundle_report_markdown(loaded: &LoadedCertificationBundle) 
 
 pub fn certification_bundle_workbench_html(bundle_json: &str, trust_anchors_json: &str) -> String {
     let mut out = String::new();
-    out.push_str("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Hyperion Data Bundle Workbench</title><style>");
-    out.push_str("body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;background:#f6f7f9;color:#20242a}header{background:#13202d;color:#fff;padding:18px 24px}main{display:grid;grid-template-columns:300px 1fr;gap:18px;padding:18px}.panel{background:#fff;border:1px solid #d9dde3;border-radius:6px;padding:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{font-weight:600;display:block;margin:8px 0 4px}input,textarea,select{width:100%;box-sizing:border-box;border:1px solid #bbc3cf;border-radius:4px;padding:8px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}textarea{min-height:360px;resize:vertical}.status{display:grid;gap:8px}.ok{color:#0f6b3f}.warn{color:#8a4f00}.bad{color:#9b1c1c}button{border:1px solid #1b5a8f;background:#1f6aa5;color:#fff;border-radius:4px;padding:8px 10px;font-weight:700}code{background:#eef1f5;padding:1px 4px;border-radius:3px}@media(max-width:900px){main{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}</style></head><body>");
-    out.push_str("<header><h1>Hyperion Data Bundle Workbench</h1><p>Create, inspect, and validate data-driven certification/testing bundles without changing kernel code.</p></header><main>");
-    out.push_str("<section class=\"panel\"><h2>Provisioning Steps</h2><div class=\"status\"><div class=\"ok\">1. Edit bundle data.</div><div class=\"ok\">2. Protect trust-anchor data.</div><div class=\"warn\">3. Run <code>krn_certification_bundle --validate</code>.</div><div class=\"warn\">4. Attach external lab/scheme/device evidence.</div></div><p>This workbench is static and local. It never uploads profile, CAPK, vector, or evidence data.</p><button type=\"button\" onclick=\"validatePanels()\">Check Required Fields</button><pre id=\"result\"></pre></section>");
-    out.push_str(
-        "<section class=\"grid\"><div class=\"panel\"><h2>Bundle JSON</h2><textarea id=\"bundle\">",
-    );
+    out.push_str(r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hyperion Data Bundle Workbench</title><style>
+:root{--ink:#1f252c;--muted:#5e6876;--line:#d7dde5;--panel:#ffffff;--wash:#f5f7fa;--nav:#162231;--nav2:#22344a;--blue:#1f6aa5;--green:#0f7b4f;--amber:#9a5b00;--red:#a32929;--cyan:#0f6f78;--violet:#654a93}*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--wash);color:var(--ink)}header{background:linear-gradient(180deg,var(--nav),var(--nav2));color:#fff;padding:18px 24px;border-bottom:4px solid #70b6c8}header h1{margin:0;font-size:24px;letter-spacing:0}header p{margin:6px 0 0;color:#d9e5ef;max-width:980px}.shell{display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px;padding:18px}.sidebar{background:#fff;border:1px solid var(--line);border-radius:6px;padding:14px;align-self:start;position:sticky;top:12px}.brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}.mark{width:34px;height:34px;border-radius:6px;background:#1f6aa5;display:grid;place-items:center;color:#fff;font-weight:800}.status-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 9px;background:#fff;font-weight:700}.status-pass{color:var(--green);border-color:#a7d9c1}.status-warn{color:var(--amber);border-color:#e7c884}.status-fail{color:var(--red);border-color:#e0a0a0}.steps{display:grid;gap:8px;margin:12px 0}.step{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:8px;border:1px solid var(--line);border-radius:6px;background:#fbfcfd}.step b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#e6eef7;color:#15466d}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}button{border:1px solid #1b5a8f;background:var(--blue);color:#fff;border-radius:5px;padding:8px 10px;font-weight:700;cursor:pointer}button.secondary{background:#fff;color:#1b4c75;border-color:#9bb5cc}button.ghost{background:#f9fbfd;color:#344153;border-color:var(--line)}button:focus,input:focus,select:focus,textarea:focus{outline:2px solid #70b6c8;outline-offset:1px}.content{display:grid;gap:18px}.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.metric{background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px}.metric strong{display:block;font-size:22px}.metric span{color:var(--muted);font-size:12px}.panel{background:#fff;border:1px solid var(--line);border-radius:6px;padding:14px}.panel h2{margin:0 0 10px;font-size:18px}.panel h3{margin:14px 0 8px;font-size:15px}.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}.tab{background:#fff;color:#1f3f5e;border-color:var(--line)}.tab[aria-pressed="true"]{background:#1f6aa5;color:#fff;border-color:#1f6aa5}.form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.field label{font-weight:700;display:block;margin-bottom:4px}.field input,.field select,.field textarea,textarea.editor{width:100%;border:1px solid #bac4d0;border-radius:5px;padding:8px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:#fff;color:#1e2730}.field small{display:block;color:var(--muted);margin-top:4px}.help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.help{border-left:4px solid #70b6c8;background:#f8fbfd;padding:10px;border-radius:4px}.help b{display:block;margin-bottom:4px}.help dl{margin:0;display:grid;grid-template-columns:82px 1fr;gap:4px}.help dt{font-weight:700;color:#3d4b5b}.help dd{margin:0;color:#33404e}.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}.editor{min-height:300px;resize:vertical}.compiled{min-height:420px}.findings{display:grid;gap:8px}.finding{border:1px solid var(--line);border-radius:6px;padding:10px;background:#fff}.finding .top{display:flex;gap:8px;align-items:center;justify-content:space-between}.severity{border-radius:999px;padding:2px 8px;font-weight:800;font-size:12px}.sev-info{background:#e7f2fb;color:#125381}.sev-warning{background:#fff2d2;color:#7a4a00}.sev-error{background:#fde6e6;color:#8f1d1d}.coverage{overflow:auto}.coverage table{width:100%;border-collapse:collapse;min-width:940px}.coverage th,.coverage td{border-bottom:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}.coverage th{background:#f1f4f8;color:#314050}.tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 7px;font-size:12px;font-weight:700}.covered{color:var(--green);border-color:#a7d9c1;background:#eefaf3}.incomplete{color:var(--red);border-color:#e0a0a0;background:#fff0f0}.external_required,.warning{color:var(--amber);border-color:#e7c884;background:#fff8e8}pre{white-space:pre-wrap;background:#111a24;color:#e6eef7;border-radius:6px;padding:10px;overflow:auto}code{background:#edf1f5;border:1px solid #d8dee6;border-radius:3px;padding:1px 4px}.hidden{display:none}.note{color:var(--muted)}@media(max-width:1050px){.shell{grid-template-columns:1fr}.sidebar{position:static}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.form-grid,.split,.help-grid{grid-template-columns:1fr}}@media(max-width:620px){.shell{padding:10px}.summary{grid-template-columns:1fr}header{padding:14px}.actions button{width:100%}}
+</style></head><body><header><h1>Hyperion Data Bundle Workbench</h1><p>Author, lint, compile, and explain data-driven EMV certification bundles. This local workbench keeps sensitive profile, CAPK, vector, and evidence data in your browser and pairs every setting with its role, impact, utilization, and security consequences.</p></header><main class="shell"><aside class="sidebar"><div class="brand"><div class="mark">HX</div><div><strong>Bundle Builder</strong><div class="note">Certification data provisioning</div></div></div><div id="status-pill" class="status-pill status-warn">Status: checking</div><div class="steps"><div class="step"><b>1</b><span>Describe product, target scope, interfaces, authorities, and standards.</span></div><div class="step"><b>2</b><span>Attach scheme profiles, CAPKs, vectors, kernel registry, CVM rules, and runtime policy.</span></div><div class="step"><b>3</b><span>Compile and lint locally, then run the Rust validator for authoritative loader checks.</span></div><div class="step"><b>4</b><span>Freeze fingerprints with external lab, scheme, L1, device, PCI/PED, and trace evidence.</span></div></div><div class="actions"><button type="button" onclick="compileBundle()">Compile</button><button class="secondary" type="button" onclick="syncFromJson()">Sync From JSON</button><button class="ghost" type="button" onclick="resetFixture()">Reset Fixture</button></div><p class="note">This page never uploads data; no network calls are made by this page. Browser checks are advisory; the Rust command below is the authority.</p><pre>cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json</pre></aside><section class="content"><div class="summary"><div class="metric"><strong id="finding-count">0</strong><span>lint findings</span></div><div class="metric"><strong id="coverage-count">0</strong><span>capability areas</span></div><div class="metric"><strong id="hash-prefix">pending</strong><span>bundle hash prefix</span></div><div class="metric"><strong id="external-count">0</strong><span>external evidence gates</span></div></div><section class="panel"><div class="tabs" role="toolbar" aria-label="Workbench sections"><button class="tab" data-view="guided" aria-pressed="true">Guided Fields</button><button class="tab" data-view="profiles" aria-pressed="false">Profiles & Vectors</button><button class="tab" data-view="lint" aria-pressed="false">Lint & Suggestions</button><button class="tab" data-view="coverage" aria-pressed="false">EMV Coverage</button><button class="tab" data-view="compiled" aria-pressed="false">Compiled JSON</button></div><div id="guided"><h2>Guided Bundle Fields</h2><div class="form-grid"><div class="field"><label for="bundle_id">Bundle ID</label><input id="bundle_id"><small>Stable identifier used in reports, rollback records, and evidence packs.</small></div><div class="field"><label for="bundle_class">Bundle Class</label><select id="bundle_class"><option>CERTIFICATION</option><option>TESTING</option></select><small>Certification mode rejects TESTING bundles.</small></div><div class="field"><label for="rollback_counter">Rollback Counter</label><input id="rollback_counter" type="number" min="1"><small>Must increase for every replacement bundle.</small></div><div class="field"><label for="product_name">Product Name</label><input id="product_name"><small>Name shown to lab, acquirer, scheme, and evidence reports.</small></div><div class="field"><label for="product_version">Product Version</label><input id="product_version"><small>Must match submitted binary and report pack.</small></div><div class="field"><label for="certification_target">Certification Target</label><input id="certification_target"><small>Defines claimed interface and approval scope.</small></div><div class="field"><label for="interfaces">Interfaces</label><input id="interfaces"><small>Comma-separated: contact, contactless.</small></div><div class="field"><label for="authorities">Authorities</label><input id="authorities"><small>Lab, scheme, acquirer, and internal authority references.</small></div><div class="field"><label for="bulletins_included">Bulletins Included</label><input id="bulletins_included"><small>Standards-watch and bulletin reconciliation data.</small></div></div><h3>Runtime Policy</h3><div class="form-grid"><div class="field"><label for="apdu_timeout">APDU Timeout MS</label><input id="apdu_timeout" type="number" min="1" max="60000"></div><div class="field"><label for="host_timeout">Host Authorization Timeout MS</label><input id="host_timeout" type="number" min="1" max="60000"></div><div class="field"><label for="pin_timeout">PIN Entry Timeout MS</label><input id="pin_timeout" type="number" min="1" max="60000"></div><div class="field"><label for="ui_timeout">Contactless UI Timeout MS</label><input id="ui_timeout" type="number" min="1" max="60000"></div><div class="field"><label for="l1_ref">L1 Approval Reference</label><input id="l1_ref"></div><div class="field"><label for="pci_ref">PCI/PED Reference</label><input id="pci_ref"></div></div><h3>Field Impact Guide</h3><div id="field-help" class="help-grid"></div></div><div id="profiles" class="hidden"><h2>Profiles, Vectors, Trust Anchors</h2><div class="split"><div><h3>Bundle JSON</h3><textarea id="bundle" class="editor">"#);
     push_html_text(&mut out, bundle_json);
     out.push_str(
-        "</textarea></div><div class=\"panel\"><h2>Trust Anchors JSON</h2><textarea id=\"trust\">",
+        r#"</textarea></div><div><h3>Trust Anchors JSON</h3><textarea id="trust" class="editor">"#,
     );
     push_html_text(&mut out, trust_anchors_json);
-    out.push_str("</textarea></div></section></main><script>");
-    out.push_str("function validatePanels(){let r=[];for(const id of ['bundle','trust']){try{const j=JSON.parse(document.getElementById(id).value);r.push(id+': valid JSON');if(id==='bundle'){for(const k of ['schema_version','bundle_id','payload','signature']){if(!(k in j))r.push(id+': missing '+k)}}if(id==='trust'&&!Array.isArray(j.trust_anchors))r.push('trust: missing trust_anchors array')}catch(e){r.push(id+': '+e.message)}}document.getElementById('result').textContent=r.join('\n')}validatePanels();</script></body></html>\n");
+    out.push_str(r#"</textarea></div></div><div class="split"><div><h3>Embedded Scheme Profile Set JSON</h3><textarea id="scheme_profile" class="editor"></textarea></div><div><h3>Embedded Vector Bundle JSON</h3><textarea id="vector_bundle" class="editor"></textarea></div></div></div><div id="lint" class="hidden"><h2>Lint Findings and Suggestions</h2><div id="findings" class="findings"></div></div><div id="coverage" class="hidden"><h2>EMV Capability Coverage</h2><p class="note">Coverage means the bundle has data fields and bindings for the capability. External certification evidence is still required where marked.</p><div class="coverage"><table><thead><tr><th>ID</th><th>Area</th><th>Status</th><th>Bundle Source</th><th>Role</th><th>Suggestion</th></tr></thead><tbody id="coverage-body"></tbody></table></div></div><div id="compiled" class="hidden"><h2>Compiled Outputs</h2><div class="split"><div><h3>Normalized Bundle JSON</h3><textarea id="compiled_bundle" class="editor compiled"></textarea></div><div><h3>Compile Report JSON</h3><textarea id="compiled_report" class="editor compiled"></textarea></div></div></div></section></section></main><script>
+const initialBundleText = document.getElementById('bundle').value;
+const initialTrustText = document.getElementById('trust').value;
+const help = [
+ {field:'bundle_id',role:'Stable bundle identity',impact:'Appears in reports, freeze manifests, rollback records, and support handoffs.',used:'Loader reports, evidence pack, audit trail',security:'Do not reuse an ID for materially different certified scope.'},
+ {field:'bundle_class',role:'Mode boundary',impact:'TESTING is allowed only in test mode; CERTIFICATION is required for submission and production policy.',used:'Bundle loader policy',security:'Prevents test fixtures from being promoted accidentally.'},
+ {field:'rollback_counter',role:'Anti-rollback version',impact:'The runtime rejects counters less than or equal to the installed counter.',used:'BundleLoadPolicy',security:'Protects terminals from downgrades to weaker data.'},
+ {field:'interfaces',role:'Claimed interface scope',impact:'Determines whether contact and contactless capabilities must be present in profiles and kernel registry.',used:'Selection, contact L2, C-8, reports',security:'Do not claim interfaces without matching device and L1 evidence.'},
+ {field:'scheme_profile_set_json',role:'Variable EMV profile data',impact:'Carries AIDs, TAC/IAC, CAPKs, CVM/TRM settings, CDA behavior, scripts, and relay resistance.',used:'Selection, ODA, CVM, TRM, TAA, issuer scripts',security:'Must be signed or hash-pinned and authority approved.'},
+ {field:'vector_bundle_json',role:'Certification vector binding',impact:'Links expected ODA and APDU test behavior to the profile and submitted build.',used:'Lab replay, trace pack, ODA reports',security:'Fixture vectors must be replaced by accepted certification vectors.'},
+ {field:'trust_anchors',role:'Authentication root',impact:'Maps signer and fingerprint to an allowed payload hash.',used:'Bundle signature verification',security:'Protect secrets outside checked-in fixtures and rotate expired anchors.'},
+ {field:'callback_timeouts',role:'Runtime callback bounds',impact:'Controls APDU transport, host, PIN, and contactless UI waiting behavior.',used:'C ABI and runtime policy',security:'Keep bounded to avoid denial-of-service and inconsistent certification traces.'},
+ {field:'artifact_hashes',role:'Evidence freeze binding',impact:'Pins profiles, vectors, traces, reports, and external attachments by SHA-256.',used:'Certification report pack',security:'Every accepted artifact should be immutable and hash-bound.'},
+ {field:'terminal_profile',role:'Device and PED scope',impact:'Names terminal type, model, firmware, L1, and PCI/PED evidence references.',used:'Submission manifest and external gates',security:'Must match submitted hardware and firmware.'}
+];
+const capabilityDefinitions = [
+ {id:'selection',area:'Application selection',source:'payload.scheme_profile_set_json.schemes[].aids',role:'PSE/PPSE and AID candidate matching remain data-driven.',check:s=>countAids(s.profile)>0,suggestion:'Add AID entries for each claimed scheme and interface.'},
+ {id:'contact_l2',area:'Contact EMV L2',source:'interfaces + contact_kernel_type + contact AIDs',role:'Contact kernel behavior, TAC/IAC, DOL, CVM, TRM, and scripts come from profile data.',check:s=>s.interfaces.includes('contact')&&hasAidInterface(s.profile,'contact')&&s.profile.schemes.some(x=>x.contact_kernel_type),suggestion:'Add contact scope, contact AID profiles, and contact_kernel_type.'},
+ {id:'contactless_c8',area:'Contactless Kernel C-8',source:'kernel_registry + contactless AIDs',role:'C-8 package, TTQ, CDCVM, relay resistance, and contactless limits are configured as data.',check:s=>s.interfaces.includes('contactless')&&s.registry.some(x=>x.interface==='contactless')&&hasAidInterface(s.profile,'contactless'),suggestion:'Add a contactless kernel registry entry and contactless AID profiles.'},
+ {id:'capk_authority',area:'CAPK authority',source:'scheme_profile_set_json.schemes[].capks',role:'RID/index public keys, expiry, checksum, and provenance for ODA.',check:s=>s.profile.schemes.some(x=>(x.capks||[]).length>0),suggestion:'Attach authority-approved CAPKs and bind their hashes.'},
+ {id:'oda_vectors',area:'SDA/DDA/CDA vectors',source:'vector_bundle_json + artifact_hashes',role:'Binds ODA expected outputs, CDA behavior, and trace replay evidence.',check:s=>Boolean(s.vector.schema_version)&&hasArtifact(s.bundle,'vector_bundle_json'),suggestion:'Replace fixture vectors with lab/scheme vectors and bind the hash.'},
+ {id:'cvm_pin',area:'CVM and PIN',source:'cvm_extensions + aid CVM limits',role:'Controls online PIN, offline PIN, signature, CDCVM, and certified extension codes.',check:s=>s.cvm.length>0||allAids(s.profile).some(a=>a.cvm_limit_contact||a.contactless_cvm_limit||a.cdcvm_supported),suggestion:'Add CVM limits, extension rules, and PED-owned PIN evidence.'},
+ {id:'trm',area:'Terminal risk management',source:'aid floor/random/offline limits',role:'Defines floor limits, random selection, transaction type limits, and offline counters.',check:s=>allAids(s.profile).some(a=>a.floor_limit||a.random_selection_percent||a.lower_consecutive_offline_limit||a.upper_consecutive_offline_limit||(a.transaction_type_floor_limits||[]).length),suggestion:'Add TRM limits for the target schemes and transaction types.'},
+ {id:'taa',area:'Terminal action analysis',source:'scheme_profile_set_json.schemes[].taa',role:'Keeps TAC/IAC behavior outside compiled code.',check:s=>s.profile.schemes.some(x=>x.taa),suggestion:'Attach scheme-approved TAC/IAC profile material.'},
+ {id:'issuer_scripts',area:'Issuer scripts',source:'critical_issuer_script_ins',role:'Defines critical issuer script INS values for post-authorization processing.',check:s=>allAids(s.profile).some(a=>(a.critical_issuer_script_ins||[]).length),suggestion:'Add script policy where schemes require it.'},
+ {id:'relay_resistance',area:'Relay resistance',source:'aid relay_resistance',role:'Controls contactless relay resistance when required by profile.',check:s=>allAids(s.profile).some(a=>a.relay_resistance),suggestion:'Add relay resistance data for applicable contactless profiles.'},
+ {id:'runtime_abi',area:'Runtime ABI and timeouts',source:'runtime_policy.callback_timeouts',role:'Sets bounded callback behavior for APDU, host, PIN, and UI operations.',check:s=>Object.values(s.timeouts).every(v=>Number.isInteger(v)&&v>=1&&v<=60000),suggestion:'Keep every timeout in the 1..60000 ms range.'},
+ {id:'security_trust',area:'Signature and trust',source:'signature + trust_anchors',role:'Authenticates payload hash and signer identity before loading.',check:s=>s.trust.trust_anchors&&s.trust.trust_anchors.length>0&&s.bundle.signature&&s.bundle.signature.payload_sha256,suggestion:'Provision protected authority trust anchors and allowed payload hashes.'},
+ {id:'device_l1',area:'Device and L1 evidence',source:'terminal_profile.l1_approval_reference',role:'Binds device/reader evidence to the submitted scope.',check:s=>externalStatus(s.bundle.payload?.terminal_profile?.l1_approval_reference)==='covered',status:s=>externalStatus(s.bundle.payload?.terminal_profile?.l1_approval_reference),suggestion:'Replace pre-lab placeholders with accepted L1/device references.'},
+ {id:'pci_ped',area:'PCI/PED evidence',source:'terminal_profile.pci_pts_reference',role:'Binds PED-owned PIN and PCI PTS evidence to the target.',check:s=>externalStatus(s.bundle.payload?.terminal_profile?.pci_pts_reference)==='covered',status:s=>externalStatus(s.bundle.payload?.terminal_profile?.pci_pts_reference),suggestion:'Replace pre-lab placeholders with PCI/PED references.'},
+ {id:'standards_bulletins',area:'Standards and bulletins',source:'standards_target',role:'Captures contact/contactless target versions and bulletin reconciliation.',check:s=>(s.bundle.payload?.standards_target?.bulletins_included||[]).length>0,suggestion:'Add the accepted standards-watch or bulletin set.'},
+ {id:'evidence_freeze',area:'Evidence freeze',source:'test_plan + artifact_hashes',role:'Pins profiles, vectors, reports, traces, and external evidence by hash.',check:s=>(s.bundle.payload?.test_plan||[]).length>0&&hasArtifact(s.bundle,'scheme_profile_set_json')&&hasArtifact(s.bundle,'vector_bundle_json'),suggestion:'Bind every report, trace pack, vector set, and submitted binary.'},
+ {id:'trace_privacy',area:'Trace privacy',source:'runtime_policy.trace_masking_policy',role:'Prevents sensitive PAN, track, cryptogram, and PIN-adjacent data in artifacts.',check:s=>(s.bundle.payload?.runtime_policy?.trace_masking_policy||'').toLowerCase().includes('mask'),suggestion:'Use a masking policy that covers PAN, track-equivalent data, cryptograms, PIN, and sensitive TLVs.'}
+];
+function parseJson(id, findings){try{return JSON.parse(document.getElementById(id).value)}catch(e){findings.push({severity:'error',field_path:id,title:'Invalid JSON',impact:'This document cannot be parsed or compiled.',suggestion:e.message});return null}}
+function csv(v){return String(v||'').split(',').map(x=>x.trim()).filter(Boolean)}
+function allAids(profile){return (profile.schemes||[]).flatMap(s=>s.aids||[])}
+function countAids(profile){return allAids(profile).length}
+function hasAidInterface(profile,name){return allAids(profile).some(a=>(a.interfaces||[]).includes(name))}
+function hasArtifact(bundle,id){return (bundle.payload?.artifact_hashes||[]).some(a=>a.artifact_id===id)}
+function externalStatus(value){const v=String(value||'').toLowerCase();return (!v||v.includes('pending')||v.includes('required')||v.includes('external-'))?'external_required':'covered'}
+function classifyText(value){const v=String(value||'').toLowerCase();return v.includes('pending')||v.includes('required')||v.includes('external-')}
+async function sha256Hex(text){const data=new TextEncoder().encode(text);const hash=await crypto.subtle.digest('SHA-256',data);return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('')}
+function readState(findings){const bundle=parseJson('bundle',findings)||{};const trust=parseJson('trust',findings)||{};let profile={schemes:[]};let vector={};try{profile=JSON.parse(bundle.payload?.scheme_profile_set_json||'{}')}catch(e){findings.push({severity:'error',field_path:'payload.scheme_profile_set_json',title:'Embedded scheme profile JSON is invalid',impact:'The Rust loader cannot parse AIDs, CAPKs, TAC/IAC, CVM, TRM, or scripts.',suggestion:e.message})}try{vector=JSON.parse(bundle.payload?.vector_bundle_json||'{}')}catch(e){findings.push({severity:'error',field_path:'payload.vector_bundle_json',title:'Embedded vector bundle JSON is invalid',impact:'ODA and trace vector bindings cannot be verified.',suggestion:e.message})}return {bundle,trust,profile,vector,interfaces:bundle.payload?.submission_scope?.interfaces||[],registry:bundle.payload?.kernel_registry||[],cvm:bundle.payload?.cvm_extensions||[],timeouts:bundle.payload?.runtime_policy?.callback_timeouts||{}}}
+function syncFromJson(){const findings=[];const s=readState(findings);const b=s.bundle;const p=b.payload||{};const scope=p.submission_scope||{};const term=p.terminal_profile||{};const std=p.standards_target||{};const rt=p.runtime_policy||{};const t=rt.callback_timeouts||{};set('bundle_id',b.bundle_id);set('bundle_class',b.bundle_class);set('rollback_counter',b.rollback_counter);set('product_name',scope.product_name);set('product_version',scope.product_version);set('certification_target',scope.certification_target);set('interfaces',(scope.interfaces||[]).join(','));set('authorities',(scope.authorities||[]).join(','));set('bulletins_included',(std.bulletins_included||[]).join(','));set('apdu_timeout',t.apdu_transport_timeout_ms);set('host_timeout',t.host_authorization_timeout_ms);set('pin_timeout',t.pin_entry_timeout_ms);set('ui_timeout',t.contactless_ui_timeout_ms);set('l1_ref',term.l1_approval_reference);set('pci_ref',term.pci_pts_reference);set('scheme_profile',p.scheme_profile_set_json||'');set('vector_bundle',p.vector_bundle_json||'');compileBundle()}
+function applyGuidedToBundle(){const findings=[];const bundle=parseJson('bundle',findings);if(!bundle)return null;bundle.bundle_id=val('bundle_id')||bundle.bundle_id;bundle.bundle_class=val('bundle_class')||bundle.bundle_class;bundle.rollback_counter=Number(val('rollback_counter'))||bundle.rollback_counter;bundle.payload=bundle.payload||{};bundle.payload.submission_scope=bundle.payload.submission_scope||{};bundle.payload.submission_scope.product_name=val('product_name')||bundle.payload.submission_scope.product_name;bundle.payload.submission_scope.product_version=val('product_version')||bundle.payload.submission_scope.product_version;bundle.payload.submission_scope.certification_target=val('certification_target')||bundle.payload.submission_scope.certification_target;bundle.payload.submission_scope.interfaces=csv(val('interfaces'));bundle.payload.submission_scope.authorities=csv(val('authorities'));bundle.payload.standards_target=bundle.payload.standards_target||{};bundle.payload.standards_target.bulletins_included=csv(val('bulletins_included'));bundle.payload.terminal_profile=bundle.payload.terminal_profile||{};bundle.payload.terminal_profile.supported_interfaces=csv(val('interfaces'));bundle.payload.terminal_profile.l1_approval_reference=val('l1_ref')||bundle.payload.terminal_profile.l1_approval_reference;bundle.payload.terminal_profile.pci_pts_reference=val('pci_ref')||bundle.payload.terminal_profile.pci_pts_reference;bundle.payload.runtime_policy=bundle.payload.runtime_policy||{};bundle.payload.runtime_policy.callback_timeouts={apdu_transport_timeout_ms:Number(val('apdu_timeout')),host_authorization_timeout_ms:Number(val('host_timeout')),pin_entry_timeout_ms:Number(val('pin_timeout')),contactless_ui_timeout_ms:Number(val('ui_timeout'))};bundle.payload.scheme_profile_set_json=val('scheme_profile')||bundle.payload.scheme_profile_set_json;bundle.payload.vector_bundle_json=val('vector_bundle')||bundle.payload.vector_bundle_json;document.getElementById('bundle').value=JSON.stringify(bundle,null,2);return bundle}
+function val(id){return document.getElementById(id).value}function set(id,v){document.getElementById(id).value=v??''}
+function required(findings,obj,path,title,suggestion){const parts=path.split('.');let cur=obj;for(const part of parts){cur=cur?.[part]}if(cur===undefined||cur===null||cur===''||(Array.isArray(cur)&&cur.length===0)){findings.push({severity:'error',field_path:path,title,impact:'Required bundle data is missing, so the runtime or certification report cannot use it.',suggestion})}}
+function lintState(s,findings){const b=s.bundle;required(findings,b,'schema_version','Missing schema version','Use hyperion-certification-bundle-1.0.');required(findings,b,'bundle_id','Missing bundle ID','Assign a stable identifier.');required(findings,b,'payload','Missing payload','Create a payload with scope, profiles, vectors, runtime policy, tests, and hashes.');required(findings,b,'signature','Missing signature','Sign the canonical payload and bind it to a trust anchor.');if(b.bundle_class==='TESTING')findings.push({severity:'warning',field_path:'bundle_class',title:'Testing bundle selected',impact:'Certification and production loaders reject testing bundles.',suggestion:'Use CERTIFICATION for submission bundles.'});if(Number(b.rollback_counter)<=1)findings.push({severity:'warning',field_path:'rollback_counter',title:'Rollback counter is low',impact:'A deployed terminal rejects counters not greater than the installed value.',suggestion:'Increase monotonically for every replacement bundle.'});for(const [path,value] of [['certification_target',b.payload?.submission_scope?.certification_target],['l1_approval_reference',b.payload?.terminal_profile?.l1_approval_reference],['pci_pts_reference',b.payload?.terminal_profile?.pci_pts_reference]]){if(classifyText(value))findings.push({severity:'warning',field_path:path,title:'External evidence reference remains pending',impact:'The bundle may compile for pre-lab use, but certification closure requires accepted evidence.',suggestion:'Attach accepted authority evidence and update this reference.'})}if(!s.trust.trust_anchors||!s.trust.trust_anchors.length)findings.push({severity:'error',field_path:'trust_anchors',title:'No trust anchors',impact:'The runtime cannot authenticate the payload.',suggestion:'Provision protected signer trust anchors.'});for(const [k,v] of Object.entries(s.timeouts)){if(!Number.isInteger(v)||v<1||v>60000)findings.push({severity:'error',field_path:'runtime_policy.callback_timeouts.'+k,title:'Timeout outside allowed range',impact:'The Rust loader rejects callback timeouts outside 1..60000 ms.',suggestion:'Choose a bounded timeout in milliseconds.'})}if((b.payload?.runtime_policy?.trace_masking_policy||'').toLowerCase().indexOf('mask')<0)findings.push({severity:'error',field_path:'runtime_policy.trace_masking_policy',title:'Trace masking is not explicit',impact:'Reports and trace packs can leak sensitive card data.',suggestion:'Declare masking for PAN, track-equivalent data, cryptograms, PIN material, and sensitive TLVs.'})}
+async function compileBundle(applyGuided=true){if(applyGuided)applyGuidedToBundle();const findings=[];const s=readState(findings);lintState(s,findings);const coverage=capabilityDefinitions.map(def=>{let status='incomplete';try{status=def.status?def.status(s):(def.check(s)?'covered':'incomplete')}catch(e){status='incomplete'}return {...def,status}});for(const c of coverage){if(c.status==='incomplete')findings.push({severity:'error',field_path:c.source,title:c.area+' is incomplete',impact:c.role,suggestion:c.suggestion})}const bundleText=document.getElementById('bundle').value;let hash='unavailable';try{hash=await sha256Hex(bundleText)}catch(e){}const report={type:'hyperion-browser-bundle-compile-report',status:findings.some(f=>f.severity==='error')?'fail':(findings.some(f=>f.severity==='warning')||coverage.some(c=>c.status==='external_required')?'warn':'pass'),bundle_sha256:hash,findings,capability_coverage:coverage,browser_advisory:true,rust_authority:'cargo run --quiet --example krn_certification_bundle -- --lint --bundle <bundle> --trust-anchors <trust>'};render(report);localStorage.setItem('hyperion_bundle_workbench_bundle',bundleText);localStorage.setItem('hyperion_bundle_workbench_trust',document.getElementById('trust').value)}
+function render(report){document.getElementById('compiled_bundle').value=document.getElementById('bundle').value;document.getElementById('compiled_report').value=JSON.stringify(report,null,2);const pill=document.getElementById('status-pill');pill.textContent='Status: '+report.status;pill.className='status-pill status-'+report.status;document.getElementById('finding-count').textContent=String(report.findings.length);document.getElementById('coverage-count').textContent=String(report.capability_coverage.length);document.getElementById('hash-prefix').textContent=report.bundle_sha256.slice(0,12);document.getElementById('external-count').textContent=String(report.capability_coverage.filter(c=>c.status==='external_required').length);document.getElementById('findings').innerHTML=report.findings.length?report.findings.map(f=>`<div class="finding"><div class="top"><strong>${esc(f.title)}</strong><span class="severity sev-${esc(f.severity)}">${esc(f.severity)}</span></div><div><code>${esc(f.field_path)}</code></div><p>${esc(f.impact)}</p><p><b>Suggestion:</b> ${esc(f.suggestion)}</p></div>`).join(''):'<p>No findings.</p>';document.getElementById('coverage-body').innerHTML=report.capability_coverage.map(c=>`<tr><td><code>${esc(c.id)}</code></td><td>${esc(c.area)}</td><td><span class="tag ${esc(c.status)}">${esc(c.status)}</span></td><td><code>${esc(c.source)}</code></td><td>${esc(c.role)}</td><td>${esc(c.suggestion)}</td></tr>`).join('')}
+function esc(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function resetFixture(){document.getElementById('bundle').value=initialBundleText;document.getElementById('trust').value=initialTrustText;syncFromJson()}
+document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-pressed','false'));btn.setAttribute('aria-pressed','true');for(const id of ['guided','profiles','lint','coverage','compiled'])document.getElementById(id).classList.toggle('hidden',id!==btn.dataset.view)}));
+document.getElementById('field-help').innerHTML=help.map(h=>`<div class="help"><b>${esc(h.field)}</b><dl><dt>Role</dt><dd>${esc(h.role)}</dd><dt>Impact</dt><dd>${esc(h.impact)}</dd><dt>Used by</dt><dd>${esc(h.used)}</dd><dt>Security</dt><dd>${esc(h.security)}</dd></dl></div>`).join('');
+for(const id of ['bundle','trust'])document.getElementById(id).addEventListener('input',()=>compileBundle(false));
+for(const id of ['scheme_profile','vector_bundle','bundle_id','bundle_class','rollback_counter','product_name','product_version','certification_target','interfaces','authorities','bulletins_included','apdu_timeout','host_timeout','pin_timeout','ui_timeout','l1_ref','pci_ref'])document.getElementById(id).addEventListener('input',()=>compileBundle(true));
+const savedBundle=localStorage.getItem('hyperion_bundle_workbench_bundle');const savedTrust=localStorage.getItem('hyperion_bundle_workbench_trust');if(savedBundle)document.getElementById('bundle').value=savedBundle;if(savedTrust)document.getElementById('trust').value=savedTrust;syncFromJson();
+</script></body></html>
+"#);
     out
+}
+
+fn push_finding(
+    report: &mut BundleCompileReport,
+    severity: BundleLintSeverity,
+    field_path: &str,
+    title: &str,
+    impact: &str,
+    suggestion: &str,
+) {
+    report.findings.push(BundleLintFinding {
+        severity,
+        field_path: field_path.to_string(),
+        title: title.to_string(),
+        impact: impact.to_string(),
+        suggestion: suggestion.to_string(),
+    });
+}
+
+fn lint_parsed_bundle(
+    report: &mut BundleCompileReport,
+    bundle: &CertificationBundle,
+    policy: &BundleLoadPolicy,
+) {
+    if bundle.bundle_class == BundleClass::Testing && policy.mode != BuildMode::Test {
+        push_finding(
+            report,
+            BundleLintSeverity::Error,
+            "bundle_class",
+            "Testing bundle selected outside test mode",
+            "Certification and production loaders must not accept a testing bundle.",
+            "Switch the bundle_class to CERTIFICATION and use an authority-backed signature, or load it only with --mode test.",
+        );
+    }
+    if bundle.rollback_counter <= policy.installed_rollback_counter {
+        push_finding(
+            report,
+            BundleLintSeverity::Error,
+            "rollback_counter",
+            "Rollback counter is not newer than installed policy",
+            "The runtime anti-rollback guard will reject older or equal bundles.",
+            "Increase rollback_counter above the installed counter for any replacement bundle.",
+        );
+    }
+    if bundle.created > policy.evaluation_date {
+        push_finding(
+            report,
+            BundleLintSeverity::Error,
+            "created",
+            "Bundle creation date is after evaluation date",
+            "A future-dated bundle cannot be accepted as current certification material.",
+            "Set the evaluation date to the lab date or regenerate the bundle with a valid creation date.",
+        );
+    }
+    if bundle.signature.algorithm == CERTIFICATION_BUNDLE_TEST_ALGORITHM {
+        push_finding(
+            report,
+            BundleLintSeverity::Warning,
+            "signature.algorithm",
+            "Self-attested test signature detected",
+            "Self-attestation is acceptable for local testing only and is not certification authority evidence.",
+            "Use the certification bundle signature algorithm with a protected trust anchor before submission.",
+        );
+    }
+    lint_pending_text(
+        report,
+        "submission_scope.certification_target",
+        &bundle.payload.submission_scope.certification_target,
+    );
+    lint_pending_text(
+        report,
+        "terminal_profile.device_model",
+        &bundle.payload.terminal_profile.device_model,
+    );
+    lint_pending_text(
+        report,
+        "terminal_profile.firmware_version",
+        &bundle.payload.terminal_profile.firmware_version,
+    );
+    lint_pending_text(
+        report,
+        "terminal_profile.l1_approval_reference",
+        &bundle.payload.terminal_profile.l1_approval_reference,
+    );
+    lint_pending_text(
+        report,
+        "terminal_profile.pci_pts_reference",
+        &bundle.payload.terminal_profile.pci_pts_reference,
+    );
+    for (idx, authority) in bundle
+        .payload
+        .submission_scope
+        .authorities
+        .iter()
+        .enumerate()
+    {
+        lint_pending_text(
+            report,
+            &format!("submission_scope.authorities[{idx}]"),
+            authority,
+        );
+    }
+    if bundle
+        .payload
+        .standards_target
+        .bulletins_included
+        .is_empty()
+    {
+        push_finding(
+            report,
+            BundleLintSeverity::Error,
+            "standards_target.bulletins_included",
+            "No standards bulletin reconciliation is present",
+            "Certification scope changes must be tied to explicit standards and bulletin data.",
+            "Add the public or licensed standards-watch identifier that applies to the target submission.",
+        );
+    }
+    if !bundle
+        .payload
+        .runtime_policy
+        .trace_masking_policy
+        .to_ascii_lowercase()
+        .contains("mask")
+    {
+        push_finding(
+            report,
+            BundleLintSeverity::Error,
+            "runtime_policy.trace_masking_policy",
+            "Trace masking policy does not declare masking",
+            "APDU and report artifacts can leak PAN, track-equivalent, cryptogram, or PIN-adjacent data without a masking policy.",
+            "Use a masking policy that explicitly covers PAN, track-equivalent data, cryptograms, PIN material, and sensitive TLVs.",
+        );
+    }
+    if bundle.payload.artifact_hashes.len() < 2 {
+        push_finding(
+            report,
+            BundleLintSeverity::Warning,
+            "artifact_hashes",
+            "Few artifact bindings are present",
+            "A certification bundle should bind profiles, CAPKs, vectors, reports, traces, and external evidence to stable hashes.",
+            "Add hash bindings for every certification artifact before freezing the submission.",
+        );
+    }
+}
+
+fn lint_pending_text(report: &mut BundleCompileReport, field_path: &str, value: &str) {
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("pending") || lower.contains("external-") || lower.contains("required") {
+        push_finding(
+            report,
+            BundleLintSeverity::Warning,
+            field_path,
+            "External evidence placeholder remains",
+            "The bundle can compile for pre-lab use, but this field must be replaced or backed by accepted authority evidence for certification closure.",
+            "Attach the lab, scheme, L1, device, PCI/PED, or acquirer evidence and update this field with the accepted reference.",
+        );
+    }
+}
+
+fn lint_trust_anchors(
+    report: &mut BundleCompileReport,
+    anchors: &[BundleTrustAnchor],
+    policy: &BundleLoadPolicy,
+) {
+    if anchors.is_empty() {
+        push_finding(
+            report,
+            BundleLintSeverity::Error,
+            "trust_anchors",
+            "No trust anchors are provisioned",
+            "Certification and production bundles cannot be authenticated without authority metadata.",
+            "Provision a signer trust anchor in a protected store and bind it to the accepted payload hash.",
+        );
+    }
+    for (idx, anchor) in anchors.iter().enumerate() {
+        if anchor.verification_secret_hex
+            == "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+        {
+            push_finding(
+                report,
+                BundleLintSeverity::Warning,
+                &format!("trust_anchors[{idx}].verification_secret_hex"),
+                "Fixture signing secret is still present",
+                "The checked-in fixture key is deterministic and must never protect production or certification submissions.",
+                "Generate and custody a submission-specific trust anchor outside the repository fixture.",
+            );
+        }
+        if let Some(not_after) = anchor.not_after {
+            if not_after < policy.evaluation_date {
+                push_finding(
+                    report,
+                    BundleLintSeverity::Error,
+                    &format!("trust_anchors[{idx}].not_after"),
+                    "Trust anchor has expired for the evaluation date",
+                    "The runtime will reject bundles signed by expired anchors.",
+                    "Rotate the trust anchor or evaluate against the correct lab date.",
+                );
+            }
+        }
+    }
+}
+
+fn emv_capability_coverage(loaded: &LoadedCertificationBundle) -> Vec<EmvCapabilityCoverage> {
+    let bundle = &loaded.bundle;
+    let profile = &loaded.profile_set;
+    let has_contact_scope = has_value(&bundle.payload.submission_scope.interfaces, "contact");
+    let has_contactless_scope =
+        has_value(&bundle.payload.submission_scope.interfaces, "contactless");
+    let has_contact_aid = profile_aids_with_interface(profile, "contact") > 0;
+    let has_contactless_aid = profile_aids_with_interface(profile, "contactless") > 0;
+    let has_contact_kernel = profile
+        .schemes
+        .iter()
+        .any(|scheme| scheme.contact_kernel_type.is_some());
+    let has_contactless_kernel = bundle
+        .payload
+        .kernel_registry
+        .iter()
+        .any(|entry| entry.interface == "contactless");
+    let has_capk = profile
+        .schemes
+        .iter()
+        .any(|scheme| !scheme.capks.is_empty());
+    let has_cda = profile
+        .schemes
+        .iter()
+        .flat_map(|scheme| scheme.aids.iter())
+        .any(|aid| aid.cda_allowed_by_profile());
+    let has_trm = profile
+        .schemes
+        .iter()
+        .flat_map(|scheme| scheme.aids.iter())
+        .any(|aid| {
+            aid.floor_limit > 0
+                || aid.random_selection_percent > 0
+                || aid.lower_consecutive_offline_limit.is_some()
+                || aid.upper_consecutive_offline_limit.is_some()
+                || !aid.transaction_type_floor_limits.is_empty()
+        });
+    let has_cvm = !bundle.payload.cvm_extensions.is_empty()
+        || profile
+            .schemes
+            .iter()
+            .flat_map(|scheme| scheme.aids.iter())
+            .any(|aid| {
+                aid.cvm_limit_contact > 0 || aid.contactless_cvm_limit > 0 || aid.cdcvm_supported
+            });
+    let has_issuer_scripts = profile
+        .schemes
+        .iter()
+        .flat_map(|scheme| scheme.aids.iter())
+        .any(|aid| !aid.critical_issuer_script_ins.is_empty());
+    let has_relay_resistance = profile
+        .schemes
+        .iter()
+        .flat_map(|scheme| scheme.aids.iter())
+        .any(|aid| aid.relay_resistance.is_some());
+    let has_vector_binding = bundle
+        .payload
+        .artifact_hashes
+        .iter()
+        .any(|artifact| artifact.artifact_id == "vector_bundle_json");
+    let has_profile_binding = bundle
+        .payload
+        .artifact_hashes
+        .iter()
+        .any(|artifact| artifact.artifact_id == "scheme_profile_set_json");
+    let has_l1_ref =
+        external_reference_status(&bundle.payload.terminal_profile.l1_approval_reference);
+    let has_pci_ref = external_reference_status(&bundle.payload.terminal_profile.pci_pts_reference);
+
+    vec![
+        coverage_item("selection", "Application selection", "Selects PSE/PPSE, matches configured AIDs, and keeps scheme choice data-driven.", "payload.scheme_profile_set_json.schemes[].aids", profile.schemes.iter().any(|scheme| !scheme.aids.is_empty()), "Add at least one scheme profile with AID entries for each claimed interface."),
+        coverage_item("contact_l2", "Contact EMV L2", "Binds contact interface, contact kernel type, TAC/IAC, DOL, CVM, TRM, and scripts to profile data.", "payload.submission_scope.interfaces + scheme_profile_set_json", has_contact_scope && has_contact_aid && has_contact_kernel, "Add contact to the claimed interfaces and include contact AID/profile material with contact_kernel_type."),
+        coverage_item("contactless_c8", "Contactless Kernel C-8", "Binds contactless scope to C-8 package data, TTQ/CVM limits, relay resistance, and masked traces.", "payload.kernel_registry + scheme_profile_set_json", has_contactless_scope && has_contactless_aid && has_contactless_kernel, "Add a contactless kernel registry entry and contactless AID profile data for every claimed scheme."),
+        coverage_item("capk_authority", "CAPK authority data", "Supplies RID/index public keys, expiry, checksums, and provenance for ODA validation.", "payload.scheme_profile_set_json.schemes[].capks", has_capk, "Attach accepted CAPK material with checksums and authority provenance."),
+        coverage_item("oda_vectors", "SDA/DDA/CDA and ODA vectors", "Binds cryptographic vector evidence and CDA request behavior to bundle hashes.", "payload.vector_bundle_json + payload.artifact_hashes", has_cda && has_vector_binding, "Attach lab or scheme ODA vectors and bind their hash in artifact_hashes."),
+        coverage_item("cvm_pin", "CVM and PIN integration", "Controls CVM limits, CDCVM support, extension codes, and PED-owned offline PIN behavior.", "payload.cvm_extensions + scheme_profile_set_json.aids", has_cvm, "Add CVM limits, certified CVM code handling, and PED integration evidence."),
+        coverage_item("trm", "Terminal risk management", "Drives floor limits, random selection, transaction type limits, and offline counters from profile data.", "payload.scheme_profile_set_json.aids[].trm", has_trm, "Add floor limits, random selection settings, and offline counter bounds for the target schemes."),
+        coverage_item("taa", "Terminal action analysis", "Keeps TAC/IAC policy in signed profile data rather than compiled constants.", "payload.scheme_profile_set_json.schemes[].taa", !profile.schemes.is_empty(), "Attach scheme-approved TAC/IAC profile material."),
+        coverage_item("issuer_scripts", "Issuer script handling", "Defines which issuer script INS values are critical for post-authorization handling.", "payload.scheme_profile_set_json.aids[].critical_issuer_script_ins", has_issuer_scripts, "Add critical issuer script INS policy for each scheme profile that requires it."),
+        coverage_status_item("relay_resistance", "Relay resistance", "Controls contactless relay resistance behavior where required by scheme/profile.", "payload.scheme_profile_set_json.aids[].relay_resistance", if has_relay_resistance { "covered" } else { "warning" }, "Add relay resistance parameters for contactless profiles that claim it."),
+        coverage_item("runtime_abi", "Runtime ABI and timeouts", "Sets APDU, host authorization, PIN entry, and contactless UI callback bounds from bundle data.", "payload.runtime_policy.callback_timeouts", true, "Keep timeout values within 1..60000 ms and document device-specific rationale."),
+        coverage_item("security_trust", "Signature, trust, and anti-rollback", "Authenticates bundle payloads, enforces rollback counters, and records verification status.", "signature + trust_anchors + rollback_counter", loaded.verification_status == "trust-anchor-verified", "Use authority-managed trust anchors and keep rollback counters monotonic."),
+        coverage_status_item("device_l1", "Device and L1 evidence", "Binds target device, firmware, interface, and L1 approval references to the bundle.", "payload.terminal_profile", has_l1_ref, "Replace pre-lab placeholders with accepted L1/device references."),
+        coverage_status_item("pci_ped", "PCI/PED evidence", "Records PED/PIN custody evidence for CVM and offline PIN integration.", "payload.terminal_profile.pci_pts_reference", has_pci_ref, "Replace pre-lab placeholders with PCI PTS or assessor evidence references."),
+        coverage_item("standards_bulletins", "Standards and bulletins", "Captures contact/contactless target versions and bulletin inclusions/exclusions as data.", "payload.standards_target", !bundle.payload.standards_target.bulletins_included.is_empty(), "Add accepted standards and bulletin reconciliation data."),
+        coverage_item("evidence_freeze", "Evidence freeze and reports", "Binds test plan, artifact hashes, fingerprints, and report pack outputs for reproducible submissions.", "payload.test_plan + payload.artifact_hashes", !bundle.payload.test_plan.is_empty() && has_profile_binding && has_vector_binding, "Bind every external report, trace pack, vector set, profile, and submitted binary by hash."),
+        coverage_item("trace_privacy", "Trace privacy", "Requires masked APDU traces and prevents sensitive data from becoming report content.", "payload.runtime_policy.trace_masking_policy", bundle.payload.runtime_policy.trace_masking_policy.to_ascii_lowercase().contains("mask"), "Use the repository masking policy and audit trace packs before submission."),
+    ]
+}
+
+fn payload_capability_coverage(bundle: &CertificationBundle) -> Vec<EmvCapabilityCoverage> {
+    let has_contact_scope = has_value(&bundle.payload.submission_scope.interfaces, "contact");
+    let has_contactless_scope =
+        has_value(&bundle.payload.submission_scope.interfaces, "contactless");
+    let has_contactless_kernel = bundle
+        .payload
+        .kernel_registry
+        .iter()
+        .any(|entry| entry.interface == "contactless");
+    vec![
+        coverage_item(
+            "selection",
+            "Application selection",
+            "Selects PSE/PPSE, matches configured AIDs, and keeps scheme choice data-driven.",
+            "payload.scheme_profile_set_json",
+            true,
+            "Compile the embedded scheme profile set to verify concrete AID coverage.",
+        ),
+        coverage_item(
+            "contact_l2",
+            "Contact EMV L2",
+            "Binds contact interface to profile material.",
+            "payload.submission_scope.interfaces",
+            has_contact_scope,
+            "Add contact interface data and compile the embedded profile set.",
+        ),
+        coverage_item(
+            "contactless_c8",
+            "Contactless Kernel C-8",
+            "Binds contactless scope to C-8 package data.",
+            "payload.kernel_registry",
+            has_contactless_scope && has_contactless_kernel,
+            "Add contactless scope and a contactless kernel registry entry.",
+        ),
+        coverage_item(
+            "security_trust",
+            "Signature, trust, and anti-rollback",
+            "Authenticates bundle payloads and enforces rollback counters.",
+            "signature + trust_anchors",
+            false,
+            "Fix compile/authentication errors before treating this bundle as usable.",
+        ),
+    ]
+}
+
+fn coverage_item(
+    id: &'static str,
+    area: &'static str,
+    role: &'static str,
+    bundle_source: &'static str,
+    covered: bool,
+    suggestion: &'static str,
+) -> EmvCapabilityCoverage {
+    EmvCapabilityCoverage {
+        id,
+        area,
+        role,
+        bundle_source,
+        status: if covered { "covered" } else { "incomplete" },
+        suggestion,
+    }
+}
+
+fn coverage_status_item(
+    id: &'static str,
+    area: &'static str,
+    role: &'static str,
+    bundle_source: &'static str,
+    status: &'static str,
+    suggestion: &'static str,
+) -> EmvCapabilityCoverage {
+    EmvCapabilityCoverage {
+        id,
+        area,
+        role,
+        bundle_source,
+        status,
+        suggestion,
+    }
+}
+
+fn external_reference_status(value: &str) -> &'static str {
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("pending") || lower.contains("required") || lower.contains("external-") {
+        "external_required"
+    } else {
+        "covered"
+    }
+}
+
+fn profile_aids_with_interface(profile: &ProfileSet, interface: &str) -> usize {
+    profile
+        .schemes
+        .iter()
+        .flat_map(|scheme| scheme.aids.iter())
+        .filter(|aid| aid.interfaces.iter().any(|item| item == interface))
+        .count()
+}
+
+fn has_value(values: &[String], needle: &str) -> bool {
+    values.iter().any(|value| value == needle)
+}
+
+fn finalize_compile_status(report: &mut BundleCompileReport) {
+    report.status = if report
+        .findings
+        .iter()
+        .any(|finding| finding.severity == BundleLintSeverity::Error)
+        || report
+            .coverage
+            .iter()
+            .any(|item| item.status == "incomplete")
+    {
+        "fail"
+    } else if report
+        .findings
+        .iter()
+        .any(|finding| finding.severity == BundleLintSeverity::Warning)
+        || report
+            .coverage
+            .iter()
+            .any(|item| item.status == "external_required")
+    {
+        "warn"
+    } else {
+        "pass"
+    };
+}
+
+fn build_mode_as_str(mode: BuildMode) -> &'static str {
+    match mode {
+        BuildMode::Test => "test",
+        BuildMode::Certification => "certification",
+        BuildMode::Production => "production",
+    }
+}
+
+fn push_lint_finding_json(out: &mut String, finding: &BundleLintFinding) {
+    out.push('{');
+    push_json_str(out, "severity", finding.severity.as_str());
+    out.push(',');
+    push_json_str(out, "field_path", &finding.field_path);
+    out.push(',');
+    push_json_str(out, "title", &finding.title);
+    out.push(',');
+    push_json_str(out, "impact", &finding.impact);
+    out.push(',');
+    push_json_str(out, "suggestion", &finding.suggestion);
+    out.push('}');
+}
+
+fn push_capability_coverage_json(out: &mut String, coverage: &EmvCapabilityCoverage) {
+    out.push('{');
+    push_json_str(out, "id", coverage.id);
+    out.push(',');
+    push_json_str(out, "area", coverage.area);
+    out.push(',');
+    push_json_str(out, "role", coverage.role);
+    out.push(',');
+    push_json_str(out, "bundle_source", coverage.bundle_source);
+    out.push(',');
+    push_json_str(out, "status", coverage.status);
+    out.push(',');
+    push_json_str(out, "suggestion", coverage.suggestion);
+    out.push('}');
 }
 
 fn parse_payload(value: &JsonValue) -> KernelResult<CertificationBundlePayload> {

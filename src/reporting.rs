@@ -151,6 +151,20 @@ const CONTROLLED_REPORT_FILES: &[ControlledReportFile] = &[
         contents: include_bytes!("../docs/certification_data_bundle_fingerprints.json"),
     },
     ControlledReportFile {
+        id: "DATA-BUNDLE-LINT-JSON",
+        title: "Data-driven certification bundle lint report",
+        path: "docs/certification_data_bundle_lint.json",
+        category: "quality",
+        contents: include_bytes!("../docs/certification_data_bundle_lint.json"),
+    },
+    ControlledReportFile {
+        id: "DATA-BUNDLE-LINT-MD",
+        title: "Data-driven certification bundle lint report Markdown",
+        path: "docs/certification_data_bundle_lint.md",
+        category: "quality",
+        contents: include_bytes!("../docs/certification_data_bundle_lint.md"),
+    },
+    ControlledReportFile {
         id: "ODA-VECTORS",
         title: "ODA structural vector annex",
         path: "docs/oda_test_vectors.json",
@@ -463,7 +477,7 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
     ReportArtifact {
         id: "DATA-BUNDLE",
         title: "Data-driven certification bundle",
-        path: "docs/certification_data_bundle.json; docs/certification_data_bundle_trust_anchors.json; docs/certification_data_bundle.md; docs/certification_data_bundle_workbench.html",
+        path: "docs/certification_data_bundle.json; docs/certification_data_bundle_trust_anchors.json; docs/certification_data_bundle.md; docs/certification_data_bundle_workbench.html; docs/certification_data_bundle_lint.json; docs/certification_data_bundle_lint.md",
         category: "configuration",
         generator: "cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle",
         status: "generated",
@@ -766,7 +780,7 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         id: "DATA-BUNDLE",
         title: "Generate data-driven certification bundle and workbench",
         command: "cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle",
-        output: "target/hyperion-cert-bundle/certification_bundle.json, trust_anchors.json, index.html, and bundle_fingerprints.json",
+        output: "target/hyperion-cert-bundle/certification_bundle.json, trust_anchors.json, index.html, bundle_fingerprints.json, and certification_bundle_lint.json",
     },
     ToolCommand {
         id: "DATA-BUNDLE-TUI",

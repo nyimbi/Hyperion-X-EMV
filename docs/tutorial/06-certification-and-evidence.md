@@ -304,10 +304,24 @@ Generate the default local bundle and static GUI workbench:
 cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle
 ```
 
+The workbench is intended for bundle authors, not only kernel engineers. Each
+major field explains its role, impact, runtime utilization, and security
+consequence. Authors can edit guided fields, embedded scheme profile JSON,
+vector bundle JSON, and trust-anchor JSON; the browser view then produces
+suggestions, fingerprints, a normalized bundle preview, and an EMV capability
+coverage map. Browser checks are advisory and local. The Rust compile/lint
+command is the authoritative gate.
+
 Validate the checked-in fixture bundle:
 
 ```sh
 cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+```
+
+Lint and compile-check the checked-in fixture bundle:
+
+```sh
+cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
 ```
 
 Provision a new local bundle with terminal prompts:
@@ -346,6 +360,7 @@ Before a certification-facing submission, confirm:
 - `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` produces the current report workbench.
 - `cargo run --quiet --example krn_tooling_completeness_audit -- --out docs` produces the repository-controlled tooling completeness audit.
 - `cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json` validates the active data-driven bundle fixture.
+- `cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json` emits the compile/lint report with suggestions and EMV capability coverage.
 - `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` produces the complete local report-production workspace.
 - `target/hyperion-cert-workspace/attachments/CERT-OPEN-*` is the generated staging layout for external evidence attachments.
 - `target/hyperion-cert-workspace/attachment_audit.html` is the generated local dashboard for slot status and attachment hashes.

@@ -19,3 +19,6 @@ Current implementation focus:
   source code.
 - Provide operator-friendly provisioning surfaces: deterministic CLI, terminal
   TUI-style prompt flow, and static local GUI/workbench.
+- Make bundle authoring easy to understand and hard to misuse by explaining
+  each field, linting and compile-checking bundle inputs, surfacing suggestions,
+  and mapping bundle data to EMV capability coverage.

@@ -25,8 +25,10 @@ tool results, and approval artifacts prevail over this repository on conflict.
   `docs/tooling_completeness_audit.md`.
 - Data-driven certification bundle: `docs/certification_data_bundle.json`,
   `docs/certification_data_bundle_trust_anchors.json`,
-  `docs/certification_data_bundle.md`, and
-  `docs/certification_data_bundle_workbench.html`.
+  `docs/certification_data_bundle.md`,
+  `docs/certification_data_bundle_workbench.html`,
+  `docs/certification_data_bundle_lint.json`, and
+  `docs/certification_data_bundle_lint.md`.
 - Certification evidence checklist: `docs/certification_evidence_checklist.json`
   and `docs/certification_evidence_checklist.md`.
 - Clean-room open-source reference review: `docs/open_source.md`.
@@ -97,10 +99,23 @@ Generate the static GUI/workbench and fixture bundle:
 cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle
 ```
 
+The generated workbench is a local browser UI for bundle authors. It provides
+guided fields, role/impact/utilization/security explanations, embedded profile
+and vector editors, browser-side suggestions, SHA-256 previewing, capability
+coverage, and a compiled JSON preview. The Rust loader remains authoritative
+for signing, rollback, embedded profile validation, timeout bounds, and trust
+anchor checks.
+
 Validate a bundle without changing code:
 
 ```sh
 cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+```
+
+Lint and compile-check a bundle with suggestions and EMV capability coverage:
+
+```sh
+cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
 ```
 
 Provision interactively from a terminal:
