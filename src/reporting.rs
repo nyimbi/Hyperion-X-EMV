@@ -729,6 +729,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         command: "cargo run --quiet --example krn_callback_timeout_policy",
         output: "stdout JSON timeout policy",
     },
+    ToolCommand {
+        id: "VARIABLE-DATA-BOUNDARY",
+        title: "Audit production source variable-data boundary",
+        command: "cargo run --quiet --example krn_variable_data_boundary_audit -- src",
+        output: "stdout JSON boundary audit",
+    },
 ];
 
 pub fn certification_report_pack_json(abi_version: u32) -> String {
@@ -1238,6 +1244,7 @@ mod tests {
         assert!(json.contains("krn_certification_report_ui"));
         assert!(json.contains("krn_basic_pos"));
         assert!(json.contains("krn_callback_timeout_policy"));
+        assert!(json.contains("krn_variable_data_boundary_audit"));
         assert!(json.contains("CERT-OPEN-011"));
         assert!(!json.contains("certified\":true"));
     }

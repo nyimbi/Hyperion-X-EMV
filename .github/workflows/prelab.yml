@@ -121,6 +121,9 @@ jobs:
       - name: Callback timeout policy smoke
         run: cargo run --quiet --example krn_callback_timeout_policy
 
+      - name: Variable data boundary audit
+        run: cargo run --quiet --example krn_variable_data_boundary_audit -- src
+
       - name: Whitespace
         run: git diff --check
 

@@ -172,6 +172,17 @@ Hyperion rejects example-only profiles in certification and production modes.
 Integrations should store the reported profile version and SHA-256 alongside
 build hashes, trace packs, and test-tool outputs.
 
+Before report production, run the variable-data boundary audit:
+
+```sh
+cargo run --quiet --example krn_variable_data_boundary_audit -- src
+```
+
+This audit checks production Rust source for scheme/profile/CAPK/TAC/IAC
+fixture literals. A passing audit supports the signed-profile boundary, but it
+does not replace signed scheme/acquirer profile bundles, accepted CAPKs,
+lab-supplied vectors, or submitted-build review.
+
 For report production, `krn_certification_evidence_checklist` emits the
 external attachment checklist, `krn_certification_evidence_intake` emits
 pending attachment slots for hash capture and review disposition,

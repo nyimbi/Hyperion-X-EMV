@@ -4,6 +4,21 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T05:29:30Z
+
+- Increment completed: add a pre-lab variable-data boundary audit for
+  production Rust source.
+- Code impact: added `data_boundary` and `krn_variable_data_boundary_audit` to
+  scan production source for compiled scheme/profile/CAPK/TAC/IAC fixture
+  literals while allowing signed profile bundles and isolated test fixtures to
+  carry variable data.
+- Tooling impact: exposed the audit through CI, the pre-lab quality gate
+  manifest, certification report workbench tool commands, README, tutorial,
+  lab manifest, and both RTM annexes under `KRN-CFG-005`.
+- Evidence scope: this is a source-hygiene and report-production gate only. It
+  does not close the external signed-profile, CAPK, vector, submitted-build, or
+  lab acceptance blockers.
+
 ## 2026-05-24T04:52:39Z
 
 - Increment completed: add checked-in artifact file integrity to the

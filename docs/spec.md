@@ -279,6 +279,14 @@ Certification/pre-lab builds MAY carry fixture-pending material-status markers
 for controlled engineering evidence, but production policy SHALL reject those
 markers and require `lab_signed_certification_profile` and `lab_signed_capks`.
 
+**KRN-CFG-005 SHALL** Production kernel source SHALL NOT compile
+scheme-specific RIDs, AIDs, CAPKs, limits, TAC/IAC values, CDA encodings, or
+certification vectors. Those variable inputs SHALL be loaded from signed
+profile/vector artifacts or isolated test fixtures. The pre-lab variable-data
+boundary audit SHALL scan production Rust source and remain non-closing
+repository evidence until the submitted build, signed profiles, and lab package
+are accepted.
+
 C-8 contactless behavior is certified through the contactless kernel approval
 package and lab-supplied profile data. The certification scheme profile annex
 shall not invent a payment RID, AID, or CAPK for C-8.

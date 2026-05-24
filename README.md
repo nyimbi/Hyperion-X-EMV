@@ -314,6 +314,9 @@ controlled evidence:
   authentication, and final GENERATE AC.
 - `krn_callback_timeout_policy`: emits the C ABI callback timeout policy as
   JSON for terminal adapter startup checks and certification evidence.
+- `krn_variable_data_boundary_audit`: scans production Rust source for
+  compiled scheme/profile/CAPK/TAC/IAC fixture literals so variable payment
+  data stays in signed profile/vector artifacts or isolated tests.
 - `krn_emv_decode`: decodes lab-triage inputs while suppressing sensitive
   payload values by default.
 
@@ -337,6 +340,7 @@ cargo run --quiet --example krn_certification_integration_report_plan -- --out d
 cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
 cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace
 cargo run --quiet --example krn_basic_pos
+cargo run --quiet --example krn_variable_data_boundary_audit -- src
 ```
 
 ## Controlled Annexes
@@ -360,6 +364,8 @@ The `docs/` directory is part of the executable baseline:
   manifest.
 - `public_standards_watch.json`: generated public standards-watch signal
   manifest.
+- `krn_variable_data_boundary_audit`: source audit utility that keeps
+  scheme/profile/CAPK/TAC/IAC fixture literals out of production Rust code.
 - `certification_evidence_checklist.json`: generated external evidence
   attachment checklist.
 - `certification_evidence_checklist.md`: generated Markdown attachment
@@ -446,6 +452,10 @@ not in hardcoded scheme behavior. The certification profile scaffold covers:
 Production and certification loading reject example-only profiles,
 placeholder material, invalid schema, expired CAPKs, rollback/replay attempts,
 bad checksums, and inconsistent interface mappings.
+The variable-data boundary audit also checks production Rust source so
+scheme-specific RIDs/AIDs, CAPKs, limits, TAC/IAC values, CDA encodings, and
+certification vectors remain signed profile/vector data rather than compiled
+kernel behavior.
 The loaded profile version and SHA-256 are also carried into trace identity
 records so masked logs can be reconciled against the exact submitted profile
 bundle without exposing profile contents.
