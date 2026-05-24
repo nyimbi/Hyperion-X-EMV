@@ -5513,3 +5513,26 @@ decision record, while this file tracks work toward certification readiness.
   JSON/Markdown, and report UI HTML; `cargo fmt --check`, `cargo test`,
   `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D
   warnings`, and `git diff --check` passed.
+
+## 2026-05-24T02:37:53Z
+
+- Increment completed: make the one-command certification workspace usable for
+  external evidence staging, not just report viewing.
+- Code impact: moved certification attachment audit logic into the library so
+  the standalone audit CLI and workspace generator share one implementation.
+  The workspace now creates empty `attachments/CERT-OPEN-*` directories, an
+  attachment-slot guide, and JSON/Markdown attachment audit outputs tied to
+  the generated workspace.
+- Evidence scope: empty slots remain `missing`, and staged files are only
+  `present_unreviewed`; the tooling records path, size, and SHA-256 for review
+  but cannot close external lab, scheme, device, PCI/PED, assessor, report, or
+  approval gates.
+- Verification: targeted library, example, and traceability tests for
+  attachment audit/workspace generation passed; the workspace was generated
+  under `target/hyperion-cert-workspace` and verified to contain
+  `attachments/CERT-OPEN-001` through `CERT-OPEN-012`,
+  `attachment_slot_guide.md`, and attachment audit JSON/Markdown. Full
+  verification passed with `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D
+  warnings`, report-pack and quality-manifest drift checks, attachment audit
+  smoke, workspace smoke, basic PoS smoke, and `git diff --check`.

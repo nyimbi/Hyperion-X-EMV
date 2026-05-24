@@ -3,8 +3,10 @@ use hyperion_emv::device::{
     certification_device_evidence_plan_json, certification_device_evidence_plan_markdown,
 };
 use hyperion_emv::evidence::{
-    certification_evidence_checklist_json, certification_evidence_checklist_markdown,
-    certification_evidence_intake_ledger_json, certification_evidence_intake_ledger_markdown,
+    audit_certification_attachments, certification_attachment_audit_json,
+    certification_attachment_audit_markdown, certification_evidence_checklist_json,
+    certification_evidence_checklist_markdown, certification_evidence_intake_ledger_json,
+    certification_evidence_intake_ledger_markdown, certification_evidence_requirements,
 };
 use hyperion_emv::ffi::KRN_ABI_VERSION;
 use hyperion_emv::freeze::{
@@ -25,6 +27,7 @@ use hyperion_emv::security::{
 };
 use hyperion_emv::KernelResult;
 use std::env;
+use std::fmt::Write;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -121,6 +124,31 @@ const WORKSPACE_FILES: &[WorkspaceFile] = &[
         path: "certification_evidence_intake.md",
         category: "submission",
         description: "crowdsourced evidence intake ledger Markdown",
+    },
+    WorkspaceFile {
+        id: "ATTACHMENT-GUIDE",
+        path: "attachment_slot_guide.md",
+        category: "submission",
+        description: "human instructions for placing external evidence into attachment slots",
+    },
+    WorkspaceFile {
+        id: "ATTACHMENT-ROOT",
+        path: "attachments",
+        category: "submission",
+        description:
+            "empty CERT-OPEN-* directories where reviewed external artifacts can be staged",
+    },
+    WorkspaceFile {
+        id: "ATTACHMENT-AUDIT-JSON",
+        path: "certification_attachment_audit.json",
+        category: "submission",
+        description: "hash inventory of files staged under attachment slots",
+    },
+    WorkspaceFile {
+        id: "ATTACHMENT-AUDIT-MD",
+        path: "certification_attachment_audit.md",
+        category: "submission",
+        description: "Markdown hash inventory of files staged under attachment slots",
     },
     WorkspaceFile {
         id: "FREEZE-JSON",
@@ -277,6 +305,20 @@ fn write_workspace(dir: &Path, abi_version: u32) -> io::Result<&Path> {
         "certification_evidence_intake.md",
         &certification_evidence_intake_ledger_markdown(abi_version),
     )?;
+    let attachment_root = dir.join("attachments");
+    write_attachment_slot_dirs(&attachment_root)?;
+    write_file(dir, "attachment_slot_guide.md", &attachment_slot_guide())?;
+    let attachment_audit = audit_certification_attachments(&attachment_root)?;
+    write_file(
+        dir,
+        "certification_attachment_audit.json",
+        &certification_attachment_audit_json(abi_version, &attachment_audit),
+    )?;
+    write_file(
+        dir,
+        "certification_attachment_audit.md",
+        &certification_attachment_audit_markdown(abi_version, &attachment_audit),
+    )?;
     write_file(
         dir,
         "certification_freeze_manifest.json",
@@ -333,8 +375,51 @@ fn kernel_result(value: KernelResult<String>) -> io::Result<String> {
     value.map_err(|err| io::Error::new(io::ErrorKind::Other, err.name()))
 }
 
+fn write_attachment_slot_dirs(root: &Path) -> io::Result<()> {
+    fs::create_dir_all(root)?;
+    for requirement in certification_evidence_requirements() {
+        fs::create_dir_all(root.join(requirement.open_issue))?;
+    }
+    Ok(())
+}
+
+fn attachment_slot_guide() -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "# Hyperion Certification Attachment Slots");
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "Place reviewed external evidence under `attachments/CERT-OPEN-*` only after confirming the artifact scope, authority, submitted-build hash, and sensitivity policy."
+    );
+    let _ = writeln!(
+        out,
+        "Regenerate `certification_attachment_audit.json` and `.md` after adding files so the package records SHA-256 values before review."
+    );
+    let _ = writeln!(
+        out,
+        "Empty directories are intentionally reported as `missing`; local files are only `present_unreviewed` until an accepted authority closes the matching gate."
+    );
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "| Slot | Area | Required Attachment | Required Metadata |"
+    );
+    let _ = writeln!(out, "| --- | --- | --- | --- |");
+    for requirement in certification_evidence_requirements() {
+        let _ = writeln!(
+            out,
+            "| `attachments/{}` | {} | {} | {} |",
+            requirement.open_issue,
+            requirement.area,
+            requirement.required_attachment,
+            requirement.required_metadata
+        );
+    }
+    out
+}
+
 fn workspace_readme() -> String {
-    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
+    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nStage external artifacts under attachments/CERT-OPEN-* only after checking the\nartifact scope and sensitivity policy. Then regenerate or rerun the attachment\naudit so SHA-256 values are captured before review.\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
         .to_string()
 }
 
@@ -473,6 +558,11 @@ mod tests {
         assert!(manifest.contains("\"type\":\"certification-workspace-manifest\""));
         assert!(manifest.contains("\"entrypoint\":\"index.html\""));
         assert!(manifest.contains("\"CERT-OPEN-009\""));
+        assert!(manifest.contains("certification_attachment_audit.json"));
+        assert!(dir.join("attachments/CERT-OPEN-001").is_dir());
+        assert!(dir.join("attachments/CERT-OPEN-012").is_dir());
+        assert!(dir.join("attachment_slot_guide.md").exists());
+        assert!(dir.join("certification_attachment_audit.json").exists());
         assert!(index.contains("Hyperion Certification Workbench"));
         assert!(report.contains("\"type\":\"certification-report-pack\""));
 

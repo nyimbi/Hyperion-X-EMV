@@ -25,8 +25,10 @@ use hyperion_emv::device::{
 };
 use hyperion_emv::dol::{build_dol_with_policy, parse_dol, DataStore, DolPaddingPolicy};
 use hyperion_emv::evidence::{
-    certification_evidence_checklist_json, certification_evidence_checklist_markdown,
-    certification_evidence_intake_ledger_json, certification_evidence_intake_ledger_markdown,
+    audit_certification_attachments, certification_attachment_audit_json,
+    certification_attachment_audit_markdown, certification_evidence_checklist_json,
+    certification_evidence_checklist_markdown, certification_evidence_intake_ledger_json,
+    certification_evidence_intake_ledger_markdown,
 };
 use hyperion_emv::ffi::{
     krn_apply_host_response, krn_build_generate_ac, krn_build_internal_authenticate,
@@ -1646,6 +1648,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_certification_report_ui"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification workspace generator"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_certification_workspace"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("attachments/CERT-OPEN-*"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("attachment_slot_guide.md"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Basic PoS integration example"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_basic_pos"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("public standards-watch manifest"));
@@ -6890,6 +6894,8 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("CERT-OPEN-012"));
     assert!(CERTIFICATION_REPORT_PACK.contains("pending external attachment"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_certification_workspace"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("ATTACHMENT-SLOTS"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("certification_attachment_audit.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_certification_attachment_audit"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_basic_pos"));
     assert!(CERTIFICATION_REPORT_UI.contains("Hyperion Certification Workbench"));
@@ -6911,6 +6917,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(README.contains("krn_certification_device_evidence_plan"));
     assert!(README.contains("krn_certification_integration_report_plan"));
     assert!(README.contains("krn_certification_workspace"));
+    assert!(README.contains("attachment-slot guide"));
     assert!(README.contains("krn_basic_pos"));
     assert!(!CERTIFICATION_REPORT_PACK.contains("certified\":true"));
 }
@@ -6998,6 +7005,39 @@ fn certification_evidence_intake_ledger_is_reproducible_and_scoped() {
     assert!(PRELAB_CI_WORKFLOW.contains("Certification evidence intake JSON drift"));
     assert!(README.contains("krn_certification_evidence_intake"));
     assert!(!CERTIFICATION_EVIDENCE_INTAKE.contains("\"certified\":true"));
+}
+
+#[test]
+fn certification_attachment_audit_is_hash_inventory_only() {
+    let root = std::env::temp_dir().join(format!(
+        "hyperion-traceability-attachment-audit-{}",
+        std::process::id()
+    ));
+    if root.exists() {
+        fs::remove_dir_all(&root).unwrap();
+    }
+    fs::create_dir_all(root.join("CERT-OPEN-009")).unwrap();
+    fs::write(
+        root.join("CERT-OPEN-009/coverage.txt"),
+        b"coverage evidence",
+    )
+    .unwrap();
+
+    let audit = audit_certification_attachments(&root).unwrap();
+    let json = certification_attachment_audit_json(KRN_ABI_VERSION, &audit);
+    let markdown = certification_attachment_audit_markdown(KRN_ABI_VERSION, &audit);
+
+    assert!(json.contains("\"type\":\"certification-attachment-audit\""));
+    assert!(json.contains("\"open_issue\":\"CERT-OPEN-009\""));
+    assert!(json.contains("\"status\":\"present_unreviewed\""));
+    assert!(json.contains("\"status\":\"missing\""));
+    assert!(json.contains("coverage.txt"));
+    assert!(json.contains("hash inventory only"));
+    assert!(markdown.contains("# Hyperion Certification Attachment Audit"));
+    assert!(markdown.contains("accepted external authority review is still required"));
+    assert!(!json.contains("\"certified\":true"));
+
+    fs::remove_dir_all(&root).unwrap();
 }
 
 #[test]

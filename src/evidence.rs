@@ -5,6 +5,13 @@
 //! report-production aid, not an approval engine.
 
 use core::fmt::Write;
+use std::fs;
+use std::io;
+use std::path::Path;
+
+use crate::provenance::{sha256, to_hex};
+
+pub const DEFAULT_CERTIFICATION_ATTACHMENT_ROOT: &str = "target/hyperion-cert-attachments";
 
 pub struct EvidenceRequirement {
     pub open_issue: &'static str,
@@ -142,6 +149,227 @@ pub const EVIDENCE_REQUIREMENTS: &[EvidenceRequirement] = &[
 
 pub fn certification_evidence_requirements() -> &'static [EvidenceRequirement] {
     EVIDENCE_REQUIREMENTS
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertificationAttachment {
+    pub path: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertificationAttachmentSlotAudit {
+    pub open_issue: &'static str,
+    pub area: &'static str,
+    pub required_attachment: &'static str,
+    pub required_metadata: &'static str,
+    pub acceptance_gate: &'static str,
+    pub status: &'static str,
+    pub attachments: Vec<CertificationAttachment>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertificationAttachmentAudit {
+    pub root: String,
+    pub slots: Vec<CertificationAttachmentSlotAudit>,
+    pub unmapped_attachments: Vec<CertificationAttachment>,
+}
+
+pub fn audit_certification_attachments(root: &Path) -> io::Result<CertificationAttachmentAudit> {
+    let mut slots = Vec::new();
+    for requirement in certification_evidence_requirements() {
+        slots.push(audit_attachment_slot(root, requirement)?);
+    }
+
+    let mut unmapped_attachments = Vec::new();
+    if root.is_dir() {
+        let known = certification_evidence_requirements()
+            .iter()
+            .map(|requirement| requirement.open_issue)
+            .collect::<Vec<_>>();
+        for entry in fs::read_dir(root)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if known.iter().any(|issue| *issue == name) {
+                continue;
+            }
+            if entry.file_type()?.is_file() {
+                unmapped_attachments.push(read_certification_attachment(root, &entry.path())?);
+            } else if entry.file_type()?.is_dir() {
+                collect_certification_attachments(root, &entry.path(), &mut unmapped_attachments)?;
+            }
+        }
+        unmapped_attachments.sort_by(|left, right| left.path.cmp(&right.path));
+    }
+
+    Ok(CertificationAttachmentAudit {
+        root: root.display().to_string(),
+        slots,
+        unmapped_attachments,
+    })
+}
+
+pub fn certification_attachment_audit_json(
+    abi_version: u32,
+    audit: &CertificationAttachmentAudit,
+) -> String {
+    let mut out = String::new();
+    out.push('{');
+    push_json_str(&mut out, "type", "certification-attachment-audit");
+    out.push(',');
+    push_json_str(&mut out, "kernel_name", "Hyperion EMV Kernel");
+    out.push(',');
+    push_json_str(&mut out, "kernel_version", env!("CARGO_PKG_VERSION"));
+    out.push(',');
+    push_json_number(&mut out, "abi_version", abi_version as u64);
+    out.push(',');
+    push_json_str(&mut out, "attachment_root", &audit.root);
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "boundary",
+        "hash inventory only; accepted external authority review is still required before any CERT-OPEN item can close",
+    );
+    out.push_str(",\"slots\":[");
+    for (idx, slot) in audit.slots.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_attachment_slot_json(&mut out, slot);
+    }
+    out.push_str("],\"unmapped_attachments\":[");
+    for (idx, attachment) in audit.unmapped_attachments.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_attachment_json(&mut out, attachment);
+    }
+    out.push_str("]}\n");
+    out
+}
+
+pub fn certification_attachment_audit_markdown(
+    abi_version: u32,
+    audit: &CertificationAttachmentAudit,
+) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "# Hyperion Certification Attachment Audit");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "- Kernel version: {}", env!("CARGO_PKG_VERSION"));
+    let _ = writeln!(out, "- ABI version: {abi_version}");
+    let _ = writeln!(out, "- Attachment root: `{}`", audit.root);
+    let _ = writeln!(
+        out,
+        "- Boundary: hash inventory only; accepted external authority review is still required before any `CERT-OPEN-*` item can close."
+    );
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Slots");
+    let _ = writeln!(
+        out,
+        "| Open Issue | Area | Status | Attachments | Required Metadata | Acceptance Gate |"
+    );
+    let _ = writeln!(out, "| --- | --- | --- | --- | --- | --- |");
+    for slot in &audit.slots {
+        let attachments = if slot.attachments.is_empty() {
+            "none".to_string()
+        } else {
+            slot.attachments
+                .iter()
+                .map(|attachment| {
+                    format!(
+                        "`{}` ({} bytes, `{}`)",
+                        attachment.path, attachment.size_bytes, attachment.sha256
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("<br>")
+        };
+        let _ = writeln!(
+            out,
+            "| {} | {} | {} | {} | {} | {} |",
+            slot.open_issue,
+            slot.area,
+            slot.status,
+            attachments,
+            slot.required_metadata,
+            slot.acceptance_gate
+        );
+    }
+    if !audit.unmapped_attachments.is_empty() {
+        let _ = writeln!(out);
+        let _ = writeln!(out, "## Unmapped Attachments");
+        for attachment in &audit.unmapped_attachments {
+            let _ = writeln!(
+                out,
+                "- `{}`: {} bytes, SHA-256 `{}`",
+                attachment.path, attachment.size_bytes, attachment.sha256
+            );
+        }
+    }
+    out
+}
+
+fn audit_attachment_slot(
+    root: &Path,
+    requirement: &'static EvidenceRequirement,
+) -> io::Result<CertificationAttachmentSlotAudit> {
+    let slot_dir = root.join(requirement.open_issue);
+    let mut attachments = Vec::new();
+    if slot_dir.is_dir() {
+        collect_certification_attachments(root, &slot_dir, &mut attachments)?;
+        attachments.sort_by(|left, right| left.path.cmp(&right.path));
+    }
+    let status = if attachments.is_empty() {
+        "missing"
+    } else {
+        "present_unreviewed"
+    };
+    Ok(CertificationAttachmentSlotAudit {
+        open_issue: requirement.open_issue,
+        area: requirement.area,
+        required_attachment: requirement.required_attachment,
+        required_metadata: requirement.required_metadata,
+        acceptance_gate: requirement.acceptance_gate,
+        status,
+        attachments,
+    })
+}
+
+fn collect_certification_attachments(
+    root: &Path,
+    dir: &Path,
+    out: &mut Vec<CertificationAttachment>,
+) -> io::Result<()> {
+    let mut entries = fs::read_dir(dir)?.collect::<Result<Vec<_>, _>>()?;
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            collect_certification_attachments(root, &entry.path(), out)?;
+        } else if file_type.is_file() {
+            out.push(read_certification_attachment(root, &entry.path())?);
+        }
+    }
+    Ok(())
+}
+
+fn read_certification_attachment(root: &Path, path: &Path) -> io::Result<CertificationAttachment> {
+    let bytes = fs::read(path)?;
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    Ok(CertificationAttachment {
+        path: normalize_certification_attachment_path(relative),
+        size_bytes: bytes.len() as u64,
+        sha256: to_hex(&sha256(&bytes)),
+    })
+}
+
+fn normalize_certification_attachment_path(path: &Path) -> String {
+    path.components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 pub fn certification_evidence_intake_ledger_json(abi_version: u32) -> String {
@@ -448,6 +676,39 @@ fn push_intake_slot_json(out: &mut String, requirement: &EvidenceRequirement) {
     out.push('}');
 }
 
+fn push_attachment_slot_json(out: &mut String, slot: &CertificationAttachmentSlotAudit) {
+    out.push('{');
+    push_json_str(out, "open_issue", slot.open_issue);
+    out.push(',');
+    push_json_str(out, "area", slot.area);
+    out.push(',');
+    push_json_str(out, "status", slot.status);
+    out.push(',');
+    push_json_str(out, "required_attachment", slot.required_attachment);
+    out.push(',');
+    push_json_str(out, "required_metadata", slot.required_metadata);
+    out.push(',');
+    push_json_str(out, "acceptance_gate", slot.acceptance_gate);
+    out.push_str(",\"attachments\":[");
+    for (idx, attachment) in slot.attachments.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        push_attachment_json(out, attachment);
+    }
+    out.push_str("]}");
+}
+
+fn push_attachment_json(out: &mut String, attachment: &CertificationAttachment) {
+    out.push('{');
+    push_json_str(out, "path", &attachment.path);
+    out.push(',');
+    push_json_number(out, "size_bytes", attachment.size_bytes);
+    out.push(',');
+    push_json_str(out, "sha256", &attachment.sha256);
+    out.push('}');
+}
+
 fn push_json_str(out: &mut String, key: &str, value: &str) {
     push_json_key(out, key);
     push_json_string(out, value);
@@ -494,6 +755,8 @@ fn hex_nibble(value: u8) -> char {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::process;
 
     #[test]
     fn evidence_checklist_json_tracks_all_open_issues_without_closure_claims() {
@@ -539,5 +802,52 @@ mod tests {
         assert!(markdown.contains("SHA-256 required before review"));
         assert!(markdown.contains("submitted_build_scope"));
         assert!(markdown.contains("does not close any `CERT-OPEN-*` issue"));
+    }
+
+    #[test]
+    fn attachment_audit_hashes_mapped_and_unmapped_files() {
+        let root = env::temp_dir().join(format!("hyperion-attachment-audit-{}", process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).unwrap();
+        }
+        fs::create_dir_all(root.join("CERT-OPEN-001")).unwrap();
+        fs::create_dir_all(root.join("CERT-OPEN-009/coverage")).unwrap();
+        fs::create_dir_all(root.join("unmapped")).unwrap();
+        fs::write(root.join("CERT-OPEN-001/lab-approval.txt"), b"lab approval").unwrap();
+        fs::write(root.join("CERT-OPEN-009/coverage/report.txt"), b"coverage").unwrap();
+        fs::write(root.join("unmapped/notes.txt"), b"notes").unwrap();
+
+        let audit = audit_certification_attachments(&root).unwrap();
+        let json = certification_attachment_audit_json(2, &audit);
+        let markdown = certification_attachment_audit_markdown(2, &audit);
+
+        assert!(json.contains("\"type\":\"certification-attachment-audit\""));
+        assert!(json.contains("\"open_issue\":\"CERT-OPEN-001\""));
+        assert!(json.contains("\"status\":\"present_unreviewed\""));
+        assert!(json.contains("\"status\":\"missing\""));
+        assert!(json.contains(&to_hex(&sha256(b"lab approval"))));
+        assert!(json.contains("unmapped/notes.txt"));
+        assert!(markdown.contains("# Hyperion Certification Attachment Audit"));
+        assert!(markdown.contains("accepted external authority review is still required"));
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn absent_attachment_root_yields_missing_slots_without_error() {
+        let root =
+            env::temp_dir().join(format!("hyperion-attachment-audit-empty-{}", process::id()));
+        if root.exists() {
+            fs::remove_dir_all(&root).unwrap();
+        }
+
+        let audit = audit_certification_attachments(&root).unwrap();
+
+        assert_eq!(
+            audit.slots.len(),
+            certification_evidence_requirements().len()
+        );
+        assert!(audit.slots.iter().all(|slot| slot.status == "missing"));
+        assert!(audit.unmapped_attachments.is_empty());
     }
 }
