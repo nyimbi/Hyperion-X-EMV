@@ -176,9 +176,9 @@ attachments, and the commands needed to regenerate evidence.
 `index.html`, `workspace_manifest.json`, report-pack exports, evidence
 checklists, intake/freeze ledgers, security/device/integration plans, quality
 artifacts, the ABI statement, empty `attachments/CERT-OPEN-*` staging
-directories, an attachment-slot guide, and attachment audit JSON/Markdown.
-Treat it as a review bundle; attach only accepted, hash-bound artifacts to a
-certification submission.
+directories, an attachment-slot guide, `attachment_audit.html`, and attachment
+audit JSON/Markdown. Treat it as a review bundle; attach only accepted,
+hash-bound artifacts to a certification submission.
 
 ## Trace Usage
 

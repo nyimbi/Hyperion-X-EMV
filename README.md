@@ -287,7 +287,7 @@ controlled evidence:
   workspace with the static UI, report pack, evidence checklists, freeze
   manifest, security/device/integration plans, quality artifacts, ABI statement,
   empty `CERT-OPEN-*` attachment directories, attachment-slot guide, attachment
-  audit exports, and workspace manifest.
+  audit dashboard, audit exports, and workspace manifest.
 - `krn_build_manifest`: emits canonical source and annex provenance hashes.
 - `krn_cabi_script_adapter`: exercises the C ABI APDU callback path.
 - `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks

@@ -7,6 +7,7 @@ use hyperion_emv::evidence::{
     certification_attachment_audit_markdown, certification_evidence_checklist_json,
     certification_evidence_checklist_markdown, certification_evidence_intake_ledger_json,
     certification_evidence_intake_ledger_markdown, certification_evidence_requirements,
+    CertificationAttachmentAudit,
 };
 use hyperion_emv::ffi::KRN_ABI_VERSION;
 use hyperion_emv::freeze::{
@@ -149,6 +150,12 @@ const WORKSPACE_FILES: &[WorkspaceFile] = &[
         path: "certification_attachment_audit.md",
         category: "submission",
         description: "Markdown hash inventory of files staged under attachment slots",
+    },
+    WorkspaceFile {
+        id: "ATTACHMENT-AUDIT-UI",
+        path: "attachment_audit.html",
+        category: "workbench",
+        description: "static UI for staged evidence slot status and attachment hashes",
     },
     WorkspaceFile {
         id: "FREEZE-JSON",
@@ -321,6 +328,11 @@ fn write_workspace(dir: &Path, abi_version: u32) -> io::Result<&Path> {
     )?;
     write_file(
         dir,
+        "attachment_audit.html",
+        &attachment_audit_html(abi_version, &attachment_audit),
+    )?;
+    write_file(
+        dir,
         "certification_freeze_manifest.json",
         &certification_freeze_manifest_json(abi_version),
     )?;
@@ -419,8 +431,98 @@ fn attachment_slot_guide() -> String {
 }
 
 fn workspace_readme() -> String {
-    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nStage external artifacts under attachments/CERT-OPEN-* only after checking the\nartifact scope and sensitivity policy. Then regenerate or rerun the attachment\naudit so SHA-256 values are captured before review.\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
+    "Hyperion Certification Workspace\n\nOpen index.html to inspect repository-controlled reports and artifact status.\nOpen attachment_audit.html to inspect staged evidence slot status and hashes.\nThis directory is a local report-production workspace only. It does not close\nexternal lab, scheme, device, PCI/PED, acquirer, or approval gates.\n\nRegenerate with:\n  cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace\n\nStage external artifacts under attachments/CERT-OPEN-* only after checking the\nartifact scope and sensitivity policy. Then regenerate or rerun the attachment\naudit so SHA-256 values are captured before review.\n\nAttach only reviewed artifacts to a certification package, and bind them to the\nsubmitted binary, profiles, CAPKs, vectors, traceability matrix, device scope,\nand accepted external reports.\n"
         .to_string()
+}
+
+fn attachment_audit_html(abi_version: u32, audit: &CertificationAttachmentAudit) -> String {
+    let missing = audit
+        .slots
+        .iter()
+        .filter(|slot| slot.status == "missing")
+        .count();
+    let present = audit
+        .slots
+        .iter()
+        .filter(|slot| slot.status == "present_unreviewed")
+        .count();
+    let attachment_count = audit
+        .slots
+        .iter()
+        .map(|slot| slot.attachments.len())
+        .sum::<usize>()
+        + audit.unmapped_attachments.len();
+
+    let mut out = String::new();
+    out.push_str("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">");
+    out.push_str("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
+    out.push_str("<title>Hyperion Attachment Audit</title>");
+    out.push_str("<style>");
+    out.push_str("*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:#1b1f24;background:#f7f8fa;line-height:1.45}header{background:#0f1720;color:#f8fafc;padding:20px 24px;border-bottom:4px solid #1f9d8a}main{max-width:1480px;margin:0 auto;padding:18px 24px 28px}.title{margin:0;font-size:26px;font-weight:720;letter-spacing:0}.meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#cbd5df;font-size:13px}.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.links a{display:inline-flex;align-items:center;height:34px;border:1px solid #ccd3dc;background:#fff;color:#1b1f24;text-decoration:none;padding:0 10px;border-radius:6px}.summary{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px;margin:18px 0}.metric{background:#fff;border:1px solid #d9dee6;border-radius:8px;padding:14px}.metric strong{display:block;font-size:24px}.metric span{color:#52606d;font-size:13px}.notice{background:#fff9e8;border:1px solid #f0d28a;border-radius:8px;padding:12px 14px;margin:16px 0}section{margin-top:18px}.table-wrap{overflow:auto;background:#fff;border:1px solid #d9dee6;border-radius:8px}table{border-collapse:collapse;width:100%;min-width:980px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #edf0f4;padding:10px 12px;font-size:13px}th{position:sticky;top:0;background:#edf3f7;color:#23313f;font-size:12px;text-transform:uppercase}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}.status{font-weight:700;color:#8a4b00}.ok{color:#0b6e4f}@media(max-width:780px){header,main{padding-left:14px;padding-right:14px}.title{font-size:22px}.summary{grid-template-columns:repeat(2,minmax(130px,1fr))}}");
+    out.push_str("</style></head><body><header><h1 class=\"title\">Hyperion Attachment Audit</h1><div class=\"meta\"><span>Kernel ");
+    push_html_text(&mut out, env!("CARGO_PKG_VERSION"));
+    out.push_str("</span><span>ABI ");
+    let _ = write!(out, "{abi_version}");
+    out.push_str("</span><span>Root ");
+    push_html_text(&mut out, &audit.root);
+    out.push_str("</span></div><div class=\"links\"><a href=\"index.html\">Report Workbench</a><a href=\"attachment_slot_guide.md\">Slot Guide</a><a href=\"certification_attachment_audit.json\">Audit JSON</a><a href=\"certification_attachment_audit.md\">Audit Markdown</a></div></header><main>");
+    out.push_str("<div class=\"summary\"><div class=\"metric\"><strong>");
+    let _ = write!(out, "{}", audit.slots.len());
+    out.push_str("</strong><span>attachment slots</span></div><div class=\"metric\"><strong>");
+    let _ = write!(out, "{present}");
+    out.push_str("</strong><span>present unreviewed</span></div><div class=\"metric\"><strong>");
+    let _ = write!(out, "{missing}");
+    out.push_str("</strong><span>missing slots</span></div><div class=\"metric\"><strong>");
+    let _ = write!(out, "{attachment_count}");
+    out.push_str("</strong><span>local files hashed</span></div></div>");
+    out.push_str("<div class=\"notice\">Hash inventory only. Files shown here are not accepted certification evidence until the relevant external authority, signer, reviewer, submitted-build scope, and disposition are recorded.</div>");
+    out.push_str("<section><h2>Attachment Slots</h2><div class=\"table-wrap\"><table><thead><tr><th>Open Issue</th><th>Area</th><th>Status</th><th>Attachments</th><th>Required Metadata</th><th>Acceptance Gate</th></tr></thead><tbody>");
+    for slot in &audit.slots {
+        out.push_str("<tr><td class=\"mono\">");
+        push_html_text(&mut out, slot.open_issue);
+        out.push_str("</td><td>");
+        push_html_text(&mut out, slot.area);
+        out.push_str("</td><td class=\"status\">");
+        push_html_text(&mut out, slot.status);
+        out.push_str("</td><td>");
+        if slot.attachments.is_empty() {
+            out.push_str("none");
+        } else {
+            for (idx, attachment) in slot.attachments.iter().enumerate() {
+                if idx > 0 {
+                    out.push_str("<br>");
+                }
+                out.push_str("<span class=\"mono\">");
+                push_html_text(&mut out, &attachment.path);
+                out.push_str("</span> ");
+                let _ = write!(out, "({} bytes, ", attachment.size_bytes);
+                out.push_str("<span class=\"mono\">");
+                push_html_text(&mut out, &attachment.sha256);
+                out.push_str("</span>)");
+            }
+        }
+        out.push_str("</td><td>");
+        push_html_text(&mut out, slot.required_metadata);
+        out.push_str("</td><td>");
+        push_html_text(&mut out, slot.acceptance_gate);
+        out.push_str("</td></tr>");
+    }
+    out.push_str("</tbody></table></div></section>");
+    if !audit.unmapped_attachments.is_empty() {
+        out.push_str("<section><h2>Unmapped Attachments</h2><div class=\"table-wrap\"><table><thead><tr><th>Path</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>");
+        for attachment in &audit.unmapped_attachments {
+            out.push_str("<tr><td class=\"mono\">");
+            push_html_text(&mut out, &attachment.path);
+            out.push_str("</td><td>");
+            let _ = write!(out, "{}", attachment.size_bytes);
+            out.push_str("</td><td class=\"mono\">");
+            push_html_text(&mut out, &attachment.sha256);
+            out.push_str("</td></tr>");
+        }
+        out.push_str("</tbody></table></div></section>");
+    }
+    out.push_str("</main></body></html>\n");
+    out
 }
 
 fn certification_workspace_manifest_json(abi_version: u32) -> String {
@@ -524,6 +626,19 @@ fn push_json_string(out: &mut String, value: &str) {
     out.push('"');
 }
 
+fn push_html_text(out: &mut String, value: &str) {
+    for ch in value.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(ch),
+        }
+    }
+}
+
 fn hex_nibble(value: u8) -> char {
     match value {
         0..=9 => (b'0' + value) as char,
@@ -554,16 +669,23 @@ mod tests {
         }
         let manifest = fs::read_to_string(dir.join("workspace_manifest.json")).unwrap();
         let index = fs::read_to_string(dir.join("index.html")).unwrap();
+        let audit_html = fs::read_to_string(dir.join("attachment_audit.html")).unwrap();
         let report = fs::read_to_string(dir.join("report_pack.json")).unwrap();
         assert!(manifest.contains("\"type\":\"certification-workspace-manifest\""));
         assert!(manifest.contains("\"entrypoint\":\"index.html\""));
         assert!(manifest.contains("\"CERT-OPEN-009\""));
         assert!(manifest.contains("certification_attachment_audit.json"));
+        assert!(manifest.contains("attachment_audit.html"));
         assert!(dir.join("attachments/CERT-OPEN-001").is_dir());
         assert!(dir.join("attachments/CERT-OPEN-012").is_dir());
         assert!(dir.join("attachment_slot_guide.md").exists());
         assert!(dir.join("certification_attachment_audit.json").exists());
+        assert!(dir.join("attachment_audit.html").exists());
         assert!(index.contains("Hyperion Certification Workbench"));
+        assert!(audit_html.contains("Hyperion Attachment Audit"));
+        assert!(audit_html.contains("Report Workbench"));
+        assert!(audit_html.contains("present unreviewed"));
+        assert!(audit_html.contains("Hash inventory only"));
         assert!(report.contains("\"type\":\"certification-report-pack\""));
 
         fs::remove_dir_all(&dir).unwrap();

@@ -183,11 +183,11 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
     ReportArtifact {
         id: "ATTACHMENT-AUDIT",
         title: "Certification attachment hash audit",
-        path: "target/hyperion-cert-workspace/certification_attachment_audit.json; target/hyperion-cert-workspace/certification_attachment_audit.md",
+        path: "target/hyperion-cert-workspace/attachment_audit.html; target/hyperion-cert-workspace/certification_attachment_audit.json; target/hyperion-cert-workspace/certification_attachment_audit.md",
         category: "submission",
         generator: "cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace",
         status: "workspace-generated",
-        boundary: "hash inventory only; accepted external evidence remains required",
+        boundary: "UI and hash inventory only; accepted external evidence remains required",
     },
     ReportArtifact {
         id: "FREEZE-MANIFEST",

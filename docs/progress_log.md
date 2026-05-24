@@ -5536,3 +5536,24 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D
   warnings`, report-pack and quality-manifest drift checks, attachment audit
   smoke, workspace smoke, basic PoS smoke, and `git diff --check`.
+
+## 2026-05-24T02:49:46Z
+
+- Increment completed: add a user-facing attachment audit dashboard to the
+  local certification workspace.
+- UI impact: `krn_certification_workspace` now emits `attachment_audit.html`
+  alongside the report workbench, attachment-slot guide, and audit
+  JSON/Markdown. The dashboard summarizes total slots, missing slots,
+  `present_unreviewed` slots, hashed local files, and per-slot attachment
+  hashes while linking back to the report workbench and raw audit exports.
+- Evidence scope: the dashboard is a review aid only. It preserves the same
+  non-closing boundary as the audit JSON/Markdown: local files are not accepted
+  evidence until external authority, reviewer, submitted-build scope, and
+  disposition metadata are recorded.
+- Verification: targeted workspace and traceability tests passed after
+  regenerating report pack JSON/Markdown/UI artifacts. Full verification
+  passed with `cargo fmt --check`, `cargo test`, `cargo test --examples`,
+  `cargo clippy --all-targets --all-features -- -D warnings`, quality-manifest
+  and report-pack drift checks, workspace smoke with `attachment_audit.html`
+  existence/readback, attachment audit smoke, basic PoS smoke, and
+  `git diff --check`.
