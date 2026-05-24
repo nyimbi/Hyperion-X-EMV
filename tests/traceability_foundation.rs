@@ -7664,6 +7664,7 @@ fn public_standards_watch_is_reproducible_and_scoped() {
         "CERT-OPEN-011",
         "CERT-OPEN-012",
         "EMVCO-SPECIFICATIONS",
+        "EMVCO-CONTACTLESS-CHIP",
         "EMVCO-CONTACTLESS-PRODUCT-APPROVAL",
         "EMVCO-CONTACT-KERNEL-APPROVAL",
         "EMVCO-L3-BULLETINS",
@@ -7674,11 +7675,14 @@ fn public_standards_watch_is_reproducible_and_scoped() {
         "PCI-APPROVED-PTS-DEVICES",
         "C8-V1-1-SB325",
         "CONTACTLESS-SUITE-MAY-2026",
+        "required_external_evidence",
+        "acceptance, exclusion, or deferral matrix",
         "L3-TB321-REPORTING-WATCH",
         "Level 3 integration reports and trace evidence",
         "KERNEL-TESTING-LOA",
         "PCI-APPROVED-DEVICE-LISTING",
         "https://www.emvco.com/specifications/",
+        "https://www.emvco.com/emv-technologies/emv-contactless-chip/",
         "https://www.emvco.com/specifications/page/2/",
         "https://www.pcisecuritystandards.org/standards/pts-point-of-interaction-poi/",
         "public listings are watch inputs, not implementation authority",
@@ -7691,6 +7695,7 @@ fn public_standards_watch_is_reproducible_and_scoped() {
     }
     assert!(STANDARDS_WATCH.contains("docs/public_standards_watch.json"));
     assert!(STANDARDS_WATCH.contains("drift-control artifact only"));
+    assert!(STANDARDS_WATCH.contains("required external evidence"));
     assert!(STANDARDS_WATCH.contains("2026-05-24 Public PCI PTS v7.0 Recheck"));
     assert!(STANDARDS_WATCH.contains("59"));
     assert!(STANDARDS_WATCH.contains("23 additional guidance items"));

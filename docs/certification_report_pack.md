@@ -217,8 +217,8 @@
 | NO-CRASH | Parser/APDU no-crash smoke artifact | quality | `docs/prelab_no_crash_smoke.json` | 3116 | `1a319359ff4bbcd6dbfa52add672c793d8e97dfca8adebf2b15b9230f56ff18d` |
 | STATIC-FUZZ-PLAN | Static and fuzz evidence plan | quality | `docs/prelab_static_fuzz_plan.json` | 3852 | `5627b0771442d45d124d1931003b713030cc5e39738a4c8553ad485c1cfd2c0a` |
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
-| PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 6596 | `0c292aebe3f486c11915fffcca5e4184b5f3ebc77582d93678379947e2834102` |
-| PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9119 | `4a01ac2216699ab214f1732dcd99d4aa4814feb724ce532fb40f163bf221f1a4` |
+| PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 8198 | `9ab2e21422d09cc1e53418b98f205ec48c81b436b94d4496352822bbbdb09979` |
+| PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9948 | `d0b8a57e905dbea44bd17b066c2765f9b339bbea122b2843a251d08a870d12e3` |
 | EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
 | EVIDENCE-CHECKLIST-MD | Certification evidence checklist Markdown | submission | `docs/certification_evidence_checklist.md` | 7575 | `197acd7da172825c1c363bcfad6a49875e753c0ba7bad50235f1880184ca2c91` |
 | EVIDENCE-INTAKE-JSON | Certification evidence intake JSON | submission | `docs/certification_evidence_intake.json` | 10601 | `8c87c282ac93157ba5d0a05812014061e775db04e6e1f9b6142a3201b532fca7` |

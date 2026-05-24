@@ -12,9 +12,24 @@ Regenerate it with:
 cargo run --quiet --example krn_public_standards_watch | diff -u docs/public_standards_watch.json -
 ```
 
-That artifact records source URLs, public signals, mapped open issues, and
-repository actions. It is a drift-control artifact only; it does not close any
-external certification blocker.
+That artifact records source URLs, public signals, mapped open issues,
+repository actions, and the required external evidence for each signal. It is a
+drift-control artifact only; it does not close any external certification
+blocker.
+
+## 2026-05-24 Public Standards Evidence-Mapping Recheck
+
+- Public source checked: EMVCo specifications and contactless technology
+  pages, plus PCI SSC PTS POI publication and approved-device public materials.
+- Result of recheck: public EMVCo materials continue to show current
+  contactless C-8, Book B, Kernel 2 RRP, and adjacent bulletin signals, while
+  PCI SSC public materials continue to show PTS POI v7.0 and approved-device
+  listing requirements.
+- Repository action: the machine-readable watch artifact now records
+  `required_external_evidence` for every tracked public signal. This turns
+  public drift into explicit lab/scheme/acquirer/device evidence requests while
+  preserving the rule that public listings are watch inputs only, not
+  implementation authority.
 
 ## 2026-05-24 Public PCI PTS v7.0 Recheck
 

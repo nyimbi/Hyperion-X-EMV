@@ -4,6 +4,24 @@ This log records certification-hardening increments, evidence, and open risks.
 It is intentionally concise: commit history remains the authoritative code
 decision record, while this file tracks work toward certification readiness.
 
+## 2026-05-24T05:53:42Z
+
+- Increment completed: strengthen the public standards-watch artifact so
+  public EMVCo/PCI drift signals map to explicit external evidence requests
+  instead of only repository actions.
+- Tooling impact: `krn_public_standards_watch` now emits
+  `required_external_evidence` per tracked public signal and records the EMVCo
+  contactless technology page as a distinct source for current contactless
+  bulletin watch inputs.
+- Evidence scope: this is standards-watch and report-production tooling only.
+  It does not close EMVCo, scheme, acquirer, device, PCI/PED, Level 3, trace,
+  or laboratory blockers.
+- Verification: focused standards-watch reproducibility test, generated
+  standards-watch and report-pack drift checks, `cargo fmt --check`,
+  `cargo test`, `cargo test --examples`, clippy with all targets/features and
+  warnings as failures, certification workspace smoke, basic PoS smoke, and
+  `git diff --check`.
+
 ## 2026-05-24T05:45:04Z
 
 - Increment completed: close the final SELECT identity gap by validating that

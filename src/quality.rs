@@ -59,6 +59,7 @@ struct PublicStandardsSignal {
     source_id: &'static str,
     public_signal: &'static str,
     repository_action: &'static str,
+    required_external_evidence: &'static str,
 }
 
 struct FuzzSeedCase {
@@ -419,6 +420,13 @@ const PUBLIC_STANDARDS_SOURCES: &[PublicStandardsSource] = &[
         observation: "public listing checked for Contactless Kernel C-8, Book A, Book B, Kernel 2 RRP, TRMD, C-4, and contact-feature bulletin signals",
     },
     PublicStandardsSource {
+        id: "EMVCO-CONTACTLESS-CHIP",
+        authority: "EMVCo",
+        title: "EMV Contactless Chip",
+        public_url: "https://www.emvco.com/emv-technologies/emv-contactless-chip/",
+        observation: "public contactless technology page checked for May 2026 Book B, Kernel 2 RRP, and C-8 bulletin signals",
+    },
+    PublicStandardsSource {
         id: "EMVCO-CONTACTLESS-PRODUCT-APPROVAL",
         authority: "EMVCo",
         title: "Contactless Product Approval Process",
@@ -470,14 +478,16 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         source_id: "EMVCO-SPECIFICATIONS",
         public_signal: "public listings include Book C-8 Kernel Specification v1.1 and SB 325 updates to Book C-8 v1.0",
         repository_action: "retain C-8 v1.0 engineering target until licensed review, scheme profile data, lab package selection, and device evidence select the final C-8 version and bulletin set",
+        required_external_evidence: "licensed C-8 version and bulletin reconciliation note, accepted scheme/acquirer profile, test-tool package, device/L1 evidence, and approval path",
     },
     PublicStandardsSignal {
         id: "CONTACTLESS-SUITE-MAY-2026",
         area: "contactless common books and adjacent bulletins",
         open_issue: "CERT-OPEN-005",
-        source_id: "EMVCO-SPECIFICATIONS",
-        public_signal: "public listings include May 2026 Book A, Book B, Kernel 2 RRP, TRMD, C-4, and contact-feature bulletin signals",
+        source_id: "EMVCO-CONTACTLESS-CHIP",
+        public_signal: "public contactless page lists May 2026 Book B, Kernel 2 RRP, and C-8 bulletin signals alongside the broader specifications listing for Book A, TRMD, C-4, and contact-feature signals",
         repository_action: "track as reconciliation inputs only; do not infer Book A, Book B, Kernel 2, TRMD, C-4, or contact-feature behavior into Hyperion without the licensed/lab package selecting it",
+        required_external_evidence: "lab-selected contactless common-book and adjacent-bulletin acceptance, exclusion, or deferral matrix tied to the claimed interface and device scope",
     },
     PublicStandardsSignal {
         id: "CONTACTLESS-APPROVAL-PATH",
@@ -486,6 +496,7 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         source_id: "EMVCO-CONTACTLESS-PRODUCT-APPROVAL",
         public_signal: "public process material distinguishes contactless product or Contactless Kernel C-8 approval from repository engineering evidence",
         repository_action: "require the submitted package to name the accepted approval path and attach lab reports plus approval artifacts",
+        required_external_evidence: "accepted approval path statement, implementation conformance statement form, accredited-lab report, and Letter-of-Approval-equivalent artifact",
     },
     PublicStandardsSignal {
         id: "KERNEL-TESTING-LOA",
@@ -494,6 +505,7 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         source_id: "EMVCO-CONTACTLESS-KERNEL-TESTING",
         public_signal: "public announcement describes accredited laboratory testing, qualified tools, test-plan execution, and Letter of Approval issuance",
         repository_action: "keep ABI JSON and pre-lab traces scoped as internal evidence until the signed EMVCo/lab conformance template and LoA-equivalent artifact are attached",
+        required_external_evidence: "signed conformance template, qualified test-tool package/version, accredited-lab execution report, and approval artifact matching the submitted binary",
     },
     PublicStandardsSignal {
         id: "L3-TB321-REPORTING-WATCH",
@@ -502,6 +514,7 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         source_id: "EMVCO-L3-BULLETINS",
         public_signal: "public listings include EMV Level 3 Technical Bulletin No. 321 with an April 2026 comment-period signal",
         repository_action: "treat Level 3 bulletins as external integration-report and APDU trace-pack reconciliation inputs; do not infer L3 host or acquirer behavior into the L2 kernel without the licensed/acquirer package selecting it",
+        required_external_evidence: "accepted Level 3/acquirer bulletin reconciliation, full EMV integration report, and masked APDU trace-pack crosswalk for selected cases",
     },
     PublicStandardsSignal {
         id: "PCI-PTS-POI-V7",
@@ -510,6 +523,7 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         source_id: "PCI-PTS-POI",
         public_signal: "public PCI material frames PTS POI around protection of PINs, account data, and sensitive payment data at the point of interaction; the v7.0 publication note reports 59 requirement changes and 23 additional guidance items",
         repository_action: "preserve the kernel boundary around opaque PED handles and no clear-PIN custody; require the target POI/PED integration report to reconcile the accepted PTS POI version, change set, device listing, and residual controls before closing CERT-OPEN-007",
+        required_external_evidence: "target POI/PED integration statement, accepted PCI PTS POI version/change-set reconciliation, approved device listing or assessor reference, and no-clear-PIN custody review",
     },
     PublicStandardsSignal {
         id: "PCI-APPROVED-DEVICE-LISTING",
@@ -518,6 +532,7 @@ const PUBLIC_STANDARDS_SIGNALS: &[PublicStandardsSignal] = &[
         source_id: "PCI-APPROVED-PTS-DEVICES",
         public_signal: "public PCI listing material ties device conformance to PCI-recognized laboratory validation and published approved-device listings",
         repository_action: "require target device and PED listing references to match the submitted binary and profile set before closing device or PCI/PED blockers",
+        required_external_evidence: "device model, hardware/firmware scope, PCI-recognized lab validation reference, approved listing status, and binary/profile hash binding",
     },
 ];
 
@@ -764,6 +779,12 @@ pub fn public_standards_watch_json() -> String {
         push_json_str(&mut out, "public_signal", signal.public_signal);
         out.push(',');
         push_json_str(&mut out, "repository_action", signal.repository_action);
+        out.push(',');
+        push_json_str(
+            &mut out,
+            "required_external_evidence",
+            signal.required_external_evidence,
+        );
         out.push('}');
     }
     out.push_str("],\"gating_rules\":[");
