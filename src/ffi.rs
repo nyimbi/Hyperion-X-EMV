@@ -80,7 +80,12 @@ pub const MAX_MERCHANT_NAME_LOCATION_LEN: usize = 128;
 pub const MAX_APDU_RESPONSE_LEN: usize = 258;
 pub const MAX_ONLINE_AUTH_DATA_LEN: usize = 1024;
 pub const MAX_HOST_RESPONSE_LEN: usize = 1024;
+pub const KRN_CALLBACK_TIMEOUT_MIN_MS: i32 = 1;
+pub const KRN_CALLBACK_TIMEOUT_MAX_MS: i32 = 60_000;
 pub const APDU_TRANSMIT_TIMEOUT_MS: i32 = 500;
+pub const HOST_AUTHORIZATION_TIMEOUT_MS: i32 = 30_000;
+pub const PIN_ENTRY_TIMEOUT_MS: i32 = 30_000;
+pub const CONTACTLESS_UI_TIMEOUT_MS: i32 = 5_000;
 pub const KRN_PROFILE_SHA256_LEN: usize = 32;
 pub const KRN_PIN_METHOD_OFFLINE_PLAINTEXT: u8 = 1;
 pub const KRN_PIN_METHOD_OFFLINE_ENCIPHERED: u8 = 2;
@@ -107,6 +112,18 @@ pub struct KrnRuntime {
     pub get_unpredictable_number: Option<KrnGetUnpredictableNumberCallback>,
     pub contactless_outcome: Option<KrnContactlessOutcomeCallback>,
     pub user_data: *mut c_void,
+}
+
+#[repr(C)]
+pub struct KrnCallbackTimeoutPolicy {
+    pub abi_version: u32,
+    pub struct_size: u32,
+    pub min_timeout_ms: i32,
+    pub max_timeout_ms: i32,
+    pub apdu_transport_timeout_ms: i32,
+    pub host_authorization_timeout_ms: i32,
+    pub pin_entry_timeout_ms: i32,
+    pub contactless_ui_timeout_ms: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -408,6 +425,35 @@ pub unsafe extern "C" fn krn_get_last_error(ctx: *const KrnContext) -> i32 {
         return KernelError::InvalidArgument.code();
     };
     ctx.last_error.code()
+}
+
+/// Writes the ABI-defined callback timeout policy into a caller-owned struct.
+///
+/// # Safety
+///
+/// `out` must point to a writable [`KrnCallbackTimeoutPolicy`] whose
+/// `abi_version` and `struct_size` fields have been initialized by the caller.
+/// On success, the function fills every policy field with bounded millisecond
+/// values used by the kernel and expected from terminal integration callbacks.
+#[no_mangle]
+pub unsafe extern "C" fn krn_get_callback_timeout_policy(
+    out: *mut KrnCallbackTimeoutPolicy,
+) -> i32 {
+    if out.is_null() {
+        return KernelError::InvalidArgument.code();
+    }
+    let abi_version = ptr::addr_of!((*out).abi_version).read_unaligned();
+    let struct_size = ptr::addr_of!((*out).struct_size).read_unaligned() as usize;
+    if abi_version != KRN_ABI_VERSION || struct_size != mem::size_of::<KrnCallbackTimeoutPolicy>() {
+        return KernelError::InvalidArgument.code();
+    }
+    (*out).min_timeout_ms = KRN_CALLBACK_TIMEOUT_MIN_MS;
+    (*out).max_timeout_ms = KRN_CALLBACK_TIMEOUT_MAX_MS;
+    (*out).apdu_transport_timeout_ms = APDU_TRANSMIT_TIMEOUT_MS;
+    (*out).host_authorization_timeout_ms = HOST_AUTHORIZATION_TIMEOUT_MS;
+    (*out).pin_entry_timeout_ms = PIN_ENTRY_TIMEOUT_MS;
+    (*out).contactless_ui_timeout_ms = CONTACTLESS_UI_TIMEOUT_MS;
+    KernelError::Ok.code()
 }
 
 /// Returns the current transaction FSM state code for diagnostics.
@@ -3753,6 +3799,7 @@ fn transmit_apdu(
     command: &[u8],
     timeout_ms: i32,
 ) -> Result<Vec<u8>, KernelError> {
+    validate_callback_timeout(timeout_ms)?;
     let mut response = [0u8; MAX_APDU_RESPONSE_LEN];
     let mut response_len = response.len();
     let status = unsafe {
@@ -3772,6 +3819,14 @@ fn transmit_apdu(
         return Err(KernelError::LengthOverflow);
     }
     Ok(response[..response_len].to_vec())
+}
+
+fn validate_callback_timeout(timeout_ms: i32) -> Result<(), KernelError> {
+    if (KRN_CALLBACK_TIMEOUT_MIN_MS..=KRN_CALLBACK_TIMEOUT_MAX_MS).contains(&timeout_ms) {
+        Ok(())
+    } else {
+        Err(KernelError::InvalidArgument)
+    }
 }
 
 fn transmit_apdu_with_followups(
@@ -4003,6 +4058,71 @@ mod tests {
         assert_eq!(
             krn_set_trm_random_selection_sample(ctx, 9_999),
             KernelError::Ok.code()
+        );
+    }
+
+    #[test]
+    fn callback_timeout_policy_is_versioned_and_bounded() {
+        unsafe {
+            assert_eq!(
+                krn_get_callback_timeout_policy(ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+
+            let mut policy = KrnCallbackTimeoutPolicy {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnCallbackTimeoutPolicy>() as u32,
+                min_timeout_ms: 0,
+                max_timeout_ms: 0,
+                apdu_transport_timeout_ms: 0,
+                host_authorization_timeout_ms: 0,
+                pin_entry_timeout_ms: 0,
+                contactless_ui_timeout_ms: 0,
+            };
+            assert_eq!(
+                krn_get_callback_timeout_policy(&mut policy),
+                KernelError::Ok.code()
+            );
+            assert_eq!(policy.min_timeout_ms, KRN_CALLBACK_TIMEOUT_MIN_MS);
+            assert_eq!(policy.max_timeout_ms, KRN_CALLBACK_TIMEOUT_MAX_MS);
+            for timeout in [
+                policy.apdu_transport_timeout_ms,
+                policy.host_authorization_timeout_ms,
+                policy.pin_entry_timeout_ms,
+                policy.contactless_ui_timeout_ms,
+            ] {
+                assert!((policy.min_timeout_ms..=policy.max_timeout_ms).contains(&timeout));
+            }
+            assert_eq!(policy.apdu_transport_timeout_ms, APDU_TRANSMIT_TIMEOUT_MS);
+
+            policy.abi_version = KRN_ABI_VERSION + 1;
+            assert_eq!(
+                krn_get_callback_timeout_policy(&mut policy),
+                KernelError::InvalidArgument.code()
+            );
+            policy.abi_version = KRN_ABI_VERSION;
+            policy.struct_size = 0;
+            assert_eq!(
+                krn_get_callback_timeout_policy(&mut policy),
+                KernelError::InvalidArgument.code()
+            );
+        }
+
+        assert_eq!(
+            validate_callback_timeout(KRN_CALLBACK_TIMEOUT_MIN_MS),
+            Ok(())
+        );
+        assert_eq!(
+            validate_callback_timeout(KRN_CALLBACK_TIMEOUT_MAX_MS),
+            Ok(())
+        );
+        assert_eq!(
+            validate_callback_timeout(KRN_CALLBACK_TIMEOUT_MIN_MS - 1),
+            Err(KernelError::InvalidArgument)
+        );
+        assert_eq!(
+            validate_callback_timeout(KRN_CALLBACK_TIMEOUT_MAX_MS + 1),
+            Err(KernelError::InvalidArgument)
         );
     }
 

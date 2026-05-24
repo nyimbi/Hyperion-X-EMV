@@ -312,6 +312,8 @@ controlled evidence:
 - `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks
   through TRM random-selection sample registration, host approval, issuer
   authentication, and final GENERATE AC.
+- `krn_callback_timeout_policy`: emits the C ABI callback timeout policy as
+  JSON for terminal adapter startup checks and certification evidence.
 - `krn_emv_decode`: decodes lab-triage inputs while suppressing sensitive
   payload values by default.
 
@@ -409,6 +411,9 @@ Important ABI principles:
 - `KRN_ABI_VERSION` identifies the ABI contract.
 - `krn_get_profile_version` and `krn_get_profile_sha256` let integrations bind
   logs and certification-freeze evidence to the loaded signed profile artifact.
+- `krn_get_callback_timeout_policy` exposes the bounded APDU transport, host
+  authorization, PIN entry, and contactless UI timeout budgets that terminal
+  adapters must honor.
 - Callers provide explicit interface preference for contact or contactless.
 - Terminal-owned DOL values such as `9F33`, `9F40`, and `9F66` enter through
   typed setter functions after transaction parameters are set.

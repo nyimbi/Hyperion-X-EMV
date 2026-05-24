@@ -723,6 +723,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         command: "cargo run --quiet --example krn_basic_pos",
         output: "stdout JSON transaction summary",
     },
+    ToolCommand {
+        id: "TIMEOUT-POLICY",
+        title: "Emit ABI callback timeout policy",
+        command: "cargo run --quiet --example krn_callback_timeout_policy",
+        output: "stdout JSON timeout policy",
+    },
 ];
 
 pub fn certification_report_pack_json(abi_version: u32) -> String {
@@ -1231,6 +1237,7 @@ mod tests {
         assert!(json.contains("\"open_issue\":\"CERT-OPEN-009\""));
         assert!(json.contains("krn_certification_report_ui"));
         assert!(json.contains("krn_basic_pos"));
+        assert!(json.contains("krn_callback_timeout_policy"));
         assert!(json.contains("CERT-OPEN-011"));
         assert!(!json.contains("certified\":true"));
     }
@@ -1277,5 +1284,6 @@ mod tests {
         );
         assert!(markdown.contains("pending external attachment"));
         assert!(markdown.contains("cargo run --quiet --example krn_basic_pos"));
+        assert!(markdown.contains("cargo run --quiet --example krn_callback_timeout_policy"));
     }
 }

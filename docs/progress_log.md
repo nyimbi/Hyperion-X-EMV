@@ -5726,3 +5726,29 @@ decision record, while this file tracks work toward certification readiness.
   --check`, `cargo test`, `cargo test --examples`, `cargo clippy
   --all-targets --all-features -- -D warnings`, workspace generation smoke,
   workspace trace file/inventory readback, and `git diff --check`.
+
+## 2026-05-24T05:11:29Z
+
+- Increment completed: make the C ABI callback timeout policy explicit and
+  reportable.
+- Code impact: added `KrnCallbackTimeoutPolicy` and
+  `krn_get_callback_timeout_policy` so terminal adapters can query bounded
+  APDU transport, host authorization, PIN entry, and contactless UI budgets
+  during startup. APDU dispatch now validates callback timeouts before calling
+  the runtime callback, and the basic PoS example reads the policy and emits
+  the APDU timeout in its JSON summary.
+- Tooling impact: added `krn_callback_timeout_policy` as a small JSON-emitting
+  CLI and exposed it in the certification report pack, pre-lab quality gates,
+  CI smoke checks, README, tutorial, and lab submission manifest.
+- Evidence scope: this closes the repository-controlled visibility gap for
+  `KRN-API-006` timeout policy evidence. It does not prove terminal hardware,
+  host networking, PED, or contactless UI timing on target devices; those
+  remain external integration and certification evidence.
+- Verification: `cargo fmt`, targeted tests for the ABI timeout policy,
+  traceability evidence, callback-timeout CLI, basic PoS example, quality
+  gates, lab manifest/provenance, and report workbench passed. Full
+  verification passed with `cargo fmt --check`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D
+  warnings`, deterministic quality/report drift checks, timeout-policy smoke,
+  basic PoS smoke, certification workspace smoke, attachment audit smoke, and
+  `git diff --check`.

@@ -37,21 +37,23 @@ use hyperion_emv::evidence::{
 use hyperion_emv::ffi::{
     krn_apply_host_response, krn_build_generate_ac, krn_build_internal_authenticate,
     krn_build_select_environment, krn_context_free, krn_context_new, krn_error_code_at,
-    krn_error_description, krn_error_name, krn_error_table_len, krn_get_conformance_statement_json,
-    krn_get_final_outcome, krn_get_fsm_state, krn_get_issuer_script_result,
-    krn_get_issuer_script_result_count, krn_get_issuer_script_result_identifier,
-    krn_get_issuer_script_result_phase, krn_get_issuer_script_result_position, krn_get_last_error,
-    krn_get_online_authorization_data, krn_get_profile_sha256, krn_get_profile_version, krn_init,
-    krn_load_profiles_verified, krn_mask_apdu_command_json, krn_mask_apdu_response_json,
-    krn_process_final_generate_ac, krn_process_issuer_authentication, krn_process_issuer_scripts,
+    krn_error_description, krn_error_name, krn_error_table_len, krn_get_callback_timeout_policy,
+    krn_get_conformance_statement_json, krn_get_final_outcome, krn_get_fsm_state,
+    krn_get_issuer_script_result, krn_get_issuer_script_result_count,
+    krn_get_issuer_script_result_identifier, krn_get_issuer_script_result_phase,
+    krn_get_issuer_script_result_position, krn_get_last_error, krn_get_online_authorization_data,
+    krn_get_profile_sha256, krn_get_profile_version, krn_init, krn_load_profiles_verified,
+    krn_mask_apdu_command_json, krn_mask_apdu_response_json, krn_process_final_generate_ac,
+    krn_process_issuer_authentication, krn_process_issuer_scripts,
     krn_process_post_final_issuer_scripts, krn_reset, krn_run_transaction,
     krn_set_additional_terminal_capabilities, krn_set_cvm_capabilities,
     krn_set_nonvolatile_offline_counter, krn_set_offline_pin_handle, krn_set_terminal_capabilities,
     krn_set_terminal_transaction_qualifiers, krn_set_transaction_params,
-    krn_set_trm_random_selection_sample, KrnConfigBlob, KrnOutcome, KrnRuntime, KrnTxnParams,
-    KRN_ABI_VERSION, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN, KRN_PIN_METHOD_OFFLINE_ENCIPHERED,
-    KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN, KRN_SCRIPT_PHASE_AFTER_FINAL_GAC,
-    KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
+    krn_set_trm_random_selection_sample, KrnCallbackTimeoutPolicy, KrnConfigBlob, KrnOutcome,
+    KrnRuntime, KrnTxnParams, KRN_ABI_VERSION, KRN_CALLBACK_TIMEOUT_MAX_MS,
+    KRN_CALLBACK_TIMEOUT_MIN_MS, KRN_ISSUER_SCRIPT_IDENTIFIER_LEN,
+    KRN_PIN_METHOD_OFFLINE_ENCIPHERED, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, KRN_PROFILE_SHA256_LEN,
+    KRN_SCRIPT_PHASE_AFTER_FINAL_GAC, KRN_SCRIPT_PHASE_BEFORE_FINAL_GAC,
 };
 use hyperion_emv::freeze::{
     certification_freeze_manifest_json, certification_freeze_manifest_markdown,
@@ -1695,7 +1697,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_coverage_package_audit"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("coverage_audit.json"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_basic_pos.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_basic_pos.rs examples/krn_callback_timeout_policy.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
     assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
     for required_hash in [
@@ -1774,6 +1776,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_certification_report_ui.rs".to_string(),
         "examples/krn_certification_workspace.rs".to_string(),
         "examples/krn_basic_pos.rs".to_string(),
+        "examples/krn_callback_timeout_policy.rs".to_string(),
         "examples/krn_emv_decode.rs".to_string(),
         "examples/krn_prelab_no_crash_smoke.rs".to_string(),
         "examples/krn_prelab_static_fuzz_plan.rs".to_string(),
@@ -1870,6 +1873,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_certification_report_ui.rs",
         "examples/krn_certification_workspace.rs",
         "examples/krn_basic_pos.rs",
+        "examples/krn_callback_timeout_policy.rs",
         "examples/krn_emv_decode.rs",
         "examples/krn_prelab_no_crash_smoke.rs",
         "examples/krn_prelab_static_fuzz_plan.rs",
@@ -3788,6 +3792,7 @@ fn rtm_promotes_api_error_boundary_evidence() {
         );
         assert!(callbacks
             .contains("krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded"));
+        assert!(callbacks.contains("krn_api_006_exposes_callback_timeout_policy"));
         assert!(callbacks.contains(
             "krn_api_006_007_run_transaction_entrypoint_errors_without_runtime_callbacks"
         ));
@@ -6113,6 +6118,47 @@ fn krn_api_001_002_004_006_runtime_callbacks_are_versioned_and_bounded() {
 }
 
 #[test]
+fn krn_api_006_exposes_callback_timeout_policy() {
+    unsafe {
+        assert_eq!(
+            krn_get_callback_timeout_policy(ptr::null_mut()),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+
+        let mut policy = KrnCallbackTimeoutPolicy {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: core::mem::size_of::<KrnCallbackTimeoutPolicy>() as u32,
+            min_timeout_ms: 0,
+            max_timeout_ms: 0,
+            apdu_transport_timeout_ms: 0,
+            host_authorization_timeout_ms: 0,
+            pin_entry_timeout_ms: 0,
+            contactless_ui_timeout_ms: 0,
+        };
+        assert_eq!(
+            krn_get_callback_timeout_policy(&mut policy),
+            hyperion_emv::KernelError::Ok.code()
+        );
+        assert_eq!(policy.min_timeout_ms, KRN_CALLBACK_TIMEOUT_MIN_MS);
+        assert_eq!(policy.max_timeout_ms, KRN_CALLBACK_TIMEOUT_MAX_MS);
+        for timeout in [
+            policy.apdu_transport_timeout_ms,
+            policy.host_authorization_timeout_ms,
+            policy.pin_entry_timeout_ms,
+            policy.contactless_ui_timeout_ms,
+        ] {
+            assert!((policy.min_timeout_ms..=policy.max_timeout_ms).contains(&timeout));
+        }
+
+        policy.struct_size = 0;
+        assert_eq!(
+            krn_get_callback_timeout_policy(&mut policy),
+            hyperion_emv::KernelError::InvalidArgument.code()
+        );
+    }
+}
+
+#[test]
 fn krn_rng_001_002_rejects_zero_and_repeated_unpredictable_numbers() {
     unsafe fn init_with_rng(
         callback: hyperion_emv::ffi::KrnGetUnpredictableNumberCallback,
@@ -6907,7 +6953,8 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_certification_report_ui -- --markdown | diff -u docs/certification_report_pack.md -",
         "cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace",
         "cargo run --quiet --example krn_basic_pos",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_basic_pos.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_callback_timeout_policy",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_basic_pos.rs examples/krn_callback_timeout_policy.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -7004,6 +7051,8 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("TRACE-AUDIT"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_trace_pack_audit"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_basic_pos"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("TIMEOUT-POLICY"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("krn_callback_timeout_policy"));
     assert!(CERTIFICATION_REPORT_UI.contains("Hyperion Certification Workbench"));
     assert!(CERTIFICATION_REPORT_UI.contains("Requirement Traceability"));
     assert!(CERTIFICATION_REPORT_UI.contains("requirement-body"));
@@ -7039,6 +7088,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(README.contains("attachment-slot guide"));
     assert!(README.contains("workspace file hash inventory"));
     assert!(README.contains("krn_basic_pos"));
+    assert!(README.contains("krn_callback_timeout_policy"));
     assert!(!CERTIFICATION_REPORT_PACK.contains("certified\":true"));
 }
 
@@ -7480,6 +7530,7 @@ fn prelab_ci_runs_quality_gates_and_coverage_without_certification_overclaim() {
     assert!(PRELAB_CI_WORKFLOW.contains("krn_certification_workspace"));
     assert!(PRELAB_CI_WORKFLOW.contains("target/hyperion-cert-workspace"));
     assert!(PRELAB_CI_WORKFLOW.contains("krn_basic_pos"));
+    assert!(PRELAB_CI_WORKFLOW.contains("krn_callback_timeout_policy"));
     assert!(PRELAB_CI_WORKFLOW.contains("taiki-e/install-action@cargo-llvm-cov"));
     assert!(PRELAB_CI_WORKFLOW.contains("actions/checkout@v6"));
     assert!(PRELAB_CI_WORKFLOW.contains("actions/upload-artifact@v7"));

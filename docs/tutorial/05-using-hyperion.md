@@ -134,6 +134,11 @@ rewriting the Level 2 logic. The integration should:
 
 The ABI is defensive about buffer ownership. Callers should probe output sizes,
 allocate caller-owned buffers, and retry with sufficient capacity.
+Callers should also query `krn_get_callback_timeout_policy` during adapter
+startup and apply those bounded budgets to APDU transport, host authorization,
+PIN entry, and contactless UI callbacks. The values are part of the ABI
+contract so timeout handling can be traced consistently during certification
+report production.
 
 The `krn_basic_pos` example is the smallest end-to-end integration shape in the
 repository. It creates a C ABI context, loads the certification profile fixture,

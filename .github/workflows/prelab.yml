@@ -118,6 +118,9 @@ jobs:
       - name: Basic PoS integration smoke
         run: cargo run --quiet --example krn_basic_pos
 
+      - name: Callback timeout policy smoke
+        run: cargo run --quiet --example krn_callback_timeout_policy
+
       - name: Whitespace
         run: git diff --check
 

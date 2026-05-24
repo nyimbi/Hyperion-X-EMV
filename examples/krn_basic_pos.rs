@@ -1,9 +1,10 @@
 use hyperion_emv::ffi::{
-    krn_apply_host_response, krn_context_free, krn_get_final_outcome, krn_get_fsm_state,
-    krn_get_last_error, krn_get_online_authorization_data, krn_get_profile_sha256,
-    krn_get_profile_version, krn_init, krn_load_profiles_verified, krn_process_final_generate_ac,
-    krn_process_issuer_authentication, krn_process_issuer_scripts, krn_run_transaction,
-    krn_set_transaction_params, krn_set_trm_random_selection_sample, KrnContext, KrnRuntime,
+    krn_apply_host_response, krn_context_free, krn_get_callback_timeout_policy,
+    krn_get_final_outcome, krn_get_fsm_state, krn_get_last_error,
+    krn_get_online_authorization_data, krn_get_profile_sha256, krn_get_profile_version, krn_init,
+    krn_load_profiles_verified, krn_process_final_generate_ac, krn_process_issuer_authentication,
+    krn_process_issuer_scripts, krn_run_transaction, krn_set_transaction_params,
+    krn_set_trm_random_selection_sample, KrnCallbackTimeoutPolicy, KrnContext, KrnRuntime,
     KrnTxnParams, KRN_ABI_VERSION, KRN_PROFILE_SHA256_LEN,
 };
 use hyperion_emv::provenance::to_hex;
@@ -43,6 +44,7 @@ struct PosSummary {
     profile_version: u64,
     profile_sha256: [u8; 32],
     online_authorization_len: usize,
+    apdu_timeout_ms: i32,
     command_flow: Vec<u8>,
 }
 
@@ -157,6 +159,20 @@ fn run_sale(
             return Err("krn_init returned null context".to_string());
         }
         let guard = ContextGuard(ctx);
+        let mut timeout_policy = KrnCallbackTimeoutPolicy {
+            abi_version: KRN_ABI_VERSION,
+            struct_size: mem::size_of::<KrnCallbackTimeoutPolicy>() as u32,
+            min_timeout_ms: 0,
+            max_timeout_ms: 0,
+            apdu_transport_timeout_ms: 0,
+            host_authorization_timeout_ms: 0,
+            pin_entry_timeout_ms: 0,
+            contactless_ui_timeout_ms: 0,
+        };
+        require_ok(
+            krn_get_callback_timeout_policy(&mut timeout_policy),
+            "krn_get_callback_timeout_policy",
+        )?;
 
         let profiles = include_bytes!("../docs/scheme_profiles.cert.json");
         require_ok(
@@ -237,6 +253,7 @@ fn run_sale(
             profile_version,
             profile_sha256,
             online_authorization_len: online_authorization.len(),
+            apdu_timeout_ms: timeout_policy.apdu_transport_timeout_ms,
             command_flow: reader.observed_ins(),
         })
     }
@@ -270,10 +287,11 @@ unsafe extern "C" fn reader_transmit_apdu(
     cmd_len: usize,
     resp: *mut u8,
     resp_len: *mut usize,
-    _timeout_ms: i32,
+    timeout_ms: i32,
     user_data: *mut c_void,
 ) -> i32 {
-    if cmd.is_null() || resp_len.is_null() || user_data.is_null() || cmd_len < 4 {
+    if cmd.is_null() || resp_len.is_null() || user_data.is_null() || cmd_len < 4 || timeout_ms <= 0
+    {
         return KernelError::InvalidArgument.code();
     }
     let reader = &mut *(user_data as *mut ScriptedReader);
@@ -325,7 +343,7 @@ impl PosSummary {
             .collect::<Vec<_>>()
             .join(",");
         format!(
-            "{{\"type\":\"basic-pos-sale\",\"initial_outcome\":{},\"final_outcome\":{},\"last_error\":{},\"fsm_state\":{},\"profile_version\":{},\"profile_sha256\":\"{}\",\"online_authorization_len\":{},\"command_flow\":[{}]}}",
+            "{{\"type\":\"basic-pos-sale\",\"initial_outcome\":{},\"final_outcome\":{},\"last_error\":{},\"fsm_state\":{},\"profile_version\":{},\"profile_sha256\":\"{}\",\"online_authorization_len\":{},\"apdu_timeout_ms\":{},\"command_flow\":[{}]}}",
             self.initial_outcome,
             self.final_outcome,
             self.last_error,
@@ -333,6 +351,7 @@ impl PosSummary {
             self.profile_version,
             to_hex(&self.profile_sha256),
             self.online_authorization_len,
+            self.apdu_timeout_ms,
             command_flow
         )
     }
@@ -416,7 +435,9 @@ mod tests {
             vec![0xa4, 0xa4, 0xa8, 0xb2, 0xae, 0x82, 0xae]
         );
         assert!(summary.online_authorization_len > 0);
+        assert!(summary.apdu_timeout_ms > 0);
         assert!(summary.to_json().contains("\"type\":\"basic-pos-sale\""));
+        assert!(summary.to_json().contains("\"apdu_timeout_ms\":"));
         assert!(!summary.to_json().contains("123456789012345"));
     }
 }
