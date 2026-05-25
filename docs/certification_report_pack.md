@@ -184,6 +184,7 @@
 | TOOLING-COMPLETENESS | Tooling completeness audit | quality | `docs/tooling_completeness_audit.json; docs/tooling_completeness_audit.md` | generated | `cargo run --quiet --example krn_tooling_completeness_audit` | repository-controlled tooling audit only; external certification evidence remains required |
 | EVIDENCE-CHECKLIST | Certification evidence attachment checklist | submission | `docs/certification_evidence_checklist.json; docs/certification_evidence_checklist.md` | generated | `cargo run --quiet --example krn_certification_evidence_checklist` | attachment checklist only; does not close external gates |
 | EVIDENCE-INTAKE | Certification evidence intake ledger | submission | `docs/certification_evidence_intake.json; docs/certification_evidence_intake.md` | generated | `cargo run --quiet --example krn_certification_evidence_intake` | attachment slots only; accepted external evidence remains required |
+| ARTIFACT-IMPORT | Certification artifact import adapters | submission | `docs/certification_artifact_import_plan.json; docs/certification_artifact_import_plan.md` | generated | `cargo run --quiet --example krn_certification_artifact_import` | adapter plan and hash inventory only; accepted external evidence remains required |
 | ATTACHMENT-SLOTS | Certification attachment slot workspace | submission | `target/hyperion-cert-workspace/attachments/CERT-OPEN-*; target/hyperion-cert-workspace/attachment_slot_guide.md` | workspace-generated | `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` | empty slots and operator guide only; attached files still require external review |
 | ATTACHMENT-AUDIT | Certification attachment hash audit | submission | `target/hyperion-cert-workspace/attachment_audit.html; target/hyperion-cert-workspace/certification_attachment_audit.json; target/hyperion-cert-workspace/certification_attachment_audit.md` | workspace-generated | `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` | UI and hash inventory only; accepted external evidence remains required |
 | WORKSPACE-INVENTORY | Certification workspace file inventory | reporting | `target/hyperion-cert-workspace/workspace_inventory.json; target/hyperion-cert-workspace/workspace_inventory.md` | workspace-generated | `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` | hash inventory for generated local workspace files only; external evidence acceptance remains required |
@@ -200,7 +201,7 @@
 | ID | Title | Category | Path | Size Bytes | SHA-256 |
 | --- | --- | --- | --- | --- | --- |
 | SPEC | Kernel specification | requirements | `docs/spec.md` | 26556 | `b2eb8c6da7327387270f34a131f49465f3b5410bf411c9fe9938e575c31bd238` |
-| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 18117 | `bfb830640697bcf247bc6ef11cf4011cc111b29f35f490e8af87b90fe5f3e227` |
+| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 18588 | `fafa387228399ee96dd35486177d5cb6fdb5c0b71b1742ae79f5e19118a66272` |
 | RTM-PRIMARY | Primary requirements traceability matrix | requirements | `docs/requirements_traceability.csv` | 80442 | `a40082389323c3b8774c804d25f78f1f6e72842f5f23e41f73c02cf4b119ef7c` |
 | RTM-COMPAT | Compatibility requirements traceability matrix | requirements | `docs/requirements-traceability-matrix.csv` | 82829 | `c9462424a1438d56ee5a97bbe4ab795b1ef93d77ccfe774607293298fa45b627` |
 | OPEN-ISSUES | Certification open issues register | submission | `docs/certification_open_issues.md` | 4529 | `c7fc37edf040a1fae97c91563c167b4e97a8610e81c2c78d1fd71b215a51d8b5` |
@@ -222,14 +223,16 @@
 | TRACE-PACK | Masked pre-lab APDU trace fixture | trace | `docs/prelab_apdu_trace_pack.jsonl` | 12154 | `e63c080e01a400262adfd4e05f5bf2be65fb8dfb5fe5b8834f8edefbd1d0d438` |
 | TRACE-AUDIT-JSON | Trace-pack audit JSON | trace | `docs/prelab_trace_pack_audit.json` | 1902 | `02b1ea6edd16609dd8cb9e1d0e6ef1dfba94785e56a7f5819a1d8d0fcddff4e4` |
 | TRACE-AUDIT-MD | Trace-pack audit Markdown | trace | `docs/prelab_trace_pack_audit.md` | 1095 | `2c5da076ff45e91efe3f4a4bdda70ac797045dfd758bd365603890cb6e5febb2` |
-| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 14127 | `c1ee972835d66e0927c90378c50a14d90ecbeb008872f66d78d870e385e512cc` |
+| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 15097 | `bc223f836755e3bfc013102944ab409f7eec7117e577e0fe937626e24f4487f8` |
 | NO-CRASH | Parser/APDU no-crash smoke artifact | quality | `docs/prelab_no_crash_smoke.json` | 3116 | `1a319359ff4bbcd6dbfa52add672c793d8e97dfca8adebf2b15b9230f56ff18d` |
 | STATIC-FUZZ-PLAN | Static and fuzz evidence plan | quality | `docs/prelab_static_fuzz_plan.json` | 3852 | `5627b0771442d45d124d1931003b713030cc5e39738a4c8553ad485c1cfd2c0a` |
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
 | PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 8198 | `9ab2e21422d09cc1e53418b98f205ec48c81b436b94d4496352822bbbdb09979` |
 | PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9948 | `d0b8a57e905dbea44bd17b066c2765f9b339bbea122b2843a251d08a870d12e3` |
-| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 24025 | `fa0b5528437ebf761c3374143634d79cc6455f344ced5e9dbb2ff7d15c2dc629` |
-| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 19686 | `40d524a1d1ce8961a37ba585bab3c967e607d71586e9bffc60940dc315165d1f` |
+| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 25007 | `a0e66c5b5de6d4e472b3f86a5200223c27755101e1d69277edc9f0b787a05a14` |
+| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 20564 | `e3a34d1d8f2660830c8329ef16faa4c4e65e31c2397387c4d6c0a4af7f5ee130` |
+| ARTIFACT-IMPORT-JSON | Certification artifact import plan JSON | submission | `docs/certification_artifact_import_plan.json` | 3141 | `78a7c17107e4b9d764e853620b3289196ab49d3660c10ae647277c3a4cba8613` |
+| ARTIFACT-IMPORT-MD | Certification artifact import plan Markdown | submission | `docs/certification_artifact_import_plan.md` | 2419 | `8aed579787248479b1f7dd7538658078658f15067c506b51eae9a35b75fc8db4` |
 | EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
 | EVIDENCE-CHECKLIST-MD | Certification evidence checklist Markdown | submission | `docs/certification_evidence_checklist.md` | 7575 | `197acd7da172825c1c363bcfad6a49875e753c0ba7bad50235f1880184ca2c91` |
 | EVIDENCE-INTAKE-JSON | Certification evidence intake JSON | submission | `docs/certification_evidence_intake.json` | 10601 | `8c87c282ac93157ba5d0a05812014061e775db04e6e1f9b6142a3201b532fca7` |
@@ -246,7 +249,7 @@
 | COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5216 | `e35d975a9696772bb7e84c455117f1d6696c1434f7d0b4ea19cb6bcfb7c68e6d` |
 | COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 3826 | `f1bd812ad7a3463259857615dcb39e2e86b43f5e8bb358fc94ee65fc151e1511` |
 | TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3446 | `225552c261103d82bc930c64ed1c1bebb1449195bd420e971238308ffc769b39` |
-| TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 28195 | `dc3a93a6d4800bf956b7130fdf102a6e515216ad6d4b031e4e5025c71751bc4b` |
+| TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 28594 | `1b1bb168c11cd2a77796f524eb8cadea5d52e0b807a1222a5c4f7b084c317156` |
 | TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |
 
 ### Artifact File Inventory Exclusions
@@ -309,6 +312,7 @@
 | EVIDENCE | Emit certification evidence checklist | `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` | `docs/certification_evidence_checklist.json and .md` |
 | INTAKE | Emit certification evidence intake ledger | `cargo run --quiet --example krn_certification_evidence_intake -- --out docs` | `docs/certification_evidence_intake.json and .md` |
 | ATTACHMENT-AUDIT | Audit local certification evidence attachments | `cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments` | `stdout JSON attachment hash inventory` |
+| ARTIFACT-IMPORT | Import and classify real certification artifacts | `cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import` | `stdout JSON artifact import inventory` |
 | COVERAGE-AUDIT | Audit staged coverage report package | `cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage` | `stdout JSON coverage package audit` |
 | TRACE-AUDIT | Audit masked APDU trace pack | `cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl` | `stdout JSON trace-pack audit` |
 | DATA-BUNDLE | Generate data-driven certification bundle and workbench | `cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle` | `target/hyperion-cert-bundle/certification_bundle.json, trust_anchors.json, index.html, bundle_fingerprints.json, and certification_bundle_lint.json` |

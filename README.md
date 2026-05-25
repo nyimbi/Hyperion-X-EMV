@@ -576,6 +576,12 @@ The `docs/` directory is part of the executable baseline:
   supersession controls.
 - `certification_evidence_intake.md`: generated Markdown intake ledger for
   crowdsourced testing and lab submission assembly.
+- `certification_artifact_import_plan.json`: generated adapter registry for
+  real lab, scheme, CAPK, vector, device, and report artifacts.
+- `certification_artifact_import_plan.md`: reviewable guide for the artifact
+  import lanes and their required metadata/security policies.
+- `krn_certification_artifact_import`: CLI that hashes, classifies, and rejects
+  unsafe external artifacts before they enter the report/freeze workflow.
 - `certification_freeze_manifest.json`: generated submitted-build freeze
   manifest with pending SHA-256 slots bound to open certification issues.
 - `certification_freeze_manifest.md`: generated Markdown freeze manifest for

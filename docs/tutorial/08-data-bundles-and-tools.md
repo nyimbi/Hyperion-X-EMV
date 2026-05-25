@@ -478,6 +478,8 @@ Use these tools from the repository root.
 | Generate full workspace | `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` | Complete local certification workspace. |
 | Generate evidence checklist | `cargo run --quiet --example krn_certification_evidence_checklist -- --out docs` | External evidence checklist JSON and Markdown. |
 | Generate intake ledger | `cargo run --quiet --example krn_certification_evidence_intake -- --out docs` | Evidence intake JSON and Markdown. |
+| Generate artifact import plan | `cargo run --quiet --example krn_certification_artifact_import -- --out docs` | Adapter plan for real lab, scheme, CAPK, vector, device, and report artifacts. |
+| Import real artifacts | `cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import` | Classified SHA-256 inventory and fail-closed rejection report. |
 | Audit attachments | `cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments` | Attachment hash inventory. |
 | Generate freeze manifest | `cargo run --quiet --example krn_certification_freeze_manifest -- --out docs` | Submitted-build hash slots. |
 | Generate security plan | `cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs` | Security assessment plan JSON and Markdown. |

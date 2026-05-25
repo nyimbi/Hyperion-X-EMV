@@ -3,6 +3,10 @@ use hyperion_emv::apdu::{
     generate_ac, internal_authenticate_from_ddol, select_environment, CdaRequestControl,
     CryptogramRequest, Interface,
 };
+use hyperion_emv::artifact_import::{
+    certification_artifact_import_plan_json, certification_artifact_import_plan_markdown,
+    certification_artifact_import_report_json, import_certification_artifacts,
+};
 use hyperion_emv::c8::{
     evaluate_contactless_limits, evaluate_relay_resistance, outcome_from_limit_decision,
     outcome_from_relay_resistance_failure, AlternateInterface, ContactlessLimitDecision,
@@ -169,6 +173,10 @@ const CERTIFICATION_EVIDENCE_INTAKE: &str =
     include_str!("../docs/certification_evidence_intake.json");
 const CERTIFICATION_EVIDENCE_INTAKE_MARKDOWN: &str =
     include_str!("../docs/certification_evidence_intake.md");
+const CERTIFICATION_ARTIFACT_IMPORT_PLAN: &str =
+    include_str!("../docs/certification_artifact_import_plan.json");
+const CERTIFICATION_ARTIFACT_IMPORT_PLAN_MARKDOWN: &str =
+    include_str!("../docs/certification_artifact_import_plan.md");
 const CERTIFICATION_FREEZE_MANIFEST: &str =
     include_str!("../docs/certification_freeze_manifest.json");
 const CERTIFICATION_FREEZE_MANIFEST_MARKDOWN: &str =
@@ -1625,6 +1633,11 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification evidence intake ledger"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("certification_evidence_intake.json"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_certification_evidence_intake"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("Certification artifact import adapters"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("certification_artifact_import_plan.json"));
+    assert!(LAB_SUBMISSION_MANIFEST.contains("krn_certification_artifact_import"));
+    assert!(LAB_SUBMISSION_MANIFEST
+        .contains("real lab, scheme, CAPK, vector, device, and report artifacts"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("supersession history"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("licensed/lab reconciliation is still required"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("Certification freeze manifest"));
@@ -1708,7 +1721,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
     assert!(LAB_SUBMISSION_MANIFEST.contains("krn_coverage_package_audit"));
     assert!(LAB_SUBMISSION_MANIFEST.contains("coverage_audit.json"));
 
-    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/tooling_completeness_audit.json docs/tooling_completeness_audit.md docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_tooling_completeness_audit.rs examples/krn_basic_pos.rs examples/krn_basic_softpos.rs examples/krn_callback_timeout_policy.rs examples/krn_variable_data_boundary_audit.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs";
+    let expected_build_manifest_command = "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/tooling_completeness_audit.json docs/tooling_completeness_audit.md docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_artifact_import_plan.json docs/certification_artifact_import_plan.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_artifact_import.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_tooling_completeness_audit.rs examples/krn_basic_pos.rs examples/krn_basic_softpos.rs examples/krn_callback_timeout_policy.rs examples/krn_variable_data_boundary_audit.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs";
     assert!(PRELAB_QUALITY_GATES.contains(expected_build_manifest_command));
     assert!(PRELAB_QUALITY_GATES.contains("\"certification_freeze_hashes_required\""));
     for required_hash in [
@@ -1755,6 +1768,8 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "docs/certification_evidence_checklist.md".to_string(),
         "docs/certification_evidence_intake.json".to_string(),
         "docs/certification_evidence_intake.md".to_string(),
+        "docs/certification_artifact_import_plan.json".to_string(),
+        "docs/certification_artifact_import_plan.md".to_string(),
         "docs/certification_freeze_manifest.json".to_string(),
         "docs/certification_freeze_manifest.md".to_string(),
         "docs/certification_security_assessment_plan.json".to_string(),
@@ -1782,6 +1797,7 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
         "examples/krn_trace_pack_audit.rs".to_string(),
         "examples/krn_certification_evidence_checklist.rs".to_string(),
         "examples/krn_certification_evidence_intake.rs".to_string(),
+        "examples/krn_certification_artifact_import.rs".to_string(),
         "examples/krn_certification_freeze_manifest.rs".to_string(),
         "examples/krn_certification_security_assessment_plan.rs".to_string(),
         "examples/krn_certification_device_evidence_plan.rs".to_string(),
@@ -7012,6 +7028,47 @@ fn prelab_trace_pack_audit_is_reproducible_masked_and_scoped() {
 }
 
 #[test]
+fn certification_artifact_import_adapters_are_reproducible_and_fail_closed() {
+    let json = certification_artifact_import_plan_json(KRN_ABI_VERSION);
+    let markdown = certification_artifact_import_plan_markdown(KRN_ABI_VERSION);
+
+    assert_eq!(CERTIFICATION_ARTIFACT_IMPORT_PLAN, json);
+    assert_eq!(CERTIFICATION_ARTIFACT_IMPORT_PLAN_MARKDOWN, markdown);
+    for required in [
+        "LAB-APPROVAL",
+        "SCHEME-PROFILE",
+        "CAPK",
+        "VECTOR",
+        "DEVICE",
+        "REPORT",
+        "private signing material is rejected",
+        "external authorities still decide acceptance",
+    ] {
+        assert!(CERTIFICATION_ARTIFACT_IMPORT_PLAN.contains(required));
+    }
+    assert!(CERTIFICATION_ARTIFACT_IMPORT_PLAN_MARKDOWN
+        .contains("Hyperion Certification Artifact Import Plan"));
+    assert!(PRELAB_CI_WORKFLOW.contains("Certification artifact import JSON drift"));
+    assert!(PRELAB_CI_WORKFLOW.contains("Certification artifact import Markdown drift"));
+    assert!(PRELAB_CI_WORKFLOW.contains("Certification artifact import smoke"));
+
+    let root = std::env::temp_dir().join(format!(
+        "hyperion-traceability-artifact-import-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("capk")).unwrap();
+    fs::write(root.join("capk/public.pem"), b"capk-public").unwrap();
+    fs::write(root.join("capk/private.key"), b"secret").unwrap();
+    let report = import_certification_artifacts(&root).unwrap();
+    let report_json = certification_artifact_import_report_json(KRN_ABI_VERSION, &report);
+    assert!(report_json.contains("CERT-OPEN-003/capk/public.pem"));
+    assert!(report_json.contains(&to_hex(&sha256(b"capk-public"))));
+    assert!(report_json.contains("private-key-material-not-accepted"));
+    fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn tooling_completeness_audit_is_reproducible_and_preserves_external_gates() {
     let json = tooling_completeness_audit_json(KRN_ABI_VERSION);
     let markdown = tooling_completeness_audit_markdown(KRN_ABI_VERSION);
@@ -7024,6 +7081,7 @@ fn tooling_completeness_audit_is_reproducible_and_preserves_external_gates() {
         .contains("repository-controlled tooling and verification mechanisms only"));
     assert!(TOOLING_COMPLETENESS_AUDIT.contains("TOOL-UNIT-INTEGRATION"));
     assert!(TOOLING_COMPLETENESS_AUDIT.contains("TOOL-REPORT-WORKBENCH"));
+    assert!(TOOLING_COMPLETENESS_AUDIT.contains("TOOL-ARTIFACT-IMPORT"));
     assert!(TOOLING_COMPLETENESS_AUDIT.contains("TOOL-TOOLING-COMPLETENESS"));
     assert!(TOOLING_COMPLETENESS_AUDIT.contains("docs/tooling_completeness_audit.json"));
     assert!(TOOLING_COMPLETENESS_AUDIT.contains("examples/krn_tooling_completeness_audit.rs"));
@@ -7070,6 +7128,9 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_certification_evidence_intake -- --json | diff -u docs/certification_evidence_intake.json -",
         "cargo run --quiet --example krn_certification_evidence_intake -- --markdown | diff -u docs/certification_evidence_intake.md -",
         "cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments",
+        "cargo run --quiet --example krn_certification_artifact_import -- --plan-json | diff -u docs/certification_artifact_import_plan.json -",
+        "cargo run --quiet --example krn_certification_artifact_import -- --plan-markdown | diff -u docs/certification_artifact_import_plan.md -",
+        "cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import",
         "cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage",
         "cargo run --quiet --example krn_certification_freeze_manifest -- --json | diff -u docs/certification_freeze_manifest.json -",
         "cargo run --quiet --example krn_certification_freeze_manifest -- --markdown | diff -u docs/certification_freeze_manifest.md -",
@@ -7087,7 +7148,7 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_basic_softpos",
         "cargo run --quiet --example krn_callback_timeout_policy",
         "cargo run --quiet --example krn_variable_data_boundary_audit -- src",
-        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/tooling_completeness_audit.json docs/tooling_completeness_audit.md docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_tooling_completeness_audit.rs examples/krn_basic_pos.rs examples/krn_basic_softpos.rs examples/krn_callback_timeout_policy.rs examples/krn_variable_data_boundary_audit.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
+        "cargo run --quiet --example krn_build_manifest -- src Cargo.lock Cargo.toml .github/workflows/prelab.yml docs/spec.md docs/lab_submission_manifest.md docs/requirements_traceability.csv docs/requirements-traceability-matrix.csv docs/scheme_profiles.cert.json docs/scheme_profile_dictionary.md docs/oda_test_vectors.json docs/tlv_catalogue.csv docs/state_machine.csv docs/bitmap_catalogue.csv docs/performance_profile.csv docs/abi_conformance_statement.json docs/prelab_apdu_trace_pack.jsonl docs/prelab_trace_pack_audit.json docs/prelab_trace_pack_audit.md docs/prelab_quality_gates.json docs/prelab_no_crash_smoke.json docs/prelab_static_fuzz_plan.json docs/prelab_fuzz_seed_corpus.json docs/public_standards_watch.json docs/tooling_completeness_audit.json docs/tooling_completeness_audit.md docs/certification_evidence_checklist.json docs/certification_evidence_checklist.md docs/certification_evidence_intake.json docs/certification_evidence_intake.md docs/certification_artifact_import_plan.json docs/certification_artifact_import_plan.md docs/certification_freeze_manifest.json docs/certification_freeze_manifest.md docs/certification_security_assessment_plan.json docs/certification_security_assessment_plan.md docs/certification_device_evidence_plan.json docs/certification_device_evidence_plan.md docs/certification_integration_report_plan.json docs/certification_integration_report_plan.md docs/certification_report_pack.json docs/certification_report_pack.md docs/certification_report_ui.html docs/certification_open_issues.md docs/standards_watch.md docs/open_source.md docs/coverage.md scripts/coverage_100.sh examples/krn_build_manifest.rs examples/krn_abi_conformance_statement.rs examples/krn_cabi_script_adapter.rs examples/krn_certification_attachment_audit.rs examples/krn_coverage_package_audit.rs examples/krn_trace_pack_audit.rs examples/krn_certification_evidence_checklist.rs examples/krn_certification_evidence_intake.rs examples/krn_certification_artifact_import.rs examples/krn_certification_freeze_manifest.rs examples/krn_certification_security_assessment_plan.rs examples/krn_certification_device_evidence_plan.rs examples/krn_certification_integration_report_plan.rs examples/krn_certification_report_ui.rs examples/krn_certification_workspace.rs examples/krn_tooling_completeness_audit.rs examples/krn_basic_pos.rs examples/krn_basic_softpos.rs examples/krn_callback_timeout_policy.rs examples/krn_variable_data_boundary_audit.rs examples/krn_scheme_profile_dictionary.rs examples/krn_prelab_trace_pack.rs examples/krn_prelab_quality_gates.rs examples/krn_prelab_no_crash_smoke.rs examples/krn_prelab_static_fuzz_plan.rs examples/krn_prelab_fuzz_seed_corpus.rs examples/krn_public_standards_watch.rs examples/krn_emv_decode.rs",
         "cargo test",
         "cargo test --examples",
         "cargo fmt --check",
@@ -7145,6 +7206,9 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/prelab_quality_gates.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_evidence_checklist.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_evidence_intake.json"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_artifact_import_plan.json"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("ARTIFACT-IMPORT"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("krn_certification_artifact_import"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_freeze_manifest.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_security_assessment_plan.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_device_evidence_plan.json"));
@@ -7213,6 +7277,7 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(README.contains("krn_certification_evidence_checklist"));
     assert!(README.contains("krn_certification_evidence_intake"));
     assert!(README.contains("krn_certification_attachment_audit"));
+    assert!(README.contains("krn_certification_artifact_import"));
     assert!(README.contains("krn_coverage_package_audit"));
     assert!(README.contains("krn_trace_pack_audit"));
     assert!(README.contains("krn_certification_freeze_manifest"));

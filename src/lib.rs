@@ -7,6 +7,7 @@
 pub mod afl;
 pub mod aip;
 pub mod apdu;
+pub mod artifact_import;
 pub mod c8;
 pub mod cert_bundle;
 pub mod cid;

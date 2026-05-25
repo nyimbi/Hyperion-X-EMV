@@ -6053,3 +6053,34 @@ decision record, while this file tracks work toward certification readiness.
   traceability_foundation -- --test-threads=1`, `cargo test`, `cargo clippy
   --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`,
   and `git diff --check` passed. Coverage remains 27,594/27,594 source lines.
+
+## 2026-05-26T01:04:02+0300
+
+- Increment completed: built strict import adapters around real lab, scheme,
+  CAPK, vector, device, and report artifacts for use when external inputs are
+  available.
+- Code impact: added `src/artifact_import.rs` with six adapter lanes,
+  deterministic plan/report JSON and Markdown generators, SHA-256 inventorying,
+  normalized certification-open slots, per-adapter metadata expectations,
+  resource bounds, extension allowlists, and fail-closed rejection of private
+  key containers, overlarge files, deep trees, unsupported file types, long
+  paths, and excess adapter files. Added
+  `examples/krn_certification_artifact_import.rs` for plan generation and root
+  import reports.
+- Tooling impact: registered the importer in the tooling audit, pre-lab quality
+  gates, report pack/UI, CI workflow, lab submission manifest, README, and data
+  bundle tutorial so the artifact intake boundary is discoverable and
+  drift-checked.
+- Evidence scope: importer output is classification, hashing, and intake
+  normalization only. It does not close external lab, scheme, acquirer,
+  device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance,
+  submitted-binary/profile binding, or final approval gates.
+- Verification: `cargo fmt --check`, `git diff --check`, artifact import
+  JSON/Markdown drift checks, tooling audit drift checks, pre-lab quality gate
+  drift check, report-pack JSON/Markdown/HTML drift checks, `cargo test
+  artifact_import --lib -- --test-threads=1`, `cargo test --example
+  krn_certification_artifact_import -- --test-threads=1`, `cargo test --test
+  traceability_foundation -- --test-threads=1`, `cargo test --examples`, `cargo
+  test`, `cargo clippy --all-targets --all-features -- -D warnings`, and
+  `scripts/coverage_100.sh` passed. Enforced LCOV source line coverage is 100%
+  (28,177/28,177 lines).

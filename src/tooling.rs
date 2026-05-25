@@ -228,6 +228,25 @@ const MECHANISMS: &[VerificationMechanism] = &[
         external_closure_gate: "CERT-OPEN-001 through CERT-OPEN-012",
     },
     VerificationMechanism {
+        id: "TOOL-ARTIFACT-IMPORT",
+        area: "external artifact import adapters",
+        purpose: "classify, hash, reject unsafe containers, and normalize real lab, scheme, CAPK, vector, device, and report artifacts when they become available",
+        repository_artifacts: &[
+            "src/artifact_import.rs",
+            "docs/certification_artifact_import_plan.json",
+            "docs/certification_artifact_import_plan.md",
+            "examples/krn_certification_artifact_import.rs",
+        ],
+        commands: &[
+            "cargo run --quiet --example krn_certification_artifact_import -- --plan-json | diff -u docs/certification_artifact_import_plan.json -",
+            "cargo run --quiet --example krn_certification_artifact_import -- --plan-markdown | diff -u docs/certification_artifact_import_plan.md -",
+            "cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import",
+        ],
+        ci_gate: "Certification artifact import plan drift; artifact import smoke",
+        status: "repo-controlled",
+        external_closure_gate: "CERT-OPEN-001 through CERT-OPEN-012",
+    },
+    VerificationMechanism {
         id: "TOOL-FREEZE-PROVENANCE",
         area: "submission freeze",
         purpose: "capture submitted-build hash slots and canonical source/evidence provenance commands",

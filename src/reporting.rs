@@ -277,6 +277,20 @@ const CONTROLLED_REPORT_FILES: &[ControlledReportFile] = &[
         contents: include_bytes!("../docs/tooling_completeness_audit.md"),
     },
     ControlledReportFile {
+        id: "ARTIFACT-IMPORT-JSON",
+        title: "Certification artifact import plan JSON",
+        path: "docs/certification_artifact_import_plan.json",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_artifact_import_plan.json"),
+    },
+    ControlledReportFile {
+        id: "ARTIFACT-IMPORT-MD",
+        title: "Certification artifact import plan Markdown",
+        path: "docs/certification_artifact_import_plan.md",
+        category: "submission",
+        contents: include_bytes!("../docs/certification_artifact_import_plan.md"),
+    },
+    ControlledReportFile {
         id: "EVIDENCE-CHECKLIST-JSON",
         title: "Certification evidence checklist JSON",
         path: "docs/certification_evidence_checklist.json",
@@ -582,6 +596,15 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         boundary: "attachment slots only; accepted external evidence remains required",
     },
     ReportArtifact {
+        id: "ARTIFACT-IMPORT",
+        title: "Certification artifact import adapters",
+        path: "docs/certification_artifact_import_plan.json; docs/certification_artifact_import_plan.md",
+        category: "submission",
+        generator: "cargo run --quiet --example krn_certification_artifact_import",
+        status: "generated",
+        boundary: "adapter plan and hash inventory only; accepted external evidence remains required",
+    },
+    ReportArtifact {
         id: "ATTACHMENT-SLOTS",
         title: "Certification attachment slot workspace",
         path: "target/hyperion-cert-workspace/attachments/CERT-OPEN-*; target/hyperion-cert-workspace/attachment_slot_guide.md",
@@ -769,6 +792,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Audit local certification evidence attachments",
         command: "cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments",
         output: "stdout JSON attachment hash inventory",
+    },
+    ToolCommand {
+        id: "ARTIFACT-IMPORT",
+        title: "Import and classify real certification artifacts",
+        command: "cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import",
+        output: "stdout JSON artifact import inventory",
     },
     ToolCommand {
         id: "COVERAGE-AUDIT",
