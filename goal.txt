@@ -35,10 +35,10 @@ Progress log for this run:
 
 Current verification status:
 - Passing: formatting, full unit/traceability/doc tests, example tests, clippy with warnings denied, coverage package audit, bundle validation/lint, deterministic bundle drift checks, and whitespace diff checks.
-- Failing by design until coverage closure is completed: `scripts/coverage_100.sh` executes all tests but still fails the enforced 100% threshold; latest LCOV source view is 98.96% line coverage with 280 missed source lines; remaining misses are limited to src/ffi.rs (269), src/oda.rs (6), src/cert_bundle.rs (3), and src/config.rs (2).
+- Failing by design until coverage closure is completed: `scripts/coverage_100.sh` executes all tests but still fails the enforced 100% threshold; latest LCOV source view is 98.98% line coverage with 273 missed source lines; remaining misses are limited to src/ffi.rs (269), src/cert_bundle.rs (2), src/config.rs (1), and src/oda.rs (1).
 
 Next coverage-closure focus:
-- Add meaningful tests for the uncovered production lines reported by LCOV, prioritizing the remaining `config.rs`, `oda.rs`, and `cert_bundle.rs` line artifacts before the larger `ffi.rs` transaction/runtime clusters.
+- Add meaningful tests or safe simplifications for the uncovered production lines reported by LCOV, prioritizing the large `ffi.rs` transaction/runtime clusters while tracking the remaining single-line non-FFI artifacts.
 - Do not weaken the threshold or hide production code from coverage; use targeted tests or remove unreachable/dead code where appropriate.
 
 - 2026-05-25: Added targeted coverage tests for FFI boundary/helper APIs, certification bundle lint/compile/report paths, coverage and trace-audit failure reporting, status-word classification, bitmap mutation safety, terminal capability cataloguing, contactless tuple validation, performance profile rejection modes, and report-plan JSON escaping. Full coverage gate now executes successfully through tests and fails only at the enforced 100% threshold with 96.25% line coverage and 920 missed lines.

@@ -525,11 +525,10 @@ fn parse_scheme(
     let taa_fallback = required_string(object, "taa_fallback_when_offline_unable_online")?;
     let taa_online = required_string(object, "taa_no_match_default_when_online_capable")?;
     let taa_offline = required_string(object, "taa_no_match_default_when_offline_only")?;
-    let taa = TaaProfile::new(
-        parse_action(taa_fallback)?,
-        parse_action(taa_online)?,
-        parse_action(taa_offline)?,
-    )?;
+    let taa_fallback_action = parse_action(taa_fallback)?;
+    let taa_online_action = parse_action(taa_online)?;
+    let taa_offline_action = parse_action(taa_offline)?;
+    let taa = TaaProfile::new(taa_fallback_action, taa_online_action, taa_offline_action)?;
 
     let aids_value = object.get("aids").ok_or(KernelError::InvalidProfile)?;
     let aids_array = aids_value.as_array()?;

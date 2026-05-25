@@ -593,9 +593,6 @@ pub fn parse_recovered_signed_application_data(
         .len()
         .checked_sub(SHA1_DIGEST_BYTES + 1)
         .ok_or(KernelError::ParseError)?;
-    if cursor >= hash_start {
-        return Err(KernelError::ParseError);
-    }
 
     let (data_authentication_code, icc_dynamic_data, padding) = match kind {
         RecoveredSignedDataKind::StaticApplicationData => {
@@ -2586,6 +2583,14 @@ mod tests {
         );
         assert_eq!(
             validate_oda_vector_annex(
+                br#"{"vector_class":"CERTIFICATION","test_vectors":[],"expected_tvr":"0000000000"}"#,
+                false,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_oda_vector_annex(
                 br#"{"vector_class":"STRUCTURAL_FIXTURE","test_vectors":[],"expected_tvr":"0000000000","expected_oda_result":"PASS"}"#,
                 true,
             )
@@ -2595,7 +2600,16 @@ mod tests {
         assert_eq!(certification_vector_method("SDA-1"), Some("SDA"));
         assert_eq!(certification_vector_method("DDA_1"), Some("DDA"));
         assert_eq!(certification_vector_method("CDA"), None);
+        assert_eq!(
+            parse_rsa_public_exponent(&[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_rsa_public_exponent(&[0xff]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
         assert_eq!(matching_json_object_end("{\"x\":\"}\"}", 0).unwrap(), 8);
+        assert_eq!(matching_json_object_end("{\"x\":\"\\\"\"}", 0).unwrap(), 9);
         assert_eq!(
             matching_json_object_end("{", 0).unwrap_err(),
             KernelError::ParseError

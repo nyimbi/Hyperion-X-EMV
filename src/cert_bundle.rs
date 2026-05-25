@@ -3115,6 +3115,12 @@ mod tests {
         let mut wrong_algorithm_bundle = bundle.clone();
         wrong_algorithm_bundle.signature.algorithm =
             CERTIFICATION_BUNDLE_TEST_ALGORITHM.to_string();
+        let payload_sha256 =
+            sha256(payload_canonical_json(&wrong_algorithm_bundle.payload).as_bytes());
+        assert_eq!(
+            verify_bundle_signature(&wrong_algorithm_bundle, &payload_sha256, &policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
         assert_eq!(
             load_certification_bundle(
                 certification_bundle_json(&wrong_algorithm_bundle).as_bytes(),
