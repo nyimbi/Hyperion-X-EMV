@@ -5048,6 +5048,28 @@ mod tests {
             KernelError::ParseError
         );
         assert_eq!(
+            fixed_numeric_bcd::<2>(10_000).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let mut version_data = DataStore::new();
+        assert_eq!(card_application_version(&version_data), Ok(None));
+        version_data.put(&[0x9f, 0x08], &[0x00, 0x96]).unwrap();
+        assert_eq!(
+            card_application_version(&version_data),
+            Ok(Some([0x00, 0x96]))
+        );
+        version_data.put(&[0x9f, 0x09], &[0x01]).unwrap();
+        assert_eq!(
+            card_application_version(&version_data).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            required_fixed::<2>(&version_data, &[0x5f, 0x28]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+
+        assert_eq!(
             oda_failure_to_kernel_error(OdaFailure::MissingCapk),
             KernelError::MissingMandatoryTag
         );
@@ -8061,6 +8083,179 @@ mod tests {
             validate_selected_kernel_mapping(&ctx, &contact_params, &profiles),
             Err(KernelError::InvalidProfile)
         );
+    }
+
+    #[test]
+    fn selected_mapping_and_contactless_helpers_reject_bad_profile_edges() {
+        fn selected_context() -> KrnContext {
+            let mut ctx = KrnContext::new();
+            install_profile_selection(&mut ctx);
+            ctx
+        }
+
+        let ctx = selected_context();
+        let profiles = ctx.profiles.clone().unwrap();
+        let contactless_params = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: KRN_INTERFACE_CONTACTLESS,
+            merchant_name_location: Vec::new(),
+        };
+
+        let mut unselected = selected_context();
+        unselected.selected_application = None;
+        assert_eq!(
+            validate_selected_kernel_mapping(&unselected, &contactless_params, &profiles),
+            Err(KernelError::InvalidArgument)
+        );
+        assert_eq!(
+            run_contactless_limit_processing(
+                &mut unselected,
+                runtime_with_transmit(capture_relay_resistance_apdu),
+                &profiles,
+                &contactless_params,
+            ),
+            Err(KernelError::InvalidArgument)
+        );
+
+        let mut bad_scheme = selected_context();
+        bad_scheme
+            .selected_application
+            .as_mut()
+            .unwrap()
+            .scheme_index = profiles.schemes.len();
+        assert_eq!(
+            validate_selected_kernel_mapping(&bad_scheme, &contactless_params, &profiles),
+            Err(KernelError::InvalidProfile)
+        );
+
+        let mut bad_aid = selected_context();
+        bad_aid.selected_application.as_mut().unwrap().aid_index = profiles.schemes[0].aids.len();
+        assert_eq!(
+            validate_selected_kernel_mapping(&bad_aid, &contactless_params, &profiles),
+            Err(KernelError::InvalidProfile)
+        );
+
+        let invalid_interface = StoredTxnParams {
+            interface_preference: 9,
+            ..contactless_params.clone()
+        };
+        assert_eq!(
+            validate_selected_kernel_mapping(&ctx, &invalid_interface, &profiles),
+            Err(KernelError::InvalidArgument)
+        );
+
+        let mut contactless_rejecting_profiles = profiles.clone();
+        contactless_rejecting_profiles.schemes[0].kernel_type = "contact_only".to_string();
+        assert_eq!(
+            run_contactless_limit_processing(
+                &mut selected_context(),
+                runtime_with_transmit(capture_relay_resistance_apdu),
+                &contactless_rejecting_profiles,
+                &contactless_params,
+            ),
+            Err(KernelError::InvalidProfile)
+        );
+
+        let mut missing_contactless_interface = profiles.clone();
+        missing_contactless_interface.schemes[0].aids[0].interfaces = vec!["contact".to_string()];
+        assert_eq!(
+            run_contactless_limit_processing(
+                &mut selected_context(),
+                runtime_with_transmit(capture_relay_resistance_apdu),
+                &missing_contactless_interface,
+                &contactless_params,
+            ),
+            Err(KernelError::InvalidProfile)
+        );
+
+        let contact_params = StoredTxnParams {
+            interface_preference: KRN_INTERFACE_CONTACT,
+            ..contactless_params
+        };
+        let mut missing_contact_interface = profiles.clone();
+        missing_contact_interface.schemes[0].aids[0].interfaces = vec!["contactless".to_string()];
+        assert_eq!(
+            validate_selected_kernel_mapping(&ctx, &contact_params, &missing_contact_interface),
+            Err(KernelError::InvalidProfile)
+        );
+
+        let mut relay_ctx = selected_context();
+        relay_ctx.contactless_outcome_callback = Some(capture_contactless_outcome);
+        relay_ctx.contactless_outcome_user_data = ptr::null_mut();
+        let aid_without_relay = selected_aid_profile(&relay_ctx).unwrap().clone();
+        assert_eq!(
+            run_required_relay_resistance(
+                &mut relay_ctx,
+                runtime_with_transmit(capture_relay_resistance_apdu),
+                &aid_without_relay,
+            ),
+            Ok(None)
+        );
+
+        let relay_profile = |failure_outcome| {
+            RelayResistanceProfile::new(
+                vec![0x80, 0xca, 0x9f, 0x7a, 0x00],
+                50,
+                vec![0x90, 0x00],
+                failure_outcome,
+            )
+            .unwrap()
+        };
+        let mut transport_failure_aid = aid_without_relay.clone();
+        transport_failure_aid.relay_resistance =
+            Some(relay_profile(RelayResistanceFailureOutcome::TryAgain));
+        assert_eq!(
+            run_required_relay_resistance(
+                &mut relay_ctx,
+                runtime_with_transmit(fail_transmit_apdu),
+                &transport_failure_aid,
+            ),
+            Err(KernelError::HostTimeout)
+        );
+
+        for (failure_outcome, kernel_outcome, callback_code) in [
+            (
+                RelayResistanceFailureOutcome::AlternateInterface,
+                KrnOutcome::AlternateInterface,
+                ContactlessOutcomeCode::AlternateInterface,
+            ),
+            (
+                RelayResistanceFailureOutcome::Terminate,
+                KrnOutcome::Terminated,
+                ContactlessOutcomeCode::Terminate,
+            ),
+        ] {
+            let mut failing_aid = aid_without_relay.clone();
+            failing_aid.relay_resistance = Some(relay_profile(failure_outcome));
+            relay_ctx.fsm_state = FsmState::S8;
+            relay_ctx.state = KernelState::TerminalRiskManagement;
+            relay_ctx.final_outcome = None;
+            RELAY_SW1.store(0x69, Ordering::SeqCst);
+            RELAY_SW2.store(0x85, Ordering::SeqCst);
+            CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+            assert_eq!(
+                run_required_relay_resistance(
+                    &mut relay_ctx,
+                    runtime_with_transmit(capture_relay_resistance_apdu),
+                    &failing_aid,
+                ),
+                Ok(Some(kernel_outcome))
+            );
+            assert_eq!(relay_ctx.final_outcome, Some(kernel_outcome));
+            assert_eq!(
+                CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst),
+                callback_code as u8
+            );
+        }
+        RELAY_SW1.store(0x90, Ordering::SeqCst);
+        RELAY_SW2.store(0x00, Ordering::SeqCst);
     }
 
     #[test]
