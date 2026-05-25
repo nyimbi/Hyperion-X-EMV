@@ -797,6 +797,10 @@ mod tests {
             apply_offline_pin_verify_status(no_cvm_rule, StatusWord::new(0x90, 0x00)).unwrap_err(),
             KernelError::InvalidArgument
         );
+        assert_eq!(
+            apply_offline_pin_verify_status(rule, StatusWord::new(0x61, 0x02)).unwrap_err(),
+            KernelError::InvalidArgument
+        );
     }
 
     #[test]
@@ -1010,6 +1014,166 @@ mod tests {
             CvmOutcome::Failed {
                 cvm_results: [0x07, 0x00, 0x01],
                 tvr_bit: Tvr::B3_UNRECOGNIZED_CVM
+            }
+        );
+    }
+
+    #[test]
+    fn cvm_debug_and_result_helpers_cover_all_public_shapes() {
+        let plaintext = PedPinHandle::new(0xfeed_beef).unwrap();
+        let enciphered = PedPinHandle::new(0x0bad_cafe).unwrap();
+        assert_eq!(plaintext.raw(), 0xfeed_beef);
+        assert_eq!(enciphered.raw(), 0x0bad_cafe);
+
+        for action in [
+            CvmAction::NoCvm,
+            CvmAction::OnlinePin,
+            CvmAction::Signature,
+            CvmAction::OfflinePlaintextPin {
+                ped_handle: plaintext,
+            },
+            CvmAction::OfflineEncipheredPin {
+                ped_handle: enciphered,
+            },
+            CvmAction::OfflineEncipheredPinAndSignature {
+                ped_handle: enciphered,
+            },
+            CvmAction::Cdcvm,
+        ] {
+            let debug = format!("{action:?}");
+            assert!(!debug.contains("feed"));
+            assert!(!debug.contains("cafe"));
+        }
+
+        let failed = CvmOutcome::Failed {
+            cvm_results: [0x1e, 0x00, 0x01],
+            tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,
+        };
+        let debug = format!("{failed:?}");
+        assert!(debug.contains("Failed"));
+        assert!(debug.contains("cvm_results"));
+
+        assert_eq!(CvmResultStatus::from_code(0x00).code(), 0x00);
+        assert_eq!(CvmResultStatus::from_code(0x01).code(), 0x01);
+    }
+
+    #[test]
+    fn amount_y_currency_and_unknown_conditions_are_explicit() {
+        let below_x =
+            parse_cvm_list(&[0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x1f, 0x06]).unwrap();
+        assert_eq!(
+            evaluate(&below_x, context(), CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::NoCvm,
+                cvm_results: [0x1f, 0x06, 0x02],
+                tvr_bit: None,
+            }
+        );
+
+        let below_y =
+            parse_cvm_list(&[0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x1f, 0x08]).unwrap();
+        assert_eq!(
+            evaluate(&below_y, context(), CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::NoCvm,
+                cvm_results: [0x1f, 0x08, 0x02],
+                tvr_bit: None,
+            }
+        );
+
+        let above_y =
+            parse_cvm_list(&[0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x1f, 0x09]).unwrap();
+        let mut high_amount = context();
+        high_amount.amount_authorized = 12_000;
+        assert_eq!(
+            evaluate(&above_y, high_amount, CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::NoCvm,
+                cvm_results: [0x1f, 0x09, 0x02],
+                tvr_bit: None,
+            }
+        );
+
+        let mut currency_mismatch = context();
+        currency_mismatch.transaction_currency_matches_application = false;
+        assert_eq!(
+            evaluate(&below_y, currency_mismatch, CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x3f, 0x00, 0x01],
+                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,
+            }
+        );
+
+        let unknown_condition =
+            parse_cvm_list(&[0x00, 0x00, 0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x1f, 0xff]).unwrap();
+        assert_eq!(
+            evaluate(&unknown_condition, context(), CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x3f, 0x00, 0x01],
+                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,
+            }
+        );
+    }
+
+    #[test]
+    fn enciphered_pin_and_terminal_support_edges_are_deterministic() {
+        let enciphered_pin = parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x04, 0x00]).unwrap();
+        let handle = PedPinHandle::new(0x0bad_cafe).unwrap();
+        assert_eq!(
+            evaluate(
+                &enciphered_pin,
+                context(),
+                CvmPinHandles::with_offline_enciphered(handle),
+            ),
+            CvmOutcome::Selected {
+                action: CvmAction::OfflineEncipheredPin { ped_handle: handle },
+                cvm_results: [0x04, 0x00, 0x02],
+                tvr_bit: None,
+            }
+        );
+        assert_eq!(
+            evaluate(&enciphered_pin, context(), CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x04, 0x00, 0x01],
+                tvr_bit: Tvr::B3_PIN_NOT_ENTERED,
+            }
+        );
+
+        let offline_pin_terminal_support =
+            parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x03]).unwrap();
+        assert_eq!(
+            evaluate(
+                &offline_pin_terminal_support,
+                context(),
+                CvmPinHandles::with_offline_plaintext(handle),
+            ),
+            CvmOutcome::Selected {
+                action: CvmAction::OfflinePlaintextPin { ped_handle: handle },
+                cvm_results: [0x01, 0x03, 0x02],
+                tvr_bit: None,
+            }
+        );
+
+        let terminal_support_edges = parse_cvm_list(&[
+            0, 0, 0, 0, 0, 0, 0, 0, 0x20, 0x03, 0x1e, 0x03, 0x07, 0x03, 0x1f, 0x03,
+        ])
+        .unwrap();
+        assert_eq!(
+            evaluate(&terminal_support_edges, context(), CvmPinHandles::none()),
+            CvmOutcome::Failed {
+                cvm_results: [0x1e, 0x03, 0x01],
+                tvr_bit: Tvr::B3_CARDHOLDER_VERIFICATION_NOT_SUCCESSFUL,
+            }
+        );
+
+        let unknown_then_no_cvm =
+            parse_cvm_list(&[0, 0, 0, 0, 0, 0, 0, 0, 0x07, 0x03, 0x1f, 0x00]).unwrap();
+        assert_eq!(
+            evaluate(&unknown_then_no_cvm, context(), CvmPinHandles::none()),
+            CvmOutcome::Selected {
+                action: CvmAction::NoCvm,
+                cvm_results: [0x1f, 0x00, 0x02],
+                tvr_bit: None,
             }
         );
     }

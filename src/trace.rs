@@ -1333,10 +1333,15 @@ mod tests {
         let cryptogram = mask_tlv_value(&[0x9f, 0x26], &[0xde, 0xad, 0xbe, 0xef], support_policy);
         assert_eq!(cryptogram.value, MaskedValue::Hex("deadbeef".to_string()));
 
+        let pin_block = mask_tlv_value(&[0x99], &[0x12, 0x34], support_policy);
+        assert_eq!(pin_block.value, MaskedValue::Suppressed("pin-block"));
+
         let track2 = mask_tlv_value(&[0x57], &[0x12, 0x34, 0x56, 0x7d], support_policy);
-        let MaskedValue::DebugHash { hash64, .. } = track2.value else {
-            panic!("support trace should emit a debug hash for track2");
-        };
+        assert!(matches!(
+            track2.value,
+            MaskedValue::DebugHash { len: 4, .. }
+        ));
+        let hash64 = 0x1122_3344_5566_7788;
 
         let stream = TlvStreamTrace {
             sequence: 17,
@@ -1348,7 +1353,9 @@ mod tests {
                 },
                 MaskedField {
                     tag: vec![0x9f, 0x10],
-                    value: MaskedValue::Hex("quote\" slash\\ line\nctl\x1f".to_string()),
+                    value: MaskedValue::Hex(
+                        "quote\" slash\\ line\ncarriage\rtab\tctl\x1f".to_string(),
+                    ),
                 },
             ],
         };
@@ -1360,7 +1367,7 @@ mod tests {
         let json = stream.to_json();
         assert!(json.contains("\"type\":\"debug-hash\""));
         assert!(json.contains(&format!("\"hash64\":\"{hash64:016x}\"")));
-        assert!(json.contains("quote\\\" slash\\\\ line\\nctl\\u001f"));
+        assert!(json.contains("quote\\\" slash\\\\ line\\ncarriage\\rtab\\tctl\\u001f"));
 
         for value in [
             MaskedValue::Pan("************1234".to_string()),

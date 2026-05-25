@@ -4219,6 +4219,125 @@ mod tests {
         );
     }
 
+    fn stored_txn_params(interface_preference: u8) -> StoredTxnParams {
+        StoredTxnParams {
+            amount_authorised_minor: 2_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference,
+            merchant_name_location: Vec::new(),
+        }
+    }
+
+    fn runtime_with_transmit(transmit_apdu: KrnTransmitApduCallback) -> RuntimeCallbacks {
+        RuntimeCallbacks {
+            transmit_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        }
+    }
+
+    unsafe extern "C" fn fail_transmit_apdu(
+        _cmd: *const u8,
+        _cmd_len: usize,
+        _resp: *mut u8,
+        _resp_len: *mut usize,
+        _timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        KernelError::HostTimeout.code()
+    }
+
+    unsafe extern "C" fn short_pse_transmit_apdu(
+        _cmd: *const u8,
+        _cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        _timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        if !resp.is_null() {
+            *resp = 0x6f;
+        }
+        *resp_len = 1;
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn failed_pse_transmit_apdu(
+        _cmd: *const u8,
+        _cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        _timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let response = [0x69, 0x85];
+        *resp_len = response.len();
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    #[test]
+    fn run_transaction_early_error_paths_fail_closed() {
+        let mut ctx = KrnContext::new();
+        ctx.txn_params = Some(stored_txn_params(KRN_INTERFACE_CONTACT));
+        ctx.runtime = Some(runtime_with_transmit(capture_select_apdu));
+        assert_eq!(run_transaction(&mut ctx), KrnOutcome::Error);
+        assert_eq!(ctx.last_error, KernelError::InvalidProfile);
+        assert_eq!(ctx.state, KernelState::Error);
+        assert_eq!(ctx.fsm_state, FsmState::Se);
+
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.txn_params = Some(stored_txn_params(0xff));
+        ctx.runtime = Some(runtime_with_transmit(capture_select_apdu));
+        assert_eq!(run_transaction(&mut ctx), KrnOutcome::Error);
+        assert_eq!(ctx.last_error, KernelError::InvalidArgument);
+        assert_eq!(ctx.state, KernelState::Error);
+        assert_eq!(ctx.fsm_state, FsmState::Se);
+
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.txn_params = Some(stored_txn_params(KRN_INTERFACE_CONTACT));
+        ctx.runtime = Some(runtime_with_transmit(capture_select_apdu));
+        ctx.fsm_state = FsmState::S16;
+        assert_eq!(run_transaction(&mut ctx), KrnOutcome::Error);
+        assert_eq!(ctx.state, KernelState::Error);
+        assert_eq!(ctx.fsm_state, FsmState::Se);
+
+        for (transmit, expected_error) in [
+            (
+                fail_transmit_apdu as KrnTransmitApduCallback,
+                KernelError::HostTimeout,
+            ),
+            (
+                short_pse_transmit_apdu as KrnTransmitApduCallback,
+                KernelError::ParseError,
+            ),
+            (
+                failed_pse_transmit_apdu as KrnTransmitApduCallback,
+                KernelError::NoCommonAid,
+            ),
+        ] {
+            let mut ctx = KrnContext::new();
+            install_profile_selection(&mut ctx);
+            ctx.txn_params = Some(stored_txn_params(KRN_INTERFACE_CONTACT));
+            ctx.state = KernelState::ParamsSet;
+            ctx.fsm_state = FsmState::S1;
+            ctx.runtime = Some(runtime_with_transmit(transmit));
+            assert_eq!(run_transaction(&mut ctx), KrnOutcome::Error);
+            assert_eq!(ctx.last_error, expected_error);
+            assert_eq!(ctx.state, KernelState::Error);
+            assert_eq!(ctx.fsm_state, FsmState::Se);
+        }
+    }
+
     #[test]
     fn callback_timeout_policy_is_versioned_and_bounded() {
         unsafe {
@@ -6447,6 +6566,150 @@ mod tests {
     }
 
     #[test]
+    fn ffi_remaining_entrypoint_guards_fail_closed() {
+        unsafe {
+            let mut ctx = KrnContext::new();
+            let mut out_len = 0usize;
+            let mut byte = 0u8;
+            let mut phase = 0u8;
+            let mut script_index = 0u16;
+            let mut command_index = 0u16;
+            let mut profile_version = 0u64;
+
+            assert_eq!(
+                krn_load_certification_bundle_verified(
+                    ptr::null_mut(),
+                    ptr::null(),
+                    0,
+                    ptr::null(),
+                    0,
+                    0,
+                    26,
+                    5,
+                    21,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_online_authorization_data(ptr::null_mut(), ptr::null_mut(), &mut out_len),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_apply_host_response(ptr::null_mut(), ptr::null(), 0),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_process_issuer_scripts(ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_process_post_final_issuer_scripts(ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_process_final_generate_ac(ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_issuer_script_result_phase(ptr::null_mut(), 0, &mut phase),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_issuer_script_result_position(
+                    ptr::null_mut(),
+                    0,
+                    &mut script_index,
+                    &mut command_index,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_issuer_script_result_identifier(
+                    ptr::null_mut(),
+                    0,
+                    &mut byte,
+                    &mut out_len,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+
+            ctx.busy = true;
+            for code in [
+                krn_load_certification_bundle_verified(
+                    &mut ctx,
+                    ptr::null(),
+                    0,
+                    ptr::null(),
+                    0,
+                    0,
+                    26,
+                    5,
+                    21,
+                ),
+                krn_build_internal_authenticate(
+                    &mut ctx,
+                    ptr::null(),
+                    0,
+                    ptr::null_mut(),
+                    &mut out_len,
+                ),
+                krn_get_online_authorization_data(&mut ctx, ptr::null_mut(), &mut out_len),
+                krn_apply_host_response(&mut ctx, ptr::null(), 0),
+                krn_process_issuer_authentication(&mut ctx),
+                krn_process_issuer_scripts(&mut ctx),
+                krn_process_post_final_issuer_scripts(&mut ctx),
+                krn_process_final_generate_ac(&mut ctx),
+                krn_get_issuer_script_result_phase(&mut ctx, 0, &mut phase),
+                krn_get_issuer_script_result_position(
+                    &mut ctx,
+                    0,
+                    &mut script_index,
+                    &mut command_index,
+                ),
+                krn_get_issuer_script_result_identifier(&mut ctx, 0, &mut byte, &mut out_len),
+                krn_get_profile_version(&mut ctx, &mut profile_version),
+                krn_get_profile_sha256(&mut ctx, ptr::null_mut(), &mut out_len),
+                krn_set_contactless_outcome_callback(
+                    &mut ctx,
+                    Some(capture_contactless_outcome),
+                    ptr::null_mut(),
+                ),
+            ] {
+                assert_eq!(code, KernelError::Busy.code());
+            }
+        }
+    }
+
+    #[test]
+    fn contactless_callback_registration_updates_active_runtime_callbacks() {
+        let mut ctx = KrnContext::new();
+        ctx.runtime = Some(RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        });
+        let user_data = 0x1usize as *mut c_void;
+
+        assert_eq!(
+            unsafe {
+                krn_set_contactless_outcome_callback(
+                    &mut ctx,
+                    Some(capture_contactless_outcome),
+                    user_data,
+                )
+            },
+            KernelError::Ok.code()
+        );
+
+        let runtime = ctx.runtime.expect("runtime should remain installed");
+        assert!(runtime.contactless_outcome.is_some());
+        assert_eq!(runtime.user_data, user_data);
+        assert!(ctx.contactless_outcome_callback.is_some());
+        assert_eq!(ctx.contactless_outcome_user_data, user_data);
+    }
+
+    #[test]
     fn ffi_builds_select_into_caller_buffer() {
         unsafe {
             let ctx = krn_context_new();
@@ -6853,6 +7116,14 @@ mod tests {
                 abi_version: KRN_ABI_VERSION,
                 struct_size: mem::size_of::<KrnConfigBlob>() as u32,
                 bytes: ptr::null(),
+                len: 0,
+            };
+            assert_eq!(validate_config_blob(&cfg), Ok(()));
+
+            let cfg = KrnConfigBlob {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnConfigBlob>() as u32,
+                bytes: ptr::null(),
                 len: 1,
             };
             assert_eq!(
@@ -6868,6 +7139,97 @@ mod tests {
                 KernelError::InvalidArgument
             );
         }
+    }
+
+    #[test]
+    fn ffi_contactless_outcome_codecs_accept_every_stable_value() {
+        for (raw, expected) in [
+            (1, ContactlessOutcomeCode::Approved),
+            (2, ContactlessOutcomeCode::Declined),
+            (3, ContactlessOutcomeCode::OnlineRequired),
+            (4, ContactlessOutcomeCode::TryAgain),
+            (5, ContactlessOutcomeCode::SelectNext),
+            (6, ContactlessOutcomeCode::AlternateInterface),
+            (7, ContactlessOutcomeCode::Terminate),
+            (8, ContactlessOutcomeCode::CvmRequired),
+            (255, ContactlessOutcomeCode::ProfileDefined),
+        ] {
+            assert_eq!(outcome_code_from_u8(raw), Ok(expected));
+        }
+        assert_eq!(
+            outcome_code_from_u8(9).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        for (raw, expected) in [
+            (0, StartSignal::None),
+            (1, StartSignal::Start),
+            (2, StartSignal::Restart),
+            (3, StartSignal::Prompt),
+        ] {
+            assert_eq!(start_signal_from_u8(raw), Ok(expected));
+        }
+        assert_eq!(
+            start_signal_from_u8(4).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        for (raw, expected) in [
+            (0, UiStatus::None),
+            (1, UiStatus::ReadyToRead),
+            (2, UiStatus::Processing),
+            (3, UiStatus::Approved),
+            (4, UiStatus::Declined),
+            (5, UiStatus::Error),
+            (6, UiStatus::TryAgain),
+        ] {
+            assert_eq!(ui_status_from_u8(raw), Ok(expected));
+        }
+        assert_eq!(
+            ui_status_from_u8(7).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        for (raw, expected) in [
+            (0, AlternateInterface::None),
+            (1, AlternateInterface::Contact),
+            (2, AlternateInterface::Magstripe),
+            (3, AlternateInterface::OtherCard),
+        ] {
+            assert_eq!(alternate_interface_from_u8(raw), Ok(expected));
+        }
+        assert_eq!(
+            alternate_interface_from_u8(4).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn retry_apdu_with_le_covers_short_and_case_variants() {
+        assert_eq!(
+            retry_apdu_with_le(&[0x00, 0xc0, 0x00], 0x10).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            retry_apdu_with_le(&[0x00, 0xc0, 0x00, 0x00], 0x10).unwrap(),
+            vec![0x00, 0xc0, 0x00, 0x00, 0x10]
+        );
+        assert_eq!(
+            retry_apdu_with_le(&[0x00, 0xc0, 0x00, 0x00, 0x00], 0x10).unwrap(),
+            vec![0x00, 0xc0, 0x00, 0x00, 0x10]
+        );
+        assert_eq!(
+            retry_apdu_with_le(&[0x00, 0xda, 0x00, 0x00, 0x02, 0xaa, 0xbb], 0x10).unwrap(),
+            vec![0x00, 0xda, 0x00, 0x00, 0x02, 0xaa, 0xbb, 0x10]
+        );
+        assert_eq!(
+            retry_apdu_with_le(&[0x00, 0xda, 0x00, 0x00, 0x02, 0xaa, 0xbb, 0x00], 0x10).unwrap(),
+            vec![0x00, 0xda, 0x00, 0x00, 0x02, 0xaa, 0xbb, 0x10]
+        );
+        assert_eq!(
+            retry_apdu_with_le(&[0x00, 0xda, 0x00, 0x00, 0x02, 0xaa], 0x10).unwrap_err(),
+            KernelError::InvalidArgument
+        );
     }
 
     #[test]
