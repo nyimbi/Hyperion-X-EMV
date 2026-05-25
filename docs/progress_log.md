@@ -5897,3 +5897,11 @@ decision record, while this file tracks work toward certification readiness.
 - Security impact: the tests lock down fail-closed handling for malformed certification profile metadata, CAPK material, and JSON bundle inputs that sit on the data-driven provisioning boundary.
 - Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
 - Verification: `cargo fmt --check`, `cargo test config --lib`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, `scripts/coverage_100.sh`, and `cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info` passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 97.80% (24,680/25,235 lines) with 555 missed source lines.
+
+## 2026-05-25T19:00:00Z
+
+- Increment in progress: close FFI transaction-input and ODA selection/failure coverage before the remaining C ABI runtime branches.
+- Code impact: added coverage for direct transaction DOL encoding rejection, null merchant-location pointer rejection, ODA not-required and not-performed-required paths, missing CAPK mapping, invalid issuer certificate recovery, DDA dynamic-signature failure when runtime callbacks are absent, and CDA ICC certificate recovery failure.
+- Security impact: the tests strengthen fail-closed behavior for malformed terminal input, unsafe caller-provided pointers, and offline authentication failure mapping at the FFI/runtime boundary.
+- Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
+- Verification: `cargo fmt --check`, `cargo test ffi --lib`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, `scripts/coverage_100.sh`, and `cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info` passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 97.89% (24,882/25,419 lines) with 537 missed source lines.

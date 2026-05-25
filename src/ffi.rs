@@ -5058,6 +5058,107 @@ mod tests {
     }
 
     #[test]
+    fn transaction_data_store_rejects_unencodable_direct_values() {
+        let base = StoredTxnParams {
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: KRN_INTERFACE_CONTACT,
+            merchant_name_location: Vec::new(),
+        };
+        let date = EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        };
+        let inputs = TerminalDolInputs::default();
+
+        let mut too_large_amount = base.clone();
+        too_large_amount.amount_authorised_minor = u64::MAX;
+        assert_eq!(
+            transaction_data_store(
+                &too_large_amount,
+                [0x11, 0x22, 0x33, 0x44],
+                date,
+                Tvr::cleared(),
+                Tsi::cleared(),
+                inputs,
+            )
+            .unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let mut too_large_other_amount = base.clone();
+        too_large_other_amount.amount_other_minor = u64::MAX;
+        assert_eq!(
+            transaction_data_store(
+                &too_large_other_amount,
+                [0x11, 0x22, 0x33, 0x44],
+                date,
+                Tvr::cleared(),
+                Tsi::cleared(),
+                inputs,
+            )
+            .unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let mut too_large_currency = base.clone();
+        too_large_currency.currency_code = 10_000;
+        assert_eq!(
+            transaction_data_store(
+                &too_large_currency,
+                [0x11, 0x22, 0x33, 0x44],
+                date,
+                Tvr::cleared(),
+                Tsi::cleared(),
+                inputs,
+            )
+            .unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let mut too_large_country = base;
+        too_large_country.terminal_country_code = 10_000;
+        assert_eq!(
+            transaction_data_store(
+                &too_large_country,
+                [0x11, 0x22, 0x33, 0x44],
+                date,
+                Tvr::cleared(),
+                Tsi::cleared(),
+                inputs,
+            )
+            .unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let dangling_merchant = KrnTxnParams {
+            struct_size: mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_000,
+            amount_other_minor: 0,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0,
+            terminal_type: 0x22,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: KRN_INTERFACE_CONTACT,
+            merchant_name_location: ptr::null(),
+            merchant_name_location_len: 1,
+        };
+        assert_eq!(
+            unsafe { read_transaction_params(&dangling_merchant) }.unwrap_err(),
+            KernelError::InvalidArgument
+        );
+    }
+
+    #[test]
     fn cvm_transaction_type_uses_terminal_and_transaction_tags() {
         let params = |transaction_type, terminal_type| StoredTxnParams {
             amount_authorised_minor: 1_000,
@@ -5757,6 +5858,145 @@ mod tests {
             .chunks(2)
             .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
+    }
+
+    #[test]
+    fn runtime_oda_covers_selection_and_certificate_failure_edges() {
+        let mut not_required = KrnContext::new();
+        install_profile_selection(&mut not_required);
+        not_required.selected_application.as_mut().unwrap().aip = Some([0x00, 0x00]);
+        not_required.fsm_state = FsmState::S5;
+        not_required.state = KernelState::OfflineDataAuthentication;
+        let profiles = not_required.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut not_required, &profiles, None),
+            Ok(())
+        );
+        assert_eq!(not_required.selected_oda_method, None);
+        assert_eq!(not_required.fsm_state, FsmState::S6);
+        assert_eq!(not_required.state, KernelState::ProcessingRestrictions);
+
+        let mut not_performed_required = KrnContext::new();
+        install_profile_selection(&mut not_performed_required);
+        not_performed_required
+            .selected_application
+            .as_mut()
+            .unwrap()
+            .aip = Some([0x00, 0x80]);
+        not_performed_required.profiles.as_mut().unwrap().schemes[0].aids[0].cda_supported = false;
+        not_performed_required.fsm_state = FsmState::S5;
+        not_performed_required.state = KernelState::OfflineDataAuthentication;
+        let profiles = not_performed_required.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut not_performed_required, &profiles, None),
+            Ok(())
+        );
+        assert_eq!(not_performed_required.selected_oda_method, None);
+        assert!(not_performed_required
+            .tvr
+            .is_set(Tvr::B1_OFFLINE_DATA_AUTH_NOT_PERFORMED));
+        assert_eq!(not_performed_required.fsm_state, FsmState::S6);
+
+        let mut missing_capk = KrnContext::new();
+        install_sda_success_fixture(&mut missing_capk);
+        missing_capk.card_data.put(&[0x8f], &[0xfe]).unwrap();
+        let profiles = missing_capk.profiles.clone().unwrap();
+        let scheme = &profiles.schemes[0];
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Sda,
+                OdaEvaluationContext {
+                    profiles: &profiles,
+                    rid: &scheme.rid,
+                    evaluation_date: missing_capk.profile_evaluation_date.unwrap(),
+                    card_data: &missing_capk.card_data,
+                    offline_auth_records: &missing_capk.offline_auth_records,
+                    runtime: None,
+                    apdu_timeout_ms: apdu_timeout(&missing_capk),
+                },
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Sda,
+                failure: OdaFailure::MissingCapk,
+            }
+        );
+
+        let mut bad_sda_issuer_certificate = KrnContext::new();
+        install_sda_success_fixture(&mut bad_sda_issuer_certificate);
+        bad_sda_issuer_certificate
+            .card_data
+            .put(&[0x90], &[0x00])
+            .unwrap();
+        let profiles = bad_sda_issuer_certificate.profiles.clone().unwrap();
+        let scheme = &profiles.schemes[0];
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Sda,
+                OdaEvaluationContext {
+                    profiles: &profiles,
+                    rid: &scheme.rid,
+                    evaluation_date: bad_sda_issuer_certificate.profile_evaluation_date.unwrap(),
+                    card_data: &bad_sda_issuer_certificate.card_data,
+                    offline_auth_records: &bad_sda_issuer_certificate.offline_auth_records,
+                    runtime: None,
+                    apdu_timeout_ms: apdu_timeout(&bad_sda_issuer_certificate),
+                },
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Sda,
+                failure: OdaFailure::IssuerCertificateRecovery,
+            }
+        );
+
+        let mut dda_without_runtime = KrnContext::new();
+        install_dda_success_fixture(&mut dda_without_runtime);
+        let profiles = dda_without_runtime.profiles.clone().unwrap();
+        let scheme = &profiles.schemes[0];
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Dda,
+                OdaEvaluationContext {
+                    profiles: &profiles,
+                    rid: &scheme.rid,
+                    evaluation_date: dda_without_runtime.profile_evaluation_date.unwrap(),
+                    card_data: &dda_without_runtime.card_data,
+                    offline_auth_records: &dda_without_runtime.offline_auth_records,
+                    runtime: None,
+                    apdu_timeout_ms: apdu_timeout(&dda_without_runtime),
+                },
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Dda,
+                failure: OdaFailure::DynamicSignature,
+            }
+        );
+
+        let mut bad_cda_icc_certificate = KrnContext::new();
+        install_cda_success_fixture(&mut bad_cda_icc_certificate);
+        bad_cda_icc_certificate
+            .card_data
+            .put(&[0x9f, 0x46], &[0x00])
+            .unwrap();
+        let profiles = bad_cda_icc_certificate.profiles.clone().unwrap();
+        let scheme = &profiles.schemes[0];
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Cda,
+                OdaEvaluationContext {
+                    profiles: &profiles,
+                    rid: &scheme.rid,
+                    evaluation_date: bad_cda_icc_certificate.profile_evaluation_date.unwrap(),
+                    card_data: &bad_cda_icc_certificate.card_data,
+                    offline_auth_records: &bad_cda_icc_certificate.offline_auth_records,
+                    runtime: None,
+                    apdu_timeout_ms: apdu_timeout(&bad_cda_icc_certificate),
+                },
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Cda,
+                failure: OdaFailure::IccCertificateRecovery,
+            }
+        );
     }
 
     #[test]
