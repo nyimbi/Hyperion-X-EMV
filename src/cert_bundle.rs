@@ -2822,6 +2822,177 @@ mod tests {
     }
 
     #[test]
+    fn testing_bundle_self_attestation_is_test_mode_only() {
+        let (bundle_json, _) = create_bundle_from_inputs(input()).unwrap();
+        let mut bundle = parse_certification_bundle(bundle_json.as_bytes()).unwrap();
+        bundle.bundle_class = BundleClass::Testing;
+        bundle.signature.algorithm = CERTIFICATION_BUNDLE_TEST_ALGORITHM.to_string();
+        bundle.signature.signature_hex = "11".repeat(32);
+        bundle.signature.signature_artifact_sha256 =
+            to_hex(&sha256(bundle.signature.signature_hex.as_bytes()));
+        let testing_json = certification_bundle_json(&bundle);
+
+        let test_policy = BundleLoadPolicy {
+            mode: BuildMode::Test,
+            installed_rollback_counter: 1,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 25,
+            },
+            trust_anchors: Vec::new(),
+        };
+        let loaded = load_certification_bundle(testing_json.as_bytes(), &test_policy).unwrap();
+        assert_eq!(loaded.verification_status, "testing-self-attested");
+        assert_eq!(loaded.bundle.bundle_class.as_str(), "TESTING");
+
+        let certification_policy = BundleLoadPolicy {
+            mode: BuildMode::Certification,
+            ..test_policy
+        };
+        assert_eq!(
+            load_certification_bundle(testing_json.as_bytes(), &certification_policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn bundle_helper_validators_cover_rejections_and_serializers() {
+        assert_eq!(BundleClass::Testing.as_str(), "TESTING");
+        assert_eq!(BundleLintSeverity::Warning.as_str(), "warning");
+        assert_eq!(BundleLintSeverity::Error.as_str(), "error");
+        assert_eq!(parse_bundle_class("TESTING"), Ok(BundleClass::Testing));
+        assert_eq!(
+            parse_bundle_class("LOCAL").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut report = empty_report();
+        report.bundle_sha256 = Some("aa".repeat(32));
+        report.payload_sha256 = Some("bb".repeat(32));
+        report.scheme_profile_sha256 = Some("cc".repeat(32));
+        report.vector_bundle_sha256 = Some("dd".repeat(32));
+        report.verification_status = Some("trust-anchor-verified");
+        report.coverage.push(coverage_item(
+            "selection",
+            "Application selection",
+            "role",
+            "payload.scheme_profile_set_json",
+            true,
+            "covered",
+        ));
+        let json = certification_bundle_compile_report_json(&report);
+        assert!(json.contains("bundle_sha256"));
+        assert!(json.contains("scheme_profile_sha256"));
+        assert!(json.contains("vector_bundle_sha256"));
+        let markdown = certification_bundle_compile_report_markdown(&report);
+        assert!(markdown.contains("Payload SHA-256"));
+        assert!(markdown.contains("Verification status"));
+
+        assert_eq!(split_csv("contact, contactless").unwrap().len(), 2);
+        assert_eq!(
+            split_csv("contact,contact").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(split_csv_allow_empty(""), Ok(Vec::new()));
+        assert_eq!(
+            split_csv_allow_empty("a,a").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_clean_string("").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_clean_string(" PLACEHOLDER").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(reject_blank("   "), Err(KernelError::InvalidProfile));
+        assert_eq!(
+            validate_identifier("bad/id").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_known_interface("qr").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_hex_len("aa", 32).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_callback_timeouts(CallbackTimeoutProfile {
+                apdu_transport_timeout_ms: 0,
+                host_authorization_timeout_ms: 30_000,
+                pin_entry_timeout_ms: 30_000,
+                contactless_ui_timeout_ms: 5_000,
+            })
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            bounded_len(MAX_BUNDLE_COLLECTION_ITEMS + 1),
+            Err(KernelError::LengthOverflow)
+        );
+        assert_eq!(
+            parse_iso_date("2026/05/25").unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_iso_date("20aa-05-25").unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut object = std::collections::BTreeMap::new();
+        object.insert("known".to_string(), JsonValue::String("value".to_string()));
+        assert_eq!(
+            reject_unknown_fields(&object, &["other"]),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            required_object(&object, "missing"),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            required_u64(&object, "missing"),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            required_bool(&object, "missing"),
+            Err(KernelError::InvalidProfile)
+        );
+
+        object.insert(
+            "timeout".to_string(),
+            JsonValue::Number(i32::MAX as u64 + 1),
+        );
+        assert_eq!(
+            required_timeout(&object, "timeout"),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert("items".to_string(), JsonValue::Array(Vec::new()));
+        assert_eq!(
+            required_string_array(&object, "items"),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert(
+            "items".to_string(),
+            JsonValue::Array(vec![
+                JsonValue::String("a".to_string()),
+                JsonValue::String("a".to_string()),
+            ]),
+        );
+        assert_eq!(
+            required_string_array(&object, "items"),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            required_string_array_allow_empty(&object, "items"),
+            Err(KernelError::InvalidProfile)
+        );
+    }
+
+    #[test]
     fn workbench_contains_local_static_editor() {
         let (bundle_json, anchors_json) = create_bundle_from_inputs(input()).unwrap();
         let html = certification_bundle_workbench_html(&bundle_json, &anchors_json);
