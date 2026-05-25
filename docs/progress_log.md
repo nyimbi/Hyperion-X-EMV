@@ -5929,3 +5929,11 @@ decision record, while this file tracks work toward certification readiness.
 - Security impact: the tests harden the audit that keeps scheme-specific AIDs/RIDs/brands/CAPK fixture values out of production Rust source and inside signed profiles or test fixtures.
 - Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
 - Verification: `cargo fmt --check`, `cargo test audit_rejects_boundary_size_finding_and_path_limits --lib`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, `scripts/coverage_100.sh`, and `cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info` passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 97.98% (25,111/25,630 lines) with 519 missed source lines.
+
+## 2026-05-25T01:40:33Z
+
+- Increment in progress: close the smallest parser, APDU, replay-trace, issuer, and record edge gaps before the larger FFI/config/cert-bundle clusters.
+- Code impact: replaced two API-unreachable APDU defensive branches with debug assertions over invariants already enforced by DOL length and CDA-bit validation; added tests for wrong-length GPO AIP, malformed replay response propagation through JSONL generation, authorization/script nested-edge rejection, and empty/badly padded cardholder data parsing.
+- Security impact: the tests strengthen fail-closed behavior for malformed card responses, host issuer-script inputs, APDU construction invariants, and masked replay evidence generation without weakening runtime validation.
+- Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
+- Verification: cargo fmt --check, cargo test --lib, cargo clippy --all-targets --all-features -- -D warnings, git diff --check, scripts/coverage_100.sh, and cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 98.02% (25,171/25,679 lines) with 508 missed source lines.

@@ -1458,4 +1458,21 @@ mod tests {
         )
         .is_ok());
     }
+
+    #[test]
+    fn replay_jsonl_rejects_malformed_response_payloads() {
+        let exchange = ReplayExchange::new(
+            &[0x00, 0xb2, 0x01, 0x14, 0x00],
+            &[0x9f],
+            [0x90, 0x00],
+            ApduTraceContext::Generic,
+        )
+        .unwrap();
+        let script = ReplayScript::new(vec![exchange]).unwrap();
+
+        assert_eq!(
+            script.masked_jsonl(LogPolicy::production()).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
 }

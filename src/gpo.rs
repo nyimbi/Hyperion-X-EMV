@@ -185,6 +185,11 @@ mod tests {
             parse_gpo_response(&[0x77, 0x06, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00]).unwrap_err(),
             KernelError::MissingMandatoryTag
         );
+        assert_eq!(
+            parse_gpo_response(&[0x77, 0x09, 0x82, 0x01, 0x18, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00])
+                .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
     }
 
     #[test]

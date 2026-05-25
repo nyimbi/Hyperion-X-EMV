@@ -499,6 +499,32 @@ mod tests {
     }
 
     #[test]
+    fn rejects_authorization_and_script_boundary_edges() {
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x01, b'0']).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x8a, 0x02, b'0', b'0', 0x71, 0x12, 0x70, 0x10, 0x8a, 0x02, b'0', b'0', 0x86, 0x0a,
+                0x00, 0xda, 0x00, 0x00, 0x05, 1, 2, 3, 4, 5,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[
+                0x8a, 0x02, b'0', b'0', 0x71, 0x08, 0x86, 0x06, 0x00, 0xda, 0x00, 0x00, 0x01, 0xaa,
+                0x72, 0x08, 0x86, 0x06, 0x80, 0xe2, 0x00, 0x00, 0x01, 0xbb,
+            ])
+            .unwrap()
+            .scripts
+            .len(),
+            2
+        );
+    }
+
+    #[test]
     fn rejects_host_response_without_authorization_response_code() {
         assert_eq!(
             parse_host_response(&[0x91, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])

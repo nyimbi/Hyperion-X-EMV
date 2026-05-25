@@ -104,9 +104,7 @@ pub fn select_aid(aid: &[u8], p2: u8) -> KernelResult<CommandApdu> {
 
 pub fn get_processing_options(pdol: &[DolEntry], data: &DataStore) -> KernelResult<CommandApdu> {
     let pdol_values = build_dol_with_policy(pdol, data, DolPaddingPolicy::ZeroPadMissingAndShort)?;
-    if pdol_values.len() > MAX_GPO_PDOL_VALUE_LEN {
-        return Err(KernelError::LengthOverflow);
-    }
+    debug_assert!(pdol_values.len() <= MAX_GPO_PDOL_VALUE_LEN);
 
     let mut template = Vec::with_capacity(3 + pdol_values.len());
     template.push(0x83);
@@ -209,9 +207,7 @@ pub fn generate_ac(
         }
     }
 
-    if p1 & 0xc0 != request.p1() {
-        return Err(KernelError::InvalidProfile);
-    }
+    debug_assert_eq!(p1 & 0xc0, request.p1());
 
     Ok(CommandApdu {
         cla: 0x80,

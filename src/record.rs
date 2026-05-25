@@ -565,6 +565,37 @@ mod tests {
     }
 
     #[test]
+    fn rejects_empty_and_badly_padded_cardholder_data_without_partial_store() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            parse_read_record_body(&[0x70, 0x02, 0x5a, 0x00], &mut data).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x5a]).is_none());
+
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x0d, 0x57, 0x0b, 0x12, 0x34, 0x56, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45,
+                    0xff, 0x1f
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        assert!(data.get(&[0x57]).is_none());
+
+        assert!(
+            !summarize_track2_equivalent_data(&[
+                0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45,
+            ])
+            .unwrap()
+            .padded
+        );
+    }
+
+    #[test]
     fn rejects_nested_record_data_without_partial_store() {
         let mut data = DataStore::new();
         assert_eq!(
