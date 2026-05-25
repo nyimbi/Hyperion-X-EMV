@@ -228,6 +228,23 @@ mod tests {
     }
 
     #[test]
+    fn rejects_low_tag_extra_bytes_and_overlong_high_tag_fields() {
+        let mut data = DataStore::new();
+        assert_eq!(
+            data.put(&[0x5a, 0x01], &[0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_dol(&[0x9f, 0x81, 0x82, 0x83, 0x84, 0x01]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_dol(&[0x9f, 0x81, 0x82, 0x03]).unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
     fn rejects_invalid_tag_field_bytes() {
         assert_eq!(
             parse_dol(&[0x00, 0x01]).unwrap_err(),

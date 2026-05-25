@@ -258,6 +258,30 @@ mod tests {
     }
 
     #[test]
+    fn rejects_generate_ac_wrong_top_level_shape_and_fixed_lengths() {
+        assert_eq!(
+            parse_generate_ac_response(&[0x70, 0x00]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x80, 0x0b, 0x80, 0x00, 0x01, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0x00, 0x01, 0x80,
+                0x0b, 0x40, 0x00, 0x02, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0x00, 0x02,
+            ])
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_generate_ac_response(&[
+                0x77, 0x19, 0x9f, 0x27, 0x02, 0x80, 0x00, 0x9f, 0x36, 0x02, 0x00, 0x09, 0x9f, 0x26,
+                0x08, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x9f, 0x10, 0x01, 0xaa,
+            ])
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+    }
+
+    #[test]
     fn rejects_generate_ac_without_single_supported_response_template() {
         assert_eq!(
             parse_generate_ac_response(&[

@@ -164,6 +164,30 @@ mod tests {
     }
 
     #[test]
+    fn rejects_gpo_with_wrong_top_level_shape_or_template() {
+        assert_eq!(
+            parse_gpo_response(&[]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_gpo_response(&[0x70, 0x00]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_gpo_response(&[
+                0x80, 0x06, 0x18, 0x00, 0x10, 0x01, 0x01, 0x00, 0x80, 0x06, 0x18, 0x00, 0x10, 0x01,
+                0x01, 0x00,
+            ])
+            .unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            parse_gpo_response(&[0x77, 0x06, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+    }
+
+    #[test]
     fn rejects_gpo_without_mandatory_aip_afl() {
         assert_eq!(
             parse_gpo_response(&[0x77, 0x04, 0x82, 0x02, 0x18, 0x00]).unwrap_err(),
