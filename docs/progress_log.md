@@ -5921,3 +5921,11 @@ decision record, while this file tracks work toward certification readiness.
 - Security impact: the tests harden TLV/DOL parser fail-closed behavior for malformed card responses and terminal data templates before those values reach transaction state.
 - Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
 - Verification: `cargo fmt --check`, `cargo test --lib`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, `scripts/coverage_100.sh`, and `cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info` passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 97.96% (25,077/25,599 lines) with 522 missed source lines.
+
+## 2026-05-25T23:00:00Z
+
+- Increment in progress: close variable-data boundary audit limit coverage.
+- Code impact: added coverage for oversized source content, maximum finding overflow, invalid path characters/absolute/ambiguous path segments, and direct production/test source splitting.
+- Security impact: the tests harden the audit that keeps scheme-specific AIDs/RIDs/brands/CAPK fixture values out of production Rust source and inside signed profiles or test fixtures.
+- Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
+- Verification: `cargo fmt --check`, `cargo test audit_rejects_boundary_size_finding_and_path_limits --lib`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, `scripts/coverage_100.sh`, and `cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info` passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 97.98% (25,111/25,630 lines) with 519 missed source lines.

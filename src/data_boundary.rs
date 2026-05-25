@@ -352,6 +352,50 @@ pub const BAD_BRAND: &str = "Visa";
     }
 
     #[test]
+    fn audit_rejects_boundary_size_finding_and_path_limits() {
+        let oversized = "x".repeat(MAX_BOUNDARY_AUDIT_BYTES + 1);
+        assert_eq!(
+            audit_variable_data_boundary(&[BoundaryAuditInput {
+                path: "src/oversized.rs",
+                contents: &oversized,
+            }]),
+            Err(KernelError::LengthOverflow)
+        );
+
+        let too_many_findings = (0..=MAX_BOUNDARY_FINDINGS)
+            .map(|idx| format!("pub const BAD_{idx}: &str = \"Visa\";"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_eq!(
+            audit_variable_data_boundary(&[BoundaryAuditInput {
+                path: "src/too_many.rs",
+                contents: &too_many_findings,
+            }]),
+            Err(KernelError::LengthOverflow)
+        );
+
+        for path in [
+            "src/bad path.rs",
+            "/src/bad.rs",
+            "src//bad.rs",
+            "src/./bad.rs",
+        ] {
+            assert_eq!(
+                audit_variable_data_boundary(&[BoundaryAuditInput {
+                    path,
+                    contents: "pub fn ok() {}",
+                }]),
+                Err(KernelError::InvalidArgument),
+                "accepted invalid path {path}"
+            );
+        }
+
+        let split_source =
+            "pub fn ok() {}\n#[cfg(test)]\nmod tests { const BAD: &str = \"Visa\"; }\n";
+        assert_eq!(production_source(split_source), "pub fn ok() {}\n");
+    }
+
+    #[test]
     fn boundary_audit_json_escapes_control_characters() {
         let mut out = String::new();
         push_json_string(&mut out, "quote\" slash\\ line\ncarriage\rtab\t nul\x00");
