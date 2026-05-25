@@ -23,8 +23,9 @@ Current implementation focus:
   report as certification coverage.
 - Enforce repository-controlled quality gates for 100% coverage candidates and
   deterministic data-bundle artifacts.
-- Build strict, fail-closed import adapters for real lab, scheme, CAPK, vector,
-  device, and report artifacts when those external inputs become available.
+- Build strict, fail-closed import adapters and normalized integration/release-freeze
+  bindings for real lab, scheme, CAPK, vector, device, and report artifacts when
+  those external inputs become available.
 - Keep documentation aligned with the implemented stack and remaining external
   certification dependencies.
 
@@ -40,8 +41,9 @@ Current verification status:
 - SoftPoS example verified with deterministic report/pre-lab/tooling drift checks, `cargo run --quiet --example krn_basic_softpos`, `cargo test --example krn_basic_softpos`, `cargo test --examples`, `cargo test --test traceability_foundation -- --test-threads=1`, `cargo test`, `cargo clippy --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`, and `git diff --check`.
 - Data-bundle tooling documentation verified with report-pack JSON/Markdown/HTML drift checks, focused tutorial traceability test, full traceability test suite, `cargo test`, `cargo clippy --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh` at 27,594/27,594 source lines, formatting, and whitespace checks.
 - Certification artifact import adapters verified with deterministic plan/report drift checks, focused importer and CLI tests, full unit/traceability/example tests, `cargo clippy --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh` at 28,177/28,177 source lines, formatting, and whitespace checks.
+- Certification integration/release-freeze compiler verified with deterministic generated-doc drift checks, CLI smoke reports, focused importer tests, traceability tests, full unit/example tests, clippy with warnings denied, `scripts/coverage_100.sh` at 29,299/29,299 source lines, formatting, and whitespace checks.
 - Passing: formatting, full unit/traceability/doc tests, example tests, clippy with warnings denied, enforced coverage script, coverage package audit, bundle validation/lint, deterministic report drift checks, and whitespace diff checks.
-- Coverage closure remains achieved for the repository-controlled Rust source line gate: `scripts/coverage_100.sh` passed with LCOV source line coverage at 28,177/28,177 = 100%. The generated package audits as `certification_candidate_unreviewed`; it still does not close external lab, scheme, device/L1, PCI/PED, CAPK-authority, official-vector, trace-acceptance, or final approval gates.
+- Coverage closure remains achieved for the repository-controlled Rust source line gate: `scripts/coverage_100.sh` passed with LCOV source line coverage at 29,299/29,299 = 100%. The generated package audits as `certification_candidate_unreviewed`; it still does not close external lab, scheme, device/L1, PCI/PED, CAPK-authority, official-vector, trace-acceptance, or final approval gates.
 
 
 Current documentation status:
@@ -63,9 +65,10 @@ Current example focus:
   output.
 
 Next certification-readiness focus:
-- Attach and parse real external lab, scheme, acquirer, CAPK-authority,
-  vector, device/L1, PCI/PED, trace-acceptance, and final approval artifacts
-  as they become available.
+- Attach real external lab, scheme, acquirer, CAPK-authority, vector,
+  device/L1, PCI/PED, trace-acceptance, and final approval artifacts as they
+  become available, using format-specific adapters that emit the normalized
+  integration manifest rather than bypassing the signed data-bundle boundary.
 - Keep the 100% coverage gate green while closing external certification evidence attachments and lab/device/profile binding.
 - Do not weaken the threshold or hide production code from coverage; use targeted tests or remove unreachable/dead code where appropriate.
 

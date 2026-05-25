@@ -480,6 +480,8 @@ Use these tools from the repository root.
 | Generate intake ledger | `cargo run --quiet --example krn_certification_evidence_intake -- --out docs` | Evidence intake JSON and Markdown. |
 | Generate artifact import plan | `cargo run --quiet --example krn_certification_artifact_import -- --out docs` | Adapter plan for real lab, scheme, CAPK, vector, device, and report artifacts. |
 | Import real artifacts | `cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import` | Classified SHA-256 inventory and fail-closed rejection report. |
+| Normalize real artifacts | `cargo run --quiet --example krn_certification_artifact_import -- --integration-root target/hyperion-cert-artifact-import` | Bundle artifact hash bindings, evidence mappings, and release-freeze candidates from staged authority artifacts and optional `hyperion-integration-manifest.json` files. |
+| Build release freeze bindings | `cargo run --quiet --example krn_certification_artifact_import -- --release-freeze-root target/hyperion-cert-artifact-import` | Repeatable submitted-release hash bindings for binary, profiles, CAPKs, vectors, trace packs, coverage, static/fuzz reports, and approval packages. |
 | Audit attachments | `cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments` | Attachment hash inventory. |
 | Generate freeze manifest | `cargo run --quiet --example krn_certification_freeze_manifest -- --out docs` | Submitted-build hash slots. |
 | Generate security plan | `cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs` | Security assessment plan JSON and Markdown. |

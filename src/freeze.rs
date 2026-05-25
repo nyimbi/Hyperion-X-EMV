@@ -103,6 +103,20 @@ const FREEZE_ARTIFACTS: &[FreezeArtifactRequirement] = &[
         evidence_source: "recognized-lab vector and trace-pack digest",
     },
     FreezeArtifactRequirement {
+        id: "trace_pack_hash",
+        title: "Full masked APDU and outcome trace pack",
+        artifact_kind: "trace pack",
+        binds_open_issues: &["CERT-OPEN-009", "CERT-OPEN-012"],
+        required_metadata: &[
+            "trace_pack_hash",
+            "test_tool_version",
+            "lab_case_ids",
+            "profile_hash",
+            "submitted_binary_hash",
+        ],
+        evidence_source: "recognized-lab or accepted test-tool masked trace-pack digest",
+    },
+    FreezeArtifactRequirement {
         id: "traceability_matrix_hash",
         title: "Final RTM and lab/tool crosswalk",
         artifact_kind: "traceability",

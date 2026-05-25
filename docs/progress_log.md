@@ -6084,3 +6084,34 @@ decision record, while this file tracks work toward certification readiness.
   test`, `cargo clippy --all-targets --all-features -- -D warnings`, and
   `scripts/coverage_100.sh` passed. Enforced LCOV source line coverage is 100%
   (28,177/28,177 lines).
+
+## 2026-05-26T02:14:05+0300
+
+- Increment completed: implemented the general integration compiler and release
+  freeze binding layer for real certification artifacts.
+- Code impact: added `src/integration_import.rs` as a strict normalized boundary
+  around staged authority artifacts and optional `hyperion-integration-manifest.json`
+  files. The compiler imports the existing lab/scheme/CAPK/vector/device/report
+  lanes, validates manifest schema, rejects unsafe paths and bad hashes, binds
+  artifacts into data-bundle hash slots, maps evidence into release-freeze slots,
+  and reports fail/warn/missing/pass-unreviewed status without claiming external
+  authority acceptance.
+- Tooling impact: extended `examples/krn_certification_artifact_import.rs` with
+  `--integration-root` and `--release-freeze-root` JSON/Markdown outputs, added
+  pre-lab CI smoke commands, registered the new commands in the tooling audit
+  and report UI, and documented the workflow in README, the lab submission
+  manifest, and the data-bundle tutorial.
+- Evidence scope: this is a general adapter boundary for real future lab,
+  scheme, acquirer, CAPK, vector, device, static/fuzz, trace, C-8, L3, and
+  approval artifacts. It intentionally does not guess proprietary formats that
+  are not present and does not close external lab, scheme, acquirer, device/L1,
+  PCI/PED, CAPK authority, official vector, trace-acceptance, submitted-binary
+  profile binding, or final approval gates.
+- Verification: `cargo fmt --check`, deterministic import-plan/freezer/tooling/
+  pre-lab/report-pack drift checks, integration import and release-freeze CLI
+  smoke runs, `cargo test integration_import --lib -- --test-threads=1`, `cargo
+  test --example krn_certification_artifact_import -- --test-threads=1`,
+  `cargo test --test traceability_foundation -- --test-threads=1`, `cargo test`,
+  `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D
+  warnings`, `scripts/coverage_100.sh`, and `git diff --check` passed. Enforced
+  LCOV source line coverage is 100% (29,299/29,299 lines).

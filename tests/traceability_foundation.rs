@@ -71,6 +71,11 @@ use hyperion_emv::gpo::{parse_gpo_response, parse_pdol_from_fci, GpoResponseForm
 use hyperion_emv::integration::{
     certification_integration_report_plan_json, certification_integration_report_plan_markdown,
 };
+use hyperion_emv::integration_import::{
+    certification_bundle_artifact_bindings, certification_integration_import_report_json,
+    certification_integration_import_report_markdown, certification_release_freeze_json,
+    compile_certification_integration_artifacts,
+};
 use hyperion_emv::issuer::{
     apply_script_results, parse_host_response, ScriptCommandResult, ScriptPhase,
 };
@@ -7051,6 +7056,8 @@ fn certification_artifact_import_adapters_are_reproducible_and_fail_closed() {
     assert!(PRELAB_CI_WORKFLOW.contains("Certification artifact import JSON drift"));
     assert!(PRELAB_CI_WORKFLOW.contains("Certification artifact import Markdown drift"));
     assert!(PRELAB_CI_WORKFLOW.contains("Certification artifact import smoke"));
+    assert!(PRELAB_CI_WORKFLOW.contains("Certification integration import smoke"));
+    assert!(PRELAB_CI_WORKFLOW.contains("Certification release freeze smoke"));
 
     let root = std::env::temp_dir().join(format!(
         "hyperion-traceability-artifact-import-{}",
@@ -7065,6 +7072,18 @@ fn certification_artifact_import_adapters_are_reproducible_and_fail_closed() {
     assert!(report_json.contains("CERT-OPEN-003/capk/public.pem"));
     assert!(report_json.contains(&to_hex(&sha256(b"capk-public"))));
     assert!(report_json.contains("private-key-material-not-accepted"));
+
+    let integration_report = compile_certification_integration_artifacts(&root).unwrap();
+    let integration_json =
+        certification_integration_import_report_json(KRN_ABI_VERSION, &integration_report);
+    let integration_markdown =
+        certification_integration_import_report_markdown(KRN_ABI_VERSION, &integration_report);
+    let release_freeze = certification_release_freeze_json(KRN_ABI_VERSION, &integration_report);
+    assert!(integration_json.contains("certification-integration-import-report"));
+    assert!(integration_json.contains("capk_bundle_hash"));
+    assert!(integration_markdown.contains("Release Freeze Bindings"));
+    assert!(release_freeze.contains("certification-release-freeze"));
+    assert!(!certification_bundle_artifact_bindings(&integration_report).is_empty());
     fs::remove_dir_all(&root).unwrap();
 }
 
@@ -7131,6 +7150,8 @@ fn prelab_quality_gates_are_reproducible_and_do_not_close_external_reports() {
         "cargo run --quiet --example krn_certification_artifact_import -- --plan-json | diff -u docs/certification_artifact_import_plan.json -",
         "cargo run --quiet --example krn_certification_artifact_import -- --plan-markdown | diff -u docs/certification_artifact_import_plan.md -",
         "cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import",
+        "cargo run --quiet --example krn_certification_artifact_import -- --integration-root target/hyperion-cert-artifact-import",
+        "cargo run --quiet --example krn_certification_artifact_import -- --release-freeze-root target/hyperion-cert-artifact-import",
         "cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage",
         "cargo run --quiet --example krn_certification_freeze_manifest -- --json | diff -u docs/certification_freeze_manifest.json -",
         "cargo run --quiet --example krn_certification_freeze_manifest -- --markdown | diff -u docs/certification_freeze_manifest.md -",
@@ -7208,8 +7229,11 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_evidence_intake.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_artifact_import_plan.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("ARTIFACT-IMPORT"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("INTEGRATION-IMPORT"));
+    assert!(CERTIFICATION_REPORT_PACK.contains("RELEASE-FREEZE"));
     assert!(CERTIFICATION_REPORT_PACK.contains("krn_certification_artifact_import"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_freeze_manifest.json"));
+    assert!(CERTIFICATION_FREEZE_MANIFEST.contains("trace_pack_hash"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_security_assessment_plan.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_device_evidence_plan.json"));
     assert!(CERTIFICATION_REPORT_PACK.contains("docs/certification_integration_report_plan.json"));

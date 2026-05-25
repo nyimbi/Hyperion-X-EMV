@@ -602,7 +602,7 @@ const REPORT_ARTIFACTS: &[ReportArtifact] = &[
         category: "submission",
         generator: "cargo run --quiet --example krn_certification_artifact_import",
         status: "generated",
-        boundary: "adapter plan and hash inventory only; accepted external evidence remains required",
+        boundary: "adapter plan, normalized integration bindings, and hash inventory only; accepted external evidence remains required",
     },
     ReportArtifact {
         id: "ATTACHMENT-SLOTS",
@@ -798,6 +798,18 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         title: "Import and classify real certification artifacts",
         command: "cargo run --quiet --example krn_certification_artifact_import -- --root target/hyperion-cert-artifact-import",
         output: "stdout JSON artifact import inventory",
+    },
+    ToolCommand {
+        id: "INTEGRATION-IMPORT",
+        title: "Normalize external artifacts into bundle/report/freeze bindings",
+        command: "cargo run --quiet --example krn_certification_artifact_import -- --integration-root target/hyperion-cert-artifact-import",
+        output: "stdout JSON integration import report",
+    },
+    ToolCommand {
+        id: "RELEASE-FREEZE",
+        title: "Build repeatable release freeze bindings from staged artifacts",
+        command: "cargo run --quiet --example krn_certification_artifact_import -- --release-freeze-root target/hyperion-cert-artifact-import",
+        output: "stdout JSON release freeze binding report",
     },
     ToolCommand {
         id: "COVERAGE-AUDIT",

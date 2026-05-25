@@ -174,6 +174,16 @@ const QUALITY_GATES: &[QualityGate] = &[
         purpose: "smoke-test the external artifact import adapter hash inventory surface",
     },
     QualityGate {
+        id: "PRELAB-CERTIFICATION-INTEGRATION-IMPORT-SMOKE",
+        command: "cargo run --quiet --example krn_certification_artifact_import -- --integration-root target/hyperion-cert-artifact-import",
+        purpose: "smoke-test normalized external artifact to bundle/report/freeze integration bindings",
+    },
+    QualityGate {
+        id: "PRELAB-CERTIFICATION-RELEASE-FREEZE-SMOKE",
+        command: "cargo run --quiet --example krn_certification_artifact_import -- --release-freeze-root target/hyperion-cert-artifact-import",
+        purpose: "smoke-test repeatable release freeze hash-binding output from staged certification artifacts",
+    },
+    QualityGate {
         id: "PRELAB-COVERAGE-PACKAGE-AUDIT",
         command: "cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage",
         purpose: "audit the staged coverage package metadata and report files when coverage evidence is present",

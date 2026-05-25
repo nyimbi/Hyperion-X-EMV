@@ -4,6 +4,8 @@
 - ABI version: 2
 - Scope: format-agnostic adapters for real lab, scheme, CAPK, vector, device, and report artifacts
 - Boundary: hash inventory and intake normalization only; external authorities still decide acceptance.
+- Integration manifest: `hyperion-integration-manifest.json` files may map imported authority artifacts into bundle fields, artifact hash bindings, evidence slots, and release-freeze slots without source changes.
+- Integration manifest schema: `hyperion-certification-integration-manifest-1.0`.
 
 ## Adapter Lanes
 | Adapter | Input Directory | Slot | Open Issues | Accepted Extensions | Required Metadata | Security Policy |

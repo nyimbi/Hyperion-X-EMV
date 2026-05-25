@@ -205,6 +205,18 @@ pub fn certification_artifact_import_plan_json(abi_version: u32) -> String {
         "boundary",
         "hash inventory and intake normalization only; external authorities still decide acceptance",
     );
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "integration_manifest",
+        "hyperion-integration-manifest.json files may map imported authority artifacts into bundle fields, artifact hash bindings, evidence slots, and release-freeze slots without source changes",
+    );
+    out.push(',');
+    push_json_str(
+        &mut out,
+        "integration_manifest_schema",
+        "hyperion-certification-integration-manifest-1.0",
+    );
     out.push_str(",\"adapters\":[");
     for (idx, spec) in ARTIFACT_ADAPTER_SPECS.iter().enumerate() {
         if idx > 0 {
@@ -229,6 +241,14 @@ pub fn certification_artifact_import_plan_markdown(abi_version: u32) -> String {
     let _ = writeln!(
         out,
         "- Boundary: hash inventory and intake normalization only; external authorities still decide acceptance."
+    );
+    let _ = writeln!(
+        out,
+        "- Integration manifest: `hyperion-integration-manifest.json` files may map imported authority artifacts into bundle fields, artifact hash bindings, evidence slots, and release-freeze slots without source changes."
+    );
+    let _ = writeln!(
+        out,
+        "- Integration manifest schema: `hyperion-certification-integration-manifest-1.0`."
     );
     let _ = writeln!(out);
     let _ = writeln!(out, "## Adapter Lanes");

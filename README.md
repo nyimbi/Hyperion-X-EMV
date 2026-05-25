@@ -581,7 +581,9 @@ The `docs/` directory is part of the executable baseline:
 - `certification_artifact_import_plan.md`: reviewable guide for the artifact
   import lanes and their required metadata/security policies.
 - `krn_certification_artifact_import`: CLI that hashes, classifies, and rejects
-  unsafe external artifacts before they enter the report/freeze workflow.
+  unsafe external artifacts before they enter the report/freeze workflow. It also
+  emits normalized integration reports and release-freeze bindings from staged
+  authority artifacts plus optional `hyperion-integration-manifest.json` files.
 - `certification_freeze_manifest.json`: generated submitted-build freeze
   manifest with pending SHA-256 slots bound to open certification issues.
 - `certification_freeze_manifest.md`: generated Markdown freeze manifest for
