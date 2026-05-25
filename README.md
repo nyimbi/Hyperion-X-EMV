@@ -1,15 +1,72 @@
 # Hyperion EMV Kernel
 
-Hyperion EMV Kernel is a Rust EMV Level 2 kernel engineering baseline. It is
-being built toward certification readiness for contact EMV and contactless
-Book C-8 flows, with a C ABI for terminal integration and a repository-owned
-evidence pack for pre-lab review.
+Hyperion is an open-source, data-driven EMV Level 2 kernel foundation. The
+kernel code is written in Rust; the certification target, scheme profile,
+device profile, runtime policy, test plan, evidence bindings, and external
+authority references are supplied as signed or hash-pinned data bundles.
 
-This repository is not a final certification claim. The implementation,
-specification, annexes, and generated evidence are a controlled engineering
-baseline pending licensed EMVCo, scheme, acquirer, PCI PTS, device, and lab
-review. Licensed standards, signed profiles, accepted CAPKs, lab vectors, test
-tool results, and approval artifacts prevail over this repository on conflict.
+That split is the core design choice. EMV protocol behavior should be small,
+deterministic, auditable code. Certification variability should be reviewable
+data that can be changed, linted, compiled, signed, frozen, and submitted
+without rebuilding a different kernel for every scheme, acquirer, terminal, or
+test campaign.
+
+Hyperion is being built toward certification readiness for contact EMV and
+contactless Book C-8 flows, with a C ABI for terminal integration and a
+repository-owned evidence pack for pre-lab review.
+
+This repository is not a final certification claim. It is a controlled
+engineering baseline pending licensed EMVCo, scheme, acquirer, PCI PTS, device,
+and lab review. Licensed standards, signed profiles, accepted CAPKs, lab
+vectors, test-tool results, and approval artifacts prevail over this repository
+on conflict.
+
+## Why Hyperion Exists
+
+Payment infrastructure should be inspectable. New fintechs, terminal builders,
+acquirers, processors, and researchers should not have to start from an opaque
+kernel, a private test harness, and a set of assumptions that only become
+visible during lab failure.
+
+Hyperion exists to make the certification path legible before a formal
+submission. The repository provides source, tooling, evidence generators,
+traceability, masked trace fixtures, report-production tools, and explicit
+open-issue registers. The external authorities still decide certification; the
+project makes the work needed for that decision concrete and reproducible.
+
+## Why DataCraft Is Building This
+
+DataCraft is building Hyperion because robust payment systems need a shared
+technical foundation that is open to inspection, hard to misuse, and practical
+for teams without large incumbent payment-kernel budgets.
+
+The goal is not to bypass EMVCo, schemes, acquirers, PCI, device vendors, or
+recognized labs. The goal is to reduce avoidable ambiguity before those parties
+review a product. By making kernel behavior, configuration boundaries,
+evidence production, and remaining blockers visible in one open repository,
+DataCraft can help the community converge on better tests, clearer reports,
+safer integration patterns, and fewer private reinventions of the same
+security-sensitive machinery.
+
+## The Data-Driven Contract
+
+Hyperion treats payment behavior as two different kinds of material:
+
+- **Invariant kernel logic** lives in Rust: TLV, DOL, APDU, selection, GPO,
+  AFL, READ RECORD, CVM, TRM, TAA, GENERATE AC handling, issuer
+  authentication/script sequencing, ODA structure, contactless C-8 support,
+  masking, provenance, and ABI boundaries.
+- **Variable certification data** lives in bundles: scheme profiles, AIDs,
+  CAPK metadata, TAC/IAC values, limits, CVM extension choices, runtime
+  timeout policy, device/L1/PCI references, certification test scope, vector
+  bindings, report hashes, trace bindings, and external evidence references.
+
+A different certification campaign should therefore mean a different reviewed
+bundle, not a forked kernel. The Rust loader remains authoritative: browser and
+terminal tools help authors, but final acceptance is gated by bundle parsing,
+signature or trust-anchor checks, rollback policy, embedded profile validation,
+timeout bounds, vector status, artifact hashes, and production/test/certification
+mode separation.
 
 ## Current Status
 
@@ -51,7 +108,7 @@ require recognized laboratory reports, signed profiles, scheme or acquirer
 authority, device evidence, PCI/PED evidence, or lab-supplied cryptographic
 vectors.
 
-## Open Certification And Testing Model
+## Why This Is Open Source
 
 Hyperion is MIT-licensed so fintech teams, terminal builders, acquirers,
 researchers, test labs, and independent reviewers can inspect the source,
@@ -59,12 +116,16 @@ reproduce evidence, contribute test cases, and harden the kernel together. The
 goal is a robust shared foundation for new payment products rather than a
 closed implementation that each company must rediscover from scratch.
 
-Crowdsourced review can improve parser coverage, trace replay, no-crash
-corpora, profile validation, documentation, integration harnesses, and pre-lab
-test evidence. It does not replace formal EMVCo, scheme, acquirer, PCI PTS,
-device, or lab approval. External standards, scheme rules, CAPKs, lab vectors,
-test-tool outputs, and signed approval artifacts retain their own authority and
-licensing terms.
+Open source also changes the testing model. A private kernel can only be
+tested by the people who can see it. Hyperion invites community review of
+parsers, trace replay, no-crash corpora, profile validation, documentation,
+integration harnesses, report production, and pre-lab evidence. That is how the
+project intends to crowdsource certification preparation and testing: by making
+the evidence surface explicit enough for many teams to improve it.
+
+Crowdsourcing does not replace formal approval. EMVCo, schemes, acquirers, PCI
+PTS, device authorities, recognized labs, CAPK owners, and test-tool providers
+retain their own authority, licensing terms, and acceptance criteria.
 
 ## Language Choices
 
@@ -85,49 +146,116 @@ kernel rather than as a substitute for reviewed kernel behavior.
 
 ## Data-Driven Certification Bundles
 
-Certification variable data is provisioned through a bundle instead of Rust
-source edits. A bundle carries the scheme profile JSON, vector-bundle reference,
-terminal/device profile, runtime timeout policy, kernel registry, CVM extension
-rules, test-plan cases, artifact hashes, and a trust-anchor-bound signature
-envelope. The same binary can therefore be exercised against different
-certification or testing targets by changing `certification_bundle.json` and
-`trust_anchors.json`.
+A Hyperion data bundle is the unit of certification variability. It carries the
+scheme profile JSON, vector-bundle reference, terminal/device profile, runtime
+timeout policy, kernel registry, CVM extension rules, test-plan cases, artifact
+hashes, and a trust-anchor-bound signature envelope. The same binary can be
+exercised against different certification or testing targets by changing the
+bundle and trust-anchor data, not the Rust source.
 
-Generate the static GUI/workbench and fixture bundle:
+The checked-in fixture uses schema version `hyperion-certification-bundle-1.0`
+and illustrates the fields every author must understand:
 
-```sh
-cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle
-```
+- `submission_scope`: product, version, interfaces, target, authorities, and
+  standards scope being claimed.
+- `standards_target`: public standards-watch and bulletin reconciliation data.
+- `terminal_profile`: device, L1, PCI/PED, reader, and deployment references.
+- `runtime_policy`: callback timeouts and trace masking policy enforced by the
+  runtime.
+- `kernel_registry`: the mapping from interface and scheme profile to kernel
+  behavior.
+- `cvm_extensions`: CVM and CDCVM policy data that belongs outside source code.
+- `test_plan`: named pre-lab or certification cases the bundle expects to
+  exercise.
+- `artifact_hashes`: hashes for profiles, vectors, reports, traces, and other
+  evidence attachments.
+- `scheme_profile_set_json`: the embedded signed profile set consumed by the
+  kernel.
+- `vector_bundle_json`: the embedded or referenced vector bundle and its
+  certification/test/fixture status.
+- `signature`: the payload signature that binds the bundle to configured trust
+  anchors.
 
-The generated workbench is a local browser UI for bundle authors. It provides
-guided fields, role/impact/utilization/security explanations, embedded profile
-and vector editors, browser-side suggestions, SHA-256 previewing, capability
-coverage, and a compiled JSON preview. The Rust loader remains authoritative
-for signing, rollback, embedded profile validation, timeout bounds, and trust
-anchor checks.
+### Create A Data Bundle
 
-Validate a bundle without changing code:
+1. Generate the local workbench and fixture files:
 
-```sh
-cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
-```
+   ```sh
+   cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle
+   ```
 
-Lint and compile-check a bundle with suggestions and EMV capability coverage:
+2. Open `target/hyperion-cert-bundle/certification_bundle_workbench.html` in a
+   local browser, or use the checked-in
+   `docs/certification_data_bundle_workbench.html` as a reference. The
+   workbench explains each field's role, impact, utilization, and security
+   consequences while producing a compiled JSON preview.
 
-```sh
-cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
-```
+3. Fill in the claimed scope first: product name, product version,
+   certification target, interfaces, authorities, L1/device references, PCI/PED
+   references, and standards/bulletin scope. Pending external evidence can be
+   represented honestly, but it must not be described as accepted.
 
-Provision interactively from a terminal:
+4. Attach the operational data: scheme profile set, CAPK metadata, TAC/IAC
+   values, limits, CVM extensions, runtime callback timeout policy, kernel
+   registry entries, test cases, vector bundle, and artifact hashes.
 
-```sh
-cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui
-```
+5. Sign the bundle payload and configure trust anchors. The checked-in trust
+   anchor fixture is for local reproducibility; certification and production
+   submissions must protect signer material and expose only verification data
+   appropriate for the review environment.
 
-The bundled trust-anchor fixture is for local reproducibility. Production and
-certification submissions must protect trust-anchor material and attach the
-recognized lab, scheme, device, PCI/PED, CAPK, vector, and approval evidence
-tracked in `docs/certification_open_issues.md`.
+6. Run the authoritative Rust validator:
+
+   ```sh
+   cargo run --quiet --example krn_certification_bundle -- --validate --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+   ```
+
+7. Run lint and compile checks before review:
+
+   ```sh
+   cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
+   ```
+
+8. For terminal-only provisioning, use the TUI:
+
+   ```sh
+   cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui
+   ```
+
+9. Freeze the resulting hashes into the report package and attach matching
+   binary, profile, CAPK, vector, trace, coverage, integration, security,
+   device, L1, PCI/PED, scheme, acquirer, and lab evidence. The bundle is only
+   useful for certification when it is bound to the exact submitted artifact
+   set.
+
+## Certification Process
+
+Hyperion separates certification preparation into four layers:
+
+1. **Build and local proof.** Run the Rust tests, example tests, formatting,
+   clippy, traceability checks, deterministic artifact drift checks, bundle
+   validation, bundle linting, variable-data boundary audit, and 100% coverage
+   workflow. This proves repository-controlled behavior is coherent.
+
+2. **Evidence binding.** Freeze the exact submitted binary hash, ABI version,
+   profile hash, CAPK hash, vector hash, traceability matrix hash, report-pack
+   hash, coverage package, and data-bundle hash. Claims that are not tied to a
+   concrete artifact set are not certification-ready.
+
+3. **External review.** Submit the product, device, profile set, vectors,
+   reports, masked traces, security assessment, and supporting evidence to the
+   relevant lab, scheme, acquirer, PCI/PED, device, and L1 authorities. Their
+   accepted artifacts control the final result.
+
+4. **Closure and maintenance.** Close `CERT-OPEN-*` items only when the required
+   authority, artifact, hash, metadata, and acceptance gate are present. New
+   schemes, devices, or certification campaigns should be represented by new
+   data bundles and evidence bindings, not by unexplained source forks.
+
+The repository can help generate, audit, and organize the package. It cannot
+self-certify licensed standards, scheme interpretation, accepted CAPKs,
+lab-supplied ODA vectors, device/L1 approval, PCI/PED approval, test-tool
+results, or signed approval artifacts.
 
 ## Scope
 

@@ -6001,3 +6001,17 @@ decision record, while this file tracks work toward certification readiness.
 - Security impact: preserves fail-closed behavior for malformed APDUs, profile/bundle inputs, ODA/CDA cryptographic evidence, callback buffer reporting, and transaction state transitions while keeping private certification material out of the coverage/report path.
 - Evidence scope: repository-controlled Rust source line coverage now reaches the enforced 100% gate. The coverage package status is `certification_candidate_unreviewed`; external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official ODA vector, accepted trace pack, submitted-binary/profile binding, and final approval evidence remain external certification gates.
 - Verification: `cargo fmt --check`, `git diff --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`, and `cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage --require-certification-candidate` passed. Enforced LCOV source line coverage is 100% (27,594/27,594 lines).
+
+## 2026-05-25T09:50:07Z
+
+- Increment completed: improve README narrative for data-driven certification
+  bundles and open-source certification preparation.
+- Documentation impact: rewrote the README opening to explain the Rust kernel
+  and signed/hash-pinned data-bundle split, DataCraft's rationale for building
+  the project openly, the bundle creation workflow, and the practical
+  certification process from local proof through external authority review.
+- Evidence scope: this is documentation alignment only. It clarifies that
+  repository-controlled tooling can prepare, lint, freeze, and audit evidence,
+  but it does not close external lab, scheme, acquirer, device/L1, PCI/PED,
+  CAPK authority, official vector, trace-acceptance, or final approval gates.
+- Verification: `git diff --check`, `cargo fmt --check`, and `cargo test --test traceability_foundation -- --test-threads=1` passed.

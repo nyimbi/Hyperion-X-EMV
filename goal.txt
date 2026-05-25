@@ -34,8 +34,16 @@ Progress log for this run:
   need alignment.
 
 Current verification status:
+- README narrative update verified with `git diff --check`, `cargo fmt --check`, and `cargo test --test traceability_foundation -- --test-threads=1`.
 - Passing: formatting, full unit/traceability/doc tests, example tests, clippy with warnings denied, enforced coverage script, coverage package audit, bundle validation/lint, deterministic report drift checks, and whitespace diff checks.
 - Coverage closure achieved for the repository-controlled Rust source line gate: `scripts/coverage_100.sh` passed with LCOV source line coverage at 27,594/27,594 = 100%. The generated package audits as `certification_candidate_unreviewed`; it still does not close external lab, scheme, device/L1, PCI/PED, CAPK-authority, official-vector, trace-acceptance, or final approval gates.
+
+
+Current documentation status:
+- Updated README.md so the public narrative clearly explains the data-driven
+  kernel/bundle split, DataCraft's open-source rationale, bundle creation
+  workflow, certification process, and the boundary between local evidence and
+  external approval.
 
 Next certification-readiness focus:
 - Keep the 100% coverage gate green while closing external certification evidence attachments and lab/device/profile binding.
@@ -69,3 +77,8 @@ Next certification-readiness focus:
 - 2026-05-25: Refactored FFI APDU/read-record/issuer-auth/script status handling into explicit testable helpers, added first/final GAC TC/AAC/referral/short-response coverage, covered callback fixture fallback responses, and made the coverage script run the shared-counter FFI harness with one deterministic test thread. Verification passed: cargo fmt --check, cargo test --lib, cargo clippy --all-targets --all-features -- -D warnings, git diff --check, non-enforcing scripts/coverage_100.sh execution, and explicit single-thread LCOV generation. Latest parsed LCOV source coverage: 99.56% (26,993/27,112 lines) with 119 missed source lines across src/ffi.rs, src/cert_bundle.rs, src/config.rs, and src/oda.rs.
 
 - 2026-05-25: Closed the remaining repository-controlled Rust source line coverage gaps. Refactored FFI runtime transaction progression into explicit testable status/state helpers, added fail-closed selection/GPO/ODA/CDA/GAC/callback coverage, tightened certification bundle/config/ODA edge coverage, and updated the coverage package workflow to enforce the LCOV source line ledger while staging HTML plus LCOV evidence. Verification passed: cargo fmt --check, git diff --check, cargo clippy --all-targets --all-features -- -D warnings, scripts/coverage_100.sh, and cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage --require-certification-candidate. Latest enforced LCOV source coverage: 100% (27,594/27,594 lines).
+
+- 2026-05-25T09:50:07Z: Reworked README narrative to foreground Hyperion as an
+  open-source, data-driven EMV kernel foundation; added DataCraft rationale,
+  data-bundle authoring workflow, certification process layers, and explicit
+  local-evidence versus external-approval boundaries.
