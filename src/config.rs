@@ -1647,6 +1647,208 @@ mod tests {
     }
 
     #[test]
+    fn config_helper_validators_cover_security_relevant_edges() {
+        let test_policy = ConfigLoadPolicy {
+            mode: BuildMode::Test,
+            signature_status: SignatureStatus::NotPresent,
+            installed_version: 0,
+            candidate_version: 1,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 21,
+            },
+        };
+        let mut root = BTreeMap::new();
+        assert_eq!(
+            validate_profile_schema_version(&root, BuildMode::Test),
+            Ok(())
+        );
+        assert_eq!(
+            validate_profile_schema_version(&root, BuildMode::Certification),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            parse_profile_class(&root, BuildMode::Test),
+            Ok(ProfileClass::ExampleOnly)
+        );
+        assert_eq!(
+            parse_profile_class(&root, BuildMode::Certification),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            parse_profile_source(
+                &root,
+                ProfileClass::ExampleOnly,
+                BuildMode::Test,
+                test_policy.evaluation_date,
+            )
+            .unwrap()
+            .verification,
+            "test_only"
+        );
+        assert!(
+            parse_certification_scope(None, ProfileClass::ExampleOnly, BuildMode::Test)
+                .unwrap()
+                .is_none()
+        );
+        assert!(matches!(
+            parse_certification_scope(None, ProfileClass::Certification, BuildMode::Certification),
+            Err(KernelError::InvalidProfile)
+        ));
+
+        root.insert(
+            "schema_version".to_string(),
+            JsonValue::String("wrong".to_string()),
+        );
+        assert_eq!(
+            validate_profile_schema_version(&root, BuildMode::Test),
+            Err(KernelError::InvalidProfile)
+        );
+        root.insert(
+            "profile_class".to_string(),
+            JsonValue::String("EXAMPLE_ONLY".to_string()),
+        );
+        assert_eq!(
+            parse_profile_class(&root, BuildMode::Certification),
+            Err(KernelError::InvalidProfile)
+        );
+        root.insert(
+            "profile_class".to_string(),
+            JsonValue::String("LOCAL".to_string()),
+        );
+        assert_eq!(
+            parse_profile_class(&root, BuildMode::Test),
+            Err(KernelError::InvalidProfile)
+        );
+
+        let mut object = BTreeMap::new();
+        object.insert("allowed".to_string(), JsonValue::String("yes".to_string()));
+        assert_eq!(
+            required_allowed_string(&object, "allowed", &["no"]),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert("set".to_string(), JsonValue::Array(Vec::new()));
+        assert_eq!(
+            required_string_set(&object, "set", true),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert(
+            "set".to_string(),
+            JsonValue::Array(vec![JsonValue::String("PLACEHOLDER".to_string())]),
+        );
+        assert_eq!(
+            required_string_set(&object, "set", true),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert(
+            "set".to_string(),
+            JsonValue::Array(vec![
+                JsonValue::String(" Visa ".to_string()),
+                JsonValue::String("Visa".to_string()),
+            ]),
+        );
+        assert_eq!(
+            required_string_set(&object, "set", true),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert("limit".to_string(), JsonValue::Number(u16::MAX as u64 + 1));
+        assert_eq!(
+            optional_u16(&object, "limit"),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert(
+            "retrieved".to_string(),
+            JsonValue::String("   ".to_string()),
+        );
+        assert_eq!(
+            optional_retrieved_date(&object),
+            Err(KernelError::InvalidProfile)
+        );
+
+        assert_eq!(optional_hex_byte_array(&object, "bytes"), Ok(Vec::new()));
+        object.insert(
+            "bytes".to_string(),
+            JsonValue::Array(vec![JsonValue::String("AABB".to_string())]),
+        );
+        assert_eq!(
+            optional_hex_byte_array(&object, "bytes"),
+            Err(KernelError::InvalidProfile)
+        );
+        object.insert(
+            "bytes".to_string(),
+            JsonValue::Array(vec![
+                JsonValue::String("AA".to_string()),
+                JsonValue::String("AA".to_string()),
+            ]),
+        );
+        assert_eq!(
+            optional_hex_byte_array(&object, "bytes"),
+            Err(KernelError::InvalidProfile)
+        );
+
+        assert_eq!(decode_hex("0"), Err(KernelError::ParseError));
+        assert_eq!(decode_hex("0G"), Err(KernelError::ParseError));
+        assert_eq!(
+            reject_placeholder("TEST_ONLY fixture"),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            reject_dummy_bytes(&[0xff, 0xff]),
+            Err(KernelError::InvalidProfile)
+        );
+        assert!(!is_dummy_bytes(&[0x01, 0xff]));
+        assert_eq!(
+            validate_capk_public_key_components(&[0x01; 63], &[0x03]),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            validate_capk_public_key_components(&[0x01; 64], &[0x02]),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            validate_capk_public_key_components(&[0x01; 64], &[0x01, 0x00, 0x00, 0x01]),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            fixed_vec::<5>(vec![0x01, 0x02]),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(
+            reject_unknown_fields(&object, &["allowed"]),
+            Err(KernelError::InvalidProfile)
+        );
+
+        assert!(
+            JsonParser::new(br#"{"a":true,"b":false,"c":null,"d":["x"]}"#)
+                .parse()
+                .is_ok()
+        );
+        assert_eq!(
+            JsonParser::new(br#"{"a":1} trailing"#).parse(),
+            Err(KernelError::ParseError)
+        );
+        assert_eq!(
+            JsonParser::new(br#"{"a":01}"#).parse(),
+            Err(KernelError::ParseError)
+        );
+        assert_eq!(
+            JsonParser::new(br#"{"a":"bad\u0000"}"#).parse(),
+            Err(KernelError::ParseError)
+        );
+        assert_eq!(
+            JsonParser::new(br#"{"a":1,"a":2}"#).parse(),
+            Err(KernelError::InvalidProfile)
+        );
+        assert_eq!(JsonValue::Null.as_object(), Err(KernelError::ParseError));
+        assert_eq!(JsonValue::Null.as_array(), Err(KernelError::ParseError));
+        assert_eq!(JsonValue::Null.as_string(), Err(KernelError::ParseError));
+        assert_eq!(JsonValue::Null.as_string_opt(), None);
+        assert_eq!(JsonValue::Null.as_u64(), Err(KernelError::ParseError));
+        assert_eq!(JsonValue::Null.as_bool(), Err(KernelError::ParseError));
+    }
+
+    #[test]
     fn loads_profile_annex_when_signature_is_verified() {
         let profiles = load_profile_set(VALID_PROFILE, &policy(SignatureStatus::Verified)).unwrap();
 
