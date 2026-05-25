@@ -667,6 +667,39 @@ mod tests {
         assert!(json.contains("quote \\\" slash \\\\ newline\\n tab\\t"));
     }
 
+    #[test]
+    fn metadata_parsers_cover_escaped_unterminated_and_invalid_scalar_values() {
+        assert_eq!(
+            json_string_value(r#"{"field":"a\"b"}"#, "field"),
+            Some("a\"b".to_string())
+        );
+        assert_eq!(
+            json_string_value(r#"{"field":"unterminated"#, "field"),
+            None
+        );
+        assert_eq!(json_bool_value(r#"{"flag":null}"#, "flag"), None);
+        assert_eq!(json_u64_value(r#"{"count":null}"#, "count"), None);
+
+        let mut out = String::new();
+        let control = format!("control{}", char::from(0x1f));
+        push_json_string(&mut out, &control);
+        assert_eq!(out, "\"control\\u001f\"");
+    }
+
+    #[test]
+    fn coverage_package_writer_replaces_existing_tree() {
+        let root = temp_root("rewrite");
+        write_coverage_package(&root, false, 99).unwrap();
+        fs::write(root.join("stale.txt"), b"stale").unwrap();
+        write_coverage_package(&root, true, 100).unwrap();
+
+        assert!(!root.join("stale.txt").exists());
+        let audit = audit_coverage_package(&root).unwrap();
+        assert_eq!(audit.status, "certification_candidate_unreviewed");
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
     fn temp_root(label: &str) -> PathBuf {
         env::temp_dir().join(format!("hyperion-coverage-audit-{label}-{}", process::id()))
     }

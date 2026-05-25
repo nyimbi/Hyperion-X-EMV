@@ -522,6 +522,24 @@ mod tests {
             .len(),
             2
         );
+
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b'0', b'0', 0x71, 0x02, 0x86, 0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_host_response(&[0x8a, 0x02, b'0', b'0', 0x71, 0x00]).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut too_many_commands = vec![0x8a, 0x02, b'0', b'0', 0x71, 0x81, 33 * 6];
+        for sequence in 0..33u8 {
+            too_many_commands.extend_from_slice(&[0x86, 0x04, 0x00, 0xda, 0x00, sequence]);
+        }
+        assert_eq!(
+            parse_host_response(&too_many_commands).unwrap_err(),
+            KernelError::LengthOverflow
+        );
     }
 
     #[test]

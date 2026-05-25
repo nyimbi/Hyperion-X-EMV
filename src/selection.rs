@@ -487,6 +487,97 @@ mod tests {
         );
     }
 
+    #[test]
+    fn rejects_selection_edge_shapes_and_no_common_aid_paths() {
+        assert_eq!(
+            parse_fci_candidate_aids(&[0x6f, 0x02, 0x84, 0x00]).unwrap(),
+            Vec::<Vec<u8>>::new()
+        );
+        assert_eq!(
+            parse_fci_candidate_aids(&[0x6f, 0x04, 0xa5, 0x02, 0x84, 0x00]).unwrap(),
+            Vec::<Vec<u8>>::new()
+        );
+        assert_eq!(
+            selected_adf_name(&[0x84, 0x05, 0xa0, 0x00, 0x00, 0x00, 0x03]).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            selected_adf_name(&[0x6f, 0x08, 0x84, 0x04, 0xa0, 0x00, 0x00, 0x00, 0xa5, 0x00])
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let selected = [
+            0x6f, 0x0b, 0x84, 0x07, 0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10, 0xa5, 0x00,
+        ];
+        let candidate = SelectionCandidate {
+            aid: vec![0xa0, 0x00, 0x00, 0x00, 0x04, 0x10, 0x10],
+            select_aid: vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10],
+            scheme_index: 0,
+            aid_index: 0,
+            priority: 1,
+            partial_selection: false,
+        };
+        assert_eq!(
+            validate_selected_adf_name(&selected, &candidate).unwrap_err(),
+            KernelError::NoCommonAid
+        );
+
+        let mut profiles = profiles();
+        for scheme in &mut profiles.schemes {
+            for aid in &mut scheme.aids {
+                aid.interfaces = vec!["contactless".to_string()];
+            }
+        }
+        assert_eq!(
+            direct_profile_candidates(&profiles, Interface::Contact).unwrap_err(),
+            KernelError::NoCommonAid
+        );
+        assert_eq!(
+            match_profile_candidates(
+                &profiles,
+                Interface::Contact,
+                &[vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]],
+            )
+            .unwrap_err(),
+            KernelError::NoCommonAid
+        );
+
+        let too_many = (0..=MAX_CANDIDATE_AIDS)
+            .map(|idx| vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x30, idx as u8])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            match_profile_candidates(&profiles, Interface::Contact, &too_many).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn rejects_profile_match_result_overflow_for_partial_selection() {
+        let mut profiles = profiles();
+        let template = profiles.schemes[0].aids[0].clone();
+        profiles.schemes[0].aids.clear();
+        for _ in 0..2 {
+            let mut aid = template.clone();
+            aid.aid = vec![0xa0, 0x00, 0x00, 0x00, 0x03];
+            aid.partial_selection = true;
+            aid.interfaces = vec!["contact".to_string()];
+            profiles.schemes[0].aids.push(aid);
+        }
+        let card_candidates = (0..17u8)
+            .map(|idx| vec![0xa0, 0x00, 0x00, 0x00, 0x03, 0x40, idx])
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            match_profile_candidates(&profiles, Interface::Contact, &card_candidates).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        let mut encoded = Vec::new();
+        encode_len(200, &mut encoded);
+        assert_eq!(encoded, vec![0x81, 200]);
+    }
+
     fn tlv_bytes(tag: &[u8], value: &[u8]) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(tag);

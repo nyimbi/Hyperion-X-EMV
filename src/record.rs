@@ -586,6 +586,26 @@ mod tests {
         );
         assert!(data.get(&[0x57]).is_none());
 
+        assert_eq!(
+            summarize_track2_equivalent_data(&[]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            summarize_track2_equivalent_data(&[0xd2, 0x51, 0x22, 0x01, 0x23, 0x45]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_read_record_body(
+                &[
+                    0x70, 0x0c, 0x5a, 0x0a, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56, 0x78,
+                    0x90,
+                ],
+                &mut data,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
         assert!(
             !summarize_track2_equivalent_data(&[
                 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0xd2, 0x51, 0x22, 0x01, 0x23, 0x45,
