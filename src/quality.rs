@@ -911,6 +911,10 @@ pub fn prelab_static_fuzz_plan_json() -> String {
 }
 
 pub fn prelab_fuzz_seed_corpus_json() -> KernelResult<String> {
+    prelab_fuzz_seed_corpus_json_for_cases(FUZZ_SEED_CASES)
+}
+
+fn prelab_fuzz_seed_corpus_json_for_cases(cases: &[FuzzSeedCase]) -> KernelResult<String> {
     let mut out = String::new();
     out.push('{');
     push_json_str(&mut out, "type", "prelab-fuzz-seed-corpus");
@@ -924,7 +928,7 @@ pub fn prelab_fuzz_seed_corpus_json() -> KernelResult<String> {
     push_json_string(&mut out, "CERT-OPEN-010");
     out.push(']');
     out.push(',');
-    push_json_number(&mut out, "case_count", FUZZ_SEED_CASES.len() as u64);
+    push_json_number(&mut out, "case_count", cases.len() as u64);
     out.push_str(",\"sensitive_data_policy\":[");
     for (idx, policy) in [
         "seed bytes are generated in code and are not emitted in this manifest",
@@ -941,7 +945,7 @@ pub fn prelab_fuzz_seed_corpus_json() -> KernelResult<String> {
         push_json_string(&mut out, policy);
     }
     out.push_str("],\"cases\":[");
-    for (idx, case) in FUZZ_SEED_CASES.iter().enumerate() {
+    for (idx, case) in cases.iter().enumerate() {
         if idx > 0 {
             out.push(',');
         }
@@ -1111,6 +1115,10 @@ const NO_CRASH_SMOKE_CASES: &[NoCrashSmokeCase] = &[
 ];
 
 pub fn prelab_no_crash_smoke_json() -> KernelResult<String> {
+    prelab_no_crash_smoke_json_for_cases(NO_CRASH_SMOKE_CASES)
+}
+
+fn prelab_no_crash_smoke_json_for_cases(cases: &[NoCrashSmokeCase]) -> KernelResult<String> {
     let mut out = String::new();
     out.push('{');
     push_json_str(&mut out, "type", "prelab-no-crash-smoke");
@@ -1124,9 +1132,9 @@ pub fn prelab_no_crash_smoke_json() -> KernelResult<String> {
     push_json_string(&mut out, "CERT-OPEN-010");
     out.push(']');
     out.push(',');
-    push_json_number(&mut out, "case_count", NO_CRASH_SMOKE_CASES.len() as u64);
+    push_json_number(&mut out, "case_count", cases.len() as u64);
     out.push_str(",\"cases\":[");
-    for (idx, case) in NO_CRASH_SMOKE_CASES.iter().enumerate() {
+    for (idx, case) in cases.iter().enumerate() {
         if idx > 0 {
             out.push(',');
         }
@@ -1326,6 +1334,41 @@ mod tests {
         assert_eq!(
             out,
             "\"quote\\\" slash\\\\ line\\ncarriage\\rtab\\t nul\\u0000\""
+        );
+    }
+
+    #[test]
+    fn prelab_manifests_fail_closed_when_expected_results_drift() {
+        fn seed_ok(_: &[u8]) -> KernelResult<()> {
+            Ok(())
+        }
+        fn smoke_ok() -> KernelResult<()> {
+            Ok(())
+        }
+
+        let bad_seed_case = FuzzSeedCase {
+            id: "BAD-SEED",
+            target: "test",
+            surface: "test",
+            sensitivity: "synthetic",
+            seed: b"seed",
+            expected: KernelError::ParseError,
+            run: seed_ok,
+        };
+        assert_eq!(
+            prelab_fuzz_seed_corpus_json_for_cases(&[bad_seed_case]),
+            Err(KernelError::InternalError)
+        );
+
+        let bad_smoke_case = NoCrashSmokeCase {
+            id: "BAD-SMOKE",
+            surface: "test",
+            expected: KernelError::ParseError,
+            run: smoke_ok,
+        };
+        assert_eq!(
+            prelab_no_crash_smoke_json_for_cases(&[bad_smoke_case]),
+            Err(KernelError::InternalError)
         );
     }
 }

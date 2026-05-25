@@ -241,10 +241,9 @@ fn production_source(contents: &str) -> &str {
         let trimmed = line.trim();
         if trimmed == "#[cfg(test)]" {
             previous_cfg_test_line_start = Some(byte_offset);
-        } else if trimmed.starts_with("mod tests") {
-            if let Some(test_line_start) = previous_cfg_test_line_start {
-                return &contents[..test_line_start];
-            }
+        } else if trimmed.starts_with("mod tests") && previous_cfg_test_line_start.is_some() {
+            let test_line_start = previous_cfg_test_line_start.unwrap_or_default();
+            return &contents[..test_line_start];
         } else if !trimmed.is_empty() && !trimmed.starts_with("#[") {
             previous_cfg_test_line_start = None;
         }
