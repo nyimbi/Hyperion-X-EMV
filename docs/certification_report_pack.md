@@ -200,7 +200,7 @@
 | ID | Title | Category | Path | Size Bytes | SHA-256 |
 | --- | --- | --- | --- | --- | --- |
 | SPEC | Kernel specification | requirements | `docs/spec.md` | 26556 | `b2eb8c6da7327387270f34a131f49465f3b5410bf411c9fe9938e575c31bd238` |
-| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 17621 | `23c942480088694c1bd165042fabd5b27355a5db4764e4719cde09395da80fe5` |
+| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 18117 | `bfb830640697bcf247bc6ef11cf4011cc111b29f35f490e8af87b90fe5f3e227` |
 | RTM-PRIMARY | Primary requirements traceability matrix | requirements | `docs/requirements_traceability.csv` | 80442 | `a40082389323c3b8774c804d25f78f1f6e72842f5f23e41f73c02cf4b119ef7c` |
 | RTM-COMPAT | Compatibility requirements traceability matrix | requirements | `docs/requirements-traceability-matrix.csv` | 82829 | `c9462424a1438d56ee5a97bbe4ab795b1ef93d77ccfe774607293298fa45b627` |
 | OPEN-ISSUES | Certification open issues register | submission | `docs/certification_open_issues.md` | 4529 | `c7fc37edf040a1fae97c91563c167b4e97a8610e81c2c78d1fd71b215a51d8b5` |
@@ -222,14 +222,14 @@
 | TRACE-PACK | Masked pre-lab APDU trace fixture | trace | `docs/prelab_apdu_trace_pack.jsonl` | 12154 | `e63c080e01a400262adfd4e05f5bf2be65fb8dfb5fe5b8834f8edefbd1d0d438` |
 | TRACE-AUDIT-JSON | Trace-pack audit JSON | trace | `docs/prelab_trace_pack_audit.json` | 1902 | `02b1ea6edd16609dd8cb9e1d0e6ef1dfba94785e56a7f5819a1d8d0fcddff4e4` |
 | TRACE-AUDIT-MD | Trace-pack audit Markdown | trace | `docs/prelab_trace_pack_audit.md` | 1095 | `2c5da076ff45e91efe3f4a4bdda70ac797045dfd758bd365603890cb6e5febb2` |
-| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 13896 | `4b237f54b53789a4a7d12425d82e3f589d5eff4984276ae81044c3c82b131fa6` |
+| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 14127 | `c1ee972835d66e0927c90378c50a14d90ecbeb008872f66d78d870e385e512cc` |
 | NO-CRASH | Parser/APDU no-crash smoke artifact | quality | `docs/prelab_no_crash_smoke.json` | 3116 | `1a319359ff4bbcd6dbfa52add672c793d8e97dfca8adebf2b15b9230f56ff18d` |
 | STATIC-FUZZ-PLAN | Static and fuzz evidence plan | quality | `docs/prelab_static_fuzz_plan.json` | 3852 | `5627b0771442d45d124d1931003b713030cc5e39738a4c8553ad485c1cfd2c0a` |
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
 | PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 8198 | `9ab2e21422d09cc1e53418b98f205ec48c81b436b94d4496352822bbbdb09979` |
 | PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9948 | `d0b8a57e905dbea44bd17b066c2765f9b339bbea122b2843a251d08a870d12e3` |
-| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 23993 | `e5c964c98a14b73007963145b16275fe0d8910a20b70f903f9888ca5fa0ef66d` |
-| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 19655 | `11224d4c35d986be96b245ce68793eb2f5802f2145e2eff1ec83435d508b7d3b` |
+| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 24025 | `fa0b5528437ebf761c3374143634d79cc6455f344ced5e9dbb2ff7d15c2dc629` |
+| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 19686 | `40d524a1d1ce8961a37ba585bab3c967e607d71586e9bffc60940dc315165d1f` |
 | EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
 | EVIDENCE-CHECKLIST-MD | Certification evidence checklist Markdown | submission | `docs/certification_evidence_checklist.md` | 7575 | `197acd7da172825c1c363bcfad6a49875e753c0ba7bad50235f1880184ca2c91` |
 | EVIDENCE-INTAKE-JSON | Certification evidence intake JSON | submission | `docs/certification_evidence_intake.json` | 10601 | `8c87c282ac93157ba5d0a05812014061e775db04e6e1f9b6142a3201b532fca7` |
@@ -240,8 +240,8 @@
 | SECURITY-PLAN-MD | Security assessment plan Markdown | security | `docs/certification_security_assessment_plan.md` | 6657 | `b84455c5c7cce9c17f093a1efb8177f71ba0263069fda9c30df3c3eaa9732e4c` |
 | DEVICE-PLAN-JSON | Device evidence plan JSON | device | `docs/certification_device_evidence_plan.json` | 7272 | `79d61e22d6985cbf7cab92346ea0c5bf30eeff3f56ff0b557d2c5b3fd22ad431` |
 | DEVICE-PLAN-MD | Device evidence plan Markdown | device | `docs/certification_device_evidence_plan.md` | 6318 | `9e778d9ca9e5e5ffa63945308c0bac9d4e9f6c41461a790669fe11a3fca5bfef` |
-| INTEGRATION-PLAN-JSON | Integration report plan JSON | integration | `docs/certification_integration_report_plan.json` | 6420 | `148e812eb41a37ed2fff33ee0f5e563d81f0915e64460db6ec668dcdc4cef4d1` |
-| INTEGRATION-PLAN-MD | Integration report plan Markdown | integration | `docs/certification_integration_report_plan.md` | 5568 | `163b1e87d4c7a47b4633ec4311d8323c69d8881ac79212300e944527272948af` |
+| INTEGRATION-PLAN-JSON | Integration report plan JSON | integration | `docs/certification_integration_report_plan.json` | 6452 | `f5a366bac46fbd506922f070993c902eadcdaa9d8a31e988944d49055d56869e` |
+| INTEGRATION-PLAN-MD | Integration report plan Markdown | integration | `docs/certification_integration_report_plan.md` | 5599 | `613832c2fd791ebeb5235f99eb59a4713e631f11e3f50a3b0751592941e17775` |
 | OPEN-SOURCE-REVIEW | Open-source reference review | provenance | `docs/open_source.md` | 17628 | `10be8f215bc25e5b80b89060593996f3380ce60eb9fa535c8b2bcde74d2869f0` |
 | COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5216 | `e35d975a9696772bb7e84c455117f1d6696c1434f7d0b4ea19cb6bcfb7c68e6d` |
 | COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 3826 | `f1bd812ad7a3463259857615dcb39e2e86b43f5e8bb358fc94ee65fc151e1511` |
@@ -317,6 +317,7 @@
 | DEVICE | Emit certification device evidence plan | `cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs` | `docs/certification_device_evidence_plan.json and .md` |
 | INTEGRATION | Emit certification integration report plan | `cargo run --quiet --example krn_certification_integration_report_plan -- --out docs` | `docs/certification_integration_report_plan.json and .md` |
 | POS | Run basic scripted PoS integration | `cargo run --quiet --example krn_basic_pos` | `stdout JSON transaction summary` |
+| SOFTPOS | Run basic mobile NFC SoftPoS integration | `cargo run --quiet --example krn_basic_softpos` | `stdout JSON contactless transaction summary` |
 | TIMEOUT-POLICY | Emit ABI callback timeout policy | `cargo run --quiet --example krn_callback_timeout_policy` | `stdout JSON timeout policy` |
 | VARIABLE-DATA-BOUNDARY | Audit production source variable-data boundary | `cargo run --quiet --example krn_variable_data_boundary_audit -- src` | `stdout JSON boundary audit` |
 | TOOLING-COMPLETENESS | Emit tooling completeness audit | `cargo run --quiet --example krn_tooling_completeness_audit -- --out docs` | `docs/tooling_completeness_audit.json and .md` |

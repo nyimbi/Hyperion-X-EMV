@@ -35,6 +35,7 @@ Progress log for this run:
 
 Current verification status:
 - README narrative update verified with `git diff --check`, `cargo fmt --check`, and `cargo test --test traceability_foundation -- --test-threads=1`.
+- SoftPoS example verified with deterministic report/pre-lab/tooling drift checks, `cargo run --quiet --example krn_basic_softpos`, `cargo test --example krn_basic_softpos`, `cargo test --examples`, `cargo test --test traceability_foundation -- --test-threads=1`, `cargo test`, `cargo clippy --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`, and `git diff --check`.
 - Passing: formatting, full unit/traceability/doc tests, example tests, clippy with warnings denied, enforced coverage script, coverage package audit, bundle validation/lint, deterministic report drift checks, and whitespace diff checks.
 - Coverage closure achieved for the repository-controlled Rust source line gate: `scripts/coverage_100.sh` passed with LCOV source line coverage at 27,594/27,594 = 100%. The generated package audits as `certification_candidate_unreviewed`; it still does not close external lab, scheme, device/L1, PCI/PED, CAPK-authority, official-vector, trace-acceptance, or final approval gates.
 
@@ -44,6 +45,14 @@ Current documentation status:
   kernel/bundle split, DataCraft's open-source rationale, bundle creation
   workflow, certification process, and the boundary between local evidence and
   external approval.
+
+
+Current example focus:
+- Basic SoftPoS example added: `examples/krn_basic_softpos.rs` uses the
+  Hyperion C ABI, contactless transaction parameters, data-driven certification
+  bundle loading, mobile NFC APDU callbacks, CDCVM capability signaling, host
+  authorization handoff, issuer authentication/final GAC, and redacted JSON
+  output.
 
 Next certification-readiness focus:
 - Keep the 100% coverage gate green while closing external certification evidence attachments and lab/device/profile binding.

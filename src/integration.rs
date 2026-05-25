@@ -133,6 +133,7 @@ const INTEGRATION_REPORT_REQUIREMENTS: &[IntegrationReportRequirement] = &[
         repository_support: &[
             "docs/public_standards_watch.json",
             "examples/krn_basic_pos.rs",
+            "examples/krn_basic_softpos.rs",
             "src/gac.rs",
         ],
         acceptance_gate:

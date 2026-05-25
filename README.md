@@ -499,6 +499,10 @@ controlled evidence:
 - `krn_basic_pos`: shows a basic scripted PoS integration from reader callbacks
   through TRM random-selection sample registration, host approval, issuer
   authentication, and final GENERATE AC.
+- `krn_basic_softpos`: shows a basic mobile NFC SoftPoS integration using the
+  data-driven certification bundle, contactless transaction parameters, TTQ,
+  CDCVM capability signaling, APDU callbacks, host approval, issuer
+  authentication, final GENERATE AC, and redacted JSON output.
 - `krn_callback_timeout_policy`: emits the C ABI callback timeout policy as
   JSON for terminal adapter startup checks and certification evidence.
 - `krn_variable_data_boundary_audit`: scans production Rust source for
@@ -527,6 +531,7 @@ cargo run --quiet --example krn_certification_integration_report_plan -- --out d
 cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui
 cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace
 cargo run --quiet --example krn_basic_pos
+cargo run --quiet --example krn_basic_softpos
 cargo run --quiet --example krn_variable_data_boundary_audit -- src
 ```
 

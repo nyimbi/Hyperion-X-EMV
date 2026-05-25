@@ -49,7 +49,7 @@ const MECHANISMS: &[VerificationMechanism] = &[
         id: "TOOL-EXAMPLE-EVIDENCE",
         area: "evidence generators",
         purpose: "compile and execute deterministic evidence generators and user-facing integration examples",
-        repository_artifacts: &["examples/", ".github/workflows/prelab.yml"],
+        repository_artifacts: &["examples/", "examples/krn_basic_softpos.rs", ".github/workflows/prelab.yml"],
         commands: &["cargo test --examples"],
         ci_gate: "Example evidence generators",
         status: "repo-controlled",

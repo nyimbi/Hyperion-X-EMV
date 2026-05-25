@@ -142,6 +142,9 @@ jobs:
       - name: Basic PoS integration smoke
         run: cargo run --quiet --example krn_basic_pos
 
+      - name: Basic SoftPoS integration smoke
+        run: cargo run --quiet --example krn_basic_softpos
+
       - name: Callback timeout policy smoke
         run: cargo run --quiet --example krn_callback_timeout_policy
 

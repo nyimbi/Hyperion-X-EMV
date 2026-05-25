@@ -6015,3 +6015,21 @@ decision record, while this file tracks work toward certification readiness.
   but it does not close external lab, scheme, acquirer, device/L1, PCI/PED,
   CAPK authority, official vector, trace-acceptance, or final approval gates.
 - Verification: `git diff --check`, `cargo fmt --check`, and `cargo test --test traceability_foundation -- --test-threads=1` passed.
+
+## 2026-05-25T10:56:32+0300
+
+- Increment completed: added a basic SoftPoS example that uses the kernel.
+- Code impact: `examples/krn_basic_softpos.rs` models a mobile NFC SoftPoS
+  adapter around the C ABI, data-driven certification bundle loading,
+  contactless transaction parameters, TTQ/CVM capability provisioning, mobile
+  NFC APDU callbacks, host authorization, issuer authentication, final
+  GENERATE AC, and redacted JSON output.
+- Evidence scope: repository-controlled integration example only. It is not a
+  certified SoftPoS application, PCI CPoC/SPoC/MPoC approval, device/L1
+  approval, scheme approval, acquirer approval, or lab trace pack.
+- Verification: `cargo fmt --check`, deterministic report/pre-lab/tooling drift
+  checks, `cargo run --quiet --example krn_basic_softpos`, `cargo test
+  --example krn_basic_softpos`, `cargo test --examples`, `cargo test --test
+  traceability_foundation -- --test-threads=1`, `cargo test`, `cargo clippy
+  --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`, and
+  `git diff --check` passed. Coverage remains 27,594/27,594 source lines.

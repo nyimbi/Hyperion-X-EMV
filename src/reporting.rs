@@ -819,6 +819,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         output: "stdout JSON transaction summary",
     },
     ToolCommand {
+        id: "SOFTPOS",
+        title: "Run basic mobile NFC SoftPoS integration",
+        command: "cargo run --quiet --example krn_basic_softpos",
+        output: "stdout JSON contactless transaction summary",
+    },
+    ToolCommand {
         id: "TIMEOUT-POLICY",
         title: "Emit ABI callback timeout policy",
         command: "cargo run --quiet --example krn_callback_timeout_policy",
