@@ -146,6 +146,11 @@ kernel rather than as a substitute for reviewed kernel behavior.
 
 ## Data-Driven Certification Bundles
 
+For the detailed authoring workflow, field-by-field bundle anatomy, secure
+signing and trust-anchor guidance, validation/lint commands, TUI/workbench
+usage, and report-tool sequence, read
+`docs/tutorial/08-data-bundles-and-tools.md`.
+
 A Hyperion data bundle is the unit of certification variability. It carries the
 scheme profile JSON, vector-bundle reference, terminal/device profile, runtime
 timeout policy, kernel registry, CVM extension rules, test-plan cases, artifact

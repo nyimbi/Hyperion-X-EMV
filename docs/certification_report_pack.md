@@ -245,7 +245,8 @@
 | OPEN-SOURCE-REVIEW | Open-source reference review | provenance | `docs/open_source.md` | 17628 | `10be8f215bc25e5b80b89060593996f3380ce60eb9fa535c8b2bcde74d2869f0` |
 | COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5216 | `e35d975a9696772bb7e84c455117f1d6696c1434f7d0b4ea19cb6bcfb7c68e6d` |
 | COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 3826 | `f1bd812ad7a3463259857615dcb39e2e86b43f5e8bb358fc94ee65fc151e1511` |
-| TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3231 | `3a6c9b5bb5c01c1e2925644ec7c5126faf1421e10f2011143af5e57785c5219e` |
+| TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3446 | `225552c261103d82bc930c64ed1c1bebb1449195bd420e971238308ffc769b39` |
+| TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 28195 | `dc3a93a6d4800bf956b7130fdf102a6e515216ad6d4b031e4e5025c71751bc4b` |
 | TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |
 
 ### Artifact File Inventory Exclusions

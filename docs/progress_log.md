@@ -6033,3 +6033,23 @@ decision record, while this file tracks work toward certification readiness.
   traceability_foundation -- --test-threads=1`, `cargo test`, `cargo clippy
   --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`, and
   `git diff --check` passed. Coverage remains 27,594/27,594 source lines.
+
+## 2026-05-25T16:26:38+0300
+
+- Increment completed: added comprehensive user documentation for assembling,
+  validating, linting, provisioning, securing, loading, and packaging Hyperion
+  data bundles.
+- Documentation impact: added `docs/tutorial/08-data-bundles-and-tools.md`,
+  linked it from the tutorial learning path and README data-bundle section, and
+  added traceability assertions for bundle anatomy, trust anchors, authoring
+  workflow, kernel loading, tool reference, security checklist, and submission
+  checklist coverage.
+- Evidence scope: documentation and traceability lock only. The guide explains
+  repository-controlled tooling and secure bundle handling, but it does not
+  close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority,
+  official vector, trace-acceptance, or final approval gates.
+- Verification: `cargo fmt --check`, report-pack JSON/Markdown/HTML drift
+  checks, focused tutorial traceability test, full `cargo test --test
+  traceability_foundation -- --test-threads=1`, `cargo test`, `cargo clippy
+  --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`,
+  and `git diff --check` passed. Coverage remains 27,594/27,594 source lines.

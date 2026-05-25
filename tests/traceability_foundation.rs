@@ -194,6 +194,7 @@ const COVERAGE_AUDIT_EXAMPLE: &str = include_str!("../examples/krn_coverage_pack
 const TRACE_PACK_AUDIT_EXAMPLE: &str = include_str!("../examples/krn_trace_pack_audit.rs");
 const PRELAB_CI_WORKFLOW: &str = include_str!("../.github/workflows/prelab.yml");
 const TUTORIAL_README: &str = include_str!("../docs/tutorial/README.md");
+const TUTORIAL_DATA_BUNDLES: &str = include_str!("../docs/tutorial/08-data-bundles-and-tools.md");
 const TUTORIAL_GLOSSARY: &str = include_str!("../docs/tutorial/glossary.md");
 
 static IT_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
@@ -1944,7 +1945,22 @@ fn lab_manifest_and_provenance_cover_reproducible_build_artifacts() {
 #[test]
 fn tutorial_learning_path_includes_comprehensive_emv_glossary() {
     assert!(TUTORIAL_README.contains("[Glossary](glossary.md)"));
+    assert!(
+        TUTORIAL_README.contains("[Data Bundles And Tooling Guide](08-data-bundles-and-tools.md)")
+    );
     assert!(TUTORIAL_README.contains("glossary expands the core EMV vocabulary"));
+    assert!(README.contains("docs/tutorial/08-data-bundles-and-tools.md"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("## Bundle Anatomy"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("## Trust Anchors"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("## Authoring Workflow"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("## Using A Bundle From The Kernel"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("## Tool Reference"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("## Security Checklist"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("## Submission Checklist"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("krn_certification_bundle_tui"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("krn_load_certification_bundle_verified"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("private signing keys are not present"));
+    assert!(TUTORIAL_DATA_BUNDLES.contains("Do not fork Rust source to change scheme profiles"));
     assert!(TUTORIAL_GLOSSARY.contains("licensed EMVCo"));
     assert!(TUTORIAL_GLOSSARY.contains("not a replacement"));
 
@@ -7139,6 +7155,8 @@ fn certification_report_workbench_is_reproducible_and_scoped() {
     assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"docs/spec.md\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"docs/lab_submission_manifest.md\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"docs/standards_watch.md\""));
+    assert!(CERTIFICATION_REPORT_PACK
+        .contains("\"path\":\"docs/tutorial/08-data-bundles-and-tools.md\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"path\":\"scripts/coverage_100.sh\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"sha256\""));
     assert!(CERTIFICATION_REPORT_PACK.contains("\"artifact_file_exclusions\""));

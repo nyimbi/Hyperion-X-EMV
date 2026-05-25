@@ -389,6 +389,13 @@ const CONTROLLED_REPORT_FILES: &[ControlledReportFile] = &[
         contents: include_bytes!("../docs/tutorial/README.md"),
     },
     ControlledReportFile {
+        id: "TUTORIAL-DATA-BUNDLES",
+        title: "Data bundles and tooling tutorial",
+        path: "docs/tutorial/08-data-bundles-and-tools.md",
+        category: "education",
+        contents: include_bytes!("../docs/tutorial/08-data-bundles-and-tools.md"),
+    },
+    ControlledReportFile {
         id: "TUTORIAL-GLOSSARY",
         title: "Tutorial glossary",
         path: "docs/tutorial/glossary.md",

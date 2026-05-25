@@ -36,6 +36,7 @@ Progress log for this run:
 Current verification status:
 - README narrative update verified with `git diff --check`, `cargo fmt --check`, and `cargo test --test traceability_foundation -- --test-threads=1`.
 - SoftPoS example verified with deterministic report/pre-lab/tooling drift checks, `cargo run --quiet --example krn_basic_softpos`, `cargo test --example krn_basic_softpos`, `cargo test --examples`, `cargo test --test traceability_foundation -- --test-threads=1`, `cargo test`, `cargo clippy --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh`, and `git diff --check`.
+- Data-bundle tooling documentation verified with report-pack JSON/Markdown/HTML drift checks, focused tutorial traceability test, full traceability test suite, `cargo test`, `cargo clippy --all-targets --all-features -- -D warnings`, `scripts/coverage_100.sh` at 27,594/27,594 source lines, formatting, and whitespace checks.
 - Passing: formatting, full unit/traceability/doc tests, example tests, clippy with warnings denied, enforced coverage script, coverage package audit, bundle validation/lint, deterministic report drift checks, and whitespace diff checks.
 - Coverage closure achieved for the repository-controlled Rust source line gate: `scripts/coverage_100.sh` passed with LCOV source line coverage at 27,594/27,594 = 100%. The generated package audits as `certification_candidate_unreviewed`; it still does not close external lab, scheme, device/L1, PCI/PED, CAPK-authority, official-vector, trace-acceptance, or final approval gates.
 
@@ -45,6 +46,10 @@ Current documentation status:
   kernel/bundle split, DataCraft's open-source rationale, bundle creation
   workflow, certification process, and the boundary between local evidence and
   external approval.
+- Added `docs/tutorial/08-data-bundles-and-tools.md` as the comprehensive guide
+  for building data bundles, using the workbench/TUI/CLI tools, validating and
+  linting bundles, loading bundles through the kernel, freezing evidence, and
+  avoiding insecure signing or trace practices.
 
 
 Current example focus:

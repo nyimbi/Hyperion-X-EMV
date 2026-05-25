@@ -20,7 +20,8 @@ Read these in order if you are new to EMV kernels:
 5. [Using Hyperion-X-EMV](05-using-hyperion.md)
 6. [Certification And Evidence](06-certification-and-evidence.md)
 7. [Testing And Contribution Playbook](07-testing-and-contribution.md)
-8. [Glossary](glossary.md)
+8. [Data Bundles And Tooling Guide](08-data-bundles-and-tools.md)
+9. [Glossary](glossary.md)
 
 ## Who This Is For
 
@@ -66,4 +67,6 @@ project documents for controlled requirements and evidence:
 - `docs/lab_submission_manifest.md`: draft lab submission checklist.
 - `docs/certification_open_issues.md`: external blockers.
 - `docs/requirements_traceability.csv`: requirement-to-evidence mapping.
+- `docs/tutorial/08-data-bundles-and-tools.md`: hands-on guide for bundle
+  authoring, validation, linting, provisioning, and certification tooling.
 - `README.md`: quick project overview and local commands.
