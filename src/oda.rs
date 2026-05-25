@@ -2185,4 +2185,424 @@ mod tests {
         out.copy_from_slice(&bytes);
         out
     }
+
+    #[test]
+    fn oda_parser_crypto_and_annex_edge_branches_fail_closed() {
+        let mut bad_capk = load_profile_set(
+            PROFILE,
+            &ConfigLoadPolicy {
+                mode: BuildMode::Certification,
+                signature_status: SignatureStatus::Verified,
+                installed_version: 1,
+                candidate_version: 2,
+                evaluation_date: EmvDate {
+                    year: 26,
+                    month: 5,
+                    day: 21,
+                },
+            },
+        )
+        .unwrap()
+        .schemes
+        .remove(0)
+        .capks
+        .remove(0);
+        bad_capk.checksum.truncate(SHA1_DIGEST_BYTES - 1);
+        assert!(!capk_checksum_is_valid(&bad_capk));
+
+        assert_eq!(
+            parse_internal_authenticate_response(&[
+                0x77, 0x0a, 0x9f, 0x4b, 0x07, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7,
+            ])
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_internal_authenticate_response(&[
+                0x77, 0x0b, 0x9f, 0x4b, 0x08, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8,
+            ])
+            .unwrap()
+            .icc_dynamic_number,
+            None
+        );
+
+        assert_eq!(
+            build_static_authentication_data(&[], &DataStore::new()).unwrap_err(),
+            KernelError::MissingMandatoryTag
+        );
+        for record in [
+            StaticAuthenticationRecord {
+                sfi: 0,
+                record: 1,
+                body: vec![0xaa],
+            },
+            StaticAuthenticationRecord {
+                sfi: 31,
+                record: 1,
+                body: vec![0xaa],
+            },
+            StaticAuthenticationRecord {
+                sfi: 1,
+                record: 0,
+                body: vec![0xaa],
+            },
+            StaticAuthenticationRecord {
+                sfi: 1,
+                record: 1,
+                body: Vec::new(),
+            },
+        ] {
+            assert_eq!(
+                build_static_authentication_data(&[record], &DataStore::new()).unwrap_err(),
+                KernelError::InvalidArgument
+            );
+        }
+
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &[0x6a],
+                &[],
+                &[0x03]
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        let valid_recovered = decode_hex(
+            "6A02\
+             12345678901234567890\
+             3012\
+             010203\
+             01\
+             01\
+             09\
+             01\
+             A1A2A3A4A5A6\
+             54E3F6BE991906017C1752CD7BA97BEC321202FC\
+             BC",
+        )
+        .unwrap();
+        let mut no_fragment = Vec::new();
+        no_fragment.extend_from_slice(&[0x6a, 0x02]);
+        no_fragment.extend_from_slice(&[0x12; 10]);
+        no_fragment.extend_from_slice(&[0x30, 0x12]);
+        no_fragment.extend_from_slice(&[0x01, 0x02, 0x03]);
+        no_fragment.extend_from_slice(&[0x01, 0x01, 0x01, 0x01]);
+        no_fragment.extend_from_slice(&[0x22; SHA1_DIGEST_BYTES]);
+        no_fragment.push(0xbc);
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &no_fragment,
+                &[],
+                &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut bad_header = valid_recovered.clone();
+        bad_header[0] = 0x00;
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &bad_header,
+                &[0xb1, 0xb2, 0xb3],
+                &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut bad_exponent_len = valid_recovered.clone();
+        bad_exponent_len[20] = 0x02;
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &bad_exponent_len,
+                &[0xb1, 0xb2, 0xb3],
+                &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut zero_fragment = valid_recovered.clone();
+        zero_fragment[21..27].fill(0x00);
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &zero_fragment,
+                &[0xb1, 0xb2, 0xb3],
+                &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut zero_hash = valid_recovered.clone();
+        let hash_start = zero_hash.len() - SHA1_DIGEST_BYTES - 1;
+        zero_hash[hash_start..hash_start + SHA1_DIGEST_BYTES].fill(0x00);
+        assert_eq!(
+            parse_recovered_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &zero_hash,
+                &[0xb1, 0xb2, 0xb3],
+                &[0x03],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut bad_algorithm = parse_recovered_public_key_certificate(
+            RecoveredCertificateKind::Issuer,
+            &valid_recovered,
+            &[0xb1, 0xb2, 0xb3],
+            &[0x03],
+        )
+        .unwrap();
+        bad_algorithm.public_key_algorithm_indicator = 0x02;
+        assert_eq!(
+            recovered_public_key_certificate_hash(&bad_algorithm, &[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        bad_algorithm.public_key_algorithm_indicator = 0x01;
+        bad_algorithm.public_key = vec![0x01; usize::from(u8::MAX) + 1];
+        assert_eq!(
+            recovered_public_key_certificate_hash_input(&bad_algorithm, &[]).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        assert_eq!(
+            parse_recovered_signed_application_data(
+                RecoveredSignedDataKind::StaticApplicationData,
+                &[0x6a]
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+        let mut static_recovered = Vec::new();
+        static_recovered.extend_from_slice(&[0x6a, 0x03, 0x01, 0x12, 0x34]);
+        static_recovered.extend_from_slice(&[0xbb; MIN_ODA_SIGNATURE_BYTES - 5]);
+        static_recovered.extend_from_slice(&[0x22; SHA1_DIGEST_BYTES]);
+        static_recovered.push(0xbc);
+        parse_recovered_signed_application_data(
+            RecoveredSignedDataKind::StaticApplicationData,
+            &static_recovered,
+        )
+        .unwrap();
+        let mut bad_static_header = static_recovered.clone();
+        bad_static_header[0] = 0x00;
+        assert_eq!(
+            parse_recovered_signed_application_data(
+                RecoveredSignedDataKind::StaticApplicationData,
+                &bad_static_header,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut bad_padding = static_recovered.clone();
+        bad_padding[5] = 0x00;
+        assert_eq!(
+            parse_recovered_signed_application_data(
+                RecoveredSignedDataKind::StaticApplicationData,
+                &bad_padding,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut bad_hash = static_recovered.clone();
+        let hash_start = bad_hash.len() - SHA1_DIGEST_BYTES - 1;
+        bad_hash[hash_start..hash_start + SHA1_DIGEST_BYTES].fill(0xff);
+        assert_eq!(
+            parse_recovered_signed_application_data(
+                RecoveredSignedDataKind::StaticApplicationData,
+                &bad_hash,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut dynamic_zero = Vec::new();
+        dynamic_zero.extend_from_slice(&[0x6a, 0x05, 0x01, 0x00]);
+        dynamic_zero.extend_from_slice(&[0xbb; MIN_ODA_SIGNATURE_BYTES - 4]);
+        dynamic_zero.extend_from_slice(&[0x22; SHA1_DIGEST_BYTES]);
+        dynamic_zero.push(0xbc);
+        assert_eq!(
+            parse_recovered_signed_application_data(
+                RecoveredSignedDataKind::DynamicApplicationData,
+                &dynamic_zero,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut dynamic_too_long = dynamic_zero.clone();
+        dynamic_too_long[3] = 0xff;
+        assert_eq!(
+            parse_recovered_signed_application_data(
+                RecoveredSignedDataKind::DynamicApplicationData,
+                &dynamic_too_long,
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut static_data = parse_recovered_signed_application_data(
+            RecoveredSignedDataKind::StaticApplicationData,
+            &static_recovered,
+        )
+        .unwrap();
+        static_data.icc_dynamic_data = Some(vec![1]);
+        assert_eq!(
+            recovered_signed_application_data_hash_input(&static_data, &[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        static_data.icc_dynamic_data = None;
+        static_data.hash_algorithm_indicator = 0x02;
+        assert_eq!(
+            recovered_signed_application_data_hash(&static_data, &[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        static_data.hash_algorithm_indicator = 0x01;
+        static_data.padding[0] = 0x00;
+        assert_eq!(
+            recovered_signed_application_data_hash(&static_data, &[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut dynamic_data = RecoveredSignedApplicationData {
+            kind: RecoveredSignedDataKind::DynamicApplicationData,
+            hash_algorithm_indicator: 0x01,
+            data_authentication_code: Some([0x12, 0x34]),
+            icc_dynamic_data: Some(vec![1]),
+            padding: vec![0xbb],
+            hash_result: [0x11; SHA1_DIGEST_BYTES],
+        };
+        assert_eq!(
+            recovered_signed_application_data_hash_input(&dynamic_data, &[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        dynamic_data.data_authentication_code = None;
+        dynamic_data.icc_dynamic_data = None;
+        assert_eq!(
+            recovered_signed_application_data_hash_input(&dynamic_data, &[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        dynamic_data.icc_dynamic_data = Some(vec![0x55; usize::from(u8::MAX) + 1]);
+        assert_eq!(
+            recovered_signed_application_data_hash_input(&dynamic_data, &[]).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        assert_eq!(
+            mod_mul_be(&[1], &[1, 2], &[3]).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            mod_add_be(&[1], &[1, 2], &[3]).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(compare_be(&[2], &[1]), core::cmp::Ordering::Greater);
+        assert_eq!(compare_be(&[1], &[1]), core::cmp::Ordering::Equal);
+
+        assert_eq!(
+            build_static_authentication_data(
+                &[StaticAuthenticationRecord {
+                    sfi: 11,
+                    record: 1,
+                    body: vec![0xaa],
+                }],
+                &DataStore::new(),
+            )
+            .unwrap(),
+            vec![0xaa]
+        );
+
+        let signing_modulus = decode_hex(
+            "E818096D661646F609946CBEEF726473A6639B5155FE6C9F5B5F941685E43A75\
+             E896E4F401899CF2862D673A0434B6D1",
+        )
+        .unwrap();
+        let certificate_signature = decode_hex(
+            "C4D65E662B5043337656B47BF6400C1DAFBC58EAEC6FD9E2B01EB308C2CA501\
+             C2538BD302ADE38BD73E2032AF4B3BB7C",
+        )
+        .unwrap();
+        assert_eq!(
+            recover_and_verify_public_key_certificate(
+                RecoveredCertificateKind::Issuer,
+                &certificate_signature,
+                &signing_modulus,
+                &decode_hex("010001").unwrap(),
+                &decode_hex("B1B2B3").unwrap(),
+                &[0x03],
+                &[0x99],
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_vector_hex_field("issuer_certificate_hex", "AABB").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_vector_hex_field("internal_auth_response_hex", "AABB").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            required_json_object_with_string_field_prefix("{\"id\":\"XXX_1\"}", "id", "SDA")
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        assert_eq!(
+            validate_oda_vector_annex(
+                br#"{"vector_class":"STRUCTURAL_FIXTURE","test_vectors":[],"expected_tvr":"0000000000","expected_oda_result":"PASS"}"#,
+                false,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_certification_vector_coverage(
+                r#"{"id":"SDA_1","capk":{},"issuer_certificate_hex":"0011223344556677","expected_tvr":"0000000000","expected_oda_result":"PASS"}"#,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_certification_vector_coverage(
+                r#"{"id":"SDA_1","capk":{},"issuer_certificate_hex":"0011223344556677","static_signature_hex":"0011223344556677","expected_tvr":"0000000000","expected_oda_result":"PASS"},{"id":"DDA_1","capk":{},"issuer_certificate_hex":"0011223344556677","icc_certificate_hex":"0011223344556677","ddol_input_hex":"0011","internal_auth_response_hex":"0011223344556677","expected_tvr":"0000000000","expected_oda_result":"PASS"},{"id":"CDA_1","capk":{},"issuer_certificate_hex":"0011223344556677","icc_certificate_hex":"0011223344556677","generate_ac_response_hex":"0011223344556677","expected_tvr":"0000000000","expected_oda_result":"PASS"}"#,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        assert_eq!(
+            validate_oda_vector_annex(b"{}", true).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_oda_vector_annex(
+                br#"{"vector_class":"CERTIFICATION","test_vectors":[],"expected_tvr":"0000000000","expected_oda_result":"PASS"}"#,
+                true,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_oda_vector_annex(
+                br#"{"vector_class":"STRUCTURAL_FIXTURE","test_vectors":[],"expected_tvr":"0000000000","expected_oda_result":"PASS"}"#,
+                true,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(certification_vector_method("SDA-1"), Some("SDA"));
+        assert_eq!(certification_vector_method("DDA_1"), Some("DDA"));
+        assert_eq!(certification_vector_method("CDA"), None);
+        assert_eq!(matching_json_object_end("{\"x\":\"}\"}", 0).unwrap(), 8);
+        assert_eq!(
+            matching_json_object_end("{", 0).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            required_json_string_field("{\"vector_class\":1}", "vector_class").unwrap_err(),
+            KernelError::ParseError
+        );
+    }
 }

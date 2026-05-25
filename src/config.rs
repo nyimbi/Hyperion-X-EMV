@@ -522,19 +522,13 @@ fn parse_scheme(
     let kernel_type = required_string(object, "kernel_type")?.to_string();
     let contact_kernel_type = parse_contact_kernel_type(object)?;
 
+    let taa_fallback = required_string(object, "taa_fallback_when_offline_unable_online")?;
+    let taa_online = required_string(object, "taa_no_match_default_when_online_capable")?;
+    let taa_offline = required_string(object, "taa_no_match_default_when_offline_only")?;
     let taa = TaaProfile::new(
-        parse_action(required_string(
-            object,
-            "taa_fallback_when_offline_unable_online",
-        )?)?,
-        parse_action(required_string(
-            object,
-            "taa_no_match_default_when_online_capable",
-        )?)?,
-        parse_action(required_string(
-            object,
-            "taa_no_match_default_when_offline_only",
-        )?)?,
+        parse_action(taa_fallback)?,
+        parse_action(taa_online)?,
+        parse_action(taa_offline)?,
     )?;
 
     let aids_value = object.get("aids").ok_or(KernelError::InvalidProfile)?;
@@ -729,13 +723,11 @@ fn parse_aid(value: &JsonValue) -> KernelResult<AidProfile> {
 
     let lower_consecutive_offline_limit = optional_u16(object, "lower_consecutive_offline_limit")?;
     let upper_consecutive_offline_limit = optional_u16(object, "upper_consecutive_offline_limit")?;
-    if let (Some(lower), Some(upper)) = (
-        lower_consecutive_offline_limit,
-        upper_consecutive_offline_limit,
+    if matches!(
+        (lower_consecutive_offline_limit, upper_consecutive_offline_limit),
+        (Some(lower), Some(upper)) if lower > upper
     ) {
-        if lower > upper {
-            return Err(KernelError::InvalidProfile);
-        }
+        return Err(KernelError::InvalidProfile);
     }
 
     let contactless_transaction_limit = required_u64(object, "contactless_transaction_limit")?;
@@ -3085,6 +3077,338 @@ mod tests {
             )
             .unwrap_err(),
             KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
+    fn parser_and_profile_edge_branches_remain_fail_closed() {
+        let profile = std::str::from_utf8(VALID_PROFILE).unwrap();
+        let verified = policy(SignatureStatus::Verified);
+
+        let empty_schemes_profile = br#"{
+          "schema_version":"1.0",
+          "profile_class":"CERTIFICATION",
+          "profile_source":{"owner":"scheme_or_acquirer","document":"signed_certification_profile_bundle","version":"2","retrieved":"2026-05-21","verification":"external_signature_required"},
+          "certification_scope":{"bundled_scheme_profiles":[],"lab_supplied_scheme_profiles_required":[],"contactless_kernel_profile":"C-8 lab approval package","profile_material_status":"certification_format_fixture_pending_lab_signature","capk_material_status":"deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks","production_profile_bundle_required":true},
+          "scheme_profiles":[]
+        }"#;
+        assert_eq!(
+            load_profile_set(empty_schemes_profile, &verified).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let root = JsonParser::new(VALID_PROFILE).parse().unwrap();
+        let root_object = root.as_object().unwrap();
+        let missing_source = BTreeMap::new();
+        assert_eq!(
+            parse_profile_source(
+                &missing_source,
+                ProfileClass::Certification,
+                BuildMode::Certification,
+                verified.evaluation_date,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let scheme_value = root_object
+            .get("scheme_profiles")
+            .unwrap()
+            .as_array()
+            .unwrap()[0]
+            .clone();
+        let mut scheme_object = scheme_value.as_object().unwrap().clone();
+        scheme_object.insert("aids".to_string(), JsonValue::Array(Vec::new()));
+        assert_eq!(
+            parse_scheme(
+                &JsonValue::Object(scheme_object),
+                verified.evaluation_date,
+                ProfileClass::Certification,
+                BuildMode::Certification,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut scheme_object = scheme_value.as_object().unwrap().clone();
+        scheme_object.insert("capks".to_string(), JsonValue::Array(Vec::new()));
+        assert_eq!(
+            parse_scheme(
+                &JsonValue::Object(scheme_object),
+                verified.evaluation_date,
+                ProfileClass::Certification,
+                BuildMode::Certification,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let aid_value = scheme_value
+            .as_object()
+            .unwrap()
+            .get("aids")
+            .unwrap()
+            .as_array()
+            .unwrap()[0]
+            .clone();
+        let mut aid_object = aid_value.as_object().unwrap().clone();
+        aid_object.insert(
+            "lower_consecutive_offline_limit".to_string(),
+            JsonValue::Number(9),
+        );
+        aid_object.insert(
+            "upper_consecutive_offline_limit".to_string(),
+            JsonValue::Number(3),
+        );
+        assert_eq!(
+            parse_aid(&JsonValue::Object(aid_object)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut aid_object = aid_value.as_object().unwrap().clone();
+        aid_object.remove("cda_request_encoding");
+        aid_object.insert("cda_supported".to_string(), JsonValue::Bool(false));
+        aid_object.insert(
+            "cda_authentication_data".to_string(),
+            JsonValue::String("application_cryptogram_9f4c".to_string()),
+        );
+        assert_eq!(
+            parse_aid(&JsonValue::Object(aid_object)).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_relay_resistance_failure_outcome("decline").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let capk_value = scheme_value
+            .as_object()
+            .unwrap()
+            .get("capks")
+            .unwrap()
+            .as_array()
+            .unwrap()[0]
+            .clone();
+        let mut capk_object = capk_value.as_object().unwrap().clone();
+        capk_object.remove("source");
+        assert_eq!(
+            parse_capk(
+                &JsonValue::Object(capk_object),
+                [0xa0, 0x00, 0x00, 0x00, 0x03],
+                verified.evaluation_date,
+                ProfileClass::Certification,
+                BuildMode::Certification,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let empty_schemes = profile.replace(
+            r#""scheme_profiles": [{"#,
+            r#""scheme_profiles": [], "unused": [{"#,
+        );
+        assert_eq!(
+            load_profile_set(empty_schemes.as_bytes(), &verified).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut source = BTreeMap::new();
+        source.insert(
+            "unknown".to_string(),
+            JsonValue::String("value".to_string()),
+        );
+        assert_eq!(
+            parse_source_object(
+                &source,
+                ProfileClass::Certification,
+                verified.evaluation_date
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        source.clear();
+        source.insert("owner".to_string(), JsonValue::String("scheme".to_string()));
+        source.insert("document".to_string(), JsonValue::String("doc".to_string()));
+        source.insert("version".to_string(), JsonValue::String("1".to_string()));
+        source.insert(
+            "retrieved".to_string(),
+            JsonValue::String("2026-05-21".to_string()),
+        );
+        source.insert(
+            "verification".to_string(),
+            JsonValue::String("self".to_string()),
+        );
+        assert_eq!(
+            parse_source_object(
+                &source,
+                ProfileClass::Certification,
+                verified.evaluation_date
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut scope = BTreeMap::new();
+        scope.insert("unknown".to_string(), JsonValue::Bool(true));
+        assert!(matches!(
+            parse_certification_scope(
+                Some(&JsonValue::Object(scope.clone())),
+                ProfileClass::Certification,
+                BuildMode::Certification,
+            ),
+            Err(KernelError::InvalidProfile)
+        ));
+        scope.clear();
+        scope.insert(
+            "bundled_scheme_profiles".to_string(),
+            JsonValue::Array(vec![JsonValue::String("Visa".to_string())]),
+        );
+        assert!(parse_certification_scope(
+            Some(&JsonValue::Object(scope)),
+            ProfileClass::ExampleOnly,
+            BuildMode::Test,
+        )
+        .unwrap()
+        .is_none());
+
+        for mutated in [
+            profile.replace(
+                r#""scheme_name": "Visa""#,
+                r#""scheme_name": "Visa", "unknown": true"#,
+            ),
+            profile.replace(r#""aids": [{"#, r#""aids": [], "unused_aids": [{"#),
+            profile.replace(r#""capks": [{"#, r#""capks": [], "unused_capks": [{"#),
+            profile.replace(r#""priority": 10"#, r#""priority": 256"#),
+            profile.replace(
+                r#""interfaces": ["contact", "contactless"]"#,
+                r#""interfaces": ["magstripe"]"#,
+            ),
+            profile.replace(
+                r#""interfaces": ["contact", "contactless"]"#,
+                r#""interfaces": []"#,
+            ),
+            profile.replace(
+                r#""random_selection_percent": 5"#,
+                r#""random_selection_percent": 101"#,
+            ),
+            profile.replace(
+                r#""random_selection_percent": 5,"#,
+                r#""random_selection_percent": 5,
+          "lower_consecutive_offline_limit": 9,
+          "upper_consecutive_offline_limit": 3,"#,
+            ),
+            profile.replace(r#""cda_supported": true"#, r#""cda_supported": false"#),
+            profile.replace(
+                r#""cda_request_encoding": "CDOL1_bit""#,
+                r#""cda_authentication_data": "application_cryptogram_9f4c""#,
+            ),
+            profile.replace(
+                r#""taa_no_match_default_when_online_capable": "ARQC""#,
+                r#""taa_no_match_default_when_online_capable": "DECLINE""#,
+            ),
+            profile.replace(r#""key_index": 1"#, r#""key_index": 256"#),
+            profile.replace(
+                r#""checksum_hex": "E7BE39F210609E8609E23255BC1B54E81C7EC5D5""#,
+                r#""checksum_hex": "AABBCCDDEEFF""#,
+            ),
+            profile.replace(
+                r#""source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_capk_bundle",
+            "version": "2",
+            "retrieved": "2026-05-21",
+            "verification": "external_signature_required"
+          }"#,
+                r#""source_removed": true"#,
+            ),
+            profile.replace(
+                r#""checksum_scope": ["rid", "key_index", "modulus_hex", "exponent_hex"]"#,
+                r#""checksum_scope": ["rid", "key_index", "modulus_hex", "wrong"]"#,
+            ),
+        ] {
+            assert_eq!(
+                load_profile_set(mutated.as_bytes(), &verified).unwrap_err(),
+                KernelError::InvalidProfile
+            );
+        }
+
+        let relay_base = profile.replace(
+            r#""critical_issuer_script_ins": ["E2"]"#,
+            r#""critical_issuer_script_ins": ["E2"],
+          "relay_resistance": {
+            "required": false,
+            "command_apdu_hex": "80CA9F7A00",
+            "max_round_trip_ms": 50,
+            "success_response_hex": "9000",
+            "failure_outcome": "try_again"
+          }"#,
+        );
+        assert!(load_profile_set(relay_base.as_bytes(), &verified)
+            .unwrap()
+            .schemes[0]
+            .aids[0]
+            .relay_resistance
+            .is_none());
+        let relay_unknown = relay_base.replace(
+            r#""required": false,"#,
+            r#""unknown": true, "required": true,"#,
+        );
+        assert_eq!(
+            load_profile_set(relay_unknown.as_bytes(), &verified).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let relay_oversize = relay_base
+            .replace(r#""required": false"#, r#""required": true"#)
+            .replace(
+                r#""max_round_trip_ms": 50"#,
+                r#""max_round_trip_ms": 70000"#,
+            );
+        assert_eq!(
+            load_profile_set(relay_oversize.as_bytes(), &verified).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        for outcome in ["alternate_interface", "terminate"] {
+            let relay = relay_base
+                .replace(r#""required": false"#, r#""required": true"#)
+                .replace(
+                    r#""failure_outcome": "try_again""#,
+                    &format!(r#""failure_outcome": "{outcome}""#),
+                );
+            assert!(load_profile_set(relay.as_bytes(), &verified)
+                .unwrap()
+                .schemes[0]
+                .aids[0]
+                .relay_resistance
+                .is_some());
+        }
+        assert_eq!(
+            parse_cda_request_encoding("P1_low_bits_0x1").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_iso_date("20AA-01-01").unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            JsonParser::new(br#"?"#).parse().unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            JsonParser::new(br#"[true false]"#).parse().unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            JsonParser::new(b"{\"esc\":\"\\\\\\/\\b\\f\\n\\r\\t\"}")
+                .parse()
+                .unwrap(),
+            JsonValue::Object({
+                let mut object = BTreeMap::new();
+                object.insert(
+                    "esc".to_string(),
+                    JsonValue::String("\\/\u{0008}\u{000c}\n\r\t".to_string()),
+                );
+                object
+            })
+        );
+        assert_eq!(
+            JsonParser::new(b"\"unterminated").parse().unwrap_err(),
+            KernelError::ParseError
         );
     }
 }
