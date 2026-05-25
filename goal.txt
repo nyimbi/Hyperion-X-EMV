@@ -35,7 +35,7 @@ Progress log for this run:
 
 Current verification status:
 - Passing: formatting, full unit/traceability/doc tests, example tests, clippy with warnings denied, coverage package audit, bundle validation/lint, deterministic bundle drift checks, and whitespace diff checks.
-- Failing by design until coverage closure is completed: `scripts/coverage_100.sh` executes all tests but still fails the enforced 100% threshold; latest LCOV source view is 97.40% line coverage with 645 missed source lines.
+- Failing by design until coverage closure is completed: `scripts/coverage_100.sh` executes all tests but still fails the enforced 100% threshold; latest LCOV source view is 97.58% line coverage with 606 missed source lines.
 
 Next coverage-closure focus:
 - Add meaningful tests for the uncovered production lines reported by `cargo llvm-cov report --summary-only`, prioritizing `cert_bundle.rs`, `ffi.rs`, `trace_audit.rs`, `terminal.rs`, `error.rs`, `coverage.rs`, and generated tooling/reporting modules.
@@ -46,3 +46,5 @@ Next coverage-closure focus:
 - 2026-05-25: Added focused artifact-serializer, trace-policy, APDU helper, performance-profile, and AUC service-bit coverage. `cargo test --lib` now passes 410 tests, clippy is clean with warnings denied, and the coverage gate runs through all tests before failing only the enforced 100% threshold. Latest parsed LCOV source coverage: 96.92% (23,689/24,441 lines) with 752 missed source lines.
 
 - 2026-05-25: Added C ABI fail-closed guard coverage, runtime contactless callback registration coverage, early transaction error-path coverage, CVM amount/condition/support edge coverage, and trace redaction escape coverage. `cargo fmt --check`, `cargo test --lib` (418 tests), `cargo clippy --all-targets --all-features -- -D warnings`, and `git diff --check` pass. The coverage gate executes all tests and fails only the enforced 100% threshold. Latest parsed LCOV source coverage: 97.40% (24,159/24,804 lines) with 645 missed source lines.
+
+- 2026-05-25: Added internal C ABI helper coverage for select-builder null guards, generic APDU trace contexts, merchant/location DOL storage, terminal capability DOL tags, RNG callback failure, online authorization TLV encoding, transaction-currency comparison, record-reading short/end/TVR statuses, ODA error mapping, and offline outcome invalid states. Removed a redundant online authorization length check already enforced by the TLV appender. `cargo fmt --check`, `cargo test ffi --lib`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, `scripts/coverage_100.sh`, and explicit LCOV generation passed except for the still-enforced 100% threshold. Latest parsed LCOV source coverage: 97.58% (24,392/24,998 lines) with 606 missed source lines.

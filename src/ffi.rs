@@ -2014,9 +2014,6 @@ fn encode_online_authorization_package(
     for object in &package.objects {
         append_tlv(&mut out, &object.tag, &object.value)?;
     }
-    if out.len() > MAX_ONLINE_AUTH_DATA_LEN {
-        return Err(KernelError::LengthOverflow);
-    }
     Ok(out)
 }
 
@@ -4177,6 +4174,7 @@ mod tests {
     static FOLLOWUP_TRANSMITTED_INS: AtomicU8 = AtomicU8::new(0);
     static FOLLOWUP_TRANSMITTED_LEN: AtomicUsize = AtomicUsize::new(0);
     static DDA_RESPONSE_MODE: AtomicU8 = AtomicU8::new(0);
+    static READ_RECORD_RESPONSE_MODE: AtomicU8 = AtomicU8::new(0);
 
     struct SelectionStatusPolicyScript {
         counter: AtomicUsize,
@@ -4942,6 +4940,124 @@ mod tests {
     }
 
     #[test]
+    fn ffi_internal_helpers_cover_remaining_security_edges() {
+        unsafe {
+            assert_eq!(
+                krn_build_select_environment(
+                    ptr::null_mut(),
+                    false,
+                    ptr::null_mut(),
+                    ptr::null_mut()
+                ),
+                KernelError::InvalidArgument.code()
+            );
+        }
+        assert_eq!(trace_context(0), Ok(ApduTraceContext::Generic));
+        assert_eq!(trace_context(2).unwrap_err(), KernelError::InvalidArgument);
+
+        let merchant = b"HYPERION TEST MERCHANT";
+        let params = KrnTxnParams {
+            struct_size: mem::size_of::<KrnTxnParams>() as u32,
+            amount_authorised_minor: 1_234,
+            amount_other_minor: 56,
+            currency_code: 840,
+            currency_exponent: 2,
+            terminal_country_code: 840,
+            transaction_type: 0x09,
+            terminal_type: 0x24,
+            merchant_category_code: [0x53, 0x11],
+            interface_preference: KRN_INTERFACE_CONTACTLESS,
+            merchant_name_location: merchant.as_ptr(),
+            merchant_name_location_len: merchant.len(),
+        };
+        let stored = unsafe { read_transaction_params(&params).unwrap() };
+        assert_eq!(stored.merchant_name_location, merchant);
+        assert_eq!(service_type(&stored), ServiceType::Cashback);
+        assert_eq!(terminal_channel(&stored), TerminalChannel::Atm);
+
+        let terminal_inputs = TerminalDolInputs {
+            terminal_capabilities: Some(TerminalCapabilities::parse(&[0xe0, 0xf8, 0xe8]).unwrap()),
+            additional_terminal_capabilities: Some(
+                AdditionalTerminalCapabilities::parse(&[0x11, 0x22, 0x33, 0x44, 0x55]).unwrap(),
+            ),
+            terminal_transaction_qualifiers: Some(
+                TerminalTransactionQualifiers::parse(&[0x36, 0x00, 0x80, 0x00]).unwrap(),
+            ),
+        };
+        let data = transaction_data_store(
+            &stored,
+            [0xaa, 0xbb, 0xcc, 0xdd],
+            EmvDate {
+                year: 26,
+                month: 5,
+                day: 21,
+            },
+            Tvr::cleared(),
+            Tsi::cleared(),
+            terminal_inputs,
+        )
+        .unwrap();
+        assert_eq!(data.get(&[0x9f, 0x4e]), Some(&merchant[..]));
+        assert_eq!(data.get(&[0x9f, 0x33]), Some(&[0xe0, 0xf8, 0xe8][..]));
+        assert_eq!(
+            data.get(&[0x9f, 0x40]),
+            Some(&[0x11, 0x22, 0x33, 0x44, 0x55][..])
+        );
+        assert_eq!(data.get(&[0x9f, 0x66]), Some(&[0x36, 0x00, 0x80, 0x00][..]));
+
+        let rng_failure_runtime = RuntimeCallbacks {
+            transmit_apdu: capture_select_apdu,
+            get_unpredictable_number: fail_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        assert_eq!(
+            request_unpredictable_number(rng_failure_runtime, None).unwrap_err(),
+            KernelError::RngFailure
+        );
+
+        assert_eq!(
+            encode_online_authorization_package(&OnlineAuthorizationPackage {
+                objects: vec![crate::gac::TagValue {
+                    tag: vec![0x9f, 0x26],
+                    value: vec![0x11; 8],
+                }],
+            })
+            .unwrap(),
+            vec![0x9f, 0x26, 0x08, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11]
+        );
+
+        let mut currency_data = DataStore::new();
+        assert_eq!(
+            transaction_currency_matches_application(&currency_data, &stored),
+            Ok(true)
+        );
+        currency_data.put(&[0x9f, 0x42], &[0x08, 0x26]).unwrap();
+        assert_eq!(
+            transaction_currency_matches_application(&currency_data, &stored),
+            Ok(false)
+        );
+        currency_data.put(&[0x9f, 0x42], &[0x08]).unwrap();
+        assert_eq!(
+            transaction_currency_matches_application(&currency_data, &stored).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            fixed_slice::<2>(&[0x01]).unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            oda_failure_to_kernel_error(OdaFailure::MissingCapk),
+            KernelError::MissingMandatoryTag
+        );
+        assert_eq!(
+            oda_failure_to_kernel_error(OdaFailure::CdaSignature),
+            KernelError::InvalidProfile
+        );
+    }
+
+    #[test]
     fn cvm_transaction_type_uses_terminal_and_transaction_tags() {
         let params = |transaction_type, terminal_type| StoredTxnParams {
             amount_authorised_minor: 1_000,
@@ -5230,6 +5346,38 @@ mod tests {
             Ok(KrnOutcome::DeclinedOffline)
         );
         assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
+    }
+
+    #[test]
+    fn offline_outcome_helpers_reject_incomplete_or_online_only_state() {
+        let mut ctx = KrnContext::new();
+        assert_eq!(
+            finish_offline_outcome_from_taa(&mut ctx).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        assert_eq!(
+            finish_offline_outcome_from_taa(&mut ctx).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+
+        let mut first_gac_ctx = KrnContext::new();
+        assert_eq!(
+            finish_offline_outcome_from_first_gac(&mut first_gac_ctx).unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        first_gac_ctx.first_gac_response = Some(GenerateAcResponse {
+            cid: crate::cid::Cid::new(0x80),
+            atc: [0x00, 0x01],
+            application_cryptogram: [0x11; 8],
+            issuer_application_data: Vec::new(),
+            icc_dynamic_number: None,
+            signed_dynamic_application_data: None,
+        });
+        assert_eq!(
+            finish_offline_outcome_from_first_gac(&mut first_gac_ctx).unwrap_err(),
+            KernelError::InvalidArgument
+        );
     }
 
     #[test]
@@ -6522,6 +6670,24 @@ mod tests {
         KernelError::Ok.code()
     }
 
+    unsafe extern "C" fn scripted_read_record_status_apdu(
+        _cmd: *const u8,
+        _cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        _timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let response: &[u8] = match READ_RECORD_RESPONSE_MODE.load(Ordering::SeqCst) {
+            0 => &[0x70],
+            1 => &[0x6a, 0x83],
+            _ => &[0x69, 0x85],
+        };
+        *resp_len = response.len();
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
     unsafe extern "C" fn capture_script_followup_apdu(
         cmd: *const u8,
         cmd_len: usize,
@@ -6563,6 +6729,14 @@ mod tests {
             *out.add(idx) = idx as u8;
         }
         KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn fail_unpredictable_number(
+        _out: *mut u8,
+        _out_len: usize,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        KernelError::RngFailure.code()
     }
 
     #[test]
@@ -8424,6 +8598,60 @@ mod tests {
                 .unwrap(),
             vec![0x5a, 0x01, 0x99, 0x70, 0x03, 0x5f, 0x20, 0x00, 0x80, 0x00]
         );
+    }
+
+    #[test]
+    fn read_records_fail_closed_on_empty_short_end_and_tvr_statuses() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: scripted_read_record_status_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+        let afl = [AflEntry {
+            sfi: 2,
+            first_record: 1,
+            last_record: 1,
+            offline_auth_record_count: 1,
+        }];
+
+        let mut empty_ctx = KrnContext::new();
+        empty_ctx.fsm_state = FsmState::S4;
+        assert_eq!(
+            read_application_records(&mut empty_ctx, runtime, &[]),
+            Ok(())
+        );
+        assert_eq!(empty_ctx.fsm_state, FsmState::S5);
+        assert_eq!(empty_ctx.state, KernelState::OfflineDataAuthentication);
+
+        let mut short_ctx = KrnContext::new();
+        short_ctx.fsm_state = FsmState::S4;
+        READ_RECORD_RESPONSE_MODE.store(0, Ordering::SeqCst);
+        assert_eq!(
+            read_application_records(&mut short_ctx, runtime, &afl).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut end_ctx = KrnContext::new();
+        end_ctx.fsm_state = FsmState::S4;
+        READ_RECORD_RESPONSE_MODE.store(1, Ordering::SeqCst);
+        assert_eq!(
+            read_application_records(&mut end_ctx, runtime, &afl),
+            Ok(())
+        );
+        assert_eq!(end_ctx.fsm_state, FsmState::S5);
+        assert!(end_ctx.tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
+
+        let mut tvr_ctx = KrnContext::new();
+        tvr_ctx.fsm_state = FsmState::S4;
+        READ_RECORD_RESPONSE_MODE.store(2, Ordering::SeqCst);
+        assert_eq!(
+            read_application_records(&mut tvr_ctx, runtime, &afl),
+            Ok(())
+        );
+        assert_eq!(tvr_ctx.fsm_state, FsmState::S5);
+        assert!(tvr_ctx.tvr.is_set(Tvr::B1_ICC_DATA_MISSING));
     }
 
     #[test]
