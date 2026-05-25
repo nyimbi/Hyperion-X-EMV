@@ -220,4 +220,48 @@ mod tests {
             KernelError::InvalidProfile
         );
     }
+
+    #[test]
+    fn rejects_malformed_or_incomplete_performance_profiles() {
+        assert_eq!(
+            parse_performance_profile("").unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_performance_profile("wrong,header\n").unwrap_err(),
+            KernelError::ParseError
+        );
+        assert_eq!(
+            parse_performance_profile(PROFILE_HEADER.join(",").as_str()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let header = PROFILE_HEADER.join(",");
+        let missing_field = format!("{header}\np,certified,test device,1,2,3,4,5\n");
+        assert_eq!(
+            parse_performance_profile(&missing_field).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let empty_field =
+            format!("{header}\np,certified,test device,1,2,,4,5,KRN-PERF-001;KRN-PERF-002\n");
+        assert_eq!(
+            parse_performance_profile(&empty_field).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let non_numeric =
+            format!("{header}\np,certified,test device,NaN,2,3,4,5,KRN-PERF-001;KRN-PERF-002\n");
+        assert_eq!(
+            parse_performance_profile(&non_numeric).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let missing_traceability =
+            format!("{header}\np,certified,test device,1,2,3,4,5,KRN-PERF-001\n");
+        assert_eq!(
+            parse_performance_profile(&missing_traceability).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
 }

@@ -651,6 +651,155 @@ mod tests {
         fs::remove_file(&path).unwrap();
     }
 
+    #[test]
+    fn malformed_trace_pack_records_all_structure_failures() {
+        let path = temp_path("malformed-structure");
+        fs::write(
+            &path,
+            concat!(
+                "\n",
+                "{\"type\":\"trace-pack-metadata\",\"case_id\":\"bad.case\",\"scope\":\"wrong\",\"does_not_close\":\"WRONG\"}\n",
+                "{\"type\":\"trace-pack-metadata\",\"case_id\":\"bad.case\",\"scope\":\"wrong\",\"does_not_close\":\"WRONG\"}\n",
+                "{\"type\":\"trace-scenario\",\"case_id\":\"bad.case\",\"masking_assertions\":[]}\n",
+                "{\"type\":\"trace-identity\",\"log_build_mode\":\"debug\",\"support_authorization_verified\":true}\n",
+                "{\"sequence\":0,\"direction\":\"command\",\"data\":{\"type\":\"raw\"}}\n",
+                "{\"sequence\":1,\"direction\":\"response\",\"data\":{\"type\":\"raw\"}}\n",
+                "{\"type\":\"tlv-stream\"}\n",
+                "{\"type\":\"unknown\"}\n"
+            ),
+        )
+        .unwrap();
+
+        let audit = audit_trace_pack(&path).unwrap();
+        let json = trace_pack_audit_json(2, &audit);
+        let markdown = trace_pack_audit_markdown(2, &audit);
+
+        assert_eq!(audit.status, "incomplete");
+        assert_eq!(audit.line_count, 8);
+        assert!(audit
+            .findings
+            .iter()
+            .any(|finding| finding.contains("duplicate case_id")));
+        assert!(audit
+            .findings
+            .iter()
+            .any(|finding| finding.contains("unknown trace-pack JSONL record")));
+        let case_findings = &audit.cases[0].findings;
+        for expected in [
+            "metadata does_not_close must be CERT-OPEN-012",
+            "metadata scope must be repository-controlled pre-lab fixture",
+            "scenario missing expected_step_count",
+            "scenario missing expected_tlv_stream_count",
+            "scenario masking_assertions must include full-apdu-disabled",
+            "trace identity must declare production log_build_mode",
+            "trace identity must declare support_authorization_verified=false",
+        ] {
+            assert!(
+                case_findings.iter().any(|finding| finding == expected),
+                "missing {expected}"
+            );
+        }
+        assert!(case_findings
+            .iter()
+            .any(|finding| finding.contains("command APDU data")));
+        assert!(case_findings
+            .iter()
+            .any(|finding| finding.contains("response APDU body")));
+        assert!(json.contains("\"expected_step_count\":null"));
+        assert!(markdown.contains("## Findings"));
+
+        fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn out_of_order_trace_records_create_incomplete_case() {
+        let path = temp_path("out-of-order");
+        fs::write(
+            &path,
+            concat!(
+                "{\"type\":\"trace-scenario\",\"case_id\":\"late.metadata\",\"expected_step_count\":0,\"expected_tlv_stream_count\":1,\"masking_assertions\":[\"full-apdu-disabled\"]}\n",
+                "{\"type\":\"tlv-stream\"}\n"
+            ),
+        )
+        .unwrap();
+
+        let audit = audit_trace_pack(&path).unwrap();
+
+        assert_eq!(audit.status, "incomplete");
+        assert!(audit.cases[0]
+            .findings
+            .iter()
+            .any(|finding| finding == "scenario appeared before metadata"));
+        assert!(audit.cases[0]
+            .findings
+            .iter()
+            .any(|finding| finding == "missing trace-pack metadata"));
+        assert!(audit.cases[0]
+            .findings
+            .iter()
+            .any(|finding| finding == "missing trace identity"));
+        assert!(audit.cases[0]
+            .findings
+            .iter()
+            .any(|finding| finding == "case contains no command trace records"));
+        assert!(audit.cases[0]
+            .findings
+            .iter()
+            .any(|finding| finding == "case contains no response trace records"));
+
+        fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn non_utf8_and_empty_trace_pack_are_rejected() {
+        let non_utf8 = temp_path("non-utf8");
+        fs::write(&non_utf8, [0xff, 0xfe]).unwrap();
+        let err = audit_trace_pack(&non_utf8).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        fs::remove_file(&non_utf8).unwrap();
+
+        let empty = temp_path("empty");
+        fs::write(&empty, b"\n\n").unwrap();
+        let audit = audit_trace_pack(&empty).unwrap();
+        assert_eq!(audit.status, "missing_or_malformed");
+        assert!(audit
+            .findings
+            .iter()
+            .any(|finding| finding == "trace pack contains no cases"));
+        fs::remove_file(&empty).unwrap();
+    }
+
+    #[test]
+    fn sensitive_trace_line_rejects_all_masking_regressions() {
+        for (idx, (tag, raw)) in [
+            ("57", "123456789012345"),
+            ("9f26", "a1a2a3a4a5a6a7a8"),
+            ("9f10", "010203"),
+            ("9f4b", "deadbeef"),
+            ("9f4c", "aabbcc"),
+            ("91", "1112131415161718"),
+            ("9f18", "25122012345678"),
+            ("86", "00da000001aa"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let path = temp_path(&format!("sensitive-{idx}"));
+            fs::write(
+                &path,
+                format!(
+                    "{{\"type\":\"trace-pack-metadata\",\"case_id\":\"sensitive.{idx}\",\"scope\":\"repository-controlled pre-lab fixture\",\"does_not_close\":\"CERT-OPEN-012\"}}\n{{\"type\":\"trace-scenario\",\"case_id\":\"sensitive.{idx}\",\"expected_step_count\":1,\"expected_tlv_stream_count\":0,\"masking_assertions\":[\"full-apdu-disabled\"]}}\n{{\"type\":\"trace-identity\",\"log_build_mode\":\"production\",\"support_authorization_verified\":false}}\n{{\"sequence\":0,\"direction\":\"command\",\"data\":{{\"type\":\"suppressed\",\"reason\":\"full-apdu-disabled\"}}}}\n{{\"sequence\":1,\"direction\":\"response\",\"data\":{{\"type\":\"suppressed\"}},\"fields\":[{{\"tag\":\"{tag}\",\"value\":\"{raw}\"}}]}}\n"
+                ),
+            )
+            .unwrap();
+            let audit = audit_trace_pack(&path).unwrap();
+            assert_eq!(audit.status, "incomplete");
+            assert!(audit.findings.iter().any(|finding| finding.contains(tag)));
+            assert!(audit.findings.iter().any(|finding| finding.contains(raw)));
+            fs::remove_file(&path).unwrap();
+        }
+    }
+
     fn temp_path(label: &str) -> PathBuf {
         env::temp_dir().join(format!("hyperion-trace-audit-{label}-{}", process::id()))
     }

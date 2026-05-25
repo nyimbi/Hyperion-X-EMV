@@ -239,4 +239,46 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn all_context_failure_fallbacks_are_explicit() {
+        assert_eq!(
+            classify(ApduContext::SelectPse, StatusWord::new(0x6f, 0x00)),
+            StatusAction::Fail {
+                error: KernelError::NoCommonAid
+            }
+        );
+        assert_eq!(
+            classify(ApduContext::SelectAid, StatusWord::new(0x6f, 0x00)),
+            StatusAction::TryNextAid
+        );
+        assert_eq!(
+            classify(ApduContext::Gpo, StatusWord::new(0x69, 0x85)),
+            StatusAction::Fail {
+                error: KernelError::MissingMandatoryTag
+            }
+        );
+        assert_eq!(
+            classify(ApduContext::Verify, StatusWord::new(0x69, 0x83)),
+            StatusAction::Fail {
+                error: KernelError::InvalidArgument
+            }
+        );
+        assert_eq!(
+            classify(
+                ApduContext::InternalAuthenticate,
+                StatusWord::new(0x69, 0x85)
+            ),
+            StatusAction::Fail {
+                error: KernelError::InvalidProfile
+            }
+        );
+        assert_eq!(
+            classify(
+                ApduContext::IssuerScript { critical: false },
+                StatusWord::new(0x6f, 0x00)
+            ),
+            StatusAction::ContinueAfterNonCriticalScriptFailure
+        );
+    }
 }

@@ -276,6 +276,115 @@ mod tests {
 
     #[test]
     fn parses_valid_terminal_types_and_online_capability() {
+        let expected = [
+            (
+                0x11,
+                TerminalOperator::Attended,
+                TerminalLocation::FinancialInstitution,
+                true,
+            ),
+            (
+                0x12,
+                TerminalOperator::Attended,
+                TerminalLocation::FinancialInstitution,
+                true,
+            ),
+            (
+                0x13,
+                TerminalOperator::Attended,
+                TerminalLocation::FinancialInstitution,
+                false,
+            ),
+            (
+                0x14,
+                TerminalOperator::Unattended,
+                TerminalLocation::FinancialInstitution,
+                true,
+            ),
+            (
+                0x15,
+                TerminalOperator::Unattended,
+                TerminalLocation::FinancialInstitution,
+                true,
+            ),
+            (
+                0x16,
+                TerminalOperator::Unattended,
+                TerminalLocation::FinancialInstitution,
+                false,
+            ),
+            (
+                0x21,
+                TerminalOperator::Attended,
+                TerminalLocation::Merchant,
+                true,
+            ),
+            (
+                0x22,
+                TerminalOperator::Attended,
+                TerminalLocation::Merchant,
+                true,
+            ),
+            (
+                0x23,
+                TerminalOperator::Attended,
+                TerminalLocation::Merchant,
+                false,
+            ),
+            (
+                0x24,
+                TerminalOperator::Unattended,
+                TerminalLocation::Merchant,
+                true,
+            ),
+            (
+                0x25,
+                TerminalOperator::Unattended,
+                TerminalLocation::Merchant,
+                true,
+            ),
+            (
+                0x26,
+                TerminalOperator::Unattended,
+                TerminalLocation::Merchant,
+                false,
+            ),
+            (
+                0x34,
+                TerminalOperator::Unattended,
+                TerminalLocation::Cardholder,
+                true,
+            ),
+            (
+                0x35,
+                TerminalOperator::Unattended,
+                TerminalLocation::Cardholder,
+                true,
+            ),
+            (
+                0x36,
+                TerminalOperator::Unattended,
+                TerminalLocation::Cardholder,
+                false,
+            ),
+        ];
+        for (raw, operator, location, online_capable) in expected {
+            let terminal_type = TerminalType::parse(raw).unwrap();
+            assert_eq!(terminal_type.raw(), raw);
+            assert_eq!(terminal_type.operator(), operator);
+            assert_eq!(terminal_type.location(), location);
+            assert_eq!(terminal_type.online_capable(), online_capable);
+            assert_eq!(terminal_type_online_capable(raw).unwrap(), online_capable);
+        }
+        assert_eq!(TerminalOperator::Attended.label(), "attended");
+        assert_eq!(TerminalOperator::Unattended.label(), "unattended");
+        assert_eq!(
+            TerminalLocation::FinancialInstitution.label(),
+            "financial-institution"
+        );
+        assert_eq!(TerminalLocation::Merchant.label(), "merchant");
+        assert_eq!(TerminalLocation::Cardholder.label(), "cardholder");
+
         let attended_merchant = TerminalType::parse(0x22).unwrap();
         assert_eq!(attended_merchant.raw(), 0x22);
         assert_eq!(attended_merchant.operator(), TerminalOperator::Attended);
@@ -346,9 +455,13 @@ mod tests {
         assert!(capabilities.dda_supported());
         assert!(!capabilities.card_capture_supported());
         assert!(capabilities.cda_supported());
-        assert!(TERMINAL_CAPABILITY_BITS
+        let bit_summary = TERMINAL_CAPABILITY_BITS
             .iter()
-            .any(|bit| bit.name() == "icc-with-contacts"));
+            .map(|bit| (bit.byte_index(), bit.mask(), bit.name()))
+            .collect::<Vec<_>>();
+        assert!(bit_summary.contains(&(0, 0x20, "icc-with-contacts")));
+        assert!(bit_summary.contains(&(2, 0x08, "cda-supported")));
+        assert_eq!(bit_summary.len(), 12);
     }
 
     #[test]
@@ -365,5 +478,13 @@ mod tests {
             TerminalCapabilities::parse(&[0xe0, 0xb0]).unwrap_err(),
             KernelError::ParseError
         );
+    }
+
+    #[test]
+    fn terminal_capability_bit_constructor_preserves_catalogue_fields() {
+        let bit = TerminalCapabilityBit::new(2, 0x40, "offline PIN");
+        assert_eq!(bit.byte_index(), 2);
+        assert_eq!(bit.mask(), 0x40);
+        assert_eq!(bit.name(), "offline PIN");
     }
 }

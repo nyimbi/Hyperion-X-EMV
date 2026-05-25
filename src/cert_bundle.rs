@@ -2581,6 +2581,246 @@ mod tests {
         assert_eq!(err, KernelError::InvalidProfile);
     }
 
+    fn policy_with_anchors(
+        anchors_json: &str,
+        installed_rollback_counter: u64,
+    ) -> BundleLoadPolicy {
+        BundleLoadPolicy {
+            mode: BuildMode::Certification,
+            installed_rollback_counter,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 25,
+            },
+            trust_anchors: parse_trust_anchors(anchors_json.as_bytes()).unwrap(),
+        }
+    }
+
+    fn empty_report() -> BundleCompileReport {
+        BundleCompileReport {
+            status: "pass",
+            mode: BuildMode::Certification,
+            findings: Vec::new(),
+            coverage: Vec::new(),
+            bundle_sha256: None,
+            payload_sha256: None,
+            scheme_profile_sha256: None,
+            vector_bundle_sha256: None,
+            verification_status: None,
+        }
+    }
+
+    #[test]
+    fn compile_report_explains_empty_malformed_and_load_failure_inputs() {
+        let policy = BundleLoadPolicy {
+            mode: BuildMode::Certification,
+            installed_rollback_counter: 1,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 25,
+            },
+            trust_anchors: Vec::new(),
+        };
+        let empty = certification_bundle_compile_report(b"", b"", &policy);
+        assert_eq!(empty.status, "fail");
+        assert!(empty
+            .findings
+            .iter()
+            .any(|finding| finding.field_path == "bundle_json"));
+        assert!(empty
+            .findings
+            .iter()
+            .any(|finding| finding.field_path == "trust_anchors_json"));
+
+        let malformed = certification_bundle_compile_report(b"{}", b"{}", &policy);
+        assert_eq!(malformed.status, "fail");
+        assert!(malformed
+            .findings
+            .iter()
+            .any(|finding| finding.title == "Bundle schema validation failed"));
+        assert!(malformed
+            .findings
+            .iter()
+            .any(|finding| finding.title == "Trust-anchor validation failed"));
+
+        let (bundle_json, anchors_json) = create_bundle_from_inputs(input()).unwrap();
+        let load_failure = certification_bundle_compile_report(
+            bundle_json.as_bytes(),
+            anchors_json.as_bytes(),
+            &policy_with_anchors(&anchors_json, 2),
+        );
+        assert_eq!(load_failure.status, "fail");
+        assert!(load_failure
+            .findings
+            .iter()
+            .any(|finding| finding.title == "Bundle compile/authentication failed"));
+        assert!(!load_failure.coverage.is_empty());
+    }
+
+    #[test]
+    fn lint_report_covers_policy_warnings_without_authenticating_mutated_payloads() {
+        let (bundle_json, anchors_json) = create_bundle_from_inputs(input()).unwrap();
+        let mut bundle = parse_certification_bundle(bundle_json.as_bytes()).unwrap();
+        bundle.bundle_class = BundleClass::Testing;
+        bundle.rollback_counter = 1;
+        bundle.created = EmvDate {
+            year: 99,
+            month: 1,
+            day: 1,
+        };
+        bundle.payload.standards_target.bulletins_included.clear();
+        bundle.payload.runtime_policy.trace_masking_policy = "redaction-disabled".to_string();
+        bundle.payload.artifact_hashes.truncate(1);
+        bundle.payload.vector_bundle_json = "{}".to_string();
+        bundle.signature.algorithm = CERTIFICATION_BUNDLE_TEST_ALGORITHM.to_string();
+
+        let mut report = empty_report();
+        let policy = policy_with_anchors(&anchors_json, 1);
+        lint_parsed_bundle(&mut report, &bundle, &policy);
+        finalize_compile_status(&mut report);
+
+        assert_eq!(report.status, "fail");
+        for title in [
+            "Testing bundle selected outside test mode",
+            "Rollback counter is not newer than installed policy",
+            "Bundle creation date is after evaluation date",
+            "No standards bulletin reconciliation is present",
+            "Trace masking policy does not declare masking",
+            "Few artifact bindings are present",
+            "Vector bundle is malformed or incomplete",
+        ] {
+            assert!(
+                report.findings.iter().any(|finding| finding.title == title),
+                "missing {title}"
+            );
+        }
+    }
+
+    #[test]
+    fn trust_anchor_lint_flags_empty_fixture_and_expired_anchors() {
+        let mut report = empty_report();
+        let policy = BundleLoadPolicy {
+            mode: BuildMode::Certification,
+            installed_rollback_counter: 1,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 25,
+            },
+            trust_anchors: Vec::new(),
+        };
+        lint_trust_anchors(&mut report, &[], &policy);
+        assert!(report
+            .findings
+            .iter()
+            .any(|finding| finding.title == "No trust anchors are provisioned"));
+
+        let (_, anchors_json) = create_bundle_from_inputs(input()).unwrap();
+        let mut anchors = parse_trust_anchors(anchors_json.as_bytes()).unwrap();
+        anchors[0].not_after = Some(EmvDate {
+            year: 25,
+            month: 1,
+            day: 1,
+        });
+        lint_trust_anchors(&mut report, &anchors, &policy);
+        assert!(report
+            .findings
+            .iter()
+            .any(|finding| finding.title == "Fixture verification key is still present"));
+        assert!(report
+            .findings
+            .iter()
+            .any(|finding| finding.title == "Trust anchor has expired for the evaluation date"));
+    }
+
+    #[test]
+    fn vector_status_and_report_status_cover_all_outcomes() {
+        assert_eq!(certification_vector_bundle_status("not json"), "incomplete");
+        assert_eq!(certification_vector_bundle_status("[]"), "incomplete");
+        assert_eq!(certification_vector_bundle_status("{}"), "incomplete");
+        assert_eq!(
+            certification_vector_bundle_status(
+                "{\"vector_class\":\"TESTING\",\"cases\":[{\"id\":\"fixture\"}]}"
+            ),
+            "external_required"
+        );
+        assert_eq!(
+            certification_vector_bundle_status("{\"vector_class\":\"CERTIFICATION\",\"cases\":[]}"),
+            "external_required"
+        );
+        assert_eq!(
+            certification_vector_bundle_status(
+                "{\"vector_class\":\"CERTIFICATION\",\"test_vectors\":[{\"name\":\"sda dda cda\"}]}"
+            ),
+            "covered"
+        );
+
+        let mut report = empty_report();
+        finalize_compile_status(&mut report);
+        assert_eq!(report.status, "pass");
+        let markdown = certification_bundle_compile_report_markdown(&report);
+        assert!(markdown.contains("No findings."));
+
+        report.coverage.push(coverage_status_item(
+            "oda_vectors",
+            "ODA",
+            "role",
+            "source",
+            "external_required",
+            "suggestion",
+        ));
+        finalize_compile_status(&mut report);
+        assert_eq!(report.status, "warn");
+
+        push_finding(
+            &mut report,
+            BundleLintSeverity::Error,
+            "x",
+            "bad",
+            "impact",
+            "suggestion",
+        );
+        finalize_compile_status(&mut report);
+        assert_eq!(report.status, "fail");
+    }
+
+    #[test]
+    fn parsers_reject_oversized_empty_and_schema_invalid_inputs() {
+        let policy = BundleLoadPolicy {
+            mode: BuildMode::Certification,
+            installed_rollback_counter: 1,
+            evaluation_date: EmvDate {
+                year: 26,
+                month: 5,
+                day: 25,
+            },
+            trust_anchors: Vec::new(),
+        };
+        assert_eq!(
+            load_certification_bundle(b"", &policy).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        assert_eq!(
+            parse_trust_anchors(b"").unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        assert_eq!(
+            parse_certification_bundle(b"{\"schema_version\":\"wrong\"}").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_trust_anchors(b"{\"schema_version\":\"wrong\",\"trust_anchors\":[]}")
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_trust_anchors(b"{\"schema_version\":\"hyperion-certification-trust-anchors-1.0\",\"trust_anchors\":[]}").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+    }
+
     #[test]
     fn workbench_contains_local_static_editor() {
         let (bundle_json, anchors_json) = create_bundle_from_inputs(input()).unwrap();

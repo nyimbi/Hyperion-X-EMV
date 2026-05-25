@@ -116,3 +116,131 @@ impl fmt::Display for KernelError {
 }
 
 impl std::error::Error for KernelError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_table_codes_names_descriptions_and_display_are_complete() {
+        let expected = [
+            (
+                KernelError::Ok,
+                0,
+                "KRN_OK",
+                "operation completed successfully",
+                "ok",
+            ),
+            (
+                KernelError::InvalidArgument,
+                1,
+                "KRN_ERR_INVALID_ARGUMENT",
+                "an ABI argument, state, or value is invalid",
+                "invalid argument",
+            ),
+            (
+                KernelError::BufferTooSmall,
+                2,
+                "KRN_ERR_BUFFER_TOO_SMALL",
+                "caller output buffer is too small",
+                "buffer too small",
+            ),
+            (
+                KernelError::ParseError,
+                3,
+                "KRN_ERR_PARSE_ERROR",
+                "input data could not be parsed deterministically",
+                "parse error",
+            ),
+            (
+                KernelError::LengthOverflow,
+                4,
+                "KRN_ERR_LENGTH_OVERFLOW",
+                "input or output exceeds a bounded kernel limit",
+                "length overflow",
+            ),
+            (
+                KernelError::UnsupportedCdaRequest,
+                5,
+                "KRN_ERR_UNSUPPORTED_CDA_REQUEST",
+                "requested CDA encoding is unsupported",
+                "unsupported CDA request",
+            ),
+            (
+                KernelError::InvalidProfile,
+                6,
+                "KRN_ERR_INVALID_PROFILE",
+                "signed profile data is missing, invalid, or rejected",
+                "invalid profile",
+            ),
+            (
+                KernelError::MissingMandatoryTag,
+                7,
+                "KRN_ERR_MISSING_MANDATORY_TAG",
+                "mandatory EMV data object is absent or malformed",
+                "missing mandatory tag",
+            ),
+            (
+                KernelError::NoCommonAid,
+                8,
+                "KRN_ERR_NO_COMMON_AID",
+                "no mutually supported application identifier was found",
+                "no common AID",
+            ),
+            (
+                KernelError::CardRemoved,
+                9,
+                "KRN_ERR_CARD_REMOVED",
+                "card transport failed or the card became unavailable",
+                "card removed",
+            ),
+            (
+                KernelError::HostTimeout,
+                10,
+                "KRN_ERR_HOST_TIMEOUT",
+                "online host response timed out",
+                "host timeout",
+            ),
+            (
+                KernelError::ScriptFailed,
+                11,
+                "KRN_ERR_SCRIPT_FAILED",
+                "critical issuer script processing failed",
+                "script failed",
+            ),
+            (
+                KernelError::Busy,
+                12,
+                "KRN_ERR_BUSY",
+                "context is already processing another operation",
+                "kernel busy",
+            ),
+            (
+                KernelError::RngFailure,
+                13,
+                "KRN_ERR_RNG_FAILURE",
+                "platform RNG callback failed or returned weak output",
+                "RNG failure",
+            ),
+            (
+                KernelError::InternalError,
+                255,
+                "KRN_ERR_INTERNAL",
+                "unexpected internal kernel error",
+                "internal error",
+            ),
+        ];
+
+        assert_eq!(ERROR_TABLE.len(), expected.len());
+        for (error, code, name, description, display) in expected {
+            assert!(ERROR_TABLE.contains(&error));
+            assert_eq!(error.code(), code);
+            assert_eq!(KernelError::from_code(code), Some(error));
+            assert_eq!(error.name(), name);
+            assert_eq!(error.description(), description);
+            assert_eq!(error.to_string(), display);
+        }
+        assert_eq!(KernelError::from_code(-1), None);
+        assert_eq!(KernelError::from_code(254), None);
+    }
+}

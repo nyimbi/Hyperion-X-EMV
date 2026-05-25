@@ -677,6 +677,92 @@ mod tests {
     }
 
     #[test]
+    fn limit_and_relay_decisions_map_to_all_contactless_outcomes() {
+        for (
+            decision,
+            expected_code,
+            expected_start,
+            expected_ui,
+            expected_restart,
+            expected_alt,
+        ) in [
+            (
+                ContactlessLimitDecision::Allowed,
+                ContactlessOutcomeCode::Approved,
+                StartSignal::None,
+                UiStatus::Approved,
+                false,
+                AlternateInterface::None,
+            ),
+            (
+                ContactlessLimitDecision::CvmRequired,
+                ContactlessOutcomeCode::CvmRequired,
+                StartSignal::Prompt,
+                UiStatus::Processing,
+                true,
+                AlternateInterface::None,
+            ),
+            (
+                ContactlessLimitDecision::OnlineRequired,
+                ContactlessOutcomeCode::OnlineRequired,
+                StartSignal::None,
+                UiStatus::None,
+                false,
+                AlternateInterface::None,
+            ),
+            (
+                ContactlessLimitDecision::AlternateInterface,
+                ContactlessOutcomeCode::AlternateInterface,
+                StartSignal::Prompt,
+                UiStatus::Error,
+                false,
+                AlternateInterface::Contact,
+            ),
+        ] {
+            let outcome = outcome_from_limit_decision(decision).unwrap();
+            assert_eq!(outcome.outcome_code, expected_code);
+            assert_eq!(outcome.start_signal, expected_start);
+            assert_eq!(outcome.ui.status, expected_ui);
+            assert_eq!(outcome.restart_required, expected_restart);
+            assert_eq!(outcome.alternate_interface, expected_alt);
+        }
+
+        for (failure, expected_code, expected_start, expected_ui, expected_restart, expected_alt) in [
+            (
+                RelayResistanceFailureOutcome::TryAgain,
+                ContactlessOutcomeCode::TryAgain,
+                StartSignal::Prompt,
+                UiStatus::TryAgain,
+                true,
+                AlternateInterface::None,
+            ),
+            (
+                RelayResistanceFailureOutcome::AlternateInterface,
+                ContactlessOutcomeCode::AlternateInterface,
+                StartSignal::Prompt,
+                UiStatus::Error,
+                false,
+                AlternateInterface::Contact,
+            ),
+            (
+                RelayResistanceFailureOutcome::Terminate,
+                ContactlessOutcomeCode::Terminate,
+                StartSignal::None,
+                UiStatus::Error,
+                false,
+                AlternateInterface::None,
+            ),
+        ] {
+            let outcome = outcome_from_relay_resistance_failure(failure).unwrap();
+            assert_eq!(outcome.outcome_code, expected_code);
+            assert_eq!(outcome.start_signal, expected_start);
+            assert_eq!(outcome.ui.status, expected_ui);
+            assert_eq!(outcome.restart_required, expected_restart);
+            assert_eq!(outcome.alternate_interface, expected_alt);
+        }
+    }
+
+    #[test]
     fn parses_terminal_transaction_qualifiers_as_profile_defined_bitmap() {
         let ttq = TerminalTransactionQualifiers::parse(&[0x36, 0x00, 0x40, 0x00]).unwrap();
 
@@ -815,5 +901,81 @@ mod tests {
             .unwrap_err(),
             KernelError::InvalidProfile
         );
+    }
+
+    #[test]
+    fn contactless_outcome_rejects_restart_and_prompt_mismatches() {
+        assert_eq!(
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::Approved,
+                StartSignal::Prompt,
+                UiRequest {
+                    message_id: 1,
+                    status: UiStatus::Approved,
+                    hold_time_ms: 0,
+                },
+                true,
+                &[],
+                &[],
+                AlternateInterface::None,
+            )
+            .unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert_eq!(
+            ContactlessOutcome::new(
+                ContactlessOutcomeCode::CvmRequired,
+                StartSignal::Prompt,
+                UiRequest {
+                    message_id: 2,
+                    status: UiStatus::Processing,
+                    hold_time_ms: 0,
+                },
+                false,
+                &[],
+                &[],
+                AlternateInterface::None,
+            )
+            .unwrap_err(),
+            KernelError::InvalidArgument
+        );
+        assert!(ContactlessOutcome::new(
+            ContactlessOutcomeCode::SelectNext,
+            StartSignal::Restart,
+            UiRequest::none(),
+            true,
+            &[],
+            &[],
+            AlternateInterface::None,
+        )
+        .is_ok());
+        assert!(ContactlessOutcome::new(
+            ContactlessOutcomeCode::ProfileDefined,
+            StartSignal::None,
+            UiRequest::none(),
+            false,
+            &[],
+            &[],
+            AlternateInterface::None,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn relay_resistance_command_apdu_accepts_exact_lc_forms() {
+        assert!(RelayResistanceProfile::new(
+            vec![0x80, 0xca, 0x9f, 0x7a, 0x02, 0xaa, 0xbb],
+            50,
+            vec![0x90, 0x00],
+            RelayResistanceFailureOutcome::TryAgain,
+        )
+        .is_ok());
+        assert!(RelayResistanceProfile::new(
+            vec![0x80, 0xca, 0x9f, 0x7a, 0x02, 0xaa, 0xbb, 0x00],
+            50,
+            vec![0x90, 0x00],
+            RelayResistanceFailureOutcome::TryAgain,
+        )
+        .is_ok());
     }
 }

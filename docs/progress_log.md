@@ -1,3 +1,12 @@
+
+## 2026-05-25T20:00:00Z
+
+- Increment in progress: raise executable coverage toward the mandatory 100% line gate without weakening the threshold or excluding production code.
+- Code impact: added targeted tests for public FFI error/buffer/build/masking/export boundaries, certification bundle parsing/lint/compile edge cases, coverage package metadata validation, trace-pack structural and masking failures, terminal/status/bitmap helpers, contactless outcome consistency, and performance-profile rejection modes.
+- Serializer hardening: replaced impossible private hex-nibble fallback arms in report-plan JSON helpers with masked table encoding and added explicit escaping coverage for quotes, backslashes, control characters, and non-ASCII bytes.
+- Verification: `cargo fmt --check`, `cargo test`, `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D warnings`, `git diff --check`, and `cargo run --quiet --example krn_coverage_package_audit -- --root target/coverage` pass. `scripts/coverage_100.sh` executes the full suite and still fails at the enforced 100% threshold with 96.25% line coverage and 920 missed lines.
+- Remaining risk: the mandatory 100% coverage gate is not yet green; largest remaining misses are concentrated in `src/ffi.rs`, `src/cert_bundle.rs`, `src/config.rs`, `src/trace.rs`, `src/cvm.rs`, `src/oda.rs`, `src/fsm.rs`, and evidence/reporting helpers.
+
 # Hyperion EMV Kernel Progress Log
 
 This log records certification-hardening increments, evidence, and open risks.

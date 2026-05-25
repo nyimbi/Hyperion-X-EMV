@@ -591,11 +591,9 @@ pub unsafe extern "C" fn krn_set_terminal_capabilities(
     if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
-    let capabilities = TerminalCapabilities::parse(&[byte1, byte2, byte3]);
-    ctx.terminal_capabilities = match capabilities {
-        Ok(capabilities) => Some(capabilities),
-        Err(err) => return ctx.set_result(Err(err)),
-    };
+    let capabilities = TerminalCapabilities::parse(&[byte1, byte2, byte3])
+        .expect("fixed-length terminal capabilities must parse");
+    ctx.terminal_capabilities = Some(capabilities);
     ctx.set_result(Ok(0usize))
 }
 
@@ -624,11 +622,9 @@ pub unsafe extern "C" fn krn_set_additional_terminal_capabilities(
     if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
-    let capabilities = AdditionalTerminalCapabilities::parse(&[byte1, byte2, byte3, byte4, byte5]);
-    ctx.additional_terminal_capabilities = match capabilities {
-        Ok(capabilities) => Some(capabilities),
-        Err(err) => return ctx.set_result(Err(err)),
-    };
+    let capabilities = AdditionalTerminalCapabilities::parse(&[byte1, byte2, byte3, byte4, byte5])
+        .expect("fixed-length additional terminal capabilities must parse");
+    ctx.additional_terminal_capabilities = Some(capabilities);
     ctx.set_result(Ok(0usize))
 }
 
@@ -655,11 +651,9 @@ pub unsafe extern "C" fn krn_set_terminal_transaction_qualifiers(
     if mark_reentrant_call(ctx) {
         return KernelError::Busy.code();
     }
-    let ttq = TerminalTransactionQualifiers::parse(&[byte1, byte2, byte3, byte4]);
-    ctx.terminal_transaction_qualifiers = match ttq {
-        Ok(ttq) => Some(ttq),
-        Err(err) => return ctx.set_result(Err(err)),
-    };
+    let ttq = TerminalTransactionQualifiers::parse(&[byte1, byte2, byte3, byte4])
+        .expect("fixed-length terminal transaction qualifiers must parse");
+    ctx.terminal_transaction_qualifiers = Some(ttq);
     ctx.set_result(Ok(0usize))
 }
 
@@ -4291,6 +4285,199 @@ mod tests {
     }
 
     #[test]
+    fn ffi_boundary_rejects_null_bad_abi_busy_and_bad_setter_inputs() {
+        unsafe {
+            assert_eq!(
+                krn_init(ptr::null(), ptr::null(), ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+
+            let mut out_ctx = ptr::null_mut();
+            let bad_cfg = KrnConfigBlob {
+                abi_version: KRN_ABI_VERSION + 1,
+                struct_size: mem::size_of::<KrnConfigBlob>() as u32,
+                bytes: ptr::null(),
+                len: 0,
+            };
+            assert_eq!(
+                krn_init(&bad_cfg, ptr::null(), &mut out_ctx),
+                KernelError::InvalidArgument.code()
+            );
+            assert!(out_ctx.is_null());
+
+            assert_eq!(
+                krn_reset(ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_last_error(ptr::null()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(krn_get_fsm_state(ptr::null()), FsmState::Se.code());
+
+            let mut ctx = KrnContext::new();
+            ctx.last_error = KernelError::HostTimeout;
+            assert_eq!(krn_get_last_error(&ctx), KernelError::HostTimeout.code());
+            ctx.busy = true;
+            assert_eq!(krn_reset(&mut ctx), KernelError::Busy.code());
+            ctx.busy = false;
+            ctx.last_error = KernelError::HostTimeout;
+            ctx.state = KernelState::FinalOutcome;
+            assert_eq!(krn_reset(&mut ctx), KernelError::Ok.code());
+            assert_eq!(ctx.last_error, KernelError::Ok);
+            assert_eq!(ctx.state, KernelState::Idle);
+
+            let mut policy = KrnCallbackTimeoutPolicy {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnCallbackTimeoutPolicy>() as u32,
+                min_timeout_ms: 0,
+                max_timeout_ms: 0,
+                apdu_transport_timeout_ms: 0,
+                host_authorization_timeout_ms: 0,
+                pin_entry_timeout_ms: 0,
+                contactless_ui_timeout_ms: 0,
+            };
+            assert_eq!(
+                krn_get_context_callback_timeout_policy(ptr::null(), ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            policy.abi_version = KRN_ABI_VERSION + 1;
+            assert_eq!(
+                krn_get_context_callback_timeout_policy(&ctx, &mut policy),
+                KernelError::InvalidArgument.code()
+            );
+            policy.abi_version = KRN_ABI_VERSION;
+            policy.struct_size = 0;
+            assert_eq!(
+                krn_get_context_callback_timeout_policy(&ctx, &mut policy),
+                KernelError::InvalidArgument.code()
+            );
+            policy.struct_size = mem::size_of::<KrnCallbackTimeoutPolicy>() as u32;
+            ctx.callback_timeouts.apdu_transport_timeout_ms = 4_321;
+            assert_eq!(
+                krn_get_context_callback_timeout_policy(&ctx, &mut policy),
+                KernelError::Ok.code()
+            );
+            assert_eq!(policy.apdu_transport_timeout_ms, 4_321);
+
+            assert_eq!(
+                krn_set_transaction_params(ptr::null_mut(), ptr::null()),
+                KernelError::InvalidArgument.code()
+            );
+            for call in [
+                krn_set_terminal_capabilities(ptr::null_mut(), 0, 0, 0),
+                krn_set_additional_terminal_capabilities(ptr::null_mut(), 0, 0, 0, 0, 0),
+                krn_set_terminal_transaction_qualifiers(ptr::null_mut(), 0, 0, 0, 0),
+                krn_set_nonvolatile_offline_counter(ptr::null_mut(), 0),
+                krn_set_trm_random_selection_sample(ptr::null_mut(), 0),
+                krn_set_cvm_capabilities(ptr::null_mut(), 0, 0, 0),
+                krn_set_offline_pin_capability(ptr::null_mut(), 0),
+                krn_set_offline_pin_handle(ptr::null_mut(), KRN_PIN_METHOD_OFFLINE_PLAINTEXT, 1),
+            ] {
+                assert_eq!(call, KernelError::InvalidArgument.code());
+            }
+
+            ctx.busy = true;
+            assert_eq!(
+                krn_set_terminal_capabilities(&mut ctx, 0xe0, 0xb0, 0xc8),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_additional_terminal_capabilities(&mut ctx, 0, 0, 0, 0, 0),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_terminal_transaction_qualifiers(&mut ctx, 0, 0, 0, 0),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_nonvolatile_offline_counter(&mut ctx, 1),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_trm_random_selection_sample(&mut ctx, 1),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_cvm_capabilities(&mut ctx, 1, 0, 0),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_offline_pin_capability(&mut ctx, 1),
+                KernelError::Busy.code()
+            );
+            assert_eq!(
+                krn_set_offline_pin_handle(&mut ctx, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, 1),
+                KernelError::Busy.code()
+            );
+            ctx.busy = false;
+
+            assert_eq!(
+                krn_set_terminal_capabilities(&mut ctx, 0xe0, 0xb0, 0xc8),
+                KernelError::Ok.code()
+            );
+            assert_eq!(
+                krn_set_additional_terminal_capabilities(&mut ctx, 0x70, 0x80, 0xf0, 0xf0, 0xff),
+                KernelError::Ok.code()
+            );
+            assert_eq!(
+                krn_set_terminal_transaction_qualifiers(&mut ctx, 0x36, 0, 0x40, 0),
+                KernelError::Ok.code()
+            );
+            assert_eq!(
+                krn_set_nonvolatile_offline_counter(&mut ctx, 7),
+                KernelError::Ok.code()
+            );
+            assert_eq!(ctx.offline_counter.unwrap().count, 7);
+            assert_eq!(
+                krn_set_trm_random_selection_sample(&mut ctx, 10_000),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_trm_random_selection_sample(&mut ctx, 9_999),
+                KernelError::Ok.code()
+            );
+            assert_eq!(ctx.trm_random_sample_basis_points, Some(9_999));
+            assert_eq!(
+                krn_set_cvm_capabilities(&mut ctx, 2, 0, 0),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_cvm_capabilities(&mut ctx, 1, 1, 1),
+                KernelError::Ok.code()
+            );
+            assert!(ctx.cvm_capabilities.online_pin_supported);
+            assert!(ctx.cvm_capabilities.signature_supported);
+            assert!(ctx.cvm_capabilities.cdcvm_performed);
+            assert_eq!(
+                krn_set_offline_pin_capability(&mut ctx, 2),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_offline_pin_capability(&mut ctx, 1),
+                KernelError::Ok.code()
+            );
+            assert!(ctx.cvm_capabilities.offline_pin_supported);
+            assert_eq!(
+                krn_set_offline_pin_handle(&mut ctx, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, 0),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_offline_pin_handle(&mut ctx, 0xff, 1),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_set_offline_pin_handle(&mut ctx, KRN_PIN_METHOD_OFFLINE_PLAINTEXT, 1),
+                KernelError::Ok.code()
+            );
+            assert_eq!(
+                krn_set_offline_pin_handle(&mut ctx, KRN_PIN_METHOD_OFFLINE_ENCIPHERED, 2),
+                KernelError::Ok.code()
+            );
+        }
+    }
+
+    #[test]
     fn apdu_transport_timeout_comes_from_active_context_policy() {
         let mut ctx = KrnContext::new();
         ctx.callback_timeouts.apdu_transport_timeout_ms = 1_237;
@@ -6289,6 +6476,397 @@ mod tests {
             assert_eq!(len, 20);
             assert_eq!(krn_get_last_error(ctx), KernelError::BufferTooSmall.code());
             krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_builds_generate_ac_and_internal_authenticate_boundaries() {
+        unsafe {
+            let ctx = krn_context_new();
+            let mut out = [0u8; 64];
+            let mut len = out.len();
+
+            assert_eq!(
+                krn_build_generate_ac(
+                    ptr::null_mut(),
+                    2,
+                    ptr::null(),
+                    0,
+                    0,
+                    out.as_mut_ptr(),
+                    &mut len,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_build_generate_ac(ctx, 2, ptr::null(), 1, 0, out.as_mut_ptr(), &mut len),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_build_generate_ac(ctx, 9, ptr::null(), 0, 0, out.as_mut_ptr(), &mut len),
+                KernelError::InvalidArgument.code()
+            );
+
+            for (request, expected_p1) in [(0, 0x00), (1, 0x40), (2, 0x80)] {
+                len = out.len();
+                assert_eq!(
+                    krn_build_generate_ac(
+                        ctx,
+                        request,
+                        ptr::null(),
+                        0,
+                        0,
+                        out.as_mut_ptr(),
+                        &mut len,
+                    ),
+                    KernelError::Ok.code()
+                );
+                assert_eq!(&out[..5], &[0x80, 0xae, expected_p1, 0x00, 0x00]);
+                assert_eq!(len, 5);
+            }
+
+            let cdol_values = [0x9f, 0x37, 0x04, 0xaa, 0xbb, 0xcc, 0xdd];
+            len = out.len();
+            assert_eq!(
+                krn_build_generate_ac(
+                    ctx,
+                    2,
+                    cdol_values.as_ptr(),
+                    cdol_values.len(),
+                    0x10,
+                    out.as_mut_ptr(),
+                    &mut len,
+                ),
+                KernelError::Ok.code()
+            );
+            assert_eq!(&out[..5], &[0x80, 0xae, 0x90, 0x00, 0x07]);
+            assert_eq!(&out[5..12], &cdol_values);
+            assert_eq!(out[12], 0x00);
+            assert_eq!(len, 13);
+
+            assert_eq!(
+                krn_build_internal_authenticate(
+                    ptr::null_mut(),
+                    ptr::null(),
+                    0,
+                    out.as_mut_ptr(),
+                    &mut len,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_build_internal_authenticate(ctx, ptr::null(), 1, out.as_mut_ptr(), &mut len),
+                KernelError::InvalidArgument.code()
+            );
+            len = out.len();
+            assert_eq!(
+                krn_build_internal_authenticate(ctx, ptr::null(), 0, out.as_mut_ptr(), &mut len),
+                KernelError::Ok.code()
+            );
+            assert_eq!(&out[..5], &[0x00, 0x88, 0x00, 0x00, 0x00]);
+            assert_eq!(len, 5);
+
+            let ddol_values = [0x01, 0x02, 0x03, 0x04];
+            len = out.len();
+            assert_eq!(
+                krn_build_internal_authenticate(
+                    ctx,
+                    ddol_values.as_ptr(),
+                    ddol_values.len(),
+                    out.as_mut_ptr(),
+                    &mut len,
+                ),
+                KernelError::Ok.code()
+            );
+            assert_eq!(&out[..5], &[0x00, 0x88, 0x00, 0x00, 0x04]);
+            assert_eq!(&out[5..9], &ddol_values);
+            assert_eq!(out[9], 0x00);
+            assert_eq!(len, 10);
+
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_trace_and_conformance_exports_cover_error_and_success_paths() {
+        unsafe {
+            let mut out = [0u8; 512];
+            let mut len = out.len();
+
+            assert_eq!(krn_abi_version(), KRN_ABI_VERSION);
+            assert_eq!(
+                krn_context_as_opaque(ptr::null_mut()),
+                ptr::null_mut::<c_void>()
+            );
+            assert_eq!(
+                krn_error_code_at(0, ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+
+            assert_eq!(
+                krn_mask_apdu_response_json(
+                    9,
+                    ptr::null(),
+                    0,
+                    0x90,
+                    0x00,
+                    false,
+                    out.as_mut_ptr(),
+                    &mut len,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+
+            let response = first_gac_arqc_response();
+            let response_body = &response[..response.len() - 2];
+            len = out.len();
+            assert_eq!(
+                krn_mask_apdu_response_json(
+                    1,
+                    response_body.as_ptr(),
+                    response_body.len(),
+                    0x90,
+                    0x00,
+                    false,
+                    out.as_mut_ptr(),
+                    &mut len,
+                ),
+                KernelError::Ok.code()
+            );
+            let json = core::str::from_utf8(&out[..len]).unwrap();
+            assert!(json.contains("generate-ac-response"));
+            assert!(json.contains("9000"));
+
+            len = 0;
+            assert_eq!(
+                krn_get_conformance_statement_json(ptr::null_mut(), &mut len),
+                KernelError::BufferTooSmall.code()
+            );
+            assert!(len > 0);
+            let mut json = vec![0u8; len];
+            assert_eq!(
+                krn_get_conformance_statement_json(json.as_mut_ptr(), &mut len),
+                KernelError::Ok.code()
+            );
+            assert!(core::str::from_utf8(&json)
+                .unwrap()
+                .contains("Hyperion EMV Level 2 Kernel"));
+
+            assert_eq!(
+                krn_error_description(9_999, out.as_mut_ptr(), &mut len),
+                KernelError::InvalidArgument.code()
+            );
+        }
+    }
+
+    #[test]
+    fn ffi_accessors_reject_null_missing_runtime_and_missing_results() {
+        unsafe {
+            let ctx = krn_context_new();
+
+            assert_eq!(
+                krn_run_transaction(ptr::null_mut()),
+                KrnOutcome::Error.code()
+            );
+            assert_eq!(krn_get_final_outcome(ptr::null()), KrnOutcome::Error.code());
+            assert_eq!(krn_get_issuer_script_result_count(ptr::null()), 0);
+            assert_eq!(krn_get_issuer_script_result_count(ctx), 0);
+
+            let mut sw1 = 0u8;
+            let mut sw2 = 0u8;
+            assert_eq!(
+                krn_get_issuer_script_result(ptr::null_mut(), 0, &mut sw1, &mut sw2),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_issuer_script_result(ctx, 0, ptr::null_mut(), &mut sw2),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_issuer_script_result(ctx, 0, &mut sw1, &mut sw2),
+                KernelError::InvalidArgument.code()
+            );
+
+            assert_eq!(
+                krn_process_issuer_authentication(ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_process_issuer_authentication(ctx),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_process_issuer_scripts(ctx),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_process_post_final_issuer_scripts(ctx),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_process_final_generate_ac(ctx),
+                KernelError::InvalidArgument.code()
+            );
+
+            let mut version = 0u64;
+            assert_eq!(
+                krn_get_profile_version(ptr::null_mut(), &mut version),
+                KernelError::InvalidArgument.code()
+            );
+            let mut digest = [0u8; KRN_PROFILE_SHA256_LEN];
+            let mut digest_len = digest.len();
+            assert_eq!(
+                krn_get_profile_sha256(ptr::null_mut(), digest.as_mut_ptr(), &mut digest_len),
+                KernelError::InvalidArgument.code()
+            );
+
+            assert_eq!(
+                krn_set_contactless_outcome_callback(ptr::null_mut(), None, ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_emit_contactless_outcome(
+                    ptr::null_mut(),
+                    ContactlessOutcomeCode::OnlineRequired as u8,
+                    StartSignal::Start as u8,
+                    0,
+                    UiStatus::Processing as u8,
+                    0,
+                    0,
+                    ptr::null(),
+                    0,
+                    ptr::null(),
+                    0,
+                    AlternateInterface::None as u8,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_profile_and_bundle_loaders_cover_null_and_digest_error_paths() {
+        unsafe {
+            assert_eq!(
+                krn_load_profiles_verified(ptr::null_mut(), ptr::null(), 0, 1, 2, 26, 5, 21),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_load_certification_bundle_verified(
+                    ptr::null_mut(),
+                    ptr::null(),
+                    0,
+                    ptr::null(),
+                    0,
+                    0,
+                    26,
+                    5,
+                    25,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+
+            let ctx = krn_context_new();
+            assert_eq!(
+                krn_load_profiles_verified(ctx, ptr::null(), 1, 1, 2, 26, 5, 21),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_load_certification_bundle_verified(
+                    ctx,
+                    ptr::null(),
+                    1,
+                    ptr::null(),
+                    0,
+                    0,
+                    26,
+                    5,
+                    25,
+                ),
+                KernelError::InvalidArgument.code()
+            );
+
+            let mut out = [0u8; KRN_PROFILE_SHA256_LEN];
+            let mut len = out.len();
+            assert_eq!(
+                krn_get_certification_bundle_sha256(ptr::null(), out.as_mut_ptr(), &mut len),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_certification_bundle_sha256(ctx, ptr::null_mut(), &mut len),
+                KernelError::InvalidArgument.code()
+            );
+            assert_eq!(
+                krn_get_certification_bundle_sha256(ctx, out.as_mut_ptr(), ptr::null_mut()),
+                KernelError::InvalidArgument.code()
+            );
+            len = out.len() - 1;
+            assert_eq!(
+                krn_get_certification_bundle_sha256(ctx, out.as_mut_ptr(), &mut len),
+                KernelError::BufferTooSmall.code()
+            );
+            assert_eq!(len, KRN_PROFILE_SHA256_LEN);
+            len = out.len();
+            assert_eq!(
+                krn_get_certification_bundle_sha256(ctx, out.as_mut_ptr(), &mut len),
+                KernelError::InvalidProfile.code()
+            );
+
+            krn_context_free(ctx);
+        }
+    }
+
+    #[test]
+    fn ffi_low_level_helpers_cover_length_and_encoding_edges() {
+        assert_eq!(encoded_length_size(0x7f), 1);
+        assert_eq!(encoded_length_size(0x80), 2);
+        assert_eq!(encoded_length_size(0x100), 3);
+
+        let mut out = Vec::new();
+        assert_eq!(append_tlv(&mut out, &[0x9f, 0x10], &[0xaa; 0x7f]), Ok(()));
+        assert_eq!(out[2], 0x7f);
+        out.clear();
+        assert_eq!(append_tlv(&mut out, &[0x9f, 0x10], &[0xbb; 0x80]), Ok(()));
+        assert_eq!(&out[2..4], &[0x81, 0x80]);
+        out.clear();
+        assert_eq!(append_tlv(&mut out, &[0x9f, 0x10], &[0xcc; 0x100]), Ok(()));
+        assert_eq!(&out[2..5], &[0x82, 0x01, 0x00]);
+
+        for bad_tag in [&[][..], &[0x01, 0x02, 0x03, 0x04, 0x05][..]] {
+            out.clear();
+            assert_eq!(
+                append_tlv(&mut out, bad_tag, &[]).unwrap_err(),
+                KernelError::LengthOverflow
+            );
+        }
+
+        out.clear();
+        assert_eq!(
+            encode_length(&mut out, usize::from(u16::MAX) + 1).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+
+        unsafe {
+            let cfg = KrnConfigBlob {
+                abi_version: KRN_ABI_VERSION,
+                struct_size: mem::size_of::<KrnConfigBlob>() as u32,
+                bytes: ptr::null(),
+                len: 1,
+            };
+            assert_eq!(
+                validate_config_blob(&cfg).unwrap_err(),
+                KernelError::InvalidArgument
+            );
+            assert!(matches!(
+                read_runtime(ptr::null()),
+                Err(KernelError::InvalidArgument)
+            ));
+            assert_eq!(
+                read_transaction_params(ptr::null()).unwrap_err(),
+                KernelError::InvalidArgument
+            );
         }
     }
 

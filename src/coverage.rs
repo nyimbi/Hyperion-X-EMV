@@ -558,6 +558,115 @@ mod tests {
         fs::remove_dir_all(&root).unwrap();
     }
 
+    #[test]
+    fn malformed_metadata_and_missing_files_report_all_blockers() {
+        let root = temp_root("malformed-missing-files");
+        if root.exists() {
+            fs::remove_dir_all(&root).unwrap();
+        }
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("metadata.json"), b"{not json}").unwrap();
+
+        let audit = audit_coverage_package(&root).unwrap();
+        let json = coverage_package_audit_json(2, &audit);
+        let markdown = coverage_package_audit_markdown(2, &audit);
+
+        assert_eq!(audit.status, "missing_or_malformed");
+        assert_eq!(audit.metadata_status, "malformed");
+        assert!(audit
+            .findings
+            .iter()
+            .any(|finding| finding.contains("README.txt")));
+        assert!(audit
+            .findings
+            .iter()
+            .any(|finding| finding.contains("html/index.html")));
+        assert!(audit
+            .findings
+            .iter()
+            .any(|finding| finding.contains("metadata field `type` is missing")));
+        assert!(json.contains("\"metadata\":null"));
+        assert!(json.contains("\"sha256\":null"));
+        assert!(markdown.contains("## Findings"));
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn metadata_validator_reports_each_required_boolean_and_path_field() {
+        let root = temp_root("bad-fields");
+        write_coverage_package(&root, false, 100).unwrap();
+        fs::write(
+            root.join("metadata.json"),
+            "{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"unknown\",\"cargo_version\":\"cargo 1\",\"rustc_version\":\"rustc 1\",\"target_triple\":\"target\",\"coverage_tool_version\":\"tool\",\"workspace\":false,\"all_targets\":false,\"all_features\":false,\"line_coverage_threshold\":0,\"coverage_enforced\":false,\"html_report\":\"wrong/html\",\"readme\":\"wrong/README.txt\",\"open_issue\":\"WRONG\",\"does_not_close\":\"WRONG\"}",
+        )
+        .unwrap();
+
+        let audit = audit_coverage_package(&root).unwrap();
+
+        assert_eq!(audit.status, "incomplete");
+        for expected in [
+            "metadata source_commit must name the submitted source commit",
+            "metadata workspace must be true",
+            "metadata all_targets must be true",
+            "metadata all_features must be true",
+            "metadata line_coverage_threshold must be 100",
+            "metadata html_report must be target/coverage/html",
+            "metadata readme must be target/coverage/README.txt",
+            "metadata open_issue must be CERT-OPEN-009",
+            "metadata does_not_close must be CERT-OPEN-009",
+        ] {
+            assert!(
+                audit.findings.iter().any(|finding| finding == expected),
+                "missing {expected}"
+            );
+        }
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn audit_json_escapes_findings_and_metadata_values() {
+        let audit = CoveragePackageAudit {
+            root: "target/coverage\nroot".to_string(),
+            status: "incomplete",
+            boundary: "coverage boundary",
+            metadata_status: "parsed",
+            metadata: Some(CoverageMetadata {
+                metadata_type: "hyperion-coverage-report-metadata".to_string(),
+                source_commit: "abc\\def\"ghi".to_string(),
+                cargo_version: "cargo\t1".to_string(),
+                rustc_version: "rustc\r1".to_string(),
+                target_triple: "target".to_string(),
+                coverage_tool_version: "tool".to_string(),
+                workspace: true,
+                all_targets: true,
+                all_features: true,
+                line_coverage_threshold: 100,
+                coverage_enforced: true,
+                html_report: "target/coverage/html".to_string(),
+                readme: "target/coverage/README.txt".to_string(),
+                open_issue: "CERT-OPEN-009".to_string(),
+                does_not_close: "CERT-OPEN-009".to_string(),
+            }),
+            files: vec![CoverageAuditFile {
+                path: "metadata.json",
+                status: "present",
+                size_bytes: 1,
+                sha256: Some("hash".to_string()),
+            }],
+            findings: vec!["quote \" slash \\ newline\n tab\t".to_string()],
+        };
+
+        let json = coverage_package_audit_json(2, &audit);
+
+        assert!(json.contains("target/coverage\\nroot"));
+        assert!(json.contains("abc\\\\def\\\"ghi"));
+        assert!(json.contains("cargo\\t1"));
+        assert!(json.contains("rustc\\r1"));
+        assert!(json.contains("quote \\\" slash \\\\ newline\\n tab\\t"));
+    }
+
     fn temp_root(label: &str) -> PathBuf {
         env::temp_dir().join(format!("hyperion-coverage-audit-{label}-{}", process::id()))
     }

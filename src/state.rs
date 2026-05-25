@@ -174,4 +174,22 @@ mod tests {
         assert_eq!(tsi.bytes(), [0x10, 0]);
         assert!(!tsi.is_set((1, 0xff)));
     }
+
+    #[test]
+    fn invalid_bitmap_indexes_are_ignored_for_set_clear_and_lookup() {
+        let mut tvr = Tvr::cleared();
+        tvr.set((usize::MAX, 0xff));
+        tvr.clear((usize::MAX, 0xff));
+        assert_eq!(tvr.bytes(), [0; 5]);
+        assert!(!tvr.is_set((usize::MAX, 0xff)));
+
+        tvr.set(Tvr::B1_SDA_FAILED);
+        tvr.clear(Tvr::B1_SDA_FAILED);
+        assert_eq!(tvr.bytes(), [0; 5]);
+
+        let mut tsi = Tsi::cleared();
+        tsi.set((usize::MAX, 0xff));
+        assert_eq!(tsi.bytes(), [0; 2]);
+        assert!(!tsi.is_set((usize::MAX, 0xff)));
+    }
 }

@@ -522,11 +522,8 @@ fn push_json_string(out: &mut String, value: &str) {
 }
 
 fn hex_nibble(value: u8) -> char {
-    match value {
-        0..=9 => (b'0' + value) as char,
-        10..=15 => (b'a' + value - 10) as char,
-        _ => '0',
-    }
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    HEX[usize::from(value & 0x0f)] as char
 }
 
 #[cfg(test)]
@@ -557,5 +554,18 @@ mod tests {
         assert!(markdown.contains("TOOL-REPORT-WORKBENCH"));
         assert!(markdown.contains("External Evidence Still Required"));
         assert!(markdown.contains("CERT-OPEN-009"));
+    }
+
+    #[test]
+    fn json_string_escape_helper_covers_control_and_non_ascii_bytes() {
+        let mut out = String::new();
+        push_json_string(
+            &mut out,
+            "quote\" slash\\ line\ncarriage\rtab\t high\x1f byte\u{00ff}",
+        );
+        assert_eq!(
+            out,
+            "\"quote\\\" slash\\\\ line\\ncarriage\\rtab\\t high\\u001f byte\\u00c3\\u00bf\""
+        );
     }
 }
