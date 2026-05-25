@@ -49,5 +49,6 @@ pub mod trace;
 pub mod trace_audit;
 pub mod transaction;
 pub mod trm;
+pub mod wizard;
 
 pub use error::{KernelError, KernelResult};

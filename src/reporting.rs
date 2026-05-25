@@ -837,6 +837,12 @@ const TOOL_COMMANDS: &[ToolCommand] = &[
         output: "target/hyperion-cert-bundle-tui/certification_bundle.json, trust_anchors.json, and index.html",
     },
     ToolCommand {
+        id: "CERTIFICATION-WIZARD",
+        title: "Guided wizard for a certifiable kernel candidate workspace",
+        command: "cargo run --quiet --example krn_certification_wizard -- --non-interactive --out target/hyperion-certification-wizard",
+        output: "target/hyperion-certification-wizard/wizard_plan.md, bundle/index.html, artifacts/, commands.md, and next_steps.md",
+    },
+    ToolCommand {
         id: "FREEZE",
         title: "Emit certification freeze manifest",
         command: "cargo run --quiet --example krn_certification_freeze_manifest -- --out docs",

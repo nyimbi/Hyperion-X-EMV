@@ -103,6 +103,9 @@ jobs:
       - name: Certification attachment audit smoke
         run: cargo run --quiet --example krn_certification_attachment_audit -- --root target/hyperion-cert-attachments
 
+      - name: Certification wizard smoke
+        run: cargo run --quiet --example krn_certification_wizard -- --non-interactive --out target/hyperion-certification-wizard
+
       - name: Certification artifact import JSON drift
         run: cargo run --quiet --example krn_certification_artifact_import -- --plan-json | diff -u docs/certification_artifact_import_plan.json -
 

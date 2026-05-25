@@ -6115,3 +6115,31 @@ decision record, while this file tracks work toward certification readiness.
   `cargo test --examples`, `cargo clippy --all-targets --all-features -- -D
   warnings`, `scripts/coverage_100.sh`, and `git diff --check` passed. Enforced
   LCOV source line coverage is 100% (29,299/29,299 lines).
+
+
+## 2026-05-26T03:11:34+0300
+
+- Increment completed: added a guided certification wizard that prepares a user
+  to create a certifiable Hyperion kernel candidate workspace from this codebase.
+- Code impact: added `src/wizard.rs` as an orchestration layer over the existing
+  signed data-bundle compiler, trust-anchor loader, workbench generator,
+  artifact adapter lanes, integration-manifest template, quality commands, and
+  report workspace tooling. Added `examples/krn_certification_wizard.rs` for
+  interactive onboarding and non-interactive CI smoke generation. The CLI avoids
+  terminal prompting for private key material; wrapper-provided signing material
+  can be supplied through `HYPERION_CERT_WIZARD_SIGNING_KEY_HEX`, and generated
+  workspace files do not contain the signing private key.
+- Tooling impact: registered the wizard in the README, data-bundle tutorial,
+  lab submission manifest, report pack/UI, tooling completeness audit, pre-lab
+  quality manifest, CI smoke checks, traceability assertions, and build
+  provenance command.
+- Evidence scope: the wizard creates a certifiable-kernel candidate workspace,
+  not certification approval. EMVCo, scheme, acquirer, device/L1, PCI/PED, CAPK,
+  official vector, trace acceptance, signed conformance, and final approval
+  evidence remain external gates.
+- Verification: `cargo fmt --check`, wizard library tests, wizard example test,
+  non-interactive wizard smoke run, deterministic pre-lab/tooling/report drift
+  checks, `cargo test`, `cargo test --examples`, `cargo clippy --all-targets
+  --all-features -- -D warnings`, `scripts/coverage_100.sh`, and `git diff
+  --check` passed. Enforced LCOV source line coverage is 100% (29,752/29,752
+  lines).

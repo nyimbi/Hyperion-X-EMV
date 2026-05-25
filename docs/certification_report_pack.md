@@ -201,7 +201,7 @@
 | ID | Title | Category | Path | Size Bytes | SHA-256 |
 | --- | --- | --- | --- | --- | --- |
 | SPEC | Kernel specification | requirements | `docs/spec.md` | 26556 | `b2eb8c6da7327387270f34a131f49465f3b5410bf411c9fe9938e575c31bd238` |
-| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 18704 | `68eecdbaf5091f22085085499812cd13354dcc2cb31f0c620d6377ddb56d5770` |
+| LAB-MANIFEST | Lab submission manifest | submission | `docs/lab_submission_manifest.md` | 19243 | `3489788daa7c5c2cfc500e65493f86e6d8482bd73defbfabc87e41b085f0e449` |
 | RTM-PRIMARY | Primary requirements traceability matrix | requirements | `docs/requirements_traceability.csv` | 80442 | `a40082389323c3b8774c804d25f78f1f6e72842f5f23e41f73c02cf4b119ef7c` |
 | RTM-COMPAT | Compatibility requirements traceability matrix | requirements | `docs/requirements-traceability-matrix.csv` | 82829 | `c9462424a1438d56ee5a97bbe4ab795b1ef93d77ccfe774607293298fa45b627` |
 | OPEN-ISSUES | Certification open issues register | submission | `docs/certification_open_issues.md` | 4529 | `c7fc37edf040a1fae97c91563c167b4e97a8610e81c2c78d1fd71b215a51d8b5` |
@@ -223,14 +223,14 @@
 | TRACE-PACK | Masked pre-lab APDU trace fixture | trace | `docs/prelab_apdu_trace_pack.jsonl` | 12154 | `e63c080e01a400262adfd4e05f5bf2be65fb8dfb5fe5b8834f8edefbd1d0d438` |
 | TRACE-AUDIT-JSON | Trace-pack audit JSON | trace | `docs/prelab_trace_pack_audit.json` | 1902 | `02b1ea6edd16609dd8cb9e1d0e6ef1dfba94785e56a7f5819a1d8d0fcddff4e4` |
 | TRACE-AUDIT-MD | Trace-pack audit Markdown | trace | `docs/prelab_trace_pack_audit.md` | 1095 | `2c5da076ff45e91efe3f4a4bdda70ac797045dfd758bd365603890cb6e5febb2` |
-| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 15674 | `6f2cf43e8cdee4be1baba99a6565fd640e7b3f81e61e0ea1a9556e020887a02d` |
+| QUALITY-GATES | Pre-lab quality gate manifest | quality | `docs/prelab_quality_gates.json` | 15958 | `9bc120578d77082b5a04d456d48eefcb42990d3eec50bec6a2afabe1c0e98bf4` |
 | NO-CRASH | Parser/APDU no-crash smoke artifact | quality | `docs/prelab_no_crash_smoke.json` | 3116 | `1a319359ff4bbcd6dbfa52add672c793d8e97dfca8adebf2b15b9230f56ff18d` |
 | STATIC-FUZZ-PLAN | Static and fuzz evidence plan | quality | `docs/prelab_static_fuzz_plan.json` | 3852 | `5627b0771442d45d124d1931003b713030cc5e39738a4c8553ad485c1cfd2c0a` |
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
 | PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 8198 | `9ab2e21422d09cc1e53418b98f205ec48c81b436b94d4496352822bbbdb09979` |
 | PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9948 | `d0b8a57e905dbea44bd17b066c2765f9b339bbea122b2843a251d08a870d12e3` |
-| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 25324 | `c9ba8c0c1f09eaae9b3d16f5f33434c97bdae97bc7a1c235d455d85c418e3454` |
-| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 20878 | `5164fddda606fe6f9eff283b964c244d9abba22953ad3977cd969ae08d9cd82c` |
+| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 25549 | `241a1a4293abb28339dd60e2e398e3f27c22e433c8d3d1c45eeece15d75fe1b6` |
+| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 21100 | `16f9b79d1ec90f7b1315648ae5ef47132fa1c7e8aa092ae3c90cf7bed29555de` |
 | ARTIFACT-IMPORT-JSON | Certification artifact import plan JSON | submission | `docs/certification_artifact_import_plan.json` | 3432 | `256aef5483e0664824f4e515fedd053e84d413869a87585f69c7a54c76d30bbf` |
 | ARTIFACT-IMPORT-MD | Certification artifact import plan Markdown | submission | `docs/certification_artifact_import_plan.md` | 2714 | `5d0da9ddcf3eed43346446c73fa96c9d894311538604060def9c9f67115048a0` |
 | EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
@@ -249,7 +249,7 @@
 | COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5216 | `e35d975a9696772bb7e84c455117f1d6696c1434f7d0b4ea19cb6bcfb7c68e6d` |
 | COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 3826 | `f1bd812ad7a3463259857615dcb39e2e86b43f5e8bb358fc94ee65fc151e1511` |
 | TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3446 | `225552c261103d82bc930c64ed1c1bebb1449195bd420e971238308ffc769b39` |
-| TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 29231 | `b50409a6a463b5290d97de6d5547d3c211e55ca5c27df55ac1b22d77c94a4346` |
+| TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 29791 | `a4742c8cb15d28e80f5949583510ef37fb73869e1b79e753df20bb6a418df3ea` |
 | TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |
 
 ### Artifact File Inventory Exclusions
@@ -319,6 +319,7 @@
 | TRACE-AUDIT | Audit masked APDU trace pack | `cargo run --quiet --example krn_trace_pack_audit -- --path docs/prelab_apdu_trace_pack.jsonl` | `stdout JSON trace-pack audit` |
 | DATA-BUNDLE | Generate data-driven certification bundle and workbench | `cargo run --quiet --example krn_certification_bundle -- --out target/hyperion-cert-bundle` | `target/hyperion-cert-bundle/certification_bundle.json, trust_anchors.json, index.html, bundle_fingerprints.json, and certification_bundle_lint.json` |
 | DATA-BUNDLE-TUI | Interactive TUI provisioner for certification bundle data | `cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui` | `target/hyperion-cert-bundle-tui/certification_bundle.json, trust_anchors.json, and index.html` |
+| CERTIFICATION-WIZARD | Guided wizard for a certifiable kernel candidate workspace | `cargo run --quiet --example krn_certification_wizard -- --non-interactive --out target/hyperion-certification-wizard` | `target/hyperion-certification-wizard/wizard_plan.md, bundle/index.html, artifacts/, commands.md, and next_steps.md` |
 | FREEZE | Emit certification freeze manifest | `cargo run --quiet --example krn_certification_freeze_manifest -- --out docs` | `docs/certification_freeze_manifest.json and .md` |
 | SECURITY | Emit certification security assessment plan | `cargo run --quiet --example krn_certification_security_assessment_plan -- --out docs` | `docs/certification_security_assessment_plan.json and .md` |
 | DEVICE | Emit certification device evidence plan | `cargo run --quiet --example krn_certification_device_evidence_plan -- --out docs` | `docs/certification_device_evidence_plan.json and .md` |

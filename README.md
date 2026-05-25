@@ -221,7 +221,19 @@ and illustrates the fields every author must understand:
    cargo run --quiet --example krn_certification_bundle -- --lint --bundle docs/certification_data_bundle.json --trust-anchors docs/certification_data_bundle_trust_anchors.json
    ```
 
-8. For terminal-only provisioning, use the TUI:
+8. For guided preparation, use the certification wizard. It asks for scope, device, authority, scheme, and signing inputs, then writes a candidate bundle, workbench, artifact intake folders, manifest template, commands, and next steps:
+
+   ```sh
+   cargo run --quiet --example krn_certification_wizard -- --out target/hyperion-certification-wizard
+   ```
+
+   For CI or scripted onboarding, run it without prompts:
+
+   ```sh
+   cargo run --quiet --example krn_certification_wizard -- --non-interactive --out target/hyperion-certification-wizard
+   ```
+
+9. For terminal-only bundle provisioning, use the lower-level TUI:
 
    ```sh
    cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui

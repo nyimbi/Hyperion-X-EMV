@@ -310,7 +310,20 @@ notes, compiled JSON, and lint suggestions. Treat the workbench as a local GUI.
 Do not paste private signing keys, real PANs, issuer secrets, or proprietary lab
 vectors into a hosted page or shared browser session.
 
-### 3. Use The TUI For Terminal-Only Provisioning
+### 3. Use The Wizard For Guided Candidate Preparation
+
+```sh
+cargo run --quiet --example krn_certification_wizard -- --out target/hyperion-certification-wizard
+```
+
+The wizard asks for the candidate scope, interfaces, schemes, authorities,
+device identity, firmware identity, external evidence references, and local
+signing identity. It then writes a bundle, trust anchors, browser workbench,
+artifact intake lanes, integration manifest template, validation commands, and
+next-step runbook. Use `--non-interactive` for CI smoke tests or scripted
+onboarding.
+
+### 4. Use The TUI For Terminal-Only Provisioning
 
 ```sh
 cargo run --quiet --example krn_certification_bundle_tui -- --out target/hyperion-cert-bundle-tui
