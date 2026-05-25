@@ -322,6 +322,33 @@ mod tests {
     }
 
     #[test]
+    fn auc_distinguishes_domestic_and_international_services_bits() {
+        let domestic_services = ApplicationUsageControl::new([0x09, 0x00]);
+        assert!(domestic_services.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Services,
+            TerminalChannel::OtherThanAtm
+        ));
+        assert!(!domestic_services.allows(
+            TransactionRegion::International,
+            ServiceType::Services,
+            TerminalChannel::OtherThanAtm
+        ));
+
+        let international_services = ApplicationUsageControl::new([0x05, 0x00]);
+        assert!(international_services.allows(
+            TransactionRegion::International,
+            ServiceType::Services,
+            TerminalChannel::OtherThanAtm
+        ));
+        assert!(!international_services.allows(
+            TransactionRegion::Domestic,
+            ServiceType::Services,
+            TerminalChannel::OtherThanAtm
+        ));
+    }
+
+    #[test]
     fn evaluates_version_dates_auc_and_new_card_bits() {
         let mut input = base_input();
         input.transaction_date = EmvDate::from_bcd([0x31, 0x01, 0x01]).unwrap();

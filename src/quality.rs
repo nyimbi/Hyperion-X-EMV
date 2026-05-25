@@ -1314,3 +1314,18 @@ fn push_json_string(out: &mut String, value: &str) {
     }
     out.push('"');
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quality_json_escapes_control_characters() {
+        let mut out = String::new();
+        push_json_string(&mut out, "quote\" slash\\ line\ncarriage\rtab\t nul\x00");
+        assert_eq!(
+            out,
+            "\"quote\\\" slash\\\\ line\\ncarriage\\rtab\\t nul\\u0000\""
+        );
+    }
+}

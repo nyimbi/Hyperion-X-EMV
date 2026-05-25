@@ -528,6 +528,16 @@ mod tests {
     }
 
     #[test]
+    fn rejects_private_ber_lengths_outside_short_apdu_domain() {
+        let mut encoded = Vec::new();
+        assert_eq!(
+            append_ber_length(&mut encoded, 0x100).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        assert!(encoded.is_empty());
+    }
+
+    #[test]
     fn validates_read_record_sfi() {
         assert_eq!(
             read_record(2, 3).unwrap().encode().unwrap(),

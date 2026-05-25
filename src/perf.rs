@@ -222,6 +222,17 @@ mod tests {
     }
 
     #[test]
+    fn ignores_blank_lines_in_performance_profiles() {
+        let mut profile = PERFORMANCE_PROFILE.to_string();
+        profile.push_str("\n   \n\n");
+        let targets = parse_performance_profile(&profile).unwrap();
+        assert_eq!(
+            targets,
+            parse_performance_profile(PERFORMANCE_PROFILE).unwrap()
+        );
+    }
+
+    #[test]
     fn rejects_malformed_or_incomplete_performance_profiles() {
         assert_eq!(
             parse_performance_profile("").unwrap_err(),

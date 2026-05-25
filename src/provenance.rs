@@ -360,4 +360,18 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn provenance_json_escapes_control_characters() {
+        let mut out = String::new();
+        push_json_str(
+            &mut out,
+            "key",
+            "quote\" slash\\ line\ncarriage\rtab\t nul\x00",
+        );
+        assert_eq!(
+            out,
+            "\"key\":\"quote\\\" slash\\\\ line\\ncarriage\\rtab\\t nul\\u0000\""
+        );
+    }
 }

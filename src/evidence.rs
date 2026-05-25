@@ -839,11 +839,8 @@ fn push_json_string(out: &mut String, value: &str) {
 }
 
 fn hex_nibble(value: u8) -> char {
-    match value {
-        0..=9 => (b'0' + value) as char,
-        10..=15 => (b'a' + value - 10) as char,
-        _ => '0',
-    }
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    HEX[usize::from(value & 0x0f)] as char
 }
 
 #[cfg(test)]
@@ -998,5 +995,63 @@ mod tests {
         assert!(markdown.contains("Rejected Unmapped Attachments"));
 
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn evidence_json_escapes_control_non_ascii_and_multiple_items() {
+        let mut out = String::new();
+        push_json_string(
+            &mut out,
+            "quote\" slash\\ line\ncarriage\rtab\t high\x1f byte\u{00ff}",
+        );
+        assert_eq!(
+            out,
+            "\"quote\\\" slash\\\\ line\\ncarriage\\rtab\\t high\\u001f byte\\u00c3\\u00bf\""
+        );
+
+        let audit = CertificationAttachmentAudit {
+            root: "root".to_string(),
+            slots: vec![
+                CertificationAttachmentSlotAudit {
+                    open_issue: "CERT-OPEN-001",
+                    area: "one",
+                    required_attachment: "one",
+                    required_metadata: "metadata",
+                    acceptance_gate: "gate",
+                    status: "missing",
+                    attachments: vec![],
+                    rejected_attachments: vec![],
+                },
+                CertificationAttachmentSlotAudit {
+                    open_issue: "CERT-OPEN-002",
+                    area: "two",
+                    required_attachment: "two",
+                    required_metadata: "metadata",
+                    acceptance_gate: "gate",
+                    status: "present_unreviewed_with_rejections",
+                    attachments: vec![CertificationAttachment {
+                        path: "CERT-OPEN-002/report.txt".to_string(),
+                        size_bytes: 4,
+                        sha256: to_hex(&sha256(b"data")),
+                    }],
+                    rejected_attachments: vec![CertificationAttachmentRejection {
+                        path: "CERT-OPEN-002/link".to_string(),
+                        reason: "symlink",
+                    }],
+                },
+            ],
+            unmapped_attachments: vec![CertificationAttachment {
+                path: "unknown.bin".to_string(),
+                size_bytes: 1,
+                sha256: to_hex(&sha256(b"x")),
+            }],
+            rejected_unmapped_attachments: vec![CertificationAttachmentRejection {
+                path: "bad/link".to_string(),
+                reason: "unsupported-file-type",
+            }],
+        };
+        let json = certification_attachment_audit_json(2, &audit);
+        assert!(json.contains("present_unreviewed_with_rejections"));
+        assert!(json.contains("rejected_unmapped_attachments"));
     }
 }

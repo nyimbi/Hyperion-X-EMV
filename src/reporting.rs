@@ -1310,11 +1310,8 @@ fn push_html_text(out: &mut String, value: &str) {
 }
 
 fn hex_nibble(value: u8) -> char {
-    match value {
-        0..=9 => (b'0' + value) as char,
-        10..=15 => (b'a' + value - 10) as char,
-        _ => '0',
-    }
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    HEX[usize::from(value & 0x0f)] as char
 }
 
 #[cfg(test)]
@@ -1393,5 +1390,25 @@ mod tests {
         assert!(markdown.contains("pending external attachment"));
         assert!(markdown.contains("cargo run --quiet --example krn_basic_pos"));
         assert!(markdown.contains("cargo run --quiet --example krn_callback_timeout_policy"));
+    }
+
+    #[test]
+    fn report_serializers_escape_json_html_and_reject_bad_trace_rows() {
+        let mut json = String::new();
+        push_json_string(
+            &mut json,
+            "quote\" slash\\ line\ncarriage\rtab\t high\x1f byte\u{00ff}",
+        );
+        assert_eq!(
+            json,
+            "\"quote\\\" slash\\\\ line\\ncarriage\\rtab\\t high\\u001f byte\\u00c3\\u00bf\""
+        );
+
+        let mut html = String::new();
+        push_html_text(&mut html, "<tag attr='x'>&value</tag>");
+        assert_eq!(html, "&lt;tag attr='x'&gt;&amp;value&lt;/tag&gt;");
+
+        assert!(requirement_trace_row("not-a-krn,row").is_none());
+        assert!(requirement_trace_row("KRN-X,too,few").is_none());
     }
 }

@@ -1321,6 +1321,96 @@ mod tests {
     }
 
     #[test]
+    fn support_trace_paths_emit_only_policy_authorized_artifacts() {
+        let support_policy = LogPolicy {
+            build_mode: LogBuildMode::Development,
+            support_authorization: SupportAuthorization::Verified,
+            full_apdu: true,
+            track2_debug_hash: true,
+            transaction_cryptograms: true,
+        };
+
+        let cryptogram = mask_tlv_value(&[0x9f, 0x26], &[0xde, 0xad, 0xbe, 0xef], support_policy);
+        assert_eq!(cryptogram.value, MaskedValue::Hex("deadbeef".to_string()));
+
+        let track2 = mask_tlv_value(&[0x57], &[0x12, 0x34, 0x56, 0x7d], support_policy);
+        let MaskedValue::DebugHash { hash64, .. } = track2.value else {
+            panic!("support trace should emit a debug hash for track2");
+        };
+
+        let stream = TlvStreamTrace {
+            sequence: 17,
+            context: TlvTraceContext::HostResponse,
+            fields: vec![
+                MaskedField {
+                    tag: vec![0x57],
+                    value: MaskedValue::DebugHash { len: 4, hash64 },
+                },
+                MaskedField {
+                    tag: vec![0x9f, 0x10],
+                    value: MaskedValue::Hex("quote\" slash\\ line\nctl\x1f".to_string()),
+                },
+            ],
+        };
+        let debug = format!("{stream:?}");
+        assert!(debug.contains("field_count"));
+        assert!(debug.contains("redacted from Debug"));
+        assert!(!debug.contains("quote"));
+
+        let json = stream.to_json();
+        assert!(json.contains("\"type\":\"debug-hash\""));
+        assert!(json.contains(&format!("\"hash64\":\"{hash64:016x}\"")));
+        assert!(json.contains("quote\\\" slash\\\\ line\\nctl\\u001f"));
+
+        for value in [
+            MaskedValue::Pan("************1234".to_string()),
+            MaskedValue::Suppressed("reason"),
+            MaskedValue::DebugHash { len: 4, hash64 },
+        ] {
+            let debug = format!("{value:?}");
+            assert!(!debug.contains("1234"));
+            assert!(!debug.contains(&format!("{hash64:016x}")));
+        }
+    }
+
+    #[test]
+    fn replay_reset_and_current_trace_identity_cover_non_production_identity_json() {
+        let record = ReplayExchange::new(
+            &[0x00, 0xb2, 0x01, 0x14, 0x00],
+            &[],
+            [0x90, 0x00],
+            ApduTraceContext::Generic,
+        )
+        .unwrap();
+        let mut script = ReplayScript::new(vec![record]).unwrap();
+        script.exchange(&[0x00, 0xb2, 0x01, 0x14, 0x00]).unwrap();
+        assert_eq!(script.remaining(), 0);
+        script.reset();
+        assert_eq!(script.remaining(), 1);
+
+        let identity = TraceIdentity::current(3, 77);
+        let certification_jsonl = script
+            .masked_jsonl_with_trace_identity(LogPolicy::certification_support(), &identity)
+            .unwrap();
+        assert!(certification_jsonl.contains("\"log_build_mode\":\"certification\""));
+        assert!(certification_jsonl.contains("\"support_authorization_verified\":true"));
+        assert!(certification_jsonl.contains("\"profile_version\":77"));
+        assert!(!certification_jsonl.contains("profile_sha256"));
+
+        let development_policy = LogPolicy {
+            build_mode: LogBuildMode::Development,
+            support_authorization: SupportAuthorization::Verified,
+            full_apdu: true,
+            track2_debug_hash: false,
+            transaction_cryptograms: false,
+        };
+        let development_jsonl = script
+            .masked_jsonl_with_trace_identity(development_policy, &identity)
+            .unwrap();
+        assert!(development_jsonl.contains("\"log_build_mode\":\"development\""));
+    }
+
+    #[test]
     fn replay_rejects_pin_verify_payload_custody() {
         let err = ReplayExchange::new(
             &[
