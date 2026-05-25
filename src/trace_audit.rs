@@ -569,9 +569,7 @@ mod tests {
     #[test]
     fn missing_trace_pack_reports_missing_without_error() {
         let path = temp_path("missing");
-        if path.exists() {
-            fs::remove_file(&path).unwrap();
-        }
+        let _ = fs::remove_file(&path);
 
         let audit = audit_trace_pack(&path).unwrap();
 
@@ -798,6 +796,94 @@ mod tests {
             assert!(audit.findings.iter().any(|finding| finding.contains(raw)));
             fs::remove_file(&path).unwrap();
         }
+    }
+
+    #[test]
+    fn malformed_records_before_metadata_are_reported() {
+        let path = temp_path("pre-metadata-records");
+        fs::write(
+            &path,
+            concat!(
+                "{\"type\":\"trace-pack-metadata\",\"scope\":\"repository-controlled pre-lab fixture\",\"does_not_close\":\"CERT-OPEN-012\"}\n",
+                "{\"type\":\"trace-scenario\",\"expected_step_count\":0,\"expected_tlv_stream_count\":0,\"masking_assertions\":[\"full-apdu-disabled\"]}\n",
+                "{\"type\":\"trace-identity\",\"log_build_mode\":\"production\",\"support_authorization_verified\":false}\n",
+                "{\"sequence\":0,\"direction\":\"command\",\"data\":{\"type\":\"suppressed\",\"reason\":\"full-apdu-disabled\"}}\n",
+                "{\"sequence\":1,\"direction\":\"response\",\"data\":{\"type\":\"suppressed\"}}\n",
+                "{\"type\":\"tlv-stream\"}\n"
+            ),
+        )
+        .unwrap();
+
+        let audit = audit_trace_pack(&path).unwrap();
+
+        assert_eq!(audit.status, "missing_or_malformed");
+        for expected in [
+            "metadata missing case_id",
+            "scenario missing case_id",
+            "trace identity appeared before case metadata",
+            "command trace appeared before case metadata",
+            "response trace appeared before case metadata",
+            "TLV stream appeared before case metadata",
+        ] {
+            assert!(
+                audit
+                    .findings
+                    .iter()
+                    .any(|finding| finding.contains(expected)),
+                "missing {expected}"
+            );
+        }
+
+        fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn tlv_count_mismatch_is_a_case_finding() {
+        let path = temp_path("tlv-mismatch");
+        fs::write(
+            &path,
+            valid_trace_pack().replace(
+                "\"expected_tlv_stream_count\":0",
+                "\"expected_tlv_stream_count\":1",
+            ),
+        )
+        .unwrap();
+
+        let audit = audit_trace_pack(&path).unwrap();
+
+        assert_eq!(audit.status, "incomplete");
+        assert!(audit.cases[0]
+            .findings
+            .iter()
+            .any(|finding| finding.contains("TLV stream count 0")));
+
+        fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn missing_audit_json_and_json_helpers_cover_null_and_escaping() {
+        let audit = audit_trace_pack(&temp_path("missing-json")).unwrap();
+        let json = trace_pack_audit_json(2, &audit);
+        assert!(json.contains("\"sha256\":null"));
+
+        assert_eq!(
+            json_string_value(r#"{"case_id":"case\"quoted\\slash"}"#, "case_id"),
+            Some("case\"quoted\\slash".to_string())
+        );
+        assert_eq!(
+            json_string_value(r#"{"case_id":"unterminated"#, "case_id"),
+            None
+        );
+
+        let mut out = String::new();
+        push_json_string(
+            &mut out,
+            "quote\" slash\\ line\ncarriage\rtab\t control\u{001f}",
+        );
+        assert_eq!(
+            out,
+            "\"quote\\\" slash\\\\ line\\ncarriage\\rtab\\t control\\u001f\""
+        );
     }
 
     fn temp_path(label: &str) -> PathBuf {

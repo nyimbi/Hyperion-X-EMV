@@ -461,9 +461,7 @@ mod tests {
     #[test]
     fn missing_coverage_package_reports_missing_or_malformed_without_error() {
         let root = temp_root("missing");
-        if root.exists() {
-            fs::remove_dir_all(&root).unwrap();
-        }
+        let _ = fs::remove_dir_all(&root);
 
         let audit = audit_coverage_package(&root).unwrap();
 
@@ -561,9 +559,7 @@ mod tests {
     #[test]
     fn malformed_metadata_and_missing_files_report_all_blockers() {
         let root = temp_root("malformed-missing-files");
-        if root.exists() {
-            fs::remove_dir_all(&root).unwrap();
-        }
+        let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("metadata.json"), b"{not json}").unwrap();
 
@@ -709,17 +705,13 @@ mod tests {
             fs::remove_dir_all(root)?;
         }
         fs::create_dir_all(root.join("html"))?;
-        fs::write(
-            root.join("README.txt"),
-            b"Hyperion-X-EMV 100% coverage report staging directory.",
-        )?;
+        let readme = b"Hyperion-X-EMV 100% coverage report staging directory.";
+        fs::write(root.join("README.txt"), readme)?;
         fs::write(root.join("html/index.html"), b"<html>coverage</html>")?;
-        fs::write(
-            root.join("metadata.json"),
-            format!(
-                "{{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":{threshold},\"coverage_enforced\":{enforced},\"html_report\":\"target/coverage/html\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}}"
-            ),
-        )?;
+        let metadata = format!(
+            "{{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":{threshold},\"coverage_enforced\":{enforced},\"html_report\":\"target/coverage/html\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}}"
+        );
+        fs::write(root.join("metadata.json"), metadata)?;
         Ok(())
     }
 }

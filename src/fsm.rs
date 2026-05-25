@@ -773,4 +773,121 @@ mod tests {
             KernelError::HostTimeout
         );
     }
+
+    #[test]
+    fn state_codes_and_default_cover_all_public_states() {
+        let states = [
+            (FsmState::S0, 0),
+            (FsmState::S1, 1),
+            (FsmState::S2, 2),
+            (FsmState::S2AidList, 3),
+            (FsmState::S2SelectAid, 4),
+            (FsmState::S3, 5),
+            (FsmState::S4, 6),
+            (FsmState::S4Next, 7),
+            (FsmState::S5, 8),
+            (FsmState::S5Cda, 9),
+            (FsmState::S6, 10),
+            (FsmState::S7, 11),
+            (FsmState::S7Retry, 12),
+            (FsmState::S8, 13),
+            (FsmState::S9, 14),
+            (FsmState::S10, 15),
+            (FsmState::S11, 16),
+            (FsmState::S12, 17),
+            (FsmState::S13, 18),
+            (FsmState::S13Script, 19),
+            (FsmState::S14, 20),
+            (FsmState::S15, 21),
+            (FsmState::S16, 22),
+            (FsmState::S15Script, 23),
+            (FsmState::Se, 255),
+        ];
+        for (state, code) in states {
+            assert_eq!(state.code(), code);
+        }
+        assert_eq!(TransactionFsm::default().state(), FsmState::S0);
+    }
+
+    #[test]
+    fn callback_failure_is_explicit_internal_error_transition() {
+        let failed = transition(FsmState::S4, FsmEvent::CallbackFailure).unwrap();
+        assert_eq!(failed.to, FsmState::Se);
+        assert_eq!(failed.action, FsmAction::Error);
+        assert_eq!(failed.error, KernelError::InternalError);
+    }
+
+    #[test]
+    fn annex_validation_rejects_shape_and_unknown_tokens() {
+        const HEADER: &str =
+            "\"Current State\",\"Event\",\"Guard\",\"Next State\",\"Action\",\"Error Code\"\n";
+
+        assert_eq!(
+            validate_state_machine_annex(HEADER).unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            validate_state_machine_annex(
+                &(HEADER.to_owned()
+                    + "\"S0\",\"krn_set_transaction_params()\",\"-\",\"S1\",\"Store amount/currency\"\n")
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            validate_state_machine_annex(
+                &(HEADER.to_owned()
+                    + "\"S0\",\"krn_set_transaction_params()\",\"-\",\"S1\",\"\",\"KRN_OK\"\n")
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            validate_state_machine_annex(
+                &(HEADER.to_owned()
+                    + "\"S0,\"krn_set_transaction_params()\",\"-\",\"S1\",\"Store amount/currency\",\"KRN_OK\"\n")
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            validate_state_machine_annex(
+                &(HEADER.to_owned()
+                    + "\n\"S0\",\"unknown event\",\"-\",\"S1\",\"Store amount/currency\",\"KRN_OK\"\n")
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            validate_state_machine_annex(
+                &(HEADER.to_owned()
+                    + "\"BAD\",\"krn_set_transaction_params()\",\"-\",\"S1\",\"Store amount/currency\",\"KRN_OK\"\n")
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            validate_state_machine_annex(
+                &(HEADER.to_owned()
+                    + "\"S0\",\"krn_set_transaction_params()\",\"-\",\"S1\",\"Unexpected action\",\"KRN_OK\"\n")
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        assert_eq!(
+            validate_state_machine_annex(
+                &(HEADER.to_owned()
+                    + "\"S0\",\"krn_set_transaction_params()\",\"-\",\"S1\",\"Store amount/currency\",\"KRN_ERR_UNKNOWN\"\n")
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+    }
 }

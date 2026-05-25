@@ -208,12 +208,12 @@ pub fn audit_certification_attachments(root: &Path) -> io::Result<CertificationA
             if file_type.is_file() {
                 unmapped_attachments.push(read_certification_attachment(root, &entry.path())?);
             } else if file_type.is_dir() {
-                collect_certification_attachments(
-                    root,
-                    &entry.path(),
+                let path = entry.path();
+                let pair = (
                     &mut unmapped_attachments,
                     &mut rejected_unmapped_attachments,
-                )?;
+                );
+                collect_attachments(root, &path, pair.0, pair.1)?;
             } else {
                 rejected_unmapped_attachments.push(reject_certification_attachment(
                     root,
@@ -362,12 +362,7 @@ fn audit_attachment_slot(
     let mut attachments = Vec::new();
     let mut rejected_attachments = Vec::new();
     if slot_dir.is_dir() {
-        collect_certification_attachments(
-            root,
-            &slot_dir,
-            &mut attachments,
-            &mut rejected_attachments,
-        )?;
+        collect_attachments(root, &slot_dir, &mut attachments, &mut rejected_attachments)?;
         attachments.sort_by(|left, right| left.path.cmp(&right.path));
         rejected_attachments.sort_by(|left, right| left.path.cmp(&right.path));
     }
@@ -389,7 +384,7 @@ fn audit_attachment_slot(
     })
 }
 
-fn collect_certification_attachments(
+fn collect_attachments(
     root: &Path,
     dir: &Path,
     out: &mut Vec<CertificationAttachment>,
@@ -400,7 +395,7 @@ fn collect_certification_attachments(
     for entry in entries {
         let file_type = entry.file_type()?;
         if file_type.is_dir() {
-            collect_certification_attachments(root, &entry.path(), out, rejected)?;
+            collect_attachments(root, &entry.path(), out, rejected)?;
         } else if file_type.is_file() {
             out.push(read_certification_attachment(root, &entry.path())?);
         } else {
@@ -898,9 +893,7 @@ mod tests {
     #[test]
     fn attachment_audit_hashes_mapped_and_unmapped_files() {
         let root = env::temp_dir().join(format!("hyperion-attachment-audit-{}", process::id()));
-        if root.exists() {
-            fs::remove_dir_all(&root).unwrap();
-        }
+        let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("CERT-OPEN-001")).unwrap();
         fs::create_dir_all(root.join("CERT-OPEN-009/coverage")).unwrap();
         fs::create_dir_all(root.join("unmapped")).unwrap();
@@ -930,9 +923,7 @@ mod tests {
     fn absent_attachment_root_yields_missing_slots_without_error() {
         let root =
             env::temp_dir().join(format!("hyperion-attachment-audit-empty-{}", process::id()));
-        if root.exists() {
-            fs::remove_dir_all(&root).unwrap();
-        }
+        let _ = fs::remove_dir_all(&root);
 
         let audit = audit_certification_attachments(&root).unwrap();
 
@@ -954,9 +945,7 @@ mod tests {
             "hyperion-attachment-audit-symlink-{}",
             process::id()
         ));
-        if root.exists() {
-            fs::remove_dir_all(&root).unwrap();
-        }
+        let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("CERT-OPEN-009")).unwrap();
         fs::write(root.join("real-report.txt"), b"coverage").unwrap();
         symlink(
@@ -997,6 +986,46 @@ mod tests {
         fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn attachment_audit_rejects_unsupported_file_types_in_slots_and_unmapped_root() {
+        use std::process::Command;
+
+        let root =
+            env::temp_dir().join(format!("hyperion-attachment-audit-fifo-{}", process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("CERT-OPEN-010")).unwrap();
+        fs::write(
+            root.join("CERT-OPEN-010/static-analysis.txt"),
+            b"static analysis",
+        )
+        .unwrap();
+        let slot_fifo = root.join("CERT-OPEN-010/report.pipe");
+        let unmapped_fifo = root.join("unmapped.pipe");
+        for path in [&slot_fifo, &unmapped_fifo] {
+            assert!(Command::new("mkfifo").arg(path).status().unwrap().success());
+        }
+
+        let audit = audit_certification_attachments(&root).unwrap();
+        let slot = audit
+            .slots
+            .iter()
+            .find(|slot| slot.open_issue == "CERT-OPEN-010")
+            .unwrap();
+
+        assert_eq!(slot.status, "present_unreviewed_with_rejections");
+        assert_eq!(slot.attachments.len(), 1);
+        assert_eq!(slot.rejected_attachments.len(), 1);
+        assert_eq!(slot.rejected_attachments[0].reason, "unsupported-file-type");
+        assert_eq!(audit.rejected_unmapped_attachments.len(), 1);
+        assert_eq!(
+            audit.rejected_unmapped_attachments[0].reason,
+            "unsupported-file-type"
+        );
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
     #[test]
     fn evidence_json_escapes_control_non_ascii_and_multiple_items() {
         let mut out = String::new();
@@ -1029,26 +1058,52 @@ mod tests {
                     required_metadata: "metadata",
                     acceptance_gate: "gate",
                     status: "present_unreviewed_with_rejections",
-                    attachments: vec![CertificationAttachment {
-                        path: "CERT-OPEN-002/report.txt".to_string(),
-                        size_bytes: 4,
-                        sha256: to_hex(&sha256(b"data")),
-                    }],
-                    rejected_attachments: vec![CertificationAttachmentRejection {
-                        path: "CERT-OPEN-002/link".to_string(),
-                        reason: "symlink",
-                    }],
+                    attachments: vec![
+                        CertificationAttachment {
+                            path: "CERT-OPEN-002/report.txt".to_string(),
+                            size_bytes: 4,
+                            sha256: to_hex(&sha256(b"data")),
+                        },
+                        CertificationAttachment {
+                            path: "CERT-OPEN-002/report-2.txt".to_string(),
+                            size_bytes: 5,
+                            sha256: to_hex(&sha256(b"data2")),
+                        },
+                    ],
+                    rejected_attachments: vec![
+                        CertificationAttachmentRejection {
+                            path: "CERT-OPEN-002/link".to_string(),
+                            reason: "symlink",
+                        },
+                        CertificationAttachmentRejection {
+                            path: "CERT-OPEN-002/fifo".to_string(),
+                            reason: "unsupported-file-type",
+                        },
+                    ],
                 },
             ],
-            unmapped_attachments: vec![CertificationAttachment {
-                path: "unknown.bin".to_string(),
-                size_bytes: 1,
-                sha256: to_hex(&sha256(b"x")),
-            }],
-            rejected_unmapped_attachments: vec![CertificationAttachmentRejection {
-                path: "bad/link".to_string(),
-                reason: "unsupported-file-type",
-            }],
+            unmapped_attachments: vec![
+                CertificationAttachment {
+                    path: "unknown.bin".to_string(),
+                    size_bytes: 1,
+                    sha256: to_hex(&sha256(b"x")),
+                },
+                CertificationAttachment {
+                    path: "unknown-2.bin".to_string(),
+                    size_bytes: 2,
+                    sha256: to_hex(&sha256(b"xy")),
+                },
+            ],
+            rejected_unmapped_attachments: vec![
+                CertificationAttachmentRejection {
+                    path: "bad/link".to_string(),
+                    reason: "unsupported-file-type",
+                },
+                CertificationAttachmentRejection {
+                    path: "bad/link-2".to_string(),
+                    reason: "symlink",
+                },
+            ],
         };
         let json = certification_attachment_audit_json(2, &audit);
         assert!(json.contains("present_unreviewed_with_rejections"));

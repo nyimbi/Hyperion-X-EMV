@@ -5945,3 +5945,12 @@ decision record, while this file tracks work toward certification readiness.
 - Security impact: the tests strengthen routing and data parsing boundaries so malformed card directory data, host issuer-script templates, cardholder data, and coverage evidence metadata fail closed without partial state updates or overclaiming certification status.
 - Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
 - Verification: cargo fmt --check, cargo test --lib, cargo clippy --all-targets --all-features -- -D warnings, git diff --check, scripts/coverage_100.sh, and cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 98.13% (25,306/25,788 lines) with 482 missed source lines.
+
+
+## 2026-05-25T02:35:00Z
+
+- Increment in progress: close deterministic FSM, trace-audit, coverage-package, and certification-evidence coverage gaps before returning to the larger FFI/config/cert-bundle/ODA clusters.
+- Code impact: added full FSM state-code/default/callback-failure coverage; added trace-pack malformed record, missing-hash JSON, TLV-count mismatch, and JSON escaping coverage; removed conditional cleanup branches from coverage/evidence tests; added certification attachment coverage for unsupported FIFO artifacts, mixed present/rejected slots, and multi-entry serializer output.
+- Security impact: the tests strengthen fail-closed handling for malformed trace evidence, unsupported certification artifacts, attachment rejection states, and state-machine error transitions without weakening runtime validation or external certification gates.
+- Evidence scope: this is repository-controlled coverage closure only. It does not close external lab, scheme, acquirer, device/L1, PCI/PED, CAPK authority, official vector, trace-acceptance, or final approval gates.
+- Verification: cargo fmt --check, cargo test --lib, cargo clippy --all-targets --all-features -- -D warnings, git diff --check, scripts/coverage_100.sh test execution, and explicit LCOV generation passed except for the expected enforced 100% threshold failure. Fresh parsed LCOV source coverage is 98.40% (25,538/25,952 lines) with 414 missed source lines.
