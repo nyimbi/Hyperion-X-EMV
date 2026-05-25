@@ -123,9 +123,13 @@ mod tests {
         fs::write(root.join("README.txt"), b"coverage package")?;
         fs::write(root.join("html/index.html"), b"<html>coverage</html>")?;
         fs::write(
+            root.join("lcov.info"),
+            b"TN:\nSF:src/lib.rs\nDA:1,1\nend_of_record\n",
+        )?;
+        fs::write(
             root.join("metadata.json"),
             format!(
-                "{{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":100,\"coverage_enforced\":{enforced},\"html_report\":\"target/coverage/html\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}}"
+                "{{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":100,\"coverage_enforced\":{enforced},\"html_report\":\"target/coverage/html\",\"lcov_report\":\"target/coverage/lcov.info\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}}"
             ),
         )?;
         Ok(())

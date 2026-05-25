@@ -2170,6 +2170,41 @@ fn issuer_script_status(action: StatusAction) -> Result<IssuerScriptStatus, Kern
     }
 }
 
+fn response_body_and_status(response: &[u8]) -> Result<(&[u8], StatusWord), KernelError> {
+    if response.len() < 2 {
+        return Err(KernelError::ParseError);
+    }
+    let body_len = response.len() - 2;
+    Ok((
+        &response[..body_len],
+        StatusWord::new(response[body_len], response[body_len + 1]),
+    ))
+}
+
+fn select_pse_event(action: StatusAction) -> Result<FsmEvent, KernelError> {
+    match action {
+        StatusAction::Success => Ok(FsmEvent::PseSelected),
+        StatusAction::FallbackToDirectAid => Ok(FsmEvent::PseNotFound),
+        StatusAction::Fail { error } => Err(error),
+        _ => Err(KernelError::NoCommonAid),
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SelectAidDecision {
+    Selected,
+    TryNext,
+}
+
+fn select_aid_decision(action: StatusAction) -> Result<SelectAidDecision, KernelError> {
+    match action {
+        StatusAction::Success => Ok(SelectAidDecision::Selected),
+        StatusAction::TryNextAid => Ok(SelectAidDecision::TryNext),
+        StatusAction::Fail { error } => Err(error),
+        _ => Err(KernelError::InvalidArgument),
+    }
+}
+
 fn read_application_records(
     ctx: &mut KrnContext,
     runtime: RuntimeCallbacks,
@@ -2190,11 +2225,7 @@ fn read_application_records(
             apdu_timeout(ctx),
             ApduContext::ReadRecord,
         )?;
-        if response.len() < 2 {
-            return Err(KernelError::ParseError);
-        }
-        let body = &response[..response.len() - 2];
-        let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+        let (body, sw) = response_body_and_status(&response)?;
         match read_record_status(classify(ApduContext::ReadRecord, sw))? {
             ReadRecordStatus::Success => {
                 parse_read_record_body(body, &mut ctx.card_data)?;
@@ -2474,11 +2505,7 @@ fn perform_dynamic_data_authentication(
         apdu_timeout_ms,
         ApduContext::InternalAuthenticate,
     )?;
-    if response.len() < 2 {
-        return Err(KernelError::ParseError);
-    }
-    let body = &response[..response.len() - 2];
-    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+    let (body, sw) = response_body_and_status(&response)?;
     require_apdu_success(ApduContext::InternalAuthenticate, sw)?;
     let internal_authenticate = parse_internal_authenticate_response(body)?;
     recover_and_verify_signed_application_data(
@@ -2518,13 +2545,8 @@ fn verify_combined_data_authentication(
         .and_then(|value| value.first())
         .copied()
         .ok_or(KernelError::MissingMandatoryTag)?;
-    let capk = select_capk(
-        profiles,
-        &scheme.rid,
-        key_index,
-        evaluation_date,
-        CapkIntegrity::Verified,
-    )?;
+    let integrity = CapkIntegrity::Verified;
+    let capk = select_capk(profiles, &scheme.rid, key_index, evaluation_date, integrity)?;
     let issuer_public_key =
         recover_issuer_public_key(capk, &ctx.card_data).map_err(oda_failure_to_kernel_error)?;
     let icc_public_key = recover_icc_public_key(&issuer_public_key, &ctx.card_data)
@@ -2877,10 +2899,8 @@ fn run_required_relay_resistance(
     match evaluate_relay_resistance(profile, &response, elapsed_ms) {
         RelayResistanceDecision::Passed => Ok(None),
         RelayResistanceDecision::Failed(failure_outcome) => {
-            emit_contactless_outcome_value(
-                ctx,
-                &outcome_from_relay_resistance_failure(failure_outcome)?,
-            )?;
+            let outcome_value = outcome_from_relay_resistance_failure(failure_outcome)?;
+            emit_contactless_outcome_value(ctx, &outcome_value)?;
             let outcome = match failure_outcome {
                 RelayResistanceFailureOutcome::TryAgain => KrnOutcome::TryAgain,
                 RelayResistanceFailureOutcome::AlternateInterface => KrnOutcome::AlternateInterface,
@@ -2977,6 +2997,26 @@ fn run_terminal_risk_management(
     Ok(())
 }
 
+fn terminal_action_target(action: TerminalAction) -> (CryptogramRequest, FsmEvent, KernelState) {
+    match action {
+        TerminalAction::Aac => (
+            CryptogramRequest::Aac,
+            FsmEvent::TaaAac,
+            KernelState::FinalOutcome,
+        ),
+        TerminalAction::Tc => (
+            CryptogramRequest::Tc,
+            FsmEvent::TaaTc,
+            KernelState::FinalOutcome,
+        ),
+        TerminalAction::Arqc => (
+            CryptogramRequest::Arqc,
+            FsmEvent::TaaArqc,
+            KernelState::FirstGenerateAc,
+        ),
+    }
+}
+
 fn run_terminal_action_analysis(
     ctx: &mut KrnContext,
     profiles: &ProfileSet,
@@ -3005,23 +3045,7 @@ fn run_terminal_action_analysis(
             .unwrap_or(true),
         profile: scheme.taa,
     });
-    let (request, event, state) = match decision.action {
-        TerminalAction::Aac => (
-            CryptogramRequest::Aac,
-            FsmEvent::TaaAac,
-            KernelState::FinalOutcome,
-        ),
-        TerminalAction::Tc => (
-            CryptogramRequest::Tc,
-            FsmEvent::TaaTc,
-            KernelState::FinalOutcome,
-        ),
-        TerminalAction::Arqc => (
-            CryptogramRequest::Arqc,
-            FsmEvent::TaaArqc,
-            KernelState::FirstGenerateAc,
-        ),
-    };
+    let (request, event, state) = terminal_action_target(decision.action);
     ctx.requested_cryptogram = Some(request);
     apply_transition(ctx, event)?;
     ctx.state = state;
@@ -3048,11 +3072,7 @@ fn run_first_generate_ac(
         apdu_timeout(ctx),
         ApduContext::GenerateAc,
     )?;
-    if response.len() < 2 {
-        return Err(KernelError::ParseError);
-    }
-    let body = &response[..response.len() - 2];
-    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+    let (body, sw) = response_body_and_status(&response)?;
     require_generate_ac_success(ctx, sw, FsmEvent::GacFailed)?;
 
     let parsed = parse_generate_ac_response(body)?;
@@ -3169,12 +3189,16 @@ fn apply_host_response(ctx: &mut KrnContext, bytes: &[u8]) -> Result<(), KernelE
     };
     ctx.host_response = Some(response);
     apply_transition(ctx, event)?;
-    ctx.state = match ctx.fsm_state {
+    ctx.state = state_after_host_response_fsm(ctx.fsm_state);
+    Ok(())
+}
+
+fn state_after_host_response_fsm(state: FsmState) -> KernelState {
+    match state {
         FsmState::S12 => KernelState::IssuerAuthentication,
         FsmState::S13 => KernelState::IssuerScripts,
         _ => KernelState::Error,
-    };
-    Ok(())
+    }
 }
 
 fn run_issuer_authentication(
@@ -3196,16 +3220,11 @@ fn run_issuer_authentication(
         apdu_timeout(ctx),
         ApduContext::ExternalAuthenticate,
     )?;
-    if response.len() < 2 {
-        return Err(KernelError::ParseError);
-    }
-    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+    let (_, sw) = response_body_and_status(&response)?;
 
     ctx.tsi.set(Tsi::ISSUER_AUTHENTICATION_PERFORMED);
-    let event = issuer_authentication_event_from_status(
-        classify(ApduContext::ExternalAuthenticate, sw),
-        &mut ctx.tvr,
-    )?;
+    let action = classify(ApduContext::ExternalAuthenticate, sw);
+    let event = issuer_authentication_event_from_status(action, &mut ctx.tvr)?;
     ctx.card_data.put(&[0x95], &ctx.tvr.bytes())?;
     ctx.card_data.put(&[0x9b], &ctx.tsi.bytes())?;
     apply_transition(ctx, event)?;
@@ -3267,10 +3286,7 @@ fn run_issuer_scripts_for_phase(
             let script_context = ApduContext::IssuerScript { critical };
             let response =
                 transmit_apdu_with_followups(runtime, command, apdu_timeout(ctx), script_context)?;
-            if response.len() < 2 {
-                return Err(KernelError::ParseError);
-            }
-            let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+            let (_, sw) = response_body_and_status(&response)?;
             let result = ScriptCommandResult {
                 sw1: sw.sw1,
                 sw2: sw.sw2,
@@ -3305,14 +3321,12 @@ fn run_issuer_scripts_for_phase(
         let all_success = script_results
             .iter()
             .all(|result| result.sw1 == 0x90 && result.sw2 == 0x00);
-        apply_transition(
-            ctx,
-            if all_success {
-                FsmEvent::ScriptSuccess
-            } else {
-                FsmEvent::ScriptNonCriticalFailure
-            },
-        )?;
+        let event = if all_success {
+            FsmEvent::ScriptSuccess
+        } else {
+            FsmEvent::ScriptNonCriticalFailure
+        };
+        apply_transition(ctx, event)?;
     }
 
     apply_transition(ctx, FsmEvent::NoMoreScripts)?;
@@ -3435,11 +3449,7 @@ fn run_final_generate_ac(
         apdu_timeout(ctx),
         ApduContext::GenerateAc,
     )?;
-    if response.len() < 2 {
-        return Err(KernelError::ParseError);
-    }
-    let body = &response[..response.len() - 2];
-    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
+    let (body, sw) = response_body_and_status(&response)?;
     require_generate_ac_success(ctx, sw, FsmEvent::Gac2Failed)?;
     let parsed = parse_generate_ac_response(body)?;
     ctx.card_data.put(&[0x9f, 0x27], &[parsed.cid.raw()])?;
@@ -3499,254 +3509,131 @@ fn fail_transaction(ctx: &mut KrnContext, error: KernelError) -> KrnOutcome {
     KrnOutcome::Error
 }
 
+fn state_after_gpo_transition(state: FsmState) -> KernelState {
+    match state {
+        FsmState::S4 => KernelState::ReadRecords,
+        FsmState::S5 => KernelState::OfflineDataAuthentication,
+        _ => KernelState::Error,
+    }
+}
+
 fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
-    let Some(params) = ctx.txn_params.clone() else {
-        return fail_transaction(ctx, KernelError::InvalidArgument);
-    };
-    let Some(runtime) = ctx.runtime else {
-        return fail_transaction(ctx, KernelError::InvalidArgument);
-    };
-    let Some(profiles) = ctx.profiles.clone() else {
-        return fail_transaction(ctx, KernelError::InvalidProfile);
-    };
+    match run_transaction_inner(ctx) {
+        Ok(outcome) => outcome,
+        Err(error) => fail_transaction(ctx, error),
+    }
+}
+
+fn run_transaction_inner(ctx: &mut KrnContext) -> Result<KrnOutcome, KernelError> {
+    let params = ctx.txn_params.clone().ok_or(KernelError::InvalidArgument)?;
+    let runtime = ctx.runtime.ok_or(KernelError::InvalidArgument)?;
+    let profiles = ctx.profiles.clone().ok_or(KernelError::InvalidProfile)?;
     let interface = match params.interface_preference {
         KRN_INTERFACE_CONTACT => Interface::Contact,
         KRN_INTERFACE_CONTACTLESS => Interface::Contactless,
-        _ => {
-            return fail_transaction(ctx, KernelError::InvalidArgument);
-        }
+        _ => return Err(KernelError::InvalidArgument),
     };
-    if let Err(err) = fsm::transition(ctx.fsm_state, FsmEvent::CardDetected) {
-        return fail_transaction(ctx, err);
-    }
-    ctx.fsm_state = FsmState::S2;
+
+    let transition = fsm::transition(ctx.fsm_state, FsmEvent::CardDetected)?;
+    ctx.fsm_state = transition.to;
     ctx.state = KernelState::SelectEnvironment;
 
-    let select = match apdu::select_environment(interface).encode() {
-        Ok(bytes) => bytes,
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
-    };
-    let response = match transmit_apdu_with_followups(
-        runtime,
-        &select,
-        apdu_timeout(ctx),
-        ApduContext::SelectPse,
-    ) {
-        Ok(response) => response,
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
-    };
-    if response.len() < 2 {
-        return fail_transaction(ctx, KernelError::ParseError);
-    }
-    let sw = StatusWord::new(response[response.len() - 2], response[response.len() - 1]);
-    let fci = &response[..response.len() - 2];
+    let select = apdu::select_environment(interface).encode()?;
+    let response =
+        transmit_apdu_with_followups(runtime, &select, apdu_timeout(ctx), ApduContext::SelectPse)?;
+    let (fci, sw) = response_body_and_status(&response)?;
     let pse_status = classify(ApduContext::SelectPse, sw);
-    let event = match pse_status {
-        StatusAction::Success => FsmEvent::PseSelected,
-        StatusAction::FallbackToDirectAid => FsmEvent::PseNotFound,
-        StatusAction::Fail { error } => {
-            return fail_transaction(ctx, error);
-        }
-        _ => {
-            return fail_transaction(ctx, KernelError::NoCommonAid);
-        }
-    };
-    match fsm::transition(ctx.fsm_state, event) {
-        Ok(transition) => {
-            ctx.fsm_state = transition.to;
-            ctx.state = KernelState::BuildCandidateList;
-            ctx.last_error = KernelError::Ok;
-        }
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
-    }
+    let event = select_pse_event(pse_status)?;
+    let transition = fsm::transition(ctx.fsm_state, event)?;
+    ctx.fsm_state = transition.to;
+    ctx.state = KernelState::BuildCandidateList;
+    ctx.last_error = KernelError::Ok;
 
-    let candidates = match if matches!(pse_status, StatusAction::Success) {
+    let candidates = if matches!(pse_status, StatusAction::Success) {
         parse_fci_candidate_aids(fci).and_then(|aids| {
             if aids.is_empty() {
                 direct_profile_candidates(&profiles, interface)
             } else {
                 match_profile_candidates(&profiles, interface, &aids)
             }
-        })
+        })?
     } else {
-        direct_profile_candidates(&profiles, interface)
-    } {
-        Ok(candidates) => candidates,
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
+        direct_profile_candidates(&profiles, interface)?
     };
 
     let mut selected: Option<(SelectionCandidate, Vec<u8>)> = None;
     for candidate in candidates {
-        let transition = match fsm::transition(ctx.fsm_state, FsmEvent::CandidateAidAvailable) {
-            Ok(transition) => transition,
-            Err(err) => {
-                return fail_transaction(ctx, err);
-            }
-        };
+        let transition = fsm::transition(ctx.fsm_state, FsmEvent::CandidateAidAvailable)?;
         ctx.fsm_state = transition.to;
         let select_aid =
-            match apdu::select_aid(&candidate.select_aid, 0x00).and_then(|cmd| cmd.encode()) {
-                Ok(bytes) => bytes,
-                Err(err) => {
-                    return fail_transaction(ctx, err);
-                }
-            };
-        let select_response = match transmit_apdu_with_followups(
-            runtime,
-            &select_aid,
-            apdu_timeout(ctx),
-            ApduContext::SelectAid,
-        ) {
-            Ok(response) => response,
-            Err(err) => {
-                return fail_transaction(ctx, err);
-            }
-        };
-        if select_response.len() < 2 {
-            return fail_transaction(ctx, KernelError::ParseError);
-        }
-        let select_sw = StatusWord::new(
-            select_response[select_response.len() - 2],
-            select_response[select_response.len() - 1],
-        );
-        match classify(ApduContext::SelectAid, select_sw) {
-            StatusAction::Success => {
-                let select_fci = select_response[..select_response.len() - 2].to_vec();
-                if let Err(err) = validate_selected_adf_name(&select_fci, &candidate) {
-                    return fail_transaction(ctx, err);
-                }
-                let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidSelected) {
-                    Ok(transition) => transition,
-                    Err(err) => {
-                        return fail_transaction(ctx, err);
-                    }
-                };
+            apdu::select_aid(&candidate.select_aid, 0x00).and_then(|command| command.encode())?;
+        let select_timeout = apdu_timeout(ctx);
+        let select_context = ApduContext::SelectAid;
+        let select_response =
+            transmit_apdu_with_followups(runtime, &select_aid, select_timeout, select_context)?;
+        let (select_fci, select_sw) = response_body_and_status(&select_response)?;
+        match select_aid_decision(classify(ApduContext::SelectAid, select_sw))? {
+            SelectAidDecision::Selected => {
+                validate_selected_adf_name(select_fci, &candidate)?;
+                let transition = fsm::transition(ctx.fsm_state, FsmEvent::AidSelected)?;
                 ctx.fsm_state = transition.to;
                 ctx.state = KernelState::Gpo;
-                selected = Some((candidate, select_fci));
+                selected = Some((candidate, select_fci.to_vec()));
                 break;
             }
-            StatusAction::TryNextAid => {
-                let transition = match fsm::transition(ctx.fsm_state, FsmEvent::AidNotSupported) {
-                    Ok(transition) => transition,
-                    Err(err) => {
-                        return fail_transaction(ctx, err);
-                    }
-                };
+            SelectAidDecision::TryNext => {
+                let transition = fsm::transition(ctx.fsm_state, FsmEvent::AidNotSupported)?;
                 ctx.fsm_state = transition.to;
-            }
-            StatusAction::Fail { error } => {
-                return fail_transaction(ctx, error);
-            }
-            _ => {
-                return fail_transaction(ctx, KernelError::InvalidArgument);
             }
         }
     }
 
     let Some((selected_candidate, selected_fci)) = selected else {
         let _ = fsm::transition(ctx.fsm_state, FsmEvent::NoCandidateLeft);
-        return fail_transaction(ctx, KernelError::NoCommonAid);
+        return Err(KernelError::NoCommonAid);
     };
 
-    let pdol = match parse_pdol_from_fci(&selected_fci) {
-        Ok(pdol) => pdol,
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
-    };
-    let transaction_date = match ctx.profile_evaluation_date {
-        Some(date) => date,
-        None => {
-            return fail_transaction(ctx, KernelError::InvalidProfile);
-        }
-    };
+    let pdol = parse_pdol_from_fci(&selected_fci)?;
+    let transaction_date = ctx
+        .profile_evaluation_date
+        .ok_or(KernelError::InvalidProfile)?;
     let unpredictable_number =
-        match request_unpredictable_number(runtime, ctx.last_unpredictable_number) {
-            Ok(value) => value,
-            Err(err) => {
-                return fail_transaction(ctx, err);
-            }
-        };
+        request_unpredictable_number(runtime, ctx.last_unpredictable_number)?;
     ctx.last_unpredictable_number = Some(unpredictable_number);
-    let data = match transaction_data_store(
-        &params,
-        unpredictable_number,
-        transaction_date,
-        ctx.tvr,
-        ctx.tsi,
-        TerminalDolInputs {
-            terminal_capabilities: ctx.terminal_capabilities,
-            additional_terminal_capabilities: ctx.additional_terminal_capabilities,
-            terminal_transaction_qualifiers: ctx.terminal_transaction_qualifiers,
-        },
-    ) {
-        Ok(data) => data,
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
+    let terminal_inputs = TerminalDolInputs {
+        terminal_capabilities: ctx.terminal_capabilities,
+        additional_terminal_capabilities: ctx.additional_terminal_capabilities,
+        terminal_transaction_qualifiers: ctx.terminal_transaction_qualifiers,
     };
-    ctx.card_data = data;
+    let un = unpredictable_number;
+    let date = transaction_date;
+    ctx.card_data = transaction_data_store(&params, un, date, ctx.tvr, ctx.tsi, terminal_inputs)?;
     ctx.offline_auth_records.clear();
-    let gpo = match apdu::get_processing_options(&pdol, &ctx.card_data).and_then(|cmd| cmd.encode())
-    {
-        Ok(bytes) => bytes,
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
-    };
+
+    let gpo =
+        apdu::get_processing_options(&pdol, &ctx.card_data).and_then(|command| command.encode())?;
     let gpo_response =
-        match transmit_apdu_with_followups(runtime, &gpo, apdu_timeout(ctx), ApduContext::Gpo) {
-            Ok(response) => response,
-            Err(err) => {
-                return fail_transaction(ctx, err);
-            }
-        };
-    if gpo_response.len() < 2 {
-        return fail_transaction(ctx, KernelError::ParseError);
-    }
-    let gpo_sw = [
-        gpo_response[gpo_response.len() - 2],
-        gpo_response[gpo_response.len() - 1],
-    ];
-    if gpo_sw != [0x90, 0x00] {
+        transmit_apdu_with_followups(runtime, &gpo, apdu_timeout(ctx), ApduContext::Gpo)?;
+    let (gpo_body, gpo_sw) = response_body_and_status(&gpo_response)?;
+    if !gpo_sw.is_success() {
         let _ = fsm::transition(ctx.fsm_state, FsmEvent::GpoFailed);
-        return fail_transaction(ctx, KernelError::MissingMandatoryTag);
+        return Err(KernelError::MissingMandatoryTag);
     }
-    let parsed_gpo = match parse_gpo_response(&gpo_response[..gpo_response.len() - 2]) {
+    let parsed_gpo = match parse_gpo_response(gpo_body) {
         Ok(parsed) => parsed,
         Err(err) => {
             let _ = fsm::transition(ctx.fsm_state, FsmEvent::GpoFailed);
-            return fail_transaction(ctx, err);
+            return Err(err);
         }
     };
     let event = match parsed_gpo.format {
         GpoResponseFormat::Template77 => FsmEvent::GpoTemplate77,
         GpoResponseFormat::Template80 => FsmEvent::GpoTemplate80,
     };
-    if let Err(err) = ctx.card_data.put(&[0x82], &parsed_gpo.aip) {
-        return fail_transaction(ctx, err);
-    }
-    let transition = match fsm::transition(ctx.fsm_state, event) {
-        Ok(transition) => transition,
-        Err(err) => {
-            return fail_transaction(ctx, err);
-        }
-    };
+    ctx.card_data.put(&[0x82], &parsed_gpo.aip)?;
+    let transition = fsm::transition(ctx.fsm_state, event)?;
     ctx.fsm_state = transition.to;
-    ctx.state = match transition.to {
-        FsmState::S4 => KernelState::ReadRecords,
-        FsmState::S5 => KernelState::OfflineDataAuthentication,
-        _ => KernelState::Error,
-    };
+    ctx.state = state_after_gpo_transition(transition.to);
     let selected_afl = parsed_gpo.afl.clone();
     ctx.selected_application = Some(SelectedApplication {
         aid: selected_candidate.select_aid,
@@ -3755,77 +3642,59 @@ fn run_transaction(ctx: &mut KrnContext) -> KrnOutcome {
         aip: Some(parsed_gpo.aip),
         afl: parsed_gpo.afl,
     });
-    if let Err(err) = validate_selected_kernel_mapping(ctx, &params, &profiles) {
-        return fail_transaction(ctx, err);
-    }
-    if ctx.fsm_state == FsmState::S4 {
-        if let Err(err) = read_application_records(ctx, runtime, &selected_afl) {
-            return fail_transaction(ctx, err);
-        }
-    }
-    if ctx.fsm_state == FsmState::S5 {
-        if let Err(err) = run_offline_data_authentication(ctx, &profiles, Some(runtime)) {
-            return fail_transaction(ctx, err);
-        }
-    }
-    if ctx.fsm_state == FsmState::S6 {
-        if let Err(err) = run_processing_restrictions(ctx, &params) {
-            return fail_transaction(ctx, err);
-        }
-    }
-    if ctx.fsm_state == FsmState::S7 {
-        if let Err(err) = run_cvm_processing(ctx, &params) {
-            return fail_transaction(ctx, err);
-        }
-        match run_contactless_limit_processing(ctx, runtime, &profiles, &params) {
-            Ok(Some(outcome)) => return outcome,
-            Ok(None) => {}
-            Err(err) => {
-                return fail_transaction(ctx, err);
-            }
-        }
-    }
-    if ctx.fsm_state == FsmState::S8 {
-        if let Err(err) = run_terminal_risk_management(ctx, &profiles, &params) {
-            return fail_transaction(ctx, err);
-        }
-    }
-    if ctx.fsm_state == FsmState::S9 {
-        if let Err(err) = run_terminal_action_analysis(ctx, &profiles) {
-            return fail_transaction(ctx, err);
-        }
-        if is_final_outcome_state(ctx) {
-            return match finish_offline_outcome_from_taa(ctx) {
-                Ok(outcome) => outcome,
-                Err(err) => fail_transaction(ctx, err),
-            };
-        }
-    }
-    if ctx.fsm_state == FsmState::S10 {
-        if let Err(err) = run_first_generate_ac(ctx, runtime) {
-            return fail_transaction(ctx, err);
-        }
-        match ctx.fsm_state {
-            FsmState::S11 => {
-                ctx.last_error = KernelError::Ok;
-                return KrnOutcome::OnlineRequired;
-            }
-            _ if is_final_outcome_state(ctx) => {
-                let result = if ctx.tvr.is_set(Tvr::B1_CDA_FAILED) {
-                    finish_offline_outcome_from_taa(ctx)
-                } else {
-                    finish_offline_outcome_from_first_gac(ctx)
-                };
-                return match result {
-                    Ok(outcome) => outcome,
-                    Err(err) => fail_transaction(ctx, err),
-                };
-            }
-            _ => {}
-        }
-    }
 
-    fail_transaction(ctx, KernelError::InvalidArgument)
+    validate_selected_kernel_mapping(ctx, &params, &profiles)?;
+    advance_transaction_after_gpo(ctx, runtime, &profiles, &params, &selected_afl)
+}
+
+fn advance_transaction_after_gpo(
+    ctx: &mut KrnContext,
+    runtime: RuntimeCallbacks,
+    profiles: &ProfileSet,
+    params: &StoredTxnParams,
+    selected_afl: &[AflEntry],
+) -> Result<KrnOutcome, KernelError> {
+    loop {
+        match ctx.fsm_state {
+            FsmState::S4 => read_application_records(ctx, runtime, selected_afl)?,
+            FsmState::S5 => run_offline_data_authentication(ctx, profiles, Some(runtime))?,
+            FsmState::S6 => run_processing_restrictions(ctx, params)?,
+            FsmState::S7 => {
+                run_cvm_processing(ctx, params)?;
+                if let Some(outcome) =
+                    run_contactless_limit_processing(ctx, runtime, profiles, params)?
+                {
+                    return Ok(outcome);
+                }
+            }
+            FsmState::S8 => run_terminal_risk_management(ctx, profiles, params)?,
+            FsmState::S9 => {
+                run_terminal_action_analysis(ctx, profiles)?;
+                if is_final_outcome_state(ctx) {
+                    return finish_offline_outcome_from_taa(ctx);
+                }
+            }
+            FsmState::S10 => {
+                run_first_generate_ac(ctx, runtime)?;
+                return first_gac_transaction_outcome(ctx);
+            }
+            _ => return Err(KernelError::InvalidArgument),
+        }
+    }
+}
+
+fn first_gac_transaction_outcome(ctx: &mut KrnContext) -> Result<KrnOutcome, KernelError> {
+    match ctx.fsm_state {
+        FsmState::S11 => {
+            ctx.last_error = KernelError::Ok;
+            Ok(KrnOutcome::OnlineRequired)
+        }
+        _ if is_final_outcome_state(ctx) && ctx.tvr.is_set(Tvr::B1_CDA_FAILED) => {
+            finish_offline_outcome_from_taa(ctx)
+        }
+        _ if is_final_outcome_state(ctx) => finish_offline_outcome_from_first_gac(ctx),
+        _ => Err(KernelError::InvalidArgument),
+    }
 }
 
 fn transmit_apdu(
@@ -4124,6 +3993,16 @@ mod tests {
         }
     }
 
+    fn prepared_run_context(transmit_apdu: KrnTransmitApduCallback) -> KrnContext {
+        let mut ctx = KrnContext::new();
+        install_profile_selection(&mut ctx);
+        ctx.txn_params = Some(stored_txn_params(KRN_INTERFACE_CONTACT));
+        ctx.runtime = Some(runtime_with_transmit(transmit_apdu));
+        ctx.state = KernelState::ParamsSet;
+        ctx.fsm_state = FsmState::S1;
+        ctx
+    }
+
     unsafe extern "C" fn fail_transmit_apdu(
         _cmd: *const u8,
         _cmd_len: usize,
@@ -4133,6 +4012,18 @@ mod tests {
         _user_data: *mut c_void,
     ) -> i32 {
         KernelError::HostTimeout.code()
+    }
+
+    unsafe extern "C" fn overflowing_response_len_apdu(
+        _cmd: *const u8,
+        _cmd_len: usize,
+        _resp: *mut u8,
+        resp_len: *mut usize,
+        _timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        *resp_len = MAX_APDU_RESPONSE_LEN + 1;
+        KernelError::Ok.code()
     }
 
     unsafe extern "C" fn short_pse_transmit_apdu(
@@ -4217,6 +4108,100 @@ mod tests {
             assert_eq!(ctx.state, KernelState::Error);
             assert_eq!(ctx.fsm_state, FsmState::Se);
         }
+    }
+
+    #[test]
+    fn transmit_apdu_rejects_callback_reported_response_overflow() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let runtime = runtime_with_transmit(overflowing_response_len_apdu);
+        assert_eq!(
+            transmit_apdu(runtime, &[0x00, 0xa4], APDU_TRANSMIT_TIMEOUT_MS).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+    }
+
+    #[test]
+    fn run_transaction_selection_and_gpo_edges_fail_closed() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        reset_callback_fixture_state();
+
+        let mut empty_pse_ctx = prepared_run_context(capture_empty_pse_directory_apdu);
+        empty_pse_ctx.txn_params = Some(stored_txn_params(KRN_INTERFACE_CONTACTLESS));
+        empty_pse_ctx.trm_random_sample_basis_points = Some(9_999);
+        assert_eq!(
+            run_transaction(&mut empty_pse_ctx),
+            KrnOutcome::OnlineRequired
+        );
+        assert_eq!(empty_pse_ctx.last_error, KernelError::Ok);
+        assert_eq!(empty_pse_ctx.fsm_state, FsmState::S11);
+
+        reset_callback_fixture_state();
+        let mut no_candidate_ctx = prepared_run_context(capture_pse_not_found_apdu);
+        assert_eq!(run_transaction(&mut no_candidate_ctx), KrnOutcome::Error);
+        assert_eq!(no_candidate_ctx.last_error, KernelError::NoCommonAid);
+
+        reset_callback_fixture_state();
+        let mut gpo_failure_ctx = prepared_run_context(capture_gpo_failure_apdu);
+        assert_eq!(run_transaction(&mut gpo_failure_ctx), KrnOutcome::Error);
+        assert_eq!(gpo_failure_ctx.last_error, KernelError::MissingMandatoryTag);
+
+        reset_callback_fixture_state();
+        let mut malformed_gpo_ctx = prepared_run_context(capture_malformed_gpo_apdu);
+        assert_eq!(run_transaction(&mut malformed_gpo_ctx), KrnOutcome::Error);
+        assert_eq!(
+            malformed_gpo_ctx.last_error,
+            KernelError::MissingMandatoryTag
+        );
+
+        reset_callback_fixture_state();
+        let mut template80_ctx = prepared_run_context(capture_template80_gpo_apdu);
+        assert_eq!(run_transaction(&mut template80_ctx), KrnOutcome::Error);
+        assert_eq!(template80_ctx.last_error, KernelError::MissingMandatoryTag);
+        assert_eq!(
+            template80_ctx.card_data.get(&[0x82]),
+            Some(&[0x00, 0x00][..])
+        );
+        reset_callback_fixture_state();
+    }
+
+    #[test]
+    fn post_gpo_transaction_driver_covers_terminal_and_invalid_states() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+
+        let mut taa_ctx = KrnContext::new();
+        install_profile_selection(&mut taa_ctx);
+        taa_ctx.fsm_state = FsmState::S9;
+        taa_ctx.state = KernelState::TerminalActionAnalysis;
+        taa_ctx.txn_params = Some(stored_txn_params(KRN_INTERFACE_CONTACT));
+        taa_ctx
+            .card_data
+            .put(&[0x9f, 0x0e], &[0x04, 0x00, 0x00, 0x00, 0x00])
+            .unwrap();
+        taa_ctx.tvr.set(Tvr::B1_CDA_FAILED);
+        let profiles = taa_ctx.profiles.clone().unwrap();
+        let params = stored_txn_params(KRN_INTERFACE_CONTACT);
+        assert_eq!(
+            advance_transaction_after_gpo(
+                &mut taa_ctx,
+                runtime_with_transmit(capture_select_apdu),
+                &profiles,
+                &params,
+                &[],
+            ),
+            Ok(KrnOutcome::DeclinedOffline)
+        );
+
+        let mut invalid_ctx = KrnContext::new();
+        assert_eq!(
+            advance_transaction_after_gpo(
+                &mut invalid_ctx,
+                runtime_with_transmit(capture_select_apdu),
+                &profiles,
+                &params,
+                &[],
+            ),
+            Err(KernelError::InvalidArgument)
+        );
     }
 
     #[test]
@@ -4497,6 +4482,12 @@ mod tests {
         assert_eq!(
             cda_request_control_for_first_gac(&ctx).unwrap(),
             CdaRequestControl::InCdolData
+        );
+        ctx.profiles.as_mut().unwrap().schemes[0].aids[0].cda_request_encoding =
+            Some(CdaRequestEncoding::P1LowBits(0x10));
+        assert_eq!(
+            cda_request_control_for_first_gac(&ctx).unwrap(),
+            CdaRequestControl::P1LowBits(0x10)
         );
 
         ctx.profiles.as_mut().unwrap().schemes[0].aids[0].cda_request_encoding = None;
@@ -5124,6 +5115,203 @@ mod tests {
                 Err(KernelError::InvalidArgument)
             );
         }
+
+        assert_eq!(
+            select_pse_event(StatusAction::Success),
+            Ok(FsmEvent::PseSelected)
+        );
+        assert_eq!(
+            select_pse_event(StatusAction::FallbackToDirectAid),
+            Ok(FsmEvent::PseNotFound)
+        );
+        assert_eq!(
+            select_pse_event(StatusAction::Fail {
+                error: KernelError::HostTimeout,
+            }),
+            Err(KernelError::HostTimeout)
+        );
+        assert_eq!(
+            select_pse_event(StatusAction::TryNextAid),
+            Err(KernelError::NoCommonAid)
+        );
+
+        assert_eq!(
+            select_aid_decision(StatusAction::Success),
+            Ok(SelectAidDecision::Selected)
+        );
+        assert_eq!(
+            select_aid_decision(StatusAction::TryNextAid),
+            Ok(SelectAidDecision::TryNext)
+        );
+        assert_eq!(
+            select_aid_decision(StatusAction::Fail {
+                error: KernelError::CardRemoved,
+            }),
+            Err(KernelError::CardRemoved)
+        );
+        assert_eq!(
+            select_aid_decision(StatusAction::FallbackToDirectAid),
+            Err(KernelError::InvalidArgument)
+        );
+
+        assert_eq!(
+            terminal_action_target(TerminalAction::Aac),
+            (
+                CryptogramRequest::Aac,
+                FsmEvent::TaaAac,
+                KernelState::FinalOutcome,
+            )
+        );
+        assert_eq!(
+            terminal_action_target(TerminalAction::Tc),
+            (
+                CryptogramRequest::Tc,
+                FsmEvent::TaaTc,
+                KernelState::FinalOutcome,
+            )
+        );
+        assert_eq!(
+            terminal_action_target(TerminalAction::Arqc),
+            (
+                CryptogramRequest::Arqc,
+                FsmEvent::TaaArqc,
+                KernelState::FirstGenerateAc,
+            )
+        );
+        assert_eq!(
+            state_after_host_response_fsm(FsmState::S12),
+            KernelState::IssuerAuthentication
+        );
+        assert_eq!(
+            state_after_host_response_fsm(FsmState::S13),
+            KernelState::IssuerScripts
+        );
+        assert_eq!(
+            state_after_host_response_fsm(FsmState::Se),
+            KernelState::Error
+        );
+        assert_eq!(
+            state_after_gpo_transition(FsmState::S4),
+            KernelState::ReadRecords
+        );
+        assert_eq!(
+            state_after_gpo_transition(FsmState::S5),
+            KernelState::OfflineDataAuthentication
+        );
+        assert_eq!(state_after_gpo_transition(FsmState::Se), KernelState::Error);
+    }
+
+    #[test]
+    fn ffi_stage_error_edges_are_fail_closed() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+
+        let mut oda_bad_state = KrnContext::new();
+        install_sda_success_fixture(&mut oda_bad_state);
+        oda_bad_state.fsm_state = FsmState::S1;
+        let profiles = oda_bad_state.profiles.clone().unwrap();
+        assert!(run_offline_data_authentication(&mut oda_bad_state, &profiles, None).is_err());
+
+        let record_response = application_record_response();
+        let (record_body, _) = response_body_and_status(&record_response).unwrap();
+        let mut restrictions_ctx = KrnContext::new();
+        restrictions_ctx.profile_evaluation_date = Some(EmvDate {
+            year: 26,
+            month: 5,
+            day: 21,
+        });
+        restrictions_ctx.fsm_state = FsmState::S6;
+        parse_read_record_body(record_body, &mut restrictions_ctx.card_data).unwrap();
+        let international_params = StoredTxnParams {
+            terminal_country_code: 826,
+            ..stored_txn_params(KRN_INTERFACE_CONTACT)
+        };
+        assert_eq!(
+            run_processing_restrictions(&mut restrictions_ctx, &international_params),
+            Ok(())
+        );
+        assert_eq!(restrictions_ctx.fsm_state, FsmState::S7);
+
+        let mut malformed_cvm_ctx = KrnContext::new();
+        malformed_cvm_ctx.card_data.put(&[0x8e], &[0x00]).unwrap();
+        assert_eq!(
+            run_cvm_processing(
+                &mut malformed_cvm_ctx,
+                &stored_txn_params(KRN_INTERFACE_CONTACT)
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut currency_cvm_ctx = KrnContext::new();
+        currency_cvm_ctx.fsm_state = FsmState::S7;
+        parse_read_record_body(record_body, &mut currency_cvm_ctx.card_data).unwrap();
+        currency_cvm_ctx
+            .card_data
+            .put(&[0x9f, 0x42], &[0x08])
+            .unwrap();
+        assert_eq!(
+            run_cvm_processing(
+                &mut currency_cvm_ctx,
+                &stored_txn_params(KRN_INTERFACE_CONTACT)
+            )
+            .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut contactless_ctx = KrnContext::new();
+        install_profile_selection(&mut contactless_ctx);
+        contactless_ctx.contactless_outcome_callback = Some(capture_contactless_outcome);
+        contactless_ctx.contactless_outcome_user_data = ptr::null_mut();
+        contactless_ctx
+            .card_data
+            .put(&[0x9f, 0x34], &[0x01, 0x00, 0x01])
+            .unwrap();
+        let mut profiles = contactless_ctx.profiles.clone().unwrap();
+        profiles.schemes[0].aids[0].floor_limit = 1;
+        profiles.schemes[0].aids[0].contactless_cvm_limit = 0;
+        profiles.schemes[0].aids[0].contactless_transaction_limit = 5_000;
+        let online_params = StoredTxnParams {
+            amount_authorised_minor: 2,
+            interface_preference: KRN_INTERFACE_CONTACTLESS,
+            ..stored_txn_params(KRN_INTERFACE_CONTACTLESS)
+        };
+        CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+        assert_eq!(
+            run_contactless_limit_processing(
+                &mut contactless_ctx,
+                runtime_with_transmit(capture_relay_resistance_apdu),
+                &profiles,
+                &online_params,
+            ),
+            Ok(None)
+        );
+        assert_eq!(
+            CALLBACK_OUTCOME_CODE.load(Ordering::SeqCst),
+            ContactlessOutcomeCode::OnlineRequired as u8
+        );
+
+        assert_eq!(
+            issuer_script_identifier_array(Some(&[0x00; KRN_ISSUER_SCRIPT_IDENTIFIER_LEN - 1]))
+                .unwrap_err(),
+            KernelError::ParseError
+        );
+
+        let mut issuer_auth_ctx = KrnContext::new();
+        issuer_auth_ctx.fsm_state = FsmState::S12;
+        issuer_auth_ctx.host_response = Some(HostResponse {
+            authorization_response_code: [b'0', b'0'],
+            authorization_code: None,
+            issuer_authentication_data: Some(vec![0x11; 8]),
+            scripts: Vec::new(),
+        });
+        assert_eq!(
+            run_issuer_authentication(
+                &mut issuer_auth_ctx,
+                runtime_with_transmit(fail_transmit_apdu),
+            )
+            .unwrap_err(),
+            KernelError::HostTimeout
+        );
     }
 
     #[test]
@@ -5516,6 +5704,47 @@ mod tests {
             Ok(KrnOutcome::DeclinedOffline)
         );
         assert_eq!(ctx.final_outcome, Some(KrnOutcome::DeclinedOffline));
+
+        let mut online_ctx = KrnContext::new();
+        online_ctx.fsm_state = FsmState::S11;
+        assert_eq!(
+            first_gac_transaction_outcome(&mut online_ctx),
+            Ok(KrnOutcome::OnlineRequired)
+        );
+        assert_eq!(online_ctx.last_error, KernelError::Ok);
+
+        let mut cda_final_ctx = KrnContext::new();
+        cda_final_ctx.fsm_state = FsmState::S16;
+        cda_final_ctx.state = KernelState::FinalOutcome;
+        cda_final_ctx.requested_cryptogram = Some(CryptogramRequest::Aac);
+        cda_final_ctx.tvr.set(Tvr::B1_CDA_FAILED);
+        assert_eq!(
+            first_gac_transaction_outcome(&mut cda_final_ctx),
+            Ok(KrnOutcome::DeclinedOffline)
+        );
+
+        let mut first_gac_final_ctx = KrnContext::new();
+        first_gac_final_ctx.fsm_state = FsmState::S16;
+        first_gac_final_ctx.state = KernelState::FinalOutcome;
+        first_gac_final_ctx.first_gac_response = Some(GenerateAcResponse {
+            cid: crate::cid::Cid::new(0x40),
+            atc: [0x00, 0x01],
+            application_cryptogram: [0x22; 8],
+            issuer_application_data: Vec::new(),
+            icc_dynamic_number: None,
+            signed_dynamic_application_data: None,
+        });
+        assert_eq!(
+            first_gac_transaction_outcome(&mut first_gac_final_ctx),
+            Ok(KrnOutcome::ApprovedOffline)
+        );
+
+        let mut invalid_first_gac_ctx = KrnContext::new();
+        invalid_first_gac_ctx.fsm_state = FsmState::S8;
+        assert_eq!(
+            first_gac_transaction_outcome(&mut invalid_first_gac_ctx),
+            Err(KernelError::InvalidArgument)
+        );
     }
 
     #[test]
@@ -5929,6 +6158,46 @@ mod tests {
             .collect()
     }
 
+    fn copy_card_tags(ctx: &KrnContext, tags: &[&[u8]]) -> DataStore {
+        let mut data = DataStore::new();
+        for tag in tags {
+            if let Some(value) = ctx.card_data.get(tag) {
+                data.put(tag, value).unwrap();
+            }
+        }
+        data
+    }
+
+    fn oda_evaluation<'a>(
+        ctx: &'a KrnContext,
+        profiles: &'a ProfileSet,
+        card_data: &'a DataStore,
+        runtime: Option<RuntimeCallbacks>,
+    ) -> OdaEvaluationContext<'a> {
+        let scheme = &profiles.schemes[0];
+        OdaEvaluationContext {
+            profiles,
+            rid: &scheme.rid,
+            evaluation_date: ctx.profile_evaluation_date.unwrap(),
+            card_data,
+            offline_auth_records: &ctx.offline_auth_records,
+            runtime,
+            apdu_timeout_ms: apdu_timeout(ctx),
+        }
+    }
+
+    #[test]
+    fn response_body_and_status_splits_body_and_rejects_short_apdus() {
+        assert_eq!(
+            response_body_and_status(&[0x70, 0x00, 0x90, 0x00]),
+            Ok((&[0x70, 0x00][..], StatusWord::new(0x90, 0x00)))
+        );
+        assert_eq!(
+            response_body_and_status(&[0x70]),
+            Err(KernelError::ParseError)
+        );
+    }
+
     #[test]
     fn runtime_oda_covers_selection_and_certificate_failure_edges() {
         let mut not_required = KrnContext::new();
@@ -6017,6 +6286,70 @@ mod tests {
             }
         );
 
+        let mut sda_missing_static_signature = KrnContext::new();
+        install_sda_success_fixture(&mut sda_missing_static_signature);
+        let profiles = sda_missing_static_signature.profiles.clone().unwrap();
+        let data = copy_card_tags(
+            &sda_missing_static_signature,
+            &[&[0x8f], &[0x90], &[0x9f, 0x32], &[0x9f, 0x4a], &[0x82]],
+        );
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Sda,
+                oda_evaluation(&sda_missing_static_signature, &profiles, &data, None),
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Sda,
+                failure: OdaFailure::StaticSignature,
+            }
+        );
+
+        let mut bad_dda_issuer_certificate = KrnContext::new();
+        install_dda_success_fixture(&mut bad_dda_issuer_certificate);
+        bad_dda_issuer_certificate
+            .card_data
+            .put(&[0x90], &[0x00])
+            .unwrap();
+        let profiles = bad_dda_issuer_certificate.profiles.clone().unwrap();
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Dda,
+                oda_evaluation(
+                    &bad_dda_issuer_certificate,
+                    &profiles,
+                    &bad_dda_issuer_certificate.card_data,
+                    None,
+                ),
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Dda,
+                failure: OdaFailure::IssuerCertificateRecovery,
+            }
+        );
+
+        let mut bad_dda_icc_certificate = KrnContext::new();
+        install_dda_success_fixture(&mut bad_dda_icc_certificate);
+        bad_dda_icc_certificate
+            .card_data
+            .put(&[0x9f, 0x46], &[0x00])
+            .unwrap();
+        let profiles = bad_dda_icc_certificate.profiles.clone().unwrap();
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Dda,
+                oda_evaluation(
+                    &bad_dda_icc_certificate,
+                    &profiles,
+                    &bad_dda_icc_certificate.card_data,
+                    None,
+                ),
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Dda,
+                failure: OdaFailure::IccCertificateRecovery,
+            }
+        );
+
         let mut dda_without_runtime = KrnContext::new();
         install_dda_success_fixture(&mut dda_without_runtime);
         let profiles = dda_without_runtime.profiles.clone().unwrap();
@@ -6037,6 +6370,29 @@ mod tests {
             OdaOutcome::Failed {
                 method: OdaMethod::Dda,
                 failure: OdaFailure::DynamicSignature,
+            }
+        );
+
+        let mut bad_cda_issuer_certificate = KrnContext::new();
+        install_cda_success_fixture(&mut bad_cda_issuer_certificate);
+        bad_cda_issuer_certificate
+            .card_data
+            .put(&[0x90], &[0x00])
+            .unwrap();
+        let profiles = bad_cda_issuer_certificate.profiles.clone().unwrap();
+        assert_eq!(
+            oda_outcome_for_method(
+                OdaMethod::Cda,
+                oda_evaluation(
+                    &bad_cda_issuer_certificate,
+                    &profiles,
+                    &bad_cda_issuer_certificate.card_data,
+                    None,
+                ),
+            ),
+            OdaOutcome::Failed {
+                method: OdaMethod::Cda,
+                failure: OdaFailure::IssuerCertificateRecovery,
             }
         );
 
@@ -6065,6 +6421,55 @@ mod tests {
                 method: OdaMethod::Cda,
                 failure: OdaFailure::IccCertificateRecovery,
             }
+        );
+    }
+
+    #[test]
+    fn dynamic_data_authentication_uses_default_ddol_when_card_omits_9f49() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_dda_success_fixture(&mut ctx);
+        let profiles = ctx.profiles.clone().unwrap();
+        let data = copy_card_tags(
+            &ctx,
+            &[
+                &[0x8f],
+                &[0x90],
+                &[0x9f, 0x32],
+                &[0x9f, 0x46],
+                &[0x9f, 0x47],
+                &[0x9f, 0x37],
+            ],
+        );
+        let capk = &profiles.schemes[0].capks[0];
+        let issuer_public_key = recover_issuer_public_key(capk, &data).unwrap();
+        let icc_public_key = recover_icc_public_key(&issuer_public_key, &data).unwrap();
+        let runtime = runtime_with_transmit(capture_internal_authenticate_apdu);
+
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        assert_eq!(
+            perform_dynamic_data_authentication(
+                runtime,
+                &icc_public_key,
+                &data,
+                APDU_TRANSMIT_TIMEOUT_MS,
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            LAST_TRANSMITTED_COMMAND.lock().unwrap().as_slice(),
+            &[0x00, 0x88, 0x00, 0x00, 0x04, 0x11, 0x22, 0x33, 0x44, 0x00]
+        );
+        assert_eq!(
+            perform_dynamic_data_authentication(
+                runtime_with_transmit(fail_transmit_apdu),
+                &icc_public_key,
+                &data,
+                APDU_TRANSMIT_TIMEOUT_MS,
+            )
+            .unwrap_err(),
+            KernelError::HostTimeout
         );
     }
 
@@ -6790,6 +7195,40 @@ mod tests {
     }
 
     #[test]
+    fn runtime_cda_failed_offline_cryptogram_rejects_arqc_reroute() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        let mut ctx = KrnContext::new();
+        install_cda_success_fixture(&mut ctx);
+        ctx.card_data
+            .put(&[0x9f, 0x0f], &[0x04, 0x00, 0x00, 0x00, 0x00])
+            .unwrap();
+        ctx.fsm_state = FsmState::S5;
+        ctx.state = KernelState::OfflineDataAuthentication;
+        let profiles = ctx.profiles.clone().unwrap();
+        assert_eq!(
+            run_offline_data_authentication(&mut ctx, &profiles, None),
+            Ok(())
+        );
+        ctx.fsm_state = FsmState::S10;
+        ctx.state = KernelState::FirstGenerateAc;
+        ctx.requested_cryptogram = Some(CryptogramRequest::Arqc);
+        let runtime = RuntimeCallbacks {
+            transmit_apdu: capture_cda_tc_generate_ac_apdu,
+            get_unpredictable_number: fill_unpredictable_number,
+            contactless_outcome: None,
+            user_data: ptr::null_mut(),
+        };
+
+        DDA_RESPONSE_MODE.store(1, Ordering::SeqCst);
+        assert_eq!(
+            run_first_generate_ac(&mut ctx, runtime),
+            Err(KernelError::InvalidArgument)
+        );
+        assert_eq!(ctx.requested_cryptogram, Some(CryptogramRequest::Arqc));
+        DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
+    }
+
+    #[test]
     fn runtime_cda_missing_signed_dynamic_data_sets_tvr_for_online_handoff() {
         let _guard = FFI_TEST_LOCK.lock().unwrap();
         let mut ctx = KrnContext::new();
@@ -7025,6 +7464,132 @@ mod tests {
         KernelError::Ok.code()
     }
 
+    unsafe extern "C" fn capture_pse_not_found_apdu(
+        _cmd: *const u8,
+        _cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        _timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let response = [0x6a, 0x82];
+        *resp_len = response.len();
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_empty_pse_directory_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        let count = TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = match count {
+            0 => vec![0x6f, 0x05, 0xa5, 0x03, 0xbf, 0x0c, 0x00, 0x90, 0x00],
+            1 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]),
+            2 => no_oda_gpo_aip_afl_response(),
+            3 => application_record_response(),
+            4 => first_gac_arqc_response(),
+            _ => vec![0x6a, 0x80],
+        };
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_gpo_failure_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        let count = TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = match count {
+            0 => pse_directory_response(),
+            1 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]),
+            2 => vec![0x69, 0x85],
+            _ => vec![0x6a, 0x80],
+        };
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_malformed_gpo_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        let count = TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = match count {
+            0 => pse_directory_response(),
+            1 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]),
+            2 => vec![0x77, 0x00, 0x90, 0x00],
+            _ => vec![0x6a, 0x80],
+        };
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
+    unsafe extern "C" fn capture_template80_gpo_apdu(
+        cmd: *const u8,
+        cmd_len: usize,
+        resp: *mut u8,
+        resp_len: *mut usize,
+        timeout_ms: i32,
+        _user_data: *mut c_void,
+    ) -> i32 {
+        let command = slice::from_raw_parts(cmd, cmd_len);
+        let count = TRANSMIT_COUNT.fetch_add(1, Ordering::SeqCst);
+        TRANSMITTED_INS.store(command[1], Ordering::SeqCst);
+        TRANSMIT_TIMEOUT_MS.store(timeout_ms, Ordering::SeqCst);
+        let response = match count {
+            0 => pse_directory_response(),
+            1 => selected_fci_response(&[0xa0, 0x00, 0x00, 0x00, 0x03, 0x10, 0x10]),
+            2 => vec![0x80, 0x06, 0x00, 0x00, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00],
+            3 => application_record_response(),
+            4 => first_gac_arqc_response(),
+            _ => vec![0x6a, 0x80],
+        };
+        let capacity = *resp_len;
+        *resp_len = response.len();
+        if capacity < response.len() {
+            return KernelError::BufferTooSmall.code();
+        }
+        ptr::copy_nonoverlapping(response.as_ptr(), resp, response.len());
+        KernelError::Ok.code()
+    }
+
     unsafe extern "C" fn capture_relay_resistance_apdu(
         cmd: *const u8,
         cmd_len: usize,
@@ -7070,6 +7635,12 @@ mod tests {
     fn gpo_aip_afl_response() -> Vec<u8> {
         vec![
             0x77, 0x0a, 0x82, 0x02, 0x80, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
+        ]
+    }
+
+    fn no_oda_gpo_aip_afl_response() -> Vec<u8> {
+        vec![
+            0x77, 0x0a, 0x82, 0x02, 0x00, 0x00, 0x94, 0x04, 0x10, 0x01, 0x01, 0x00, 0x90, 0x00,
         ]
     }
 
@@ -7262,6 +7833,35 @@ mod tests {
                 callback_response(capture_script_followup_apdu, &command, ptr::null_mut());
             assert_eq!(code, KernelError::Ok.code());
             assert_eq!(response, vec![0x6a, 0x80]);
+
+            for (callback, count) in [
+                (
+                    capture_empty_pse_directory_apdu as KrnTransmitApduCallback,
+                    5usize,
+                ),
+                (capture_gpo_failure_apdu as KrnTransmitApduCallback, 3usize),
+                (
+                    capture_malformed_gpo_apdu as KrnTransmitApduCallback,
+                    3usize,
+                ),
+                (
+                    capture_template80_gpo_apdu as KrnTransmitApduCallback,
+                    5usize,
+                ),
+            ] {
+                TRANSMIT_COUNT.store(count, Ordering::SeqCst);
+                let (code, response) = callback_response(callback, &command, ptr::null_mut());
+                assert_eq!(code, KernelError::Ok.code());
+                assert_eq!(response, vec![0x6a, 0x80]);
+            }
+
+            for count in [3usize, 4] {
+                TRANSMIT_COUNT.store(count, Ordering::SeqCst);
+                let (code, response) =
+                    callback_response(capture_template80_gpo_apdu, &command, ptr::null_mut());
+                assert_eq!(code, KernelError::Ok.code());
+                assert!(response.len() > 2);
+            }
         }
         reset_callback_fixture_state();
     }
@@ -7297,6 +7897,16 @@ mod tests {
                 ptr::null_mut(),
             );
             assert_callback_rejects_small_response_buffer(
+                capture_cda_aac_generate_ac_apdu,
+                &gac_command,
+                ptr::null_mut(),
+            );
+            assert_callback_rejects_small_response_buffer(
+                capture_cda_referral_generate_ac_apdu,
+                &gac_command,
+                ptr::null_mut(),
+            );
+            assert_callback_rejects_small_response_buffer(
                 capture_cda_format_1_generate_ac_without_sdad,
                 &gac_command,
                 ptr::null_mut(),
@@ -7327,6 +7937,20 @@ mod tests {
                 &auth_command,
                 ptr::null_mut(),
             );
+
+            for callback in [
+                capture_empty_pse_directory_apdu as KrnTransmitApduCallback,
+                capture_gpo_failure_apdu as KrnTransmitApduCallback,
+                capture_malformed_gpo_apdu as KrnTransmitApduCallback,
+                capture_template80_gpo_apdu as KrnTransmitApduCallback,
+            ] {
+                TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+                assert_callback_rejects_small_response_buffer(
+                    callback,
+                    &auth_command,
+                    ptr::null_mut(),
+                );
+            }
 
             TRANSMIT_COUNT.store(0, Ordering::SeqCst);
             assert_callback_rejects_small_response_buffer(
@@ -10443,6 +11067,22 @@ mod tests {
         let trust = include_bytes!("../docs/certification_data_bundle_trust_anchors.json");
 
         unsafe {
+            let invalid_bundle = br#"{}"#;
+            assert_eq!(
+                krn_load_certification_bundle_verified(
+                    &mut ctx,
+                    invalid_bundle.as_ptr(),
+                    invalid_bundle.len(),
+                    trust.as_ptr(),
+                    trust.len(),
+                    1,
+                    26,
+                    5,
+                    25,
+                ),
+                KernelError::InvalidProfile.code()
+            );
+
             assert_eq!(
                 krn_load_certification_bundle_verified(
                     &mut ctx,

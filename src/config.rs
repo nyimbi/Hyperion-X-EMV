@@ -3205,6 +3205,30 @@ mod tests {
             load_profile_set(empty_schemes.as_bytes(), &verified).unwrap_err(),
             KernelError::InvalidProfile
         );
+        let exact_empty_schemes = br#"{
+          "schema_version": "1.0",
+          "profile_class": "CERTIFICATION",
+          "profile_source": {
+            "owner": "scheme_or_acquirer",
+            "document": "signed_certification_profile_bundle",
+            "version": "2",
+            "retrieved": "2026-05-21",
+            "verification": "external_signature_required"
+          },
+          "certification_scope": {
+            "bundled_scheme_profiles": ["Visa"],
+            "lab_supplied_scheme_profiles_required": [],
+            "contactless_kernel_profile": "C-8 lab approval package",
+            "profile_material_status": "certification_format_fixture_pending_lab_signature",
+            "capk_material_status": "deterministic_public_fixture_values_must_be_replaced_by_lab_signed_capks",
+            "production_profile_bundle_required": true
+          },
+          "scheme_profiles": []
+        }"#;
+        assert_eq!(
+            load_profile_set(exact_empty_schemes, &verified).unwrap_err(),
+            KernelError::InvalidProfile
+        );
 
         let mut source = BTreeMap::new();
         source.insert(

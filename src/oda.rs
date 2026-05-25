@@ -1085,25 +1085,21 @@ fn validate_certification_vector_ids(text: &str) -> KernelResult<()> {
 }
 
 fn certification_vector_method(id: &str) -> Option<&'static str> {
-    for prefix in ODA_VECTOR_METHOD_PREFIXES {
+    ODA_VECTOR_METHOD_PREFIXES.iter().copied().find(|prefix| {
         let Some(suffix) = id.strip_prefix(prefix) else {
-            continue;
+            return false;
         };
         let Some(rest) = suffix
             .strip_prefix('_')
             .or_else(|| suffix.strip_prefix('-'))
         else {
-            continue;
+            return false;
         };
-        if !rest.is_empty()
+        !rest.is_empty()
             && rest
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-        {
-            return Some(prefix);
-        }
-    }
-    None
+    })
 }
 
 fn require_json_fields(text: &str, fields: &[&str]) -> KernelResult<()> {
@@ -2599,6 +2595,7 @@ mod tests {
         );
         assert_eq!(certification_vector_method("SDA-1"), Some("SDA"));
         assert_eq!(certification_vector_method("DDA_1"), Some("DDA"));
+        assert_eq!(certification_vector_method("CDA_1"), Some("CDA"));
         assert_eq!(certification_vector_method("CDA"), None);
         assert_eq!(
             parse_rsa_public_exponent(&[]).unwrap_err(),

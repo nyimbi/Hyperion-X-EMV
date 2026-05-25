@@ -116,8 +116,9 @@ it proves tests pass, not that every unit coverage obligation has been measured
 and accepted.
 
 The repository workflow is documented in `docs/coverage.md` and implemented by
-`scripts/coverage_100.sh`. By default it uses `cargo-llvm-cov` to fail unless
-measured line coverage reaches 100% and stages an HTML report under
+`scripts/coverage_100.sh`. By default it uses `cargo-llvm-cov` to run all
+workspace targets, exports `target/coverage/lcov.info`, fails unless every LCOV
+source line has a non-zero hit count, and stages an HTML report under
 `target/coverage/html`. The pre-lab CI workflow runs the same script with
 `KRN_COVERAGE_ENFORCE=0` so contributors can review measurement artifacts
 before the 100% requirement is actually closed.

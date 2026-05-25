@@ -7532,11 +7532,13 @@ fn coverage_report_workflow_requires_100_percent_without_closing_cert_open_009()
     assert!(COVERAGE_AUDIT_EXAMPLE.contains("coverage_package_is_reviewable"));
     assert!(COVERAGE_SCRIPT.contains("KRN_COVERAGE_ENFORCE:-1"));
     assert!(COVERAGE_SCRIPT.contains("KRN_COVERAGE_ENFORCE must be 0 or 1"));
-    assert!(COVERAGE_SCRIPT.contains("--fail-under-lines 100"));
+    assert!(COVERAGE_SCRIPT.contains("target/coverage/lcov.info"));
+    assert!(COVERAGE_SCRIPT.contains("validate_lcov_100"));
     assert!(COVERAGE_SCRIPT.contains("--all-targets"));
     assert!(COVERAGE_SCRIPT.contains("--all-features"));
     assert!(COVERAGE_SCRIPT.contains("--output-dir target/coverage"));
     assert!(COVERAGE_SCRIPT.contains("target/coverage/html"));
+    assert!(COVERAGE_SCRIPT.contains("lcov_report"));
     assert!(COVERAGE_SCRIPT.contains("target/coverage/metadata.json"));
     assert!(COVERAGE_SCRIPT.contains("hyperion-coverage-report-metadata"));
     assert!(COVERAGE_SCRIPT.contains("source_commit"));
@@ -7571,8 +7573,13 @@ fn coverage_package_audit_distinguishes_measurement_from_enforced_candidates() {
     fs::write(root.join("README.txt"), b"coverage package").unwrap();
     fs::write(root.join("html/index.html"), b"<html>coverage</html>").unwrap();
     fs::write(
+        root.join("lcov.info"),
+        b"TN:\nSF:src/lib.rs\nDA:1,1\nend_of_record\n",
+    )
+    .unwrap();
+    fs::write(
         root.join("metadata.json"),
-        b"{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":100,\"coverage_enforced\":false,\"html_report\":\"target/coverage/html\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}",
+        b"{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":100,\"coverage_enforced\":false,\"html_report\":\"target/coverage/html\",\"lcov_report\":\"target/coverage/lcov.info\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}",
     )
     .unwrap();
 
@@ -7589,7 +7596,7 @@ fn coverage_package_audit_distinguishes_measurement_from_enforced_candidates() {
 
     fs::write(
         root.join("metadata.json"),
-        b"{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":100,\"coverage_enforced\":true,\"html_report\":\"target/coverage/html\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}",
+        b"{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":100,\"coverage_enforced\":true,\"html_report\":\"target/coverage/html\",\"lcov_report\":\"target/coverage/lcov.info\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}",
     )
     .unwrap();
     let audit = audit_coverage_package(&root).unwrap();

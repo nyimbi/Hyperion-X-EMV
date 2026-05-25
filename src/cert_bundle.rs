@@ -1140,17 +1140,18 @@ fn lint_trust_anchors(
                 "Generate and custody a submission-specific signing key outside the repository fixture and provision only its public verification key here.",
             );
         }
-        if let Some(not_after) = anchor.not_after {
-            if not_after < policy.evaluation_date {
-                push_finding(
-                    report,
-                    BundleLintSeverity::Error,
-                    &format!("trust_anchors[{idx}].not_after"),
-                    "Trust anchor has expired for the evaluation date",
-                    "The runtime will reject bundles signed by expired anchors.",
-                    "Rotate the trust anchor or evaluate against the correct lab date.",
-                );
-            }
+        if anchor
+            .not_after
+            .is_some_and(|not_after| not_after < policy.evaluation_date)
+        {
+            push_finding(
+                report,
+                BundleLintSeverity::Error,
+                &format!("trust_anchors[{idx}].not_after"),
+                "Trust anchor has expired for the evaluation date",
+                "The runtime will reject bundles signed by expired anchors.",
+                "Rotate the trust anchor or evaluate against the correct lab date.",
+            );
         }
     }
 }
@@ -1560,10 +1561,11 @@ fn verify_bundle_signature(
                 && anchor.signing_key_fingerprint == bundle.signature.signing_key_fingerprint
         })
         .ok_or(KernelError::InvalidProfile)?;
-    if let Some(not_after) = anchor.not_after {
-        if not_after < policy.evaluation_date {
-            return Err(KernelError::InvalidProfile);
-        }
+    if anchor
+        .not_after
+        .is_some_and(|not_after| not_after < policy.evaluation_date)
+    {
+        return Err(KernelError::InvalidProfile);
     }
     if anchor.allowed_payload_sha256 != to_hex(payload_sha256) {
         return Err(KernelError::InvalidProfile);

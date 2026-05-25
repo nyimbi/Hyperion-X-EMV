@@ -32,13 +32,13 @@ The script:
 - Verifies that `cargo llvm-cov` is installed.
 - Cleans workspace coverage state.
 - Runs all workspace targets and features under coverage.
-- Fails unless line coverage reaches 100%.
-- Writes an HTML report under `target/coverage/html`.
+- Exports `target/coverage/lcov.info` and fails in enforcing mode unless every LCOV source line has a non-zero hit count.
+- Writes an HTML report under `target/coverage/html` for review.
 - Writes a local staging note under `target/coverage/README.txt`.
 - Writes machine-readable run metadata under `target/coverage/metadata.json`,
   including source commit, Cargo version, Rust compiler version, target triple,
   `cargo-llvm-cov` version, target/feature scope, threshold, enforcement mode,
-  and the `CERT-OPEN-009` non-closure marker.
+  LCOV report path, and the `CERT-OPEN-009` non-closure marker.
 
 After a run, audit the staged package:
 
@@ -64,10 +64,10 @@ the certification blocker, set `KRN_COVERAGE_ENFORCE=0`:
 KRN_COVERAGE_ENFORCE=0 scripts/coverage_100.sh
 ```
 
-That mode still runs the same targets/features and writes the same report, but
-it does not fail the process when coverage is below 100%. It is suitable for
-trend visibility and artifact review only. The final certification-facing run
-must use the default enforcing mode.
+That mode still runs the same targets/features and writes the same LCOV and
+HTML reports, but it does not fail the process when coverage is below 100%. It
+is suitable for trend visibility and artifact review only. The final
+certification-facing run must use the default enforcing mode.
 
 ## Acceptance Rules
 
@@ -101,10 +101,11 @@ The CI artifact remains repository evidence until the submitted binary, profiles
 CAPKs, vectors, traceability matrix, and reviewer acceptance are bound into the
 lab submission package.
 
-The uploaded `target/coverage` directory must contain both the HTML report and
-`metadata.json`. The metadata file is intended for report production and
-submission review; it is not certification closure unless the enforcing mode
-was used and the report is accepted for the submitted artifact set.
+The uploaded `target/coverage` directory must contain the HTML report,
+`lcov.info`, and `metadata.json`. The metadata file is intended for report
+production and submission review; it is not certification closure unless the
+enforcing mode was used and the report is accepted for the submitted artifact
+set.
 
 ## Contributor Use
 

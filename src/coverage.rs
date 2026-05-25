@@ -29,6 +29,7 @@ pub struct CoverageMetadata {
     pub line_coverage_threshold: u64,
     pub coverage_enforced: bool,
     pub html_report: String,
+    pub lcov_report: String,
     pub readme: String,
     pub open_issue: String,
     pub does_not_close: String,
@@ -57,10 +58,12 @@ pub fn audit_coverage_package(root: &Path) -> io::Result<CoveragePackageAudit> {
     let metadata_path = root.join("metadata.json");
     let readme_path = root.join("README.txt");
     let html_index_path = root.join("html").join("index.html");
+    let lcov_path = root.join("lcov.info");
     let files = vec![
         audit_coverage_file("metadata.json", &metadata_path)?,
         audit_coverage_file("README.txt", &readme_path)?,
         audit_coverage_file("html/index.html", &html_index_path)?,
+        audit_coverage_file("lcov.info", &lcov_path)?,
     ];
 
     let mut findings = Vec::new();
@@ -196,6 +199,7 @@ pub fn coverage_package_audit_markdown(abi_version: u32, audit: &CoveragePackage
             metadata.line_coverage_threshold
         );
         let _ = writeln!(out, "- Enforcement mode: {}", metadata.coverage_enforced);
+        let _ = writeln!(out, "- LCOV report: `{}`", metadata.lcov_report);
         let _ = writeln!(out, "- Open issue: `{}`", metadata.open_issue);
         let _ = writeln!(out, "- Does not close: `{}`", metadata.does_not_close);
     }
@@ -267,6 +271,9 @@ fn validate_coverage_metadata(metadata: &CoverageMetadata, findings: &mut Vec<St
     if metadata.html_report != "target/coverage/html" {
         findings.push("metadata html_report must be target/coverage/html".to_string());
     }
+    if metadata.lcov_report != "target/coverage/lcov.info" {
+        findings.push("metadata lcov_report must be target/coverage/lcov.info".to_string());
+    }
     if metadata.readme != "target/coverage/README.txt" {
         findings.push("metadata readme must be target/coverage/README.txt".to_string());
     }
@@ -292,6 +299,7 @@ fn parse_coverage_metadata(input: &str) -> Result<CoverageMetadata, String> {
         line_coverage_threshold: required_u64(input, "line_coverage_threshold")?,
         coverage_enforced: required_bool(input, "coverage_enforced")?,
         html_report: required_string(input, "html_report")?,
+        lcov_report: required_string(input, "lcov_report")?,
         readme: required_string(input, "readme")?,
         open_issue: required_string(input, "open_issue")?,
         does_not_close: required_string(input, "does_not_close")?,
@@ -390,6 +398,8 @@ fn push_metadata_json(out: &mut String, metadata: &CoverageMetadata) {
     push_json_bool(out, "coverage_enforced", metadata.coverage_enforced);
     out.push(',');
     push_json_str(out, "html_report", &metadata.html_report);
+    out.push(',');
+    push_json_str(out, "lcov_report", &metadata.lcov_report);
     out.push(',');
     push_json_str(out, "readme", &metadata.readme);
     out.push(',');
@@ -580,6 +590,10 @@ mod tests {
         assert!(audit
             .findings
             .iter()
+            .any(|finding| finding.contains("lcov.info")));
+        assert!(audit
+            .findings
+            .iter()
             .any(|finding| finding.contains("metadata field `type` is missing")));
         assert!(json.contains("\"metadata\":null"));
         assert!(json.contains("\"sha256\":null"));
@@ -594,7 +608,7 @@ mod tests {
         write_coverage_package(&root, false, 100).unwrap();
         fs::write(
             root.join("metadata.json"),
-            "{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"unknown\",\"cargo_version\":\"cargo 1\",\"rustc_version\":\"rustc 1\",\"target_triple\":\"target\",\"coverage_tool_version\":\"tool\",\"workspace\":false,\"all_targets\":false,\"all_features\":false,\"line_coverage_threshold\":0,\"coverage_enforced\":false,\"html_report\":\"wrong/html\",\"readme\":\"wrong/README.txt\",\"open_issue\":\"WRONG\",\"does_not_close\":\"WRONG\"}",
+            "{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"unknown\",\"cargo_version\":\"cargo 1\",\"rustc_version\":\"rustc 1\",\"target_triple\":\"target\",\"coverage_tool_version\":\"tool\",\"workspace\":false,\"all_targets\":false,\"all_features\":false,\"line_coverage_threshold\":0,\"coverage_enforced\":false,\"html_report\":\"wrong/html\",\"lcov_report\":\"wrong/lcov.info\",\"readme\":\"wrong/README.txt\",\"open_issue\":\"WRONG\",\"does_not_close\":\"WRONG\"}",
         )
         .unwrap();
 
@@ -608,6 +622,7 @@ mod tests {
             "metadata all_features must be true",
             "metadata line_coverage_threshold must be 100",
             "metadata html_report must be target/coverage/html",
+            "metadata lcov_report must be target/coverage/lcov.info",
             "metadata readme must be target/coverage/README.txt",
             "metadata open_issue must be CERT-OPEN-009",
             "metadata does_not_close must be CERT-OPEN-009",
@@ -641,6 +656,7 @@ mod tests {
                 line_coverage_threshold: 100,
                 coverage_enforced: true,
                 html_report: "target/coverage/html".to_string(),
+                lcov_report: "target/coverage/lcov.info".to_string(),
                 readme: "target/coverage/README.txt".to_string(),
                 open_issue: "CERT-OPEN-009".to_string(),
                 does_not_close: "CERT-OPEN-009".to_string(),
@@ -708,8 +724,10 @@ mod tests {
         let readme = b"Hyperion-X-EMV 100% coverage report staging directory.";
         fs::write(root.join("README.txt"), readme)?;
         fs::write(root.join("html/index.html"), b"<html>coverage</html>")?;
+        let lcov = b"TN:\nSF:src/lib.rs\nDA:1,1\nend_of_record\n";
+        fs::write(root.join("lcov.info"), lcov)?;
         let metadata = format!(
-            "{{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":{threshold},\"coverage_enforced\":{enforced},\"html_report\":\"target/coverage/html\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}}"
+            "{{\"type\":\"hyperion-coverage-report-metadata\",\"source_commit\":\"abcdef0\",\"cargo_version\":\"cargo 1.70.0\",\"rustc_version\":\"rustc 1.70.0\",\"target_triple\":\"x86_64-unknown-linux-gnu\",\"coverage_tool_version\":\"cargo-llvm-cov 0.6.0\",\"workspace\":true,\"all_targets\":true,\"all_features\":true,\"line_coverage_threshold\":{threshold},\"coverage_enforced\":{enforced},\"html_report\":\"target/coverage/html\",\"lcov_report\":\"target/coverage/lcov.info\",\"readme\":\"target/coverage/README.txt\",\"open_issue\":\"CERT-OPEN-009\",\"does_not_close\":\"CERT-OPEN-009\"}}"
         );
         fs::write(root.join("metadata.json"), metadata)?;
         Ok(())
