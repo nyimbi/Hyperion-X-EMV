@@ -6982,6 +6982,131 @@ mod tests {
         KernelError::Ok.code()
     }
 
+    fn reset_callback_fixture_state() {
+        CALLBACK_OUTCOME_CODE.store(0, Ordering::SeqCst);
+        CALLBACK_DATA_RECORD_LEN.store(0, Ordering::SeqCst);
+        TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        TRANSMITTED_INS.store(0, Ordering::SeqCst);
+        TRANSMITTED_LEN.store(0, Ordering::SeqCst);
+        LAST_TRANSMITTED_COMMAND.lock().unwrap().clear();
+        TRANSMIT_TIMEOUT_MS.store(0, Ordering::SeqCst);
+        ISSUER_AUTH_SW1.store(0x90, Ordering::SeqCst);
+        ISSUER_AUTH_SW2.store(0x00, Ordering::SeqCst);
+        SCRIPT_SW1.store(0x90, Ordering::SeqCst);
+        SCRIPT_SW2.store(0x00, Ordering::SeqCst);
+        RELAY_SW1.store(0x90, Ordering::SeqCst);
+        RELAY_SW2.store(0x00, Ordering::SeqCst);
+        SCRIPT_FOLLOWUP_MODE.store(0, Ordering::SeqCst);
+        FOLLOWUP_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+        FOLLOWUP_TRANSMITTED_INS.store(0, Ordering::SeqCst);
+        FOLLOWUP_TRANSMITTED_LEN.store(0, Ordering::SeqCst);
+        DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
+        READ_RECORD_RESPONSE_MODE.store(0, Ordering::SeqCst);
+    }
+
+    unsafe fn assert_callback_rejects_small_response_buffer(
+        callback: KrnTransmitApduCallback,
+        command: &[u8],
+        user_data: *mut c_void,
+    ) {
+        let mut response = [0u8; 1];
+        let mut response_len = response.len();
+
+        assert_eq!(
+            callback(
+                command.as_ptr(),
+                command.len(),
+                response.as_mut_ptr(),
+                &mut response_len,
+                APDU_TRANSMIT_TIMEOUT_MS,
+                user_data,
+            ),
+            KernelError::BufferTooSmall.code()
+        );
+        assert!(response_len > response.len());
+    }
+
+    #[test]
+    fn ffi_runtime_callback_fixtures_reject_small_output_buffers() {
+        let _guard = FFI_TEST_LOCK.lock().unwrap();
+        reset_callback_fixture_state();
+        let auth_command = [0x00, 0x88, 0x00, 0x00];
+        let gac_command = [0x80, 0xae, 0x80, 0x00];
+        let script_command = [0x80, 0xda, 0x00, 0x00];
+
+        unsafe {
+            DDA_RESPONSE_MODE.store(0, Ordering::SeqCst);
+            assert_callback_rejects_small_response_buffer(
+                capture_internal_authenticate_apdu,
+                &auth_command,
+                ptr::null_mut(),
+            );
+            assert_callback_rejects_small_response_buffer(
+                capture_cda_generate_ac_apdu,
+                &gac_command,
+                ptr::null_mut(),
+            );
+            assert_callback_rejects_small_response_buffer(
+                capture_cda_generate_ac_apdu_without_9f4c,
+                &gac_command,
+                ptr::null_mut(),
+            );
+            assert_callback_rejects_small_response_buffer(
+                capture_cda_tc_generate_ac_apdu,
+                &gac_command,
+                ptr::null_mut(),
+            );
+            assert_callback_rejects_small_response_buffer(
+                capture_cda_format_1_generate_ac_without_sdad,
+                &gac_command,
+                ptr::null_mut(),
+            );
+
+            TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+            assert_callback_rejects_small_response_buffer(
+                capture_select_apdu,
+                &auth_command,
+                ptr::null_mut(),
+            );
+
+            let selection_script = SelectionStatusPolicyScript {
+                counter: AtomicUsize::new(0),
+                mode: 1,
+                commands: Mutex::new(Vec::new()),
+            };
+            assert_callback_rejects_small_response_buffer(
+                capture_selection_status_policy_apdu,
+                &auth_command,
+                (&selection_script as *const SelectionStatusPolicyScript)
+                    .cast_mut()
+                    .cast(),
+            );
+
+            assert_callback_rejects_small_response_buffer(
+                capture_relay_resistance_apdu,
+                &auth_command,
+                ptr::null_mut(),
+            );
+
+            TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+            assert_callback_rejects_small_response_buffer(
+                capture_offline_auth_record_apdu,
+                &auth_command,
+                ptr::null_mut(),
+            );
+
+            SCRIPT_FOLLOWUP_MODE.store(1, Ordering::SeqCst);
+            FOLLOWUP_TRANSMIT_COUNT.store(0, Ordering::SeqCst);
+            assert_callback_rejects_small_response_buffer(
+                capture_script_followup_apdu,
+                &script_command,
+                ptr::null_mut(),
+            );
+            SCRIPT_FOLLOWUP_MODE.store(0, Ordering::SeqCst);
+        }
+        reset_callback_fixture_state();
+    }
+
     unsafe extern "C" fn fill_unpredictable_number(
         out: *mut u8,
         out_len: usize,

@@ -2992,6 +2992,322 @@ mod tests {
         );
     }
 
+    fn unknown_object() -> std::collections::BTreeMap<String, JsonValue> {
+        let mut object = std::collections::BTreeMap::new();
+        object.insert(
+            "unknown".to_string(),
+            JsonValue::String("value".to_string()),
+        );
+        object
+    }
+
+    #[test]
+    fn bundle_parser_policy_and_serializer_edges_fail_closed() {
+        let (bundle_json, anchors_json) = create_bundle_from_inputs(input()).unwrap();
+        let bundle = parse_certification_bundle(bundle_json.as_bytes()).unwrap();
+        let anchors = parse_trust_anchors(anchors_json.as_bytes()).unwrap();
+        let policy = policy_with_anchors(&anchors_json, 1);
+
+        let bad_anchor_report = certification_bundle_compile_report(
+            bundle_json.as_bytes(),
+            b"{\"schema_version\":\"wrong\",\"trust_anchors\":[]}",
+            &policy,
+        );
+        assert_eq!(bad_anchor_report.status, "fail");
+        assert!(!bad_anchor_report.coverage.is_empty());
+
+        let zero_version = bundle_json.replace("\"bundle_version\":2", "\"bundle_version\":0");
+        assert_ne!(zero_version, bundle_json);
+        assert_eq!(
+            parse_certification_bundle(zero_version.as_bytes()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let unknown_bundle_field =
+            bundle_json.replace("\"created\":", "\"unexpected\":1,\"created\":");
+        assert_eq!(
+            parse_certification_bundle(unknown_bundle_field.as_bytes()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let two_anchor_json = trust_anchors_json(&[anchors[0].clone(), anchors[0].clone()]);
+        assert!(two_anchor_json.contains("},{"));
+        assert_eq!(build_mode_as_str(BuildMode::Test), "test");
+        assert_eq!(build_mode_as_str(BuildMode::Production), "production");
+        assert_eq!(
+            external_reference_status("lab-approved-reference"),
+            "covered"
+        );
+        assert_eq!(
+            certification_vector_bundle_status(
+                "{\"vector_class\":\"CERTIFICATION\",\"cases\":[{\"name\":\"sda dda only\"}]}"
+            ),
+            "external_required"
+        );
+        assert_eq!(
+            validate_clean_string("PLACEHOLDER").unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            validate_non_empty_set(&[]).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut escaped_json = String::new();
+        push_json_escaped(
+            &mut escaped_json,
+            "quote\" slash\\ line\n carriage\r tab\t nul\0",
+        );
+        assert_eq!(
+            escaped_json,
+            "quote\\\" slash\\\\ line\\n carriage\\r tab\\t nul\\u0000"
+        );
+        let mut html = String::new();
+        push_html_text(&mut html, "<&>\"");
+        assert_eq!(html, "&lt;&amp;&gt;&quot;");
+
+        let mut future_bundle = bundle.clone();
+        future_bundle.created = EmvDate {
+            year: 27,
+            month: 1,
+            day: 1,
+        };
+        assert_eq!(
+            validate_bundle_for_policy(&future_bundle, &policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut testing_bundle = bundle.clone();
+        testing_bundle.bundle_class = BundleClass::Testing;
+        assert_eq!(
+            validate_bundle_for_policy(&testing_bundle, &policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let no_anchor_policy = BundleLoadPolicy {
+            trust_anchors: Vec::new(),
+            ..policy.clone()
+        };
+        assert_eq!(
+            validate_bundle_for_policy(&bundle, &no_anchor_policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut expired_anchor_policy = policy.clone();
+        expired_anchor_policy.trust_anchors[0].not_after = Some(EmvDate {
+            year: 25,
+            month: 1,
+            day: 1,
+        });
+        assert_eq!(
+            load_certification_bundle(bundle_json.as_bytes(), &expired_anchor_policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut wrong_payload_policy = policy.clone();
+        wrong_payload_policy.trust_anchors[0].allowed_payload_sha256 = "00".repeat(32);
+        assert_eq!(
+            load_certification_bundle(bundle_json.as_bytes(), &wrong_payload_policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut wrong_fingerprint_policy = policy.clone();
+        wrong_fingerprint_policy.trust_anchors[0].signing_key_fingerprint = "00".repeat(32);
+        assert_eq!(
+            load_certification_bundle(bundle_json.as_bytes(), &wrong_fingerprint_policy)
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut wrong_algorithm_bundle = bundle.clone();
+        wrong_algorithm_bundle.signature.algorithm =
+            CERTIFICATION_BUNDLE_TEST_ALGORITHM.to_string();
+        assert_eq!(
+            load_certification_bundle(
+                certification_bundle_json(&wrong_algorithm_bundle).as_bytes(),
+                &policy,
+            )
+            .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut wrong_public_key_policy = policy.clone();
+        let other_key = SigningKey::from_bytes(&[7u8; 32]);
+        wrong_public_key_policy.trust_anchors[0].verification_public_key_hex =
+            to_hex(&other_key.verifying_key().to_bytes());
+        assert_eq!(
+            load_certification_bundle(bundle_json.as_bytes(), &wrong_public_key_policy)
+                .unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut bad_profile_bundle = bundle.clone();
+        bad_profile_bundle.bundle_class = BundleClass::Testing;
+        bad_profile_bundle.payload.scheme_profile_set_json = "{}".to_string();
+        let bad_payload_sha =
+            sha256(payload_canonical_json(&bad_profile_bundle.payload).as_bytes());
+        bad_profile_bundle.signature.algorithm = CERTIFICATION_BUNDLE_TEST_ALGORITHM.to_string();
+        bad_profile_bundle.signature.payload_sha256 = to_hex(&bad_payload_sha);
+        bad_profile_bundle.signature.signature_hex = "11".repeat(32);
+        bad_profile_bundle.signature.signature_artifact_sha256 = to_hex(&sha256(
+            bad_profile_bundle.signature.signature_hex.as_bytes(),
+        ));
+        let bad_profile_json = certification_bundle_json(&bad_profile_bundle);
+        let test_policy = BundleLoadPolicy {
+            mode: BuildMode::Test,
+            installed_rollback_counter: 1,
+            evaluation_date: policy.evaluation_date,
+            trust_anchors: Vec::new(),
+        };
+        assert_eq!(
+            load_certification_bundle(bad_profile_json.as_bytes(), &test_policy).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let loaded = load_certification_bundle(bundle_json.as_bytes(), &policy).unwrap();
+        for (lower, upper, typed_limit) in [
+            (Some(1), None, None),
+            (None, Some(2), None),
+            (
+                None,
+                None,
+                Some(crate::trm::TransactionTypeFloorLimit {
+                    transaction_type: 1,
+                    floor_limit: 1,
+                }),
+            ),
+        ] {
+            let mut trm_loaded = loaded.clone();
+            let aid = &mut trm_loaded.profile_set.schemes[0].aids[0];
+            aid.floor_limit = 0;
+            aid.random_selection_percent = 0;
+            aid.lower_consecutive_offline_limit = lower;
+            aid.upper_consecutive_offline_limit = upper;
+            aid.transaction_type_floor_limits.clear();
+            if let Some(limit) = typed_limit {
+                aid.transaction_type_floor_limits.push(limit);
+            }
+            assert!(emv_capability_coverage(&trm_loaded)
+                .iter()
+                .any(|item| item.id == "trm" && item.status != "incomplete"));
+        }
+        let mut cvm_loaded = loaded.clone();
+        cvm_loaded.bundle.payload.cvm_extensions.clear();
+        let aid = &mut cvm_loaded.profile_set.schemes[0].aids[0];
+        aid.cvm_limit_contact = 0;
+        aid.contactless_cvm_limit = 0;
+        aid.cdcvm_supported = true;
+        assert!(emv_capability_coverage(&cvm_loaded)
+            .iter()
+            .any(|item| item.id == "cvm_pin" && item.status == "covered"));
+
+        let mut payload = bundle.payload.clone();
+        payload.kernel_registry.push(KernelProfileRegistration {
+            kernel_profile_id: "contact-kernel-profile".to_string(),
+            interface: "contact".to_string(),
+            algorithm: "rust-contact-module".to_string(),
+            c8_package: "contact-package".to_string(),
+            scheme_scope: vec!["Test Scheme".to_string()],
+        });
+        payload.cvm_extensions.push(CvmExtensionRule {
+            rule_id: "second-cvm-extension".to_string(),
+            scheme_scope: vec!["Test Scheme".to_string()],
+            cvm_code_hex: "1F".to_string(),
+            meaning: "second-extension".to_string(),
+            tvr_on_failure_hex: "0000000000".to_string(),
+            continue_on_failure: false,
+        });
+        payload.test_plan.push(CertificationTestCase {
+            case_id: "CERT-DATA-0002".to_string(),
+            vector_class: "TESTING".to_string(),
+            expected_outcome: "second-case".to_string(),
+            trace_requirement: "masked-trace".to_string(),
+        });
+        payload.artifact_hashes.push(ArtifactHashBinding {
+            artifact_id: "report_pack".to_string(),
+            artifact_kind: "report".to_string(),
+            sha256_hex: "22".repeat(32),
+            binds_open_issues: vec!["CERT-OPEN-001".to_string()],
+        });
+        let canonical = payload_canonical_json(&payload);
+        assert!(canonical.contains("second-cvm-extension"));
+        assert!(canonical.contains("CERT-DATA-0002"));
+        assert!(canonical.contains("report_pack"));
+
+        let mut empty_kernel_payload = bundle.payload.clone();
+        empty_kernel_payload.kernel_registry.clear();
+        assert_eq!(
+            validate_payload(&empty_kernel_payload).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut oversize_payload = bundle.payload.clone();
+        oversize_payload.scheme_profile_set_json = " ".repeat(MAX_EMBEDDED_PROFILE_BYTES + 1);
+        assert_eq!(
+            validate_payload(&oversize_payload).unwrap_err(),
+            KernelError::LengthOverflow
+        );
+        let mut missing_contactless_kernel = bundle.payload.clone();
+        missing_contactless_kernel.kernel_registry[0].interface = "contact".to_string();
+        assert_eq!(
+            validate_payload(&missing_contactless_kernel).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        let mut bad_artifact_payload = bundle.payload.clone();
+        bad_artifact_payload.artifact_hashes[0].artifact_id = "bad/artifact".to_string();
+        assert_eq!(
+            validate_payload(&bad_artifact_payload).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        assert_eq!(
+            parse_payload(&JsonValue::Object(unknown_object())).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_submission_scope(&unknown_object()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_standards_target(&unknown_object()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_terminal_profile(&unknown_object()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_runtime_policy(&unknown_object()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_callback_timeouts(&unknown_object()).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_kernel_registration(&JsonValue::Object(unknown_object())).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_cvm_extension(&JsonValue::Object(unknown_object())).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_test_case(&JsonValue::Object(unknown_object())).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_artifact_hash(&JsonValue::Object(unknown_object())).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_signature(&JsonValue::Object(unknown_object())).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+        assert_eq!(
+            parse_trust_anchor(&JsonValue::Object(unknown_object())).unwrap_err(),
+            KernelError::InvalidProfile
+        );
+
+        let mut report = empty_report();
+        report.mode = BuildMode::Production;
+        report.coverage = payload_capability_coverage(&bundle);
+        let markdown = certification_bundle_compile_report_markdown(&report);
+        assert!(markdown.contains("Mode: `production`"));
+        assert!(markdown.contains("payload.kernel_registry"));
+    }
+
     #[test]
     fn workbench_contains_local_static_editor() {
         let (bundle_json, anchors_json) = create_bundle_from_inputs(input()).unwrap();
