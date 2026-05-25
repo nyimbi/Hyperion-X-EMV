@@ -244,7 +244,7 @@
 | INTEGRATION-PLAN-MD | Integration report plan Markdown | integration | `docs/certification_integration_report_plan.md` | 5568 | `163b1e87d4c7a47b4633ec4311d8323c69d8881ac79212300e944527272948af` |
 | OPEN-SOURCE-REVIEW | Open-source reference review | provenance | `docs/open_source.md` | 17628 | `10be8f215bc25e5b80b89060593996f3380ce60eb9fa535c8b2bcde74d2869f0` |
 | COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5084 | `4f869bca41c804649c29d4c9b5178ebf0f8837eb2c1a410888df9c76011583ca` |
-| COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 2397 | `d1b8d6f0da37f338a0329eaa5bbee97cb71f2f1bf39f6f8a01b65c2011abc3bb` |
+| COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 2650 | `29feabc66f4d43bc1253c111ab3f41e291fb0477484053ada2142ca38161c512` |
 | TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3231 | `3a6c9b5bb5c01c1e2925644ec7c5126faf1421e10f2011143af5e57785c5219e` |
 | TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |
 

@@ -17,6 +17,8 @@ fi
 mkdir -p target/coverage
 # cargo-llvm-cov writes HTML into an `html/` child of --output-dir, so this
 # script uses target/coverage as the report root and stages target/coverage/html.
+# FFI coverage runs are single-threaded because the callback harness deliberately
+# shares C ABI fixture counters to verify stateful transaction sequencing.
 
 coverage_tool_version=$(cargo llvm-cov --version)
 cargo_version=$(cargo --version)
@@ -35,7 +37,9 @@ case "${KRN_COVERAGE_ENFORCE:-1}" in
             --all-features \
             --fail-under-lines 100 \
             --html \
-            --output-dir target/coverage
+            --output-dir target/coverage \
+            -- \
+            --test-threads=1
         enforcement_note="100% line coverage was enforced for this run."
         ;;
     0)
@@ -45,7 +49,9 @@ case "${KRN_COVERAGE_ENFORCE:-1}" in
             --all-targets \
             --all-features \
             --html \
-            --output-dir target/coverage
+            --output-dir target/coverage \
+            -- \
+            --test-threads=1
         enforcement_note="100% line coverage was measured but not enforced for this run."
         ;;
     *)
