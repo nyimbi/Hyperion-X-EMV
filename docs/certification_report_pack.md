@@ -229,8 +229,8 @@
 | FUZZ-SEEDS | Fuzz seed corpus manifest | quality | `docs/prelab_fuzz_seed_corpus.json` | 4020 | `e2bf09e9b7a5008b5c5f01ec1bf2fcedcd5408ef072aec7b44b56bb60731a6dc` |
 | PUBLIC-STANDARDS-JSON | Public standards watch JSON | drift | `docs/public_standards_watch.json` | 8198 | `9ab2e21422d09cc1e53418b98f205ec48c81b436b94d4496352822bbbdb09979` |
 | PUBLIC-STANDARDS-MD | Public standards watch Markdown | drift | `docs/standards_watch.md` | 9948 | `d0b8a57e905dbea44bd17b066c2765f9b339bbea122b2843a251d08a870d12e3` |
-| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 25549 | `241a1a4293abb28339dd60e2e398e3f27c22e433c8d3d1c45eeece15d75fe1b6` |
-| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 21100 | `16f9b79d1ec90f7b1315648ae5ef47132fa1c7e8aa092ae3c90cf7bed29555de` |
+| TOOLING-COMPLETENESS-JSON | Tooling completeness audit JSON | quality | `docs/tooling_completeness_audit.json` | 26986 | `af240457a173333120769696e26bd1caa370cfcc2b2dd2d1d045750f6000378c` |
+| TOOLING-COMPLETENESS-MD | Tooling completeness audit Markdown | quality | `docs/tooling_completeness_audit.md` | 22419 | `bc22a037900b766ac667d58774f876adf3570a408335cb580939697977c27d45` |
 | ARTIFACT-IMPORT-JSON | Certification artifact import plan JSON | submission | `docs/certification_artifact_import_plan.json` | 3432 | `256aef5483e0664824f4e515fedd053e84d413869a87585f69c7a54c76d30bbf` |
 | ARTIFACT-IMPORT-MD | Certification artifact import plan Markdown | submission | `docs/certification_artifact_import_plan.md` | 2714 | `5d0da9ddcf3eed43346446c73fa96c9d894311538604060def9c9f67115048a0` |
 | EVIDENCE-CHECKLIST-JSON | Certification evidence checklist JSON | submission | `docs/certification_evidence_checklist.json` | 9691 | `ed32329597f232a2fd788e490eaaac26420aa148b6c829856d3cd9b3901b23b7` |
@@ -247,7 +247,7 @@
 | INTEGRATION-PLAN-MD | Integration report plan Markdown | integration | `docs/certification_integration_report_plan.md` | 5599 | `613832c2fd791ebeb5235f99eb59a4713e631f11e3f50a3b0751592941e17775` |
 | OPEN-SOURCE-REVIEW | Open-source reference review | provenance | `docs/open_source.md` | 17628 | `10be8f215bc25e5b80b89060593996f3380ce60eb9fa535c8b2bcde74d2869f0` |
 | COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5216 | `e35d975a9696772bb7e84c455117f1d6696c1434f7d0b4ea19cb6bcfb7c68e6d` |
-| COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 3826 | `f1bd812ad7a3463259857615dcb39e2e86b43f5e8bb358fc94ee65fc151e1511` |
+| COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 4125 | `606d46079aabb5d0461621020bf8932666e19d0e632d6669e5427c98ba82563a` |
 | TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3446 | `225552c261103d82bc930c64ed1c1bebb1449195bd420e971238308ffc769b39` |
 | TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 29791 | `a4742c8cb15d28e80f5949583510ef37fb73869e1b79e753df20bb6a418df3ea` |
 | TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |
@@ -305,6 +305,8 @@
 ## Tool Commands
 | ID | Title | Command | Output |
 | --- | --- | --- | --- |
+| HYPERION-CLI | Use the first-class product CLI | `cargo run --quiet --bin hyperion -- commands --markdown` | `reviewable command catalogue for bundle, artifact, release, report, schema, and SDK workflows` |
+| SUBMISSION-PACK | Assemble a submission freeze pack | `cargo run --quiet --bin hyperion -- release freeze --artifacts target/hyperion-cert-artifact-import --out target/hyperion-submission-pack --allow-incomplete` | `target/hyperion-submission-pack/submission_manifest.json and certification_release_freeze.json` |
 | UI | Generate certification workbench UI | `cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui` | `target/hyperion-cert-ui/index.html` |
 | WORKSPACE | Generate complete certification workspace | `cargo run --quiet --example krn_certification_workspace -- --out target/hyperion-cert-workspace` | `target/hyperion-cert-workspace/index.html, workspace_inventory.json, and workspace_manifest.json` |
 | REPORT-JSON | Emit report-pack JSON | `cargo run --quiet --example krn_certification_report_ui -- --json` | `stdout JSON` |

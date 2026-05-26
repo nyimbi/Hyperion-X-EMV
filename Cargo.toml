@@ -5,6 +5,17 @@ edition = "2021"
 rust-version = "1.70"
 authors = ["Nyimbi Odero"]
 license = "MIT"
+description = "Data-driven EMV kernel tooling and certification-candidate packaging for Hyperion"
+repository = "https://github.com/nyimbi/Hyperion-X-EMV"
+readme = "README.md"
+keywords = ["emv", "payments", "kernel", "certification", "pos"]
+categories = ["api-bindings", "command-line-utilities"]
+
+[features]
+default = ["std"]
+std = []
+c-abi = []
+productization = []
 
 [lib]
 name = "hyperion_emv"
@@ -16,8 +27,9 @@ lto = true
 panic = "abort"
 strip = "symbols"
 
-[profile.dev]
-panic = "abort"
 
 [dependencies]
 ed25519-dalek = "2"
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage)'] }

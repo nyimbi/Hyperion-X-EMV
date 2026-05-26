@@ -746,3 +746,20 @@ This license does not relicense third-party standards, scheme materials,
 accepted CAPKs, lab vectors, test-tool outputs, signed profiles, device
 evidence, PCI/PED evidence, or approval artifacts. Those inputs remain governed
 by their own owners, labs, schemes, contracts, and regulatory obligations.
+
+## Productization Command Surface
+
+Hyperion now ships a first-class CLI and package assets for day-to-day product work:
+
+```sh
+cargo run --quiet --bin hyperion -- commands --markdown
+cargo run --quiet --bin hyperion -- bundle init --out target/hyperion-certification-wizard
+cargo run --quiet --bin hyperion -- artifacts import --root target/hyperion-cert-artifact-import --out target/hyperion-artifact-report
+cargo run --quiet --bin hyperion -- release freeze --artifacts target/hyperion-cert-artifact-import --out target/hyperion-submission-pack --allow-incomplete
+cargo run --quiet --bin hyperion -- schemas write --out docs/schemas
+cargo run --quiet --bin hyperion -- c-header write --out include/hyperion_emv.h
+```
+
+Use `make verify`, `make coverage`, `make bundle`, `make workspace`, `make freeze`, `make schemas`, and `make header` for the common workflows. The submission freeze command fails closed without `--allow-incomplete` until every required freeze slot is bound to reviewed external evidence.
+
+Productization assets include `include/hyperion_emv.h`, `docs/schemas/`, `python/hyperion_tools`, `Dockerfile`, `.devcontainer/`, and `starter-kits/`. See `docs/productization.md` for the full workflow.

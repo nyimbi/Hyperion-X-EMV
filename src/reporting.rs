@@ -752,6 +752,18 @@ const REQUIRED_REPORTS: &[RequiredReport] = &[
 
 const TOOL_COMMANDS: &[ToolCommand] = &[
     ToolCommand {
+        id: "HYPERION-CLI",
+        title: "Use the first-class product CLI",
+        command: "cargo run --quiet --bin hyperion -- commands --markdown",
+        output: "reviewable command catalogue for bundle, artifact, release, report, schema, and SDK workflows",
+    },
+    ToolCommand {
+        id: "SUBMISSION-PACK",
+        title: "Assemble a submission freeze pack",
+        command: "cargo run --quiet --bin hyperion -- release freeze --artifacts target/hyperion-cert-artifact-import --out target/hyperion-submission-pack --allow-incomplete",
+        output: "target/hyperion-submission-pack/submission_manifest.json and certification_release_freeze.json",
+    },
+    ToolCommand {
         id: "UI",
         title: "Generate certification workbench UI",
         command: "cargo run --quiet --example krn_certification_report_ui -- --out target/hyperion-cert-ui",

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hyperion-emv.local/freeze-manifest.schema.json",
+  "title": "Hyperion Certification Freeze Manifest",
+  "type": "object",
+  "required": ["type", "kernel_name", "kernel_version", "abi_version"],
+  "properties": {
+    "type": {"enum": ["certification-freeze-manifest-template", "certification-release-freeze", "hyperion-submission-pack-manifest"]},
+    "kernel_name": {"type": "string"},
+    "kernel_version": {"type": "string"},
+    "abi_version": {"type": "integer"},
+    "release_freeze_bindings": {"type": "array"},
+    "missing_freeze_slots": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

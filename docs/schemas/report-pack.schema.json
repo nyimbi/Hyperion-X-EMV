@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hyperion-emv.local/report-pack.schema.json",
+  "title": "Hyperion Certification Report Pack",
+  "type": "object",
+  "required": ["type", "kernel_name", "kernel_version", "abi_version"],
+  "properties": {
+    "type": {"const": "certification-report-pack"},
+    "kernel_name": {"type": "string"},
+    "kernel_version": {"type": "string"},
+    "abi_version": {"type": "integer"}
+  },
+  "additionalProperties": true
+}

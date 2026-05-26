@@ -1,0 +1,10 @@
+{
+  "name": "Hyperion EMV",
+  "build": {"dockerfile": "../Dockerfile", "context": ".."},
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer", "tamasfe.even-better-toml"]
+    }
+  },
+  "postCreateCommand": "cargo test --no-run"
+}

@@ -109,3 +109,10 @@ Next certification-readiness focus:
   open-source, data-driven EMV kernel foundation; added DataCraft rationale,
   data-bundle authoring workflow, certification process layers, and explicit
   local-evidence versus external-approval boundaries.
+
+Productization status update (2026-05-26T05:42:42+0300):
+- Completed the first-class `hyperion` CLI command surface for bundle init/sign/lint, artifact import, report workspace generation, schema/header generation, certification checks, and release freeze assembly.
+- Added package/distribution assets: Makefile jobs, formal JSON Schemas, packaged C ABI header, Python helper package, Docker/devcontainer setup, productization docs, and starter kits for Rust, C ABI, Python automation, Android SoftPoS, and PC/SC desktop workflows.
+- Added schema-backed authority artifact adapters for common CAPK, APDU trace, C-8, L3 reconciliation, signed conformance, and static/fuzz report shapes while preserving fail-closed handling for unknown proprietary formats.
+- Verified with `make verify`, product CLI smokes, schema/header regeneration, bundle/workspace/freeze flows, Python helper indexing, deterministic generated report drift checks, and `scripts/coverage_100.sh` at 30,913/30,913 source lines = 100%.
+- Remaining certification blockers are external rather than repository-controlled code: real proprietary lab/scheme/acquirer/device/vendor formats, physical PC/SC/Android/iOS/PED/L1 integrations, signed authority evidence, and final lab/scheme/acquirer approvals must be attached when available.

@@ -35,6 +35,12 @@ source_commit=$(git rev-parse HEAD 2>/dev/null || printf 'unknown')
 
 cargo llvm-cov clean --workspace
 
+# Release builds use panic=abort for runtime hardening, while Rust test
+# harnesses and cargo-llvm-cov integration-test builds link with unwind
+# semantics. Keep the coverage profile explicit so evidence runs are
+# independent of local Cargo profile defaults.
+export CARGO_PROFILE_DEV_PANIC=unwind
+
 run_lcov() {
     cargo llvm-cov --workspace --all-targets --all-features --lcov --output-path target/coverage/lcov.info -- --test-threads=1
 }

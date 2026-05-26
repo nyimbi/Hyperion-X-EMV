@@ -1,0 +1,17 @@
+[project]
+name = "hyperion-emv-tools"
+version = "0.1.0"
+description = "Python helpers for Hyperion EMV bundle, report, and submission workflows"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Nyimbi Odero"}]
+
+[project.scripts]
+hyperion-tools = "hyperion_tools.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]

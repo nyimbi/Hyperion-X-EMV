@@ -6143,3 +6143,11 @@ decision record, while this file tracks work toward certification readiness.
   --all-features -- -D warnings`, `scripts/coverage_100.sh`, and `git diff
   --check` passed. Enforced LCOV source line coverage is 100% (29,752/29,752
   lines).
+
+## 2026-05-26T05:42:42+0300
+
+- Increment completed: productized the certification workflow behind a first-class `hyperion` CLI, packaged SDK assets, formal schemas, starter kits, and one-command submission-pack assembly.
+- Code impact: added `src/productization.rs`, `src/authority_format.rs`, `src/cli.rs`, and `src/bin/hyperion.rs`. The new surface supports command discovery, bundle init/sign/lint, authority artifact import normalization, report workspace generation, schema/header generation, and fail-closed release freeze assembly with `--allow-incomplete` reserved for review/staging packs.
+- Packaging impact: added `Makefile`, `Dockerfile`, `.devcontainer/devcontainer.json`, `pyproject.toml`, `python/hyperion_tools`, `include/hyperion_emv.h`, `docs/schemas/`, `docs/productization.md`, and starter-kit guidance for Rust PoS, C ABI PoS, Python automation, Android SoftPoS, and PC/SC desktop integrations.
+- Evidence scope: implemented general schema-backed parsers/adapters for common CAPK CSV, lab APDU JSONL, C-8 outcome CSV, Level 3 reconciliation CSV, signed conformance JSON, and static/fuzz JSON artifacts. Unknown proprietary lab/tool/vendor formats and real hardware APIs still require authority-specific or vendor-specific mappings when those inputs are available; the core now fails closed instead of guessing.
+- Verification: `make verify`, `make cli-smoke`, `make schemas`, `make header`, `make bundle`, `make workspace`, `make freeze`, `PYTHONPATH=python python3 -m hyperion_tools.cli index --root target/hyperion-submission-pack --out target/hyperion-submission-pack/python_index.json`, deterministic generated report drift checks, and `scripts/coverage_100.sh` passed. Enforced LCOV source line coverage is 100% (30,913/30,913 lines).

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hyperion-emv.local/integration-manifest.schema.json",
+  "title": "Hyperion Integration Manifest",
+  "type": "object",
+  "required": ["schema_version", "manifest_id", "authority", "artifacts"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "hyperion-certification-integration-manifest-1.0"},
+    "manifest_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "authority": {"type": "string", "minLength": 1, "maxLength": 256},
+    "artifacts": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"$ref": "#/$defs/artifact"}}
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["path", "artifact_id", "artifact_kind", "binds_open_issues"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "adapter_id": {"type": "string"},
+        "artifact_id": {"type": "string"},
+        "artifact_kind": {"type": "string"},
+        "binds_open_issues": {"type": "array", "items": {"type": "string", "pattern": "^CERT-OPEN-[0-9]{3}$"}},
+        "bundle_field": {"type": "string"},
+        "freeze_artifact_id": {"type": "string"},
+        "expected_sha256_hex": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "metadata": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

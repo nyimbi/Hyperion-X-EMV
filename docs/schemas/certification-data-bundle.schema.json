@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hyperion-emv.local/certification-data-bundle.schema.json",
+  "title": "Hyperion Certification Data Bundle",
+  "type": "object",
+  "required": ["schema_version", "bundle_id", "bundle_version", "rollback_counter", "payload", "signature"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"type": "string", "pattern": "^hyperion-certification-bundle-"},
+    "bundle_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "bundle_version": {"type": "integer", "minimum": 1},
+    "rollback_counter": {"type": "integer", "minimum": 0},
+    "payload": {"type": "object"},
+    "signature": {"type": "object"}
+  }
+}
