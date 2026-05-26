@@ -762,4 +762,4 @@ cargo run --quiet --bin hyperion -- c-header write --out include/hyperion_emv.h
 
 Use `make verify`, `make coverage`, `make bundle`, `make workspace`, `make freeze`, `make schemas`, and `make header` for the common workflows. The submission freeze command fails closed without `--allow-incomplete` until every required freeze slot is bound to reviewed external evidence.
 
-Productization assets include `include/hyperion_emv.h`, `docs/schemas/`, `python/hyperion_tools`, `Dockerfile`, `.devcontainer/`, and `starter-kits/`. See `docs/productization.md` for the full workflow.
+Productization assets include `include/hyperion_emv.h`, `docs/schemas/`, `python/hyperion_tools`, `Dockerfile`, `.devcontainer/`, and `starter-kits/`. See `docs/productization.md` for the comprehensive tooling manual, including CLI workflows, artifact intake, release freeze behavior, SDK assets, security rules, and troubleshooting.

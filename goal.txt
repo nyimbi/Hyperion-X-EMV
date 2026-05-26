@@ -116,3 +116,8 @@ Productization status update (2026-05-26T05:42:42+0300):
 - Added schema-backed authority artifact adapters for common CAPK, APDU trace, C-8, L3 reconciliation, signed conformance, and static/fuzz report shapes while preserving fail-closed handling for unknown proprietary formats.
 - Verified with `make verify`, product CLI smokes, schema/header regeneration, bundle/workspace/freeze flows, Python helper indexing, deterministic generated report drift checks, and `scripts/coverage_100.sh` at 30,913/30,913 source lines = 100%.
 - Remaining certification blockers are external rather than repository-controlled code: real proprietary lab/scheme/acquirer/device/vendor formats, physical PC/SC/Android/iOS/PED/L1 integrations, signed authority evidence, and final lab/scheme/acquirer approvals must be attached when available.
+
+Documentation status update (2026-05-26T05:58:33+0300):
+- Expanded `docs/productization.md` into the canonical tooling manual for the productized Hyperion workflow.
+- Cross-linked the manual from README and `docs/tutorial/08-data-bundles-and-tools.md` so bundle authors and certification reviewers can find the CLI, Make targets, artifact intake, release freeze, schemas, SDK assets, security rules, and troubleshooting guidance.
+- Regenerated affected certification report artifacts so tutorial/documentation hashes remain current.

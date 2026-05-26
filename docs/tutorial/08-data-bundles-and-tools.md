@@ -473,6 +473,22 @@ mobile NFC contactless path with TTQ, CDCVM capability signaling, NFC APDU
 callbacks, host authorization, issuer authentication, final GENERATE AC, and
 redacted JSON output.
 
+## First-Class Product Tooling
+
+The comprehensive tooling manual is `docs/productization.md`. Use it as the canonical reference for the `hyperion` CLI, Make targets, artifact intake layout, release freeze behavior, JSON Schemas, C ABI header, Python helper package, Docker/devcontainer setup, starter kits, security rules, and troubleshooting.
+
+The highest-level commands are:
+
+```sh
+cargo run --quiet --bin hyperion -- commands --markdown
+cargo run --quiet --bin hyperion -- bundle init --out target/hyperion-certification-wizard
+cargo run --quiet --bin hyperion -- artifacts import --root target/hyperion-cert-artifact-import --out target/hyperion-artifact-report
+cargo run --quiet --bin hyperion -- release freeze --artifacts target/hyperion-cert-artifact-import --out target/hyperion-submission-pack
+cargo run --quiet --bin hyperion -- report workspace --out target/hyperion-report-workspace
+```
+
+Run `release freeze` without `--allow-incomplete` for submission readiness. Use `--allow-incomplete` only for review-only workspaces while external authority evidence is still missing.
+
 ## Tool Reference
 
 Use these tools from the repository root.

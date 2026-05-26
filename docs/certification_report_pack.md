@@ -249,7 +249,7 @@
 | COVERAGE-DOCS | Coverage workflow documentation | quality | `docs/coverage.md` | 5216 | `e35d975a9696772bb7e84c455117f1d6696c1434f7d0b4ea19cb6bcfb7c68e6d` |
 | COVERAGE-SCRIPT | Coverage workflow script | quality | `scripts/coverage_100.sh` | 4125 | `606d46079aabb5d0461621020bf8932666e19d0e632d6669e5427c98ba82563a` |
 | TUTORIAL-INDEX | Tutorial index | education | `docs/tutorial/README.md` | 3446 | `225552c261103d82bc930c64ed1c1bebb1449195bd420e971238308ffc769b39` |
-| TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 29791 | `a4742c8cb15d28e80f5949583510ef37fb73869e1b79e753df20bb6a418df3ea` |
+| TUTORIAL-DATA-BUNDLES | Data bundles and tooling tutorial | education | `docs/tutorial/08-data-bundles-and-tools.md` | 30878 | `c3b998687900d5356e9faf27732f237d0eae58d2a4c4e4d15e1b9b80b559cc41` |
 | TUTORIAL-GLOSSARY | Tutorial glossary | education | `docs/tutorial/glossary.md` | 14165 | `8871aa216d6e2fceec312e72d9aec4df7d5f28ae05f921145897eca25a469994` |
 
 ### Artifact File Inventory Exclusions
